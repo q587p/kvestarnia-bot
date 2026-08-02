@@ -1809,6 +1809,47 @@ describe("monster ability runtime", () => {
     expect(result.summary.heroOutcome).toBe("hit");
     expect(result.summary.heroDamage).toBe(15);
   });
+
+  it("does not make an evade response eligible from a burn component when the ability misses", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.preapproved-bite"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0.99]),
+      responseItemEffect: { kind: "evade", percent: 100 }
+    });
+
+    expect(result.actionKind).toBe("ability");
+    expect(result.ability?.id).toBe("monster.preapproved-bite");
+    expect(result.damage).toBe(0);
+    expect(result.responseItemDelta).toBeUndefined();
+    expect(result.state.monsterRuntime?.effects.some((effect) =>
+      effect.target === "hero" && effect.kind === "burn"
+    )).toBe(false);
+    expect(result.state.monsterRuntime?.cooldowns["monster.preapproved-bite"]?.remainingOwnActions)
+      .toBeGreaterThan(0);
+  });
+
+  it("derives evade eligibility from the burn that would actually apply on a landed ability", () => {
+    const result = resolveMonsterRuntimeAction({
+      state: startRuntimeAbilityState("monster.preapproved-bite"),
+      hero,
+      monster: mimic,
+      rng: new FakeRandomSource([0, 0, 0, 0]),
+      responseItemEffect: { kind: "evade", percent: 100 }
+    });
+
+    expect(result.actionKind).toBe("ability");
+    expect(result.damage).toBe(0);
+    expect(result.responseItemDelta).toMatchObject({
+      eligible: true,
+      preventedHarmfulOnHitConsequenceCount: 1,
+      suppressHarmfulOnHitConsequences: true
+    });
+    expect(result.state.monsterRuntime?.effects.some((effect) =>
+      effect.target === "hero" && effect.kind === "burn"
+    )).toBe(false);
+  });
 });
 
 function startRuntimeAbilityState(

@@ -3056,6 +3056,10 @@ export class FightService {
     }
 
     const resolvedAt = this.clock();
+    const itemTurnRng = combatItem.effect.kind === "guard-response" ||
+      combatItem.effect.kind === "evade-response"
+      ? buildPersistentFightResponseItemRng(currentSession, currentSession.state, combatItem.item.id)
+      : this.rng;
     const resolved = resolveCombatItemTurn({
       state: currentSession.state,
       item: {
@@ -3074,7 +3078,7 @@ export class FightService {
         recipientCharacterId: currentSession.characterId,
         now: resolvedAt
       }),
-      rng: this.rng
+      rng: itemTurnRng
     });
 
     if (!resolved.ok) {
@@ -5448,6 +5452,42 @@ export function getPersistentFightDifficultyConfig(
 
 function createPersistentFightEncounterSeed(rng: RandomSource): string {
   return rng.nextInt(0, 0x7fffffff).toString(36);
+}
+
+function buildPersistentFightResponseItemRng(
+  session: SoloCombatSessionRecord,
+  state: CombatState,
+  itemId: string
+): RandomSource {
+  return new SeededRandomSource([
+    "persistent-fight-response-item-v1",
+    session.id,
+    session.characterId,
+    session.monsterId,
+    state.turn,
+    itemId,
+    stableCombatSnapshotString(state)
+  ].join(":"));
+}
+
+function stableCombatSnapshotString(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? JSON.stringify(value) : "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableCombatSnapshotString).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableCombatSnapshotString(entry)}`)
+      .join(",")}}`;
+  }
+  return "null";
 }
 
 function createPendingEncounterToken(): string {

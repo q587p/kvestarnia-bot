@@ -1167,6 +1167,183 @@ describe("group combat proof reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it.each([
+    ["item.loot-v1-c013", "monster.smoke-without-approval", "monster-accuracy-penalty"],
+    ["item.cellar.fancy-cheese", "monster.preapproved-bite", "monster-burn"]
+  ] as const)("keeps %s when authored GroupCombat ability %s actually misses", (
+    itemId,
+    abilityId,
+    statusKind
+  ) => {
+    const resolved = Array.from({ length: 587 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.combatItemQuantities = { [itemId]: 1 };
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = [abilityId];
+      state.enemies[0]!.attack = 30;
+      state.enemies[1]!.hp = 0;
+      const result = resolveGroupCombatTurn(state, [{
+        ...action(state, 0, "item", "self", owner.characterId),
+        payloadKey: itemId
+      }]);
+      return result.state.enemies[0]?.abilityCooldowns?.[abilityId] &&
+        result.committedConsumables.length === 0
+        ? result
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+    expect(resolved).toBeDefined();
+    expect(resolved!.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(resolved!.state.statuses.some((status) =>
+      status.kind === statusKind && status.targetId === resolved!.state.participants[0]!.characterId
+    )).toBe(false);
+    expect(resolved!.state.contributions[0]?.control).toBe(0);
+    expect(resolved!.state.recap[0]?.lines.some((line) => line.includes("не витрачає манатку")))
+      .toBe(true);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps %s when a generic compiled burn ability misses", (itemId) => {
+    const resolved = Array.from({ length: 587 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.combatItemQuantities = { [itemId]: 1 };
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.common-fire-burst"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[1]!.hp = 0;
+      const result = resolveGroupCombatTurn(state, [{
+        ...action(state, 0, "item", "self", owner.characterId),
+        payloadKey: itemId
+      }]);
+      return result.state.enemies[0]?.abilityCooldowns?.["monster.common-fire-burst"] &&
+        result.committedConsumables.length === 0
+        ? result
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+    expect(resolved).toBeDefined();
+    expect(resolved!.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(resolved!.state.abilityEffects?.some((effect) =>
+      effect.kind === "burn" && effect.targetId === resolved!.state.participants[0]!.characterId
+    )).toBe(false);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps %s when earlier protection removes compiled damage and its rider eligibility", (itemId) => {
+    const startingState = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.attack = 1;
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.common-fire-burst"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[0]!.hp = state.enemies[0]!.hpMax = 93;
+      state.enemies[1]!.hp = 0;
+      const baseline = resolveGroupCombatTurn(structuredClone(state), [
+        action(state, 0, "attack", "enemy", state.enemies[0]!.id)
+      ]);
+      return baseline.state.participants[0]!.hp < owner.hp &&
+        baseline.state.abilityEffects?.some((effect) =>
+          effect.kind === "burn" && effect.targetId === owner.characterId
+        )
+        ? state
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    expect(startingState).toBeDefined();
+    const owner = startingState!.participants[0]!;
+    owner.combatItemQuantities = { [itemId]: 1 };
+    startingState!.statuses.push({
+      id: "existing-full-protection",
+      kind: "guard",
+      sourceCharacterId: owner.characterId,
+      targetKind: "participant",
+      targetId: owner.characterId,
+      value: 999,
+      remainingTurns: 1
+    });
+
+    const result = resolveGroupCombatTurn(startingState!, [{
+      ...action(startingState!, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(result.state.abilityEffects?.some((effect) =>
+      effect.kind === "burn" && effect.targetId === owner.characterId
+    )).toBe(false);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("uses %s at zero remaining damage when an authored burn would really apply", (itemId) => {
+    const startingState = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.attack = 1;
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[0]!.hp = state.enemies[0]!.hpMax = 93;
+      state.enemies[1]!.hp = 0;
+      state.statuses.push({
+        id: "existing-full-protection",
+        kind: "guard",
+        sourceCharacterId: owner.characterId,
+        targetKind: "participant",
+        targetId: owner.characterId,
+        value: 999,
+        remainingTurns: 1
+      });
+      const baseline = resolveGroupCombatTurn(structuredClone(state), [
+        action(state, 0, "attack", "enemy", state.enemies[0]!.id)
+      ]);
+      return baseline.state.participants[0]!.hp === owner.hp &&
+        baseline.state.statuses.some((status) =>
+          status.kind === "monster-burn" && status.targetId === owner.characterId
+        )
+        ? state
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    expect(startingState).toBeDefined();
+    const owner = startingState!.participants[0]!;
+    owner.combatItemQuantities = { [itemId]: 1 };
+
+    const result = resolveGroupCombatTurn(startingState!, [{
+      ...action(startingState!, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }]);
+
+    expect(result.committedConsumables).toEqual([{ characterId: owner.characterId, itemId }]);
+    expect(result.state.participants[0]?.hp).toBe(owner.hp);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-burn" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(result.state.contributions[0]?.control).toBeGreaterThanOrEqual(1);
+    expect(result.state.recap[0]?.lines.some((line) =>
+      line.includes("шкідливий наслідок цієї відповіді не спрацьовує")
+    )).toBe(true);
+  });
+
   it("keeps an evade item through a non-damaging hostile response", () => {
     const state = proofState(2);
     const owner = state.participants[0]!;

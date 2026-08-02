@@ -785,6 +785,7 @@ interface GroupCombatPendingResponseItem {
   lineIndex: number;
   used: boolean;
   preventedDamage: number;
+  preventedHarmfulOnHitConsequenceCount: number;
   damageAfter: number;
   enemyId?: string;
   enemyName?: string;
@@ -1383,6 +1384,7 @@ export function resolveGroupCombatTurn(
           lineIndex,
           used: false,
           preventedDamage: 0,
+          preventedHarmfulOnHitConsequenceCount: 0,
           damageAfter: 0
         });
       } else {
@@ -1425,7 +1427,9 @@ export function resolveGroupCombatTurn(
     decrementGroupCombatItemQuantity(pending.actor, pending.itemId);
     committedConsumables.push({ characterId: pending.actor.characterId, itemId: pending.itemId });
     const response = pending.kind === "evade"
-      ? `${pending.enemyName ?? "Ворог"} не влучає саме цією відповіддю`
+      ? pending.preventedDamage > 0
+        ? `${pending.enemyName ?? "Ворог"} не влучає саме цією відповіддю`
+        : `${pending.enemyName ?? "Ворог"}: шкідливий наслідок цієї відповіді не спрацьовує`
       : `${pending.enemyName ?? "Ворог"}: відвернуто ${pending.preventedDamage} шкоди, пройшло ${pending.damageAfter}`;
     lines[pending.lineIndex] = `${presentParticipantActionLabel(
       pending.actor,
@@ -2156,7 +2160,7 @@ export function applyGroupCombatEnemyDamage(
   target: GroupCombatActorSnapshot,
   rawDamage: number,
   pendingResponseItems?: Map<string, GroupCombatPendingResponseItem>,
-  hasHarmfulOnHitConsequence = false
+  evaluateHarmfulOnHitConsequences?: (damageAfterEarlierProtection: number) => number
 ): number {
     const targetContribution = getContribution(state, target.characterId);
     let damage = Math.max(0, rawDamage);
@@ -2221,15 +2225,21 @@ export function applyGroupCombatEnemyDamage(
     damage = Math.min(target.hp, Math.max(0, damage));
     const itemResponse = pendingResponseItems?.get(target.characterId);
     if (itemResponse && !itemResponse.used) {
-      const delta = resolveCombatResponseItemDelta(damage, itemResponse, hasHarmfulOnHitConsequence);
+      const delta = resolveCombatResponseItemDelta({
+        damage,
+        harmfulOnHitConsequenceCount: evaluateHarmfulOnHitConsequences?.(damage) ?? 0
+      }, itemResponse);
       if (delta.eligible) {
         damage = delta.damageAfter;
         itemResponse.used = true;
         itemResponse.preventedDamage = delta.preventedDamage;
+        itemResponse.preventedHarmfulOnHitConsequenceCount =
+          delta.preventedHarmfulOnHitConsequenceCount;
         itemResponse.damageAfter = damage;
         itemResponse.enemyId = enemy.id;
         itemResponse.enemyName = enemy.name;
-        getContribution(state, target.characterId).control += delta.preventedDamage;
+        getContribution(state, target.characterId).control +=
+          delta.preventedDamage + delta.preventedHarmfulOnHitConsequenceCount;
       }
     }
     target.hp -= damage;
@@ -2271,52 +2281,111 @@ function didEvadeGroupCombatResponse(
   );
 }
 
-function hasGroupCombatHarmfulOnHitConsequence(
+function countActualGroupCombatHarmfulOnHitConsequences(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
   ability: MonsterAbilityDefinition,
-  plan: ReturnType<typeof compileMonsterAbilityExecutionPlan>
-): boolean {
-  if (!plan.directDamage) {
-    return false;
+  plan: ReturnType<typeof compileMonsterAbilityExecutionPlan>,
+  target: GroupCombatActorSnapshot,
+  damageAfterEarlierProtection: number
+): number {
+  if (damageAfterEarlierProtection <= 0) {
+    return 0;
   }
-  const recipe = compileMonsterAbilityRecipe(ability);
-  if (
-    (abilityNumber(ability, "markIncomingDamageMultiplier") > 1 &&
-      !plan.components.some((component) => component.effectKind === "mark")) ||
-    (recipe.heroEffects.includes("accuracy") &&
-      Math.max(
-        abilityNumber(ability, "targetAccuracyPenaltyPp"),
-        abilityNumber(ability, "accuracyAndEvasionPenaltyPp")
-      ) > 0 &&
-      !plan.components.some((component) => component.effectKind === "accuracy")) ||
-    (plan.selectedRider === null &&
-      Math.max(
-        abilityNumber(ability, "burnDamageMultiplier"),
-        abilityNumber(ability, "bleedDamageMultiplier")
-      ) > 0 &&
-      !plan.components.some((component) =>
-        component.effectKind === "burn" || component.effectKind === "bleed"
-      )) ||
-    (abilityNumber(ability, "manaDrain") > 0 &&
-      !plan.components.some((component) => component.kind === "mana-drain"))
-  ) {
-    return true;
-  }
-  return plan.components.some((component) => {
+  return plan.components.filter((component) => {
     if (!component.directHitRequired || component.target !== "hero") {
       return false;
     }
-    if (component.kind === "runtime-effect" && component.effectKind) {
-      return getMonsterAbilityEffectContract({
-        target: component.target,
-        kind: component.effectKind,
-        value: component.value ?? 0,
-        sourceAbilityId: ability.id
-      }).polarity === "harmful";
+    if (!isHarmfulGroupCombatHeroComponent(component, ability.id)) {
+      return false;
     }
-    return component.kind === "mana-drain" ||
-      component.kind === "remove-positive" ||
-      component.kind === "cooldown-pressure";
-  });
+    return wouldApplyGroupCombatHarmfulOnHitComponent(
+      state,
+      enemy,
+      ability,
+      component,
+      target
+    );
+  }).length;
+}
+
+function isHarmfulGroupCombatHeroComponent(
+  component: MonsterAbilityPlanComponent,
+  sourceAbilityId: string
+): boolean {
+  if (component.kind === "runtime-effect" && component.effectKind) {
+    return getMonsterAbilityEffectContract({
+      target: "hero",
+      kind: component.effectKind,
+      value: component.value ?? 0,
+      sourceAbilityId
+    }).polarity === "harmful";
+  }
+  return component.kind === "mana-drain" ||
+    component.kind === "remove-positive" ||
+    component.kind === "cooldown-pressure";
+}
+
+function wouldApplyGroupCombatHarmfulOnHitComponent(
+  state: GroupCombatState,
+  enemy: GroupCombatEnemyState,
+  ability: MonsterAbilityDefinition,
+  component: MonsterAbilityPlanComponent,
+  target: GroupCombatActorSnapshot
+): boolean {
+  if (component.kind === "runtime-effect" && component.effectKind) {
+    const probe = cloneGroupCombatState(state);
+    const probeEnemy = probe.enemies.find((candidate) => candidate.id === enemy.id);
+    if (!probeEnemy) {
+      return false;
+    }
+    return addOrMergeGroupCombatAbilityEffect(
+      { state: probe, enemy: probeEnemy, ability },
+      component,
+      "participant",
+      target.characterId
+    );
+  }
+  if (component.kind === "mana-drain") {
+    return target.mana > 0 && Math.floor(component.value ?? 0) > 0;
+  }
+  if (component.kind === "remove-positive") {
+    return (state.abilityEffects ?? []).some((effect) =>
+      effect.targetKind === "participant" &&
+      effect.targetId === target.characterId &&
+      effect.polarity === "beneficial" &&
+      effect.removable
+    ) || state.statuses.some((status) =>
+      status.targetKind === "participant" &&
+      status.targetId === target.characterId &&
+      (status.kind === "guard" ||
+        status.kind === "response-mitigation" ||
+        status.kind === "counter")
+    );
+  }
+  if (component.kind === "cooldown-pressure") {
+    return Math.floor(component.value ?? 0) > 0 && Boolean(
+      target.cooldowns?.skill || Object.keys(target.cooldowns?.abilities ?? {}).length > 0
+    );
+  }
+  return false;
+}
+
+function wouldAddOrRefreshMonsterStatusChange(
+  state: GroupCombatState,
+  status: GroupCombatTimedStatus
+): boolean {
+  const existing = state.statuses.find((candidate) =>
+    candidate.kind === status.kind &&
+    candidate.sourceEnemyId === status.sourceEnemyId &&
+    candidate.sourceAbilityId === status.sourceAbilityId &&
+    candidate.targetKind === status.targetKind &&
+    candidate.targetId === status.targetId
+  );
+  return !existing ||
+    status.value > existing.value ||
+    status.remainingTurns > existing.remainingTurns ||
+    (status.appliedTurn !== undefined && status.appliedTurn !== existing.appliedTurn);
 }
 
 function applyPlayerDamageToEnemy(
@@ -2627,20 +2696,28 @@ function executeGroupCombatEnemyAbility(
     const targets = livingParticipants(state);
     for (const target of targets) {
       const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems, true);
+      const accuracyStatus: GroupCombatTimedStatus = {
+        id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
+        kind: "monster-accuracy-penalty",
+        sourceEnemyId: enemy.id,
+        sourceAbilityId: ability.id,
+        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-accuracy-penalty"],
+        targetId: target.characterId,
+        value: positiveInteger(Number(ability.parameters.accuracyPenaltyPp ?? 0)),
+        remainingTurns: positiveInteger(Number(ability.parameters.durationTargetActivations ?? 1)),
+        appliedTurn: state.turn
+      };
+      const damage = applyGroupCombatEnemyDamage(
+        state,
+        enemy,
+        target,
+        rawDamage,
+        pendingResponseItems,
+        () => rawDamage > 0 && wouldAddOrRefreshMonsterStatusChange(state, accuracyStatus) ? 1 : 0
+      );
       totalDamage += damage;
       if (rawDamage > 0 && !didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {
-        addOrRefreshMonsterStatus(state, {
-          id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
-          kind: "monster-accuracy-penalty",
-          sourceEnemyId: enemy.id,
-          sourceAbilityId: ability.id,
-          targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-accuracy-penalty"],
-          targetId: target.characterId,
-          value: positiveInteger(Number(ability.parameters.accuracyPenaltyPp ?? 0)),
-          remainingTurns: positiveInteger(Number(ability.parameters.durationTargetActivations ?? 1)),
-          appliedTurn: state.turn
-        });
+        addOrRefreshMonsterStatus(state, accuracyStatus);
         appliedPenaltyCount += 1;
       }
     }
@@ -2657,23 +2734,31 @@ function executeGroupCombatEnemyAbility(
       return false;
     }
     const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems, true);
+    const burnStatus: GroupCombatTimedStatus = {
+      id: `${state.turn}:${enemy.id}:${target.characterId}:burn`,
+      kind: "monster-burn",
+      sourceEnemyId: enemy.id,
+      sourceAbilityId: ability.id,
+      targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-burn"],
+      targetId: target.characterId,
+      value: Math.max(
+        1,
+        Math.floor(enemy.attack * Number(ability.parameters.burnDamageMultiplier ?? 0))
+      ),
+      remainingTurns: positiveInteger(Number(ability.parameters.burnTicks ?? 1)),
+      appliedTurn: state.turn
+    };
+    const damage = applyGroupCombatEnemyDamage(
+      state,
+      enemy,
+      target,
+      rawDamage,
+      pendingResponseItems,
+      () => rawDamage > 0 && wouldAddOrRefreshMonsterStatusChange(state, burnStatus) ? 1 : 0
+    );
     contribution.damage += damage;
     if (rawDamage > 0 && !didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {
-      addOrRefreshMonsterStatus(state, {
-        id: `${state.turn}:${enemy.id}:${target.characterId}:burn`,
-        kind: "monster-burn",
-        sourceEnemyId: enemy.id,
-        sourceAbilityId: ability.id,
-        targetKind: GROUP_COMBAT_STATUS_TARGET_KIND_BY_KIND["monster-burn"],
-        targetId: target.characterId,
-        value: Math.max(
-          1,
-          Math.floor(enemy.attack * Number(ability.parameters.burnDamageMultiplier ?? 0))
-        ),
-        remainingTurns: positiveInteger(Number(ability.parameters.burnTicks ?? 1)),
-        appliedTurn: state.turn
-      });
+      addOrRefreshMonsterStatus(state, burnStatus);
       contribution.control += 1;
     }
     lines.push(
@@ -2830,7 +2915,6 @@ function executeGenericGroupCombatEnemyAbility(
   let applied = false;
   const directHitParticipantIds = new Set<string>();
   const evadedParticipantIds = new Set<string>();
-  const hasHarmfulOnHitConsequence = hasGroupCombatHarmfulOnHitConsequence(ability, plan);
 
   if (plan.directDamage && participantTargets.length > 0) {
     let totalDamage = 0;
@@ -2842,7 +2926,14 @@ function executeGenericGroupCombatEnemyAbility(
         target,
         rawDamage,
         pendingResponseItems,
-        hasHarmfulOnHitConsequence
+        (damageAfterEarlierProtection) => countActualGroupCombatHarmfulOnHitConsequences(
+          state,
+          enemy,
+          ability,
+          plan,
+          target,
+          damageAfterEarlierProtection
+        )
       );
       totalDamage += damage;
       if (didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {

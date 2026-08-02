@@ -3,26 +3,36 @@ export interface CombatResponseItemEffect {
   percent: number;
 }
 
+export interface CombatResponseActualEffect {
+  damage: number;
+  harmfulOnHitConsequenceCount: number;
+}
+
 export interface CombatResponseItemDelta {
   eligible: boolean;
   damageBefore: number;
   damageAfter: number;
   preventedDamage: number;
+  preventedHarmfulOnHitConsequenceCount: number;
   suppressHarmfulOnHitConsequences: boolean;
 }
 
 export function resolveCombatResponseItemDelta(
-  damage: number,
-  effect: CombatResponseItemEffect | undefined,
-  hasHarmfulOnHitConsequence = false
+  actualEffect: CombatResponseActualEffect,
+  effect: CombatResponseItemEffect | undefined
 ): CombatResponseItemDelta {
-  const damageBefore = Math.max(0, Math.floor(damage));
+  const damageBefore = Math.max(0, Math.floor(actualEffect.damage));
+  const harmfulOnHitConsequenceCount = Math.max(
+    0,
+    Math.floor(actualEffect.harmfulOnHitConsequenceCount)
+  );
   if (!effect) {
     return {
       eligible: false,
       damageBefore,
       damageAfter: damageBefore,
       preventedDamage: 0,
+      preventedHarmfulOnHitConsequenceCount: 0,
       suppressHarmfulOnHitConsequences: false
     };
   }
@@ -33,13 +43,19 @@ export function resolveCombatResponseItemDelta(
         damageBefore,
         Math.floor(damageBefore * Math.max(0, Math.min(100, Math.floor(effect.percent))) / 100)
       );
-  const eligible = preventedDamage > 0 || (effect.kind === "evade" && hasHarmfulOnHitConsequence);
+  const preventedHarmfulOnHitConsequenceCount = effect.kind === "evade"
+    ? harmfulOnHitConsequenceCount
+    : 0;
+  const eligible = preventedDamage > 0 || preventedHarmfulOnHitConsequenceCount > 0;
 
   return {
     eligible,
     damageBefore,
     damageAfter: eligible ? damageBefore - preventedDamage : damageBefore,
     preventedDamage: eligible ? preventedDamage : 0,
+    preventedHarmfulOnHitConsequenceCount: eligible
+      ? preventedHarmfulOnHitConsequenceCount
+      : 0,
     suppressHarmfulOnHitConsequences: eligible && effect.kind === "evade"
   };
 }

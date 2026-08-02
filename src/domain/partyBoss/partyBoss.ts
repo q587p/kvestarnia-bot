@@ -1354,9 +1354,12 @@ function applyBossRetaliation(
     const damageAfterProtocol = signature ? 0 : damageAfterWardBase;
     const itemResponse = itemResponseByCharacterId.get(participant.characterId);
     const itemResponseDelta = resolveCombatResponseItemDelta(
-      itemResponse
-        ? Math.min(participant.resources.hp, damageAfterProtocol)
-        : damageAfterProtocol,
+      {
+        damage: itemResponse
+          ? Math.min(participant.resources.hp, damageAfterProtocol)
+          : damageAfterProtocol,
+        harmfulOnHitConsequenceCount: 0
+      },
       itemResponse
         ? { kind: itemResponse.kind, percent: itemResponse.percent }
         : undefined

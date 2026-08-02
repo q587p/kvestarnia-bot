@@ -2843,6 +2843,101 @@ describe("PrismaSoloCombatSessionRepository integration", () => {
     expect(reloaded?.state?.turnLog?.[0]?.summary.itemResponse).toEqual(summary.itemResponse);
   });
 
+  it("stores one canonical response-item outcome and decrements once on duplicate commits", async () => {
+    await seedCharacter(prisma, {
+      userId: "user-response-item-duplicate",
+      characterId: "character-response-item-duplicate",
+      telegramUserId: 9414n
+    });
+    const state = makeCombatState("response-item-duplicate", "monster.deadline-spider");
+    const summary = {
+      action: "item" as const,
+      heroOutcome: "item-used" as const,
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false,
+      itemId: "item.loot-v1-c013",
+      itemName: "Млинці Бабці Критини",
+      itemResponse: {
+        enemyId: "enemy:1",
+        monsterId: "monster.deadline-spider",
+        monsterName: "Павук Дедлайну",
+        kind: "evade" as const,
+        damageAfter: 0,
+        preventedDamage: 4
+      }
+    };
+    const committedState = {
+      ...state,
+      turn: 2,
+      lastTurn: summary,
+      turnLog: [{
+        turn: 1,
+        summary,
+        hero: { hp: state.hero.hp, mana: state.hero.mana },
+        monster: { hp: state.monster.hp }
+      }]
+    };
+    await prisma.soloCombatSession.create({
+      data: {
+        id: "response-item-duplicate",
+        characterId: "character-response-item-duplicate",
+        monsterId: "monster.deadline-spider",
+        stateJson: state,
+        status: "active",
+        turn: 1,
+        expiresAt: new Date("2026-06-24T14:30:00.000Z")
+      }
+    });
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "lease-response-item-duplicate",
+        characterId: "character-response-item-duplicate",
+        kind: "solo-combat",
+        referenceId: "response-item-duplicate"
+      }
+    });
+    await prisma.characterItem.create({
+      data: {
+        id: "stack-response-item-duplicate",
+        characterId: "character-response-item-duplicate",
+        itemId: "item.loot-v1-c013",
+        quantity: 2
+      }
+    });
+    const input = {
+      telegramUserId: 9414n,
+      characterId: "character-response-item-duplicate",
+      itemId: "item.loot-v1-c013",
+      now: new Date("2026-06-24T14:00:00.000Z"),
+      state: committedState,
+      status: "active" as const,
+      expiresAt: new Date("2026-06-24T14:23:00.000Z")
+    };
+
+    await expect(repository.applyCombatItemTurnById("response-item-duplicate", 1, input)).resolves.toMatchObject({
+      outcome: "updated",
+      session: { turn: 2 }
+    });
+    await expect(repository.applyCombatItemTurnById("response-item-duplicate", 1, input)).resolves.toMatchObject({
+      outcome: "stale-turn"
+    });
+
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: "character-response-item-duplicate",
+          itemId: "item.loot-v1-c013"
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+    const reloaded = await repository.findByIdForTelegramUserId(9414n, "response-item-duplicate");
+    expect(reloaded?.state?.turn).toBe(2);
+    expect(reloaded?.state?.lastTurn?.itemResponse).toEqual(summary.itemResponse);
+    expect(reloaded?.state?.turnLog).toHaveLength(1);
+  });
+
   it("commits a queued nonmedical solo item without a rollout gate", async () => {
     await seedCharacter(prisma, {
       userId: "user-combat-item-no-rollout-gate",

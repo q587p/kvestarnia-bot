@@ -3070,6 +3070,125 @@ describe("FightService", () => {
     expect(trackEventSafely).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "item.loot-v1-c013",
+    "item.cellar.fancy-cheese"
+  ] as const)("commits %s exactly once for overlapping eligible callbacks", async (itemId) => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 50, hpMax: 50 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pendingSession = makeActivePersistentSession({
+      id: `response-item-commit-${itemId}`,
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    pendingSession.state!.turnExpiresAt = "2026-06-12T10:30:23.000Z";
+    const session = sessions.addSession(pendingSession);
+    sessions.combatItemStacks.set(itemId, 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>().mockResolvedValue([]);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0, 0.99, 0, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const input = {
+      sessionId: session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey(itemId)
+    };
+
+    const concurrent = await Promise.all([
+      service.resolvePersistentFightItemTurn(telegramUserId, input),
+      service.resolvePersistentFightItemTurn(telegramUserId, input)
+    ]);
+    const replay = await service.resolvePersistentFightItemTurn(telegramUserId, input);
+
+    expect(concurrent.map((result) => result.state).sort()).toEqual(["stale-turn", "updated"]);
+    expect(replay.state).toBe("stale-turn");
+    expect(sessions.combatItemStacks.get(itemId)).toBe(0);
+    expect(sessions.consumedCombatItems).toEqual([itemId]);
+    expect(sessions.updateCount).toBe(1);
+    expect(sessions.combatItemTurnAttempts).toHaveLength(2);
+    expect(sessions.combatItemTurnAttempts[0]?.state).toEqual(sessions.combatItemTurnAttempts[1]?.state);
+    expect(sessions.getById(session.id)?.state?.lastTurn).toMatchObject({
+      action: "item",
+      itemId,
+      itemResponse: { kind: "evade", damageAfter: 0 }
+    });
+    expect(sessions.getById(session.id)?.state?.turnLog).toHaveLength(1);
+    expect(trackEventSafely).toHaveBeenCalledTimes(1);
+  });
+
+  it("freezes canonical two-enemy response selection across overlapping solo callbacks", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 50, hpMax: 50 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pendingSession = makeActivePersistentSession({
+      id: "response-item-two-enemy-canonical",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    pendingSession.turn = 2;
+    pendingSession.state!.turn = 2;
+    pendingSession.state!.turnExpiresAt = "2026-06-12T10:30:23.000Z";
+    pendingSession.state!.hero.hp = 50;
+    pendingSession.state!.hero.hpMax = 50;
+    pendingSession.state!.monster.attack = 10;
+    pendingSession.state!.enemies = [
+      {
+        enemyId: "enemy:1",
+        id: "monster.deadline-spider",
+        hp: 18,
+        hpMax: 18,
+        attack: 10
+      },
+      {
+        enemyId: "enemy:2",
+        id: "monster.preapproval-dragonling",
+        hp: 20,
+        hpMax: 20,
+        attack: 10
+      }
+    ];
+    const session = sessions.addSession(pendingSession);
+    sessions.combatItemStacks.set("item.loot-v1-c006", 1);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0, 0.99, 0])
+    });
+    const initialEnemyIds = normalizeCombatEnemies(session.state!).map((enemy) => enemy.enemyId);
+    expect(initialEnemyIds).toHaveLength(2);
+    const input = {
+      sessionId: session.id,
+      turn: 2,
+      itemKey: getCombatItemUseKey("item.loot-v1-c006")
+    };
+
+    const concurrent = await Promise.all([
+      service.resolvePersistentFightItemTurn(telegramUserId, input),
+      service.resolvePersistentFightItemTurn(telegramUserId, input)
+    ]);
+
+    expect(concurrent.map((result) => result.state).sort()).toEqual(["stale-turn", "updated"]);
+    expect(sessions.combatItemTurnAttempts).toHaveLength(2);
+    const selectedResponses = sessions.combatItemTurnAttempts.map(
+      (attempt) => attempt.state.lastTurn?.itemResponse
+    );
+    expect(selectedResponses[0]).toEqual(selectedResponses[1]);
+    expect(initialEnemyIds).toContain(selectedResponses[0]?.enemyId);
+    expect(sessions.combatItemStacks.get("item.loot-v1-c006")).toBe(0);
+    expect(sessions.consumedCombatItems).toEqual(["item.loot-v1-c006"]);
+    expect(sessions.getById(session.id)?.state?.turnLog).toHaveLength(1);
+  });
+
   it("keeps c006 and all item-use evidence when the selected solo response has zero delta", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25, hpCurrent: 50, hpMax: 50 });
@@ -3077,6 +3196,16 @@ describe("FightService", () => {
     const sessions = new FakeSoloCombatSessionRepository(characters);
     sessions.combatItemStacks.set("item.loot-v1-c006", 1);
     const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>();
+    const pendingSession = makeActivePersistentSession({
+      id: "response-item-c006-zero-delta",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    pendingSession.state!.turnExpiresAt = "2026-06-12T10:30:23.000Z";
+    pendingSession.state!.hero.hp = 1;
+    pendingSession.state!.hero.hpMax = 50;
+    pendingSession.state!.monster.attack = 1;
+    const session = sessions.addSession(pendingSession);
     const service = new FightService({
       characters,
       dailyActions,
@@ -3085,12 +3214,9 @@ describe("FightService", () => {
       rng: new FakeRandomSource([0.99, 0.99]),
       achievements: { trackEventSafely } as unknown as AchievementService
     });
-    const started = await service.getFightForTelegramUser(telegramUserId);
-    expect(started.state).toBe("persistent-active");
-    if (started.state !== "persistent-active") return;
-    const before = sessions.getById(started.session.id);
+    const before = sessions.getById(session.id);
     const input = {
-      sessionId: started.session.id,
+      sessionId: session.id,
       turn: 1,
       itemKey: getCombatItemUseKey("item.loot-v1-c006")
     };
@@ -3100,8 +3226,62 @@ describe("FightService", () => {
 
     expect(first).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
     expect(duplicate).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
-    expect(sessions.getById(started.session.id)).toEqual(before);
+    expect(sessions.getById(session.id)).toEqual(before);
     expect(sessions.combatItemStacks.get("item.loot-v1-c006")).toBe(1);
+    expect(sessions.consumedCombatItems).toEqual([]);
+    expect(sessions.updateCount).toBe(0);
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "item.loot-v1-c013",
+    "item.cellar.fancy-cheese"
+  ] as const)("replays the same unavailable solo response for %s across retries and restart", async (itemId) => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 50, hpMax: 50 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const pendingSession = makeActivePersistentSession({
+      id: `response-item-noop-${itemId}-${itemId === "item.loot-v1-c013" ? 1 : 3}`,
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    pendingSession.state!.turnExpiresAt = "2026-06-12T10:30:23.000Z";
+    const session = sessions.addSession(pendingSession);
+    sessions.combatItemStacks.set(itemId, 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>();
+    const firstService = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0, 0.99, 0, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const input = {
+      sessionId: session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey(itemId)
+    };
+    const before = sessions.getById(session.id);
+
+    const first = await firstService.resolvePersistentFightItemTurn(telegramUserId, input);
+    const duplicate = await firstService.resolvePersistentFightItemTurn(telegramUserId, input);
+    const restartedService = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0, 0.99, 0]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const afterRestart = await restartedService.resolvePersistentFightItemTurn(telegramUserId, input);
+
+    expect(first).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(duplicate).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(afterRestart).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(sessions.getById(session.id)).toEqual(before);
+    expect(sessions.combatItemStacks.get(itemId)).toBe(1);
     expect(sessions.consumedCombatItems).toEqual([]);
     expect(sessions.updateCount).toBe(0);
     expect(trackEventSafely).not.toHaveBeenCalled();
@@ -8129,6 +8309,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
   rejectNextActiveTurnUpdate = false;
   readonly combatItemStacks = new Map<string, number>();
   readonly consumedCombatItems: string[] = [];
+  readonly combatItemTurnAttempts: Array<{ itemId: string; state: CombatState }> = [];
   lastStatusMark: { sessionId: string; status: SoloCombatSessionStatus; observedAt?: Date } | null = null;
 
   constructor(private readonly characters: FakeCharacterRepository) {}
@@ -8397,6 +8578,7 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     expectedTurn: number,
     input: ApplyCombatItemTurnInput
   ): Promise<ApplyCombatItemTurnResult> {
+    this.combatItemTurnAttempts.push({ itemId: input.itemId, state: cloneState(input.state) });
     const quantity = this.combatItemStacks.get(input.itemId) ?? 0;
     if (quantity < 1) {
       return { outcome: "not-owned", session: null };

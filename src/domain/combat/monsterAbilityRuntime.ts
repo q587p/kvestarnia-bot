@@ -2254,9 +2254,15 @@ function resolveMonsterAbilityEffects(input: {
 
   const plan = compileMonsterAbilityExecutionPlan(input);
   const responseItemDelta = resolveCombatResponseItemDelta(
-    input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
-    input.responseItemEffect,
-    plan.components.some((component) => component.directHitRequired && isHarmfulHeroComponent(component))
+    {
+      damage: input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+      harmfulOnHitConsequenceCount: countActualHarmfulHeroOnHitConsequences(
+        plan,
+        input,
+        directHitLanded
+      )
+    },
+    input.responseItemEffect
   );
   const effectTexts = plan.components
     .map((component) => applyMonsterAbilityPlanComponent(input, component, {
@@ -2370,6 +2376,25 @@ function applyMonsterAbilityPlanComponent(
     case "runtime-effect":
       return addRuntimeEffectFromComponent(input, component);
   }
+}
+
+function countActualHarmfulHeroOnHitConsequences(
+  plan: ReturnType<typeof compileMonsterAbilityExecutionPlan>,
+  input: {
+    state: CombatState;
+    runtime: MonsterAbilityRuntimeStateV1;
+    ability: MonsterAbilityDefinition;
+  },
+  directHitLanded: boolean
+): number {
+  if (!directHitLanded) {
+    return 0;
+  }
+  return plan.components.filter((component) =>
+    component.directHitRequired &&
+    isHarmfulHeroComponent(component) &&
+    canMonsterAbilityComponentChangeState(component, input)
+  ).length;
 }
 
 function isHarmfulHeroComponent(component: MonsterAbilityPlanComponent): boolean {

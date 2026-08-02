@@ -758,7 +758,10 @@ describe("combat domain engine", () => {
     expect(result.state.turnLog?.at(-1)?.summary.itemResponse).toEqual(result.summary.itemResponse);
   });
 
-  it("keeps the ordinary enemy ability and cooldown while c013 suppresses its hit and burn", () => {
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps the ordinary enemy ability and cooldown while %s suppresses its hit and burn", (itemId) => {
     const responseMonster = { ...monster, attack: 20 };
     const state = startCombat({ hero: { ...warrior, hpMax: 50 }, monster: responseMonster });
     state.monsterRuntime = {
@@ -776,8 +779,8 @@ describe("combat domain engine", () => {
     const result = resolveCombatItemTurn({
       state,
       item: {
-        id: "item.loot-v1-c013",
-        name: "Млинці Затьмарення",
+        id: itemId,
+        name: "Манатка ухилення",
         effect: { kind: "evade-response" }
       },
       hero: { ...warrior, hpMax: 50 },
@@ -798,6 +801,70 @@ describe("combat domain engine", () => {
     expect(result.state.monsterRuntime?.effects.some((effect) =>
       effect.target === "hero" && effect.kind === "burn"
     )).toBe(false);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps %s when the ordinary burn ability actually misses", (itemId) => {
+    const responseMonster = { ...monster, attack: 20 };
+    const state = startCombat({ hero: { ...warrior, hpMax: 50 }, monster: responseMonster });
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "boss",
+      loadoutIds: ["monster.preapproved-bite"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      ownActionCount: 0,
+      effects: []
+    };
+    const before = structuredClone(state);
+
+    const result = resolveCombatItemTurn({
+      state,
+      item: { id: itemId, name: "Манатка ухилення", effect: { kind: "evade-response" } },
+      hero: { ...warrior, hpMax: 50 },
+      monster: responseMonster,
+      rng: new FakeRandomSource([0, 0, 0.99])
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "effect-unavailable" });
+    expect(result.state).toEqual(before);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("skips a first miss and applies %s to the next eligible enemy response", (itemId) => {
+    const firstMonster = { ...monster, attack: 8 };
+    const backupMonster = { ...secondMonster, attack: 8 };
+    const state = startCombat({
+      hero: { ...warrior, hpMax: 100 },
+      monster: firstMonster,
+      enemies: [firstMonster, backupMonster]
+    });
+    state.turn = 2;
+    state.hero.hp = 80;
+
+    const result = resolveCombatItemTurn({
+      state,
+      item: { id: itemId, name: "Манатка ухилення", effect: { kind: "evade-response" } },
+      hero: { ...warrior, hpMax: 100 },
+      monster: firstMonster,
+      enemies: [firstMonster, backupMonster],
+      rng: new FakeRandomSource([0.99, 0, 0])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.summary.enemyActions).toHaveLength(2);
+    expect(result.summary.enemyActions?.[0]?.monsterDamage).toBe(0);
+    expect(result.summary.enemyActions?.[1]?.monsterDamage).toBe(0);
+    expect(result.summary.itemResponse).toMatchObject({
+      enemyId: "enemy:2",
+      kind: "evade"
+    });
   });
 
   it("returns exact no-op reasons for every inapplicable active-combat item family", () => {

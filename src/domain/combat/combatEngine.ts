@@ -2939,12 +2939,18 @@ function resolveMonsterResponse(input: {
     });
     const basicItemResponseDelta = response.actionKind === "attack"
       ? resolveCombatResponseItemDelta(
-          input.responseItemEffect
-            ? Math.min(input.state.hero.hp, modifiedBasicAttack.damage)
-            : modifiedBasicAttack.damage,
+          {
+            damage: input.responseItemEffect
+              ? Math.min(input.state.hero.hp, modifiedBasicAttack.damage)
+              : modifiedBasicAttack.damage,
+            harmfulOnHitConsequenceCount: 0
+          },
           input.responseItemEffect
         )
-      : resolveCombatResponseItemDelta(modifiedBasicAttack.damage, undefined);
+      : resolveCombatResponseItemDelta({
+          damage: modifiedBasicAttack.damage,
+          harmfulOnHitConsequenceCount: 0
+        }, undefined);
     if (basicItemResponseDelta.damageAfter > 0) {
       input.state.hero.hp = Math.max(0, input.state.hero.hp - basicItemResponseDelta.damageAfter);
     }
@@ -2979,7 +2985,10 @@ function resolveMonsterResponse(input: {
       input.damageReduction
     );
     const itemResponseDelta = resolveCombatResponseItemDelta(
-      input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+      {
+        damage: input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+        harmfulOnHitConsequenceCount: 0
+      },
       input.responseItemEffect
     );
     input.state.hero.hp = Math.max(0, input.state.hero.hp - itemResponseDelta.damageAfter);
@@ -3018,9 +3027,12 @@ function resolveBasicMonsterResponse(input: {
     damage: defendedMonsterAttack.damage
   });
   const itemResponseDelta = resolveCombatResponseItemDelta(
-    input.responseItemEffect
-      ? Math.min(input.state.hero.hp, modifiedMonsterAttack.damage)
-      : modifiedMonsterAttack.damage,
+    {
+      damage: input.responseItemEffect
+        ? Math.min(input.state.hero.hp, modifiedMonsterAttack.damage)
+        : modifiedMonsterAttack.damage,
+      harmfulOnHitConsequenceCount: 0
+    },
     input.responseItemEffect
   );
   input.state.hero.hp = Math.max(0, input.state.hero.hp - itemResponseDelta.damageAfter);
