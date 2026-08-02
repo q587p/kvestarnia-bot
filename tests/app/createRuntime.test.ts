@@ -267,12 +267,14 @@ describe("createRuntime", () => {
     const queryRawUnsafe = vi.fn().mockRejectedValue(queryError);
     const createBot = vi.fn();
     const createHealthRecoveryNotificationScheduler = vi.fn(() => makeScheduler());
+    const onFatalRuntimeError = vi.fn();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect, queryRawUnsafe),
       services: makeServices().services,
+      onFatalRuntimeError,
       dependencies: {
         createBot,
         createHealthRecoveryNotificationScheduler,
@@ -292,6 +294,9 @@ describe("createRuntime", () => {
       "Квестарня: база не пройшла перевірку готовності.",
       { errorCategory: "database-locked" }
     );
+    await vi.waitFor(() => expect(onFatalRuntimeError).toHaveBeenCalledWith(queryError));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
     await runtime.stop();
   });
 
@@ -303,12 +308,14 @@ describe("createRuntime", () => {
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
     const healthRecoveryScheduler = makeScheduler();
+    const onFatalRuntimeError = vi.fn();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
+      onFatalRuntimeError,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
@@ -332,6 +339,9 @@ describe("createRuntime", () => {
     expect(duelScheduler.start).not.toHaveBeenCalled();
     expect(combatScheduler.start).not.toHaveBeenCalled();
     expect(healthRecoveryScheduler.start).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(onFatalRuntimeError).toHaveBeenCalledWith(startError));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
     await runtime.stop();
     expect(duelScheduler.stop).not.toHaveBeenCalled();
     expect(combatScheduler.stop).not.toHaveBeenCalled();
@@ -346,12 +356,14 @@ describe("createRuntime", () => {
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
     const healthRecoveryScheduler = makeScheduler();
+    const onFatalRuntimeError = vi.fn();
     let readiness: { isReady(): boolean } | undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token", hpRecoveryNotificationsEnabled: true }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
+      onFatalRuntimeError,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
@@ -374,10 +386,41 @@ describe("createRuntime", () => {
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
     expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(onFatalRuntimeError).toHaveBeenCalledWith(startError));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
     await runtime.stop();
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
     expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats an unexpected successful polling exit as fatal", async () => {
+    const close = vi.fn();
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const onFatalRuntimeError = vi.fn();
+    const botFixture = makeBot({ resolveStart: true });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      onFatalRuntimeError,
+      dependencies: {
+        createBot: vi.fn(() => botFixture.bot),
+        createCombatTurnTimeoutScheduler: vi.fn(() => makeScheduler()),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close }) as never)
+      }
+    });
+
+    await runtime.start();
+    await vi.waitFor(() => expect(onFatalRuntimeError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Telegram polling stopped unexpectedly." })
+    ));
+
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
   it("does not report a polling abort caused by shutdown as an emergency", async () => {
@@ -387,11 +430,13 @@ describe("createRuntime", () => {
     const botFixture = makeBot({ rejectPendingStartOnStop: pollingAbort });
     const duelScheduler = makeScheduler();
     const combatScheduler = makeScheduler();
+    const onFatalRuntimeError = vi.fn();
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const runtime = createRuntime({
       config: makeConfig({ botToken: "token" }),
       prisma: makePrisma(disconnect),
       services: makeServices().services,
+      onFatalRuntimeError,
       dependencies: {
         createBot: vi.fn(() => botFixture.bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
@@ -413,6 +458,7 @@ describe("createRuntime", () => {
     expect(combatScheduler.start).not.toHaveBeenCalled();
     expect(duelScheduler.stop).not.toHaveBeenCalled();
     expect(combatScheduler.stop).not.toHaveBeenCalled();
+    expect(onFatalRuntimeError).not.toHaveBeenCalled();
   });
 });
 
@@ -468,6 +514,7 @@ function makeBot(options: {
   startError?: Error;
   startErrorAfterOnStart?: Error;
   rejectPendingStartOnStop?: Error;
+  resolveStart?: boolean;
   stopError?: Error;
 } = {}): {
   bot: Bot;
@@ -489,6 +536,9 @@ function makeBot(options: {
     }
 
     await pollingOptions?.onStart?.({} as never);
+    if (options.resolveStart) {
+      return;
+    }
     if (options.startErrorAfterOnStart) {
       throw options.startErrorAfterOnStart;
     }

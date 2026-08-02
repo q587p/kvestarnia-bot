@@ -42,6 +42,7 @@ export function createRuntime(input: {
   prisma: Pick<PrismaClient, "$disconnect" | "$queryRawUnsafe">;
   services: ApplicationServices;
   dependencies?: Partial<RuntimeDependencies>;
+  onFatalRuntimeError?: (error: Error) => void;
 }): ApplicationRuntime {
   const { config, prisma, services } = input;
   const dependencies: RuntimeDependencies = {
@@ -121,6 +122,52 @@ export function createRuntime(input: {
     return schedulersStopPromise;
   };
 
+  const stopRuntime = async (): Promise<void> => {
+    if (stopPromise) {
+      await stopPromise;
+      return;
+    }
+
+    state = state === "new" ? "stopped" : "stopping";
+    readiness.markStopping();
+    stopPromise = (async () => {
+      let shutdownError: Error | null = null;
+
+      await stopSchedulers();
+
+      try {
+        if (bot) {
+          await bot.stop();
+        }
+      } catch (error) {
+        shutdownError = error instanceof Error ? error : new Error(String(error));
+      } finally {
+        healthServer?.close();
+        await prisma.$disconnect();
+        state = "stopped";
+      }
+
+      if (shutdownError) {
+        throw shutdownError;
+      }
+    })();
+
+    await stopPromise;
+  };
+
+  const failRuntime = (error: Error): void => {
+    readiness.markFailed();
+    void stopRuntime()
+      .catch((shutdownError) => {
+        console.error("Квестарня: runtime не завершився чисто після критичної помилки.", {
+          errorName: shutdownError instanceof Error ? shutdownError.name : "unknown"
+        });
+      })
+      .finally(() => {
+        input.onFatalRuntimeError?.(error);
+      });
+  };
+
   return {
     async start() {
       if (state !== "new") {
@@ -143,10 +190,11 @@ export function createRuntime(input: {
         await prisma.$queryRawUnsafe("SELECT 1");
         readiness.markDatabaseReady();
       } catch (error) {
-        readiness.markFailed();
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
         console.error("Квестарня: база не пройшла перевірку готовності.", {
           errorCategory: classifyPerformanceError(error)
         });
+        failRuntime(runtimeError);
         return;
       }
 
@@ -232,20 +280,20 @@ export function createRuntime(input: {
         }
       }).then(() => {
         if (state === "started") {
-          readiness.markFailed();
-          void stopSchedulers();
+          const error = new Error("Telegram polling stopped unexpectedly.");
           console.error("Квестарня: Telegram polling завершився без зупинки runtime.");
+          failRuntime(error);
         }
       }).catch((error) => {
         if (state !== "started") {
           return;
         }
 
-        readiness.markFailed();
-        void stopSchedulers();
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
         console.error("Квестарня: Telegram polling не запустився або аварійно завершився.", {
           errorCategory: classifyPerformanceError(error)
         });
+        failRuntime(runtimeError);
       });
 
       void services.deployNotifications.announceIfNeeded(bot).catch((error) => {
@@ -253,36 +301,7 @@ export function createRuntime(input: {
       });
     },
     async stop() {
-      if (stopPromise) {
-        await stopPromise;
-        return;
-      }
-
-      state = state === "new" ? "stopped" : "stopping";
-      readiness.markStopping();
-      stopPromise = (async () => {
-        let shutdownError: Error | null = null;
-
-        await stopSchedulers();
-
-        try {
-          if (bot) {
-            await bot.stop();
-          }
-        } catch (error) {
-          shutdownError = error instanceof Error ? error : new Error(String(error));
-        } finally {
-          healthServer?.close();
-          await prisma.$disconnect();
-          state = "stopped";
-        }
-
-        if (shutdownError) {
-          throw shutdownError;
-        }
-      })();
-
-      await stopPromise;
+      await stopRuntime();
     }
   };
 }
