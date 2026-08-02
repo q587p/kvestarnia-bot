@@ -861,6 +861,195 @@ describe("party boss reducer", () => {
     expect(result.state.participants[0]?.contribution.submittedActions).toBe(1);
   });
 
+  it("restores the actor's resources with the explicit dual-resource consumable", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-mana-item",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("character-1", "Перша", { mana: 20, manaCurrent: 2 })]
+    });
+    const result = resolvePartyBossRound({
+      state: { ...state, boss: { ...state.boss, hp: 0, attack: 0 } },
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-mana-item",
+      actions: [{
+        characterId: "character-1",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c014",
+          name: "Насіння Диванного Друїда",
+          effect: { kind: "restore-both", hpAmount: 9, manaAmount: 9 }
+        }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-used",
+      manaRestored: 9
+    });
+    expect(result.state.participants[0]?.resources.mana).toBe(11);
+    expect(result.state.participants[0]?.contribution.healingDone ?? 0).toBe(0);
+  });
+
+  it("heals every living raid participant by thirteen and replays the seeded round exactly", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-raid-salad",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 10 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 20 }),
+        participant("character-3", "Третя", { hp: 50, hpCurrent: 30 })
+      ]
+    });
+    state.boss.attack = 0;
+    const input = {
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-raid-salad",
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item" as const,
+          origin: "manual" as const,
+          item: {
+            id: "item.loot-v1-c012",
+            name: "Салат «Олів'є Рейдовий»",
+            effect: { kind: "party-heal" as const, amount: 13 }
+          }
+        },
+        { characterId: "character-2", action: "defend" as const, origin: "manual" as const },
+        { characterId: "character-3", action: "defend" as const, origin: "manual" as const }
+      ]
+    };
+
+    const first = resolvePartyBossRound(structuredClone(input));
+    const replay = resolvePartyBossRound(structuredClone(input));
+    expect(first.state.participants.map((entry) => entry.resources.hp)).toEqual([22, 32, 42]);
+    expect(first.round.actions[0]).toMatchObject({ healing: 13, supportTargets: [
+      { characterId: "character-2", healing: 13 },
+      { characterId: "character-3", healing: 13 }
+    ] });
+    expect(replay).toEqual(first);
+  });
+
+  it("lets a wounded lone Big Barrel participant use paired healing without an ally", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-paired-lone-owner",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("character-1", "Єдина", { hp: 35, hpCurrent: 9 })]
+    });
+    state.boss.attack = 0;
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-paired-lone-owner",
+      actions: [{
+        characterId: "character-1",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c002",
+          name: "Вареники Парного Бафу",
+          effect: { kind: "paired-heal", amount: 8 }
+        }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-used",
+      healing: 8,
+      hpAfter: 17
+    });
+    expect(result.round.actions[0]).not.toHaveProperty("supportTargets");
+    expect(result.state.participants[0]?.resources.hp).toBe(16);
+  });
+
+  it.each([
+    ["item.loot-v1-c002", "Вареники Парного Бафу", { kind: "paired-heal" as const, amount: 8 }],
+    ["item.loot-v1-c012", "Салат «Олів'є Рейдовий»", { kind: "party-heal" as const, amount: 13 }]
+  ])("does not spend %s after an earlier raid salad fully heals the shared round", (itemId, name, effect) => {
+    const state = createPartyBossState({
+      partySessionId: `party-shared-full-${itemId}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 37, dexterity: 93 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 37, dexterity: 1 })
+      ]
+    });
+    state.boss.attack = 0;
+    state.participants.forEach((entry) => {
+      entry.resources.hp = entry.resources.hpMax - 13;
+    });
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-shared-full-${itemId}`,
+      actions: [
+        {
+          characterId: "character-1",
+          action: "item",
+          origin: "manual",
+          item: {
+            id: "item.loot-v1-c012",
+            name: "Салат «Олів'є Рейдовий»",
+            effect: { kind: "party-heal", amount: 13 }
+          }
+        },
+        {
+          characterId: "character-2",
+          action: "item",
+          origin: "manual",
+          item: { id: itemId, name, effect }
+        }
+      ]
+    });
+
+    expect(result.state.participants.map((entry) => entry.resources.hp)).toEqual(
+      result.state.participants.map((entry) => entry.resources.hpMax - 1)
+    );
+    expect(result.round.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ characterId: "character-1", outcome: "item-used" }),
+      expect.objectContaining({
+        characterId: "character-2",
+        outcome: "item-not-used",
+        itemUnavailableReason: "effect-unavailable"
+      })
+    ]));
+    expect(result.state.participants[1]?.combatItems?.uses?.[itemId]).toBeUndefined();
+  });
+
+  it("still spends the second raid salad when the earlier heal leaves useful recovery", () => {
+    const state = createPartyBossState({
+      partySessionId: "party-shared-partial",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("character-1", "Перша", { hp: 50, hpCurrent: 10, dexterity: 93 }),
+        participant("character-2", "Друга", { hp: 50, hpCurrent: 10, dexterity: 1 })
+      ]
+    });
+    state.boss.attack = 0;
+    const salad = {
+      id: "item.loot-v1-c012",
+      name: "Салат «Олів'є Рейдовий»",
+      effect: { kind: "party-heal" as const, amount: 13 }
+    };
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: "party-shared-partial",
+      actions: [
+        { characterId: "character-1", action: "item", origin: "manual", item: salad },
+        { characterId: "character-2", action: "item", origin: "manual", item: salad }
+      ]
+    });
+
+    expect(result.state.participants.map((entry) => entry.resources.hp)).toEqual([35, 35]);
+    expect(result.round.actions.map((entry) => entry.outcome)).toEqual(["item-used", "item-used"]);
+  });
+
   it("applies crafted raid item healing rules and records their battle limits", () => {
     const denseState = createPartyBossState({
       partySessionId: "party-dense-item",
@@ -1009,6 +1198,218 @@ describe("party boss reducer", () => {
       itemId: "item.dense-bandage",
       remainingTurns: 4
     });
+  });
+
+  it.each([
+    ["none", undefined, "item-not-used"],
+    ["one", { skill: { id: "skill.test", remainingTurns: 1 } }, "item-not-used"],
+    ["two", { skill: { id: "skill.test", remainingTurns: 2 } }, "item-used"],
+    ["mixed", {
+      skill: { id: "skill.test", remainingTurns: 1 },
+      abilities: { "ability.test": { id: "ability.test", remainingTurns: 2 } }
+    }, "item-used"]
+  ] as const)("uses party-boss c005 only when post-tick cooldown benefit remains: %s", (_label, cooldowns, outcome) => {
+    const state = createPartyBossState({
+      partySessionId: `party-c005-${_label}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("coffee", "Кавоман")]
+    });
+    state.boss.attack = 0;
+    if (cooldowns) state.participants[0]!.resources.cooldowns = structuredClone(cooldowns);
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-c005-${_label}`,
+      actions: [{
+        characterId: "coffee",
+        action: "item",
+        origin: "manual",
+        item: { id: "item.loot-v1-c005", name: "Кава", effect: { kind: "reduce-cooldowns", turns: 1 } }
+      }]
+    });
+
+    expect(result.round.actions[0]).toMatchObject({
+      outcome,
+      ...(outcome === "item-not-used" ? { itemUnavailableReason: "effect-unavailable" } : {})
+    });
+    expect(result.state.participants[0]?.resources.cooldowns).toBeUndefined();
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(outcome === "item-used" ? 1 : 0);
+  });
+
+  it.each([
+    ["item.loot-v1-c006", { kind: "guard-response" as const, reductionPercent: 42 }, "guard"],
+    ["item.loot-v1-c013", { kind: "evade-response" as const }, "evade"],
+    ["item.cellar.fancy-cheese", { kind: "evade-response" as const }, "evade"]
+  ])("commits targeted party-boss response item %s with exact retaliation evidence", (itemId, effect, kind) => {
+    const state = createPartyBossState({
+      partySessionId: `party-response-${itemId}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("owner", "Власник", { hp: 100 })]
+    });
+    state.boss.attack = 20;
+    const input = {
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-response-${itemId}`,
+      actions: [{
+        characterId: "owner",
+        action: "item" as const,
+        origin: "manual" as const,
+        item: { id: itemId, name: "Манатка відповіді", effect }
+      }]
+    };
+    const first = resolvePartyBossRound(structuredClone(input));
+    const replay = resolvePartyBossRound(structuredClone(input));
+
+    expect(first.round.actions[0]).toMatchObject({ outcome: "item-used" });
+    expect(first.round.bossRetaliations[0]).toMatchObject({
+      characterId: "owner",
+      itemResponseItemId: itemId,
+      itemResponseKind: kind
+    });
+    expect(first.round.bossRetaliations[0]?.itemResponsePreventedDamage).toBeGreaterThan(0);
+    expect(replay).toEqual(first);
+  });
+
+  it.each([
+    ["zero after guard", 4, 23, false, 0],
+    ["one", 2, 0, false, 1],
+    ["two", 3, 0, false, 2],
+    ["three", 4, 0, true, 2]
+  ] as const)("commits party-boss c006 only for a positive incremental delta: %s", (
+    _label,
+    bossAttack,
+    existingReduction,
+    committed,
+    expectedDamage
+  ) => {
+    const state = createPartyBossState({
+      partySessionId: `party-c006-${_label}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("owner", "Власник", { hp: 100 })]
+    });
+    state.boss.attack = bossAttack;
+    if (existingReduction > 0) {
+      state.participants[0]!.resources.guard = {
+        consecutiveDefends: 1,
+        abilityDamageReduction: existingReduction
+      };
+    }
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-c006-${_label}`,
+      actions: [{
+        characterId: "owner",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c006",
+          name: "Шкарпетки Героїчного Ухилення",
+          effect: { kind: "guard-response", reductionPercent: 42 }
+        }
+      }]
+    });
+
+    expect(result.state.turn).toBe(2);
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: committed ? "item-used" : "item-not-used",
+      ...(committed ? {} : { itemUnavailableReason: "effect-unavailable" })
+    });
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(committed ? 1 : 0);
+    expect(result.round.bossRetaliations[0]).toMatchObject({
+      damage: expectedDamage,
+      ...(committed
+        ? { itemResponseItemId: "item.loot-v1-c006", itemResponsePreventedDamage: 1 }
+        : {})
+    });
+    if (!committed) {
+      expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["item.loot-v1-c006", { kind: "guard-response" as const, reductionPercent: 42 }],
+    ["item.loot-v1-c013", { kind: "evade-response" as const }],
+    ["item.cellar.fancy-cheese", { kind: "evade-response" as const }]
+  ])("lets Big Barrel personal protocol take precedence without spending %s", (itemId, effect) => {
+    const state = createPartyBossState({
+      partySessionId: `big-response-protocol-${itemId}`,
+      variant: "big-barrel",
+      leaderCharacterId: "owner",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-c006",
+        filerCharacterId: "owner",
+        signerCharacterIds: ["owner"]
+      },
+      participants: [participant("owner", "Власник", { hp: 160, level: 8 })]
+    });
+    state.boss.attack = 20;
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `big-response-protocol-${itemId}`,
+      actions: [{
+        characterId: "owner",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: itemId,
+          name: "Манатка відповіді",
+          effect
+        }
+      }]
+    });
+
+    expect(result.round.personalProtocol).toMatchObject({ characterId: "owner", status: "triggered" });
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-not-used",
+      itemUnavailableReason: "effect-unavailable"
+    });
+    expect(result.round.bossRetaliations[0]).toMatchObject({ damage: 0 });
+    expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(0);
+  });
+
+  it.each([
+    ["leader", "item-used", true],
+    ["striker", "item-not-used", false]
+  ] as const)("commits a Big Barrel response item only when %s owns the focused response", (ownerId, outcome, targeted) => {
+    const state = createPartyBossState({
+      partySessionId: `big-response-${ownerId}`,
+      variant: "big-barrel",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [
+        participant("leader", "Голова", { hp: 120, level: 8 }),
+        participant("striker", "Шкодійка", { hp: 120, level: 8 })
+      ]
+    });
+    state.boss.attack = 20;
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `big-response-${ownerId}`,
+      actions: ["leader", "striker"].map((characterId) => characterId === ownerId
+        ? {
+            characterId,
+            action: "item" as const,
+            origin: "manual" as const,
+            item: { id: "item.loot-v1-c013", name: "Млинці", effect: { kind: "evade-response" as const } }
+          }
+        : { characterId, action: "defend" as const, origin: "manual" as const })
+    });
+
+    expect(result.round.actions.find((entry) => entry.characterId === ownerId)).toMatchObject({
+      outcome,
+      ...(targeted ? {} : { itemUnavailableReason: "effect-unavailable" })
+    });
+    expect(result.round.bossRetaliations[0]?.characterId).toBe("leader");
+    expect(result.round.bossRetaliations[0]?.itemResponseKind).toBe(targeted ? "evade" : undefined);
+    expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.contribution.itemUses ?? 0).toBe(targeted ? 1 : 0);
   });
 
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {

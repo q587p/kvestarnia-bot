@@ -4,7 +4,8 @@ import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
 import {
   createItemUseFingerprint,
-  getItemUseEffect
+  getItemUseEffect,
+  isOutOfCombatItemUseEffect
 } from "../domain/itemUse";
 import type {
   ItemUseCancelRepositoryResult,
@@ -33,7 +34,8 @@ export class ItemUseService {
   ) {}
 
   getAvailability(item: ItemContent): ItemUseAvailability {
-    if (!getItemUseEffect(item)) {
+    const effect = getItemUseEffect(item);
+    if (!effect || !isOutOfCombatItemUseEffect(effect)) {
       return { state: "not-usable" };
     }
 
@@ -44,7 +46,7 @@ export class ItemUseService {
     telegramUserId: bigint,
     itemId: string
   ): Promise<ItemUsePreviewRepositoryResult> {
-    const item = findUsableItem(itemId);
+    const item = this.findUsableItem(itemId);
     if (!item) {
       return { state: "not-usable" };
     }
@@ -104,7 +106,10 @@ export class ItemUseService {
     telegramUserId: bigint,
     itemId: string
   ): Promise<ItemUseRestoreToFullRepositoryResult> {
-    const item = findUsableItem(itemId);
+    if (itemId !== BANDAGE_ITEM_ID) {
+      return { state: "not-usable" };
+    }
+    const item = this.findUsableItem(itemId);
     if (!item) {
       return { state: "not-usable" };
     }
@@ -120,12 +125,13 @@ export class ItemUseService {
       expiresAt: addMinutes(now, ITEM_USE_TTL_MINUTES)
     });
   }
-}
 
-function findUsableItem(itemId: string): ItemContent | null {
-  const item = findItemContent(itemId);
+  private findUsableItem(itemId: string): ItemContent | null {
+    const item = findItemContent(itemId);
+    const effect = item ? getItemUseEffect(item) : null;
 
-  return item && getItemUseEffect(item) ? item : null;
+    return item && effect && isOutOfCombatItemUseEffect(effect) ? item : null;
+  }
 }
 
 function addMinutes(date: Date, minutes: number): Date {

@@ -1,12 +1,15 @@
 import { Prisma, type Character, type CharacterDrinkState, type CharacterItem, type ItemUseOrder, type PrismaClient } from "@prisma/client";
-import type { ItemContent } from "../../content/schema";
+import type { ItemContent, ItemUseEffectContent } from "../../content/schema";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import {
   blocksAccidentalItemUse,
-  calculateHealingPreview,
+  calculateItemUsePreview,
   createItemUseFingerprint,
+  getItemUsePreviewAppliedAmount,
   getItemUseEffect,
-  ITEM_USE_RULES_VERSION
+  isOutOfCombatItemUseEffect,
+  ITEM_USE_RULES_VERSION,
+  recalculateFrozenItemUsePreview
 } from "../../domain/itemUse";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 import { buildShynokRecoveryWindows, isShynokDrinkKey } from "../../domain/shynokDrinks";
@@ -26,6 +29,7 @@ import {
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -51,6 +55,10 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) {
           return { state: "no-character" };
+        }
+
+        if (!(await isQuestConsumableUnlocked(tx, character.id, input.item.id))) {
+          return { state: "not-usable" };
         }
 
         if (character.activeCombatLease) {
@@ -93,28 +101,29 @@ export class PrismaItemUseRepository implements ItemUseRepository {
               effect
             });
             if (validation.state !== "valid") {
-              await releasePendingOrder(tx, existing, input.now, validation.state === "full-hp"
-                ? {
+              if (validation.state === "full-hp" || validation.state === "full-mana") {
+                await releasePendingOrder(tx, existing, input.now, {
                     ...validation.preview,
-                    kind: "full-hp",
+                    kind: validation.state,
                     itemId: existing.itemId,
                     itemName: existing.itemName
-                  }
-                : {
+                  }, "completed");
+
+                return {
+                  state: validation.state,
+                  character: toCharacterRecord(character),
+                  preview: validation.preview
+                };
+              }
+
+              await releasePendingOrder(tx, existing, input.now, {
                     ...existing.preview,
                     kind: "expired",
                     itemId: existing.itemId,
                     itemName: existing.itemName
-                  },
-                validation.state === "full-hp" ? "completed" : "expired");
+                  }, "expired");
 
-              return validation.state === "full-hp"
-                ? {
-                    state: "full-hp",
-                    character: toCharacterRecord(character),
-                    preview: validation.preview
-                  }
-                : { state: validation.state };
+              return { state: validation.state };
             }
             const refreshed = await refreshPendingPreview(tx, existing, validation.preview, input.now);
             return {
@@ -126,7 +135,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         const effect = getItemUseEffect(input.item);
-        if (!effect || blocksAccidentalItemUse(input.item)) {
+        if (!effect || !isOutOfCombatItemUseEffect(effect) || blocksAccidentalItemUse(input.item)) {
           return { state: "not-usable" };
         }
 
@@ -154,10 +163,17 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return { state: "not-usable" };
         }
 
-        const preview = buildPreview(character, input.itemContents, input.now, effect);
-        if (preview.healAmount <= 0) {
+        const preview = buildPreview(
+          character,
+          input.itemContents,
+          input.now,
+          effect,
+          createStableRandomResolutionSeed(character.id, input.item.id, getIncludedRemortCount(character), stack.quantity),
+          stack.quantity
+        );
+        if (getItemUsePreviewAppliedAmount(preview) <= 0) {
           return {
-            state: "full-hp",
+            state: getFullState(preview),
             character: toCharacterRecord(character),
             preview
           };
@@ -228,6 +244,13 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return terminal;
         }
 
+        if (!(await isConsumableCommitAllowed(tx, {
+          characterId: character.id,
+          itemId: order.itemId
+        }))) {
+          return await staleTerminalConfirm(tx, order, input.now, character);
+        }
+
         if (order.expiresAt <= input.now) {
           const expired = await setTerminalOrder(tx, order.id, "expired", input.now, {
             ...order.preview,
@@ -278,6 +301,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (
           !stack ||
           stack.quantity < order.quantity ||
+          (!isRestoreToFullOrder(order) && stack.quantity !== order.preview.startingStackQuantity) ||
           equippedItemIds.includes(order.itemId) ||
           reservedItemIds.includes(order.itemId)
         ) {
@@ -308,12 +332,23 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         const restorePreview = isRestoreToFullOrder(order)
           ? buildRestoreToFullPreview(character, input.itemContents, input.now, restoreEffect!)
           : null;
-        const preview = restorePreview?.preview ?? calculateHealingPreview({
+        const preview = restorePreview?.preview ?? recalculateFrozenItemUsePreview({
           hpCurrent: settlement.resources.hpCurrent,
           hpMax: settlement.resources.hpMax,
-          effect
+          manaCurrent: settlement.resources.manaCurrent,
+          manaMax: settlement.resources.manaMax,
+          effect,
+          frozen: {
+            resource: order.preview.resource,
+            resolvedEffectKind: order.preview.resolvedEffectKind as ItemUseEffectContent["kind"],
+            startingStackQuantity: order.preview.startingStackQuantity ?? 0
+          }
         });
-        if (preview.healAmount <= 0) {
+        if (!preview) {
+          return await staleTerminalConfirm(tx, order, input.now, character);
+        }
+        if (getItemUsePreviewAppliedAmount(preview) <= 0) {
+          const fullState = getFullState(preview);
           await tx.character.update({
             where: { id: character.id },
             data: {
@@ -326,7 +361,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           await this.hpRecoveryProducer.record(tx, character.id, input.now, "suppress");
           const full = await setTerminalOrder(tx, order.id, "completed", input.now, {
             ...preview,
-            kind: "full-hp",
+            kind: fullState,
             itemId: order.itemId,
             itemName: order.itemName
           }, "processing");
@@ -334,12 +369,12 @@ export class PrismaItemUseRepository implements ItemUseRepository {
             where: { id: character.id },
             include: characterInclude
           });
-          const canonical = mapCanonicalConfirmResult(full.order, updated, full.changed ? "full-hp" : undefined);
-          if (canonical.state !== "full-hp") {
+          const canonical = mapCanonicalConfirmResult(full.order, updated, full.changed ? fullState : undefined);
+          if (!isFullState(canonical.state)) {
             return canonical;
           }
           return {
-            state: "full-hp",
+            state: fullState,
             character: toCharacterRecord(updated),
             order: full.order
           };
@@ -370,25 +405,27 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           }
         });
 
+        const hpAfter = preview.hpAfter;
+        const manaAfter = preview.manaAfter ?? settlement.resources.manaCurrent;
         await tx.character.update({
           where: { id: character.id },
           data: {
-            hpCurrent: preview.hpAfter,
-            manaCurrent: settlement.resources.manaCurrent,
-            hpRegenAt: preview.hpAfter >= preview.hpMax ? input.now : settlement.resources.hpRegenAt,
-            manaRegenAt: settlement.resources.manaRegenAt
+            hpCurrent: hpAfter,
+            manaCurrent: manaAfter,
+            hpRegenAt: hpAfter >= settlement.resources.hpMax ? input.now : settlement.resources.hpRegenAt,
+            manaRegenAt: manaAfter >= settlement.resources.manaMax ? input.now : settlement.resources.manaRegenAt
           }
         });
         await this.hpRecoveryProducer.record(
           tx,
           character.id,
           input.now,
-          preview.hpAfter >= preview.hpMax ? "suppress" : "recovering"
+          hpAfter >= settlement.resources.hpMax ? "suppress" : "recovering"
         );
 
         const completed = await setTerminalOrder(tx, order.id, "completed", input.now, {
           ...preview,
-          kind: "heal-hp",
+          kind: effect.kind as ItemUseResult["kind"],
           itemId: order.itemId,
           itemName: order.itemName
         }, "processing");
@@ -468,6 +505,9 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       expiresAt: Date;
     }
   ): Promise<ItemUseRestoreToFullRepositoryResult> {
+    if (input.item.id !== "item.responsible-panic-bandage") {
+      return { state: "not-usable" };
+    }
     try {
       return await this.prisma.$transaction(async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
         const character = await findCharacter(tx, telegramUserId);
@@ -798,7 +838,10 @@ async function refreshPendingPreview(
 type PendingPreviewValidation =
   | { state: "valid"; preview: ItemUsePreview }
   | { state: "full-hp"; preview: ItemUsePreview }
-  | { state: "not-owned" | "not-usable" | "reserved" };
+  | { state: "full-mana"; preview: ItemUsePreview }
+  | { state: "not-owned" }
+  | { state: "not-usable" }
+  | { state: "reserved" };
 
 type PendingRestoreToFullValidation =
   | { state: "valid"; preview: ItemUsePreview; neededQuantity: number; availableQuantity: number }
@@ -821,13 +864,20 @@ async function validatePendingPreviewRefresh(
   if (
     getIncludedRemortCount(character) !== order.remortCount ||
     order.preview.rulesVersion !== ITEM_USE_RULES_VERSION ||
+    !Number.isInteger(order.preview.startingStackQuantity) ||
+    (order.preview.startingStackQuantity ?? 0) < 1 ||
+    typeof order.preview.resolvedEffectKind !== "string" ||
     order.quantity !== 1 ||
     input.item.id !== order.itemId
   ) {
     return { state: "not-usable" };
   }
 
-  if (!input.effect || blocksAccidentalItemUse(input.item)) {
+  if (!input.effect || !isOutOfCombatItemUseEffect(input.effect) || blocksAccidentalItemUse(input.item)) {
+    return { state: "not-usable" };
+  }
+
+  if (!(await isQuestConsumableUnlocked(tx, character.id, order.itemId))) {
     return { state: "not-usable" };
   }
 
@@ -846,7 +896,7 @@ async function validatePendingPreviewRefresh(
     getReservedItemIds(tx, character.id, input.now, order.id)
   ]);
   const stack = items.find((item) => item.itemId === order.itemId);
-  if (!stack || stack.quantity < 1) {
+  if (!stack || stack.quantity < 1 || stack.quantity !== order.preview.startingStackQuantity) {
     return { state: "not-owned" };
   }
 
@@ -854,9 +904,24 @@ async function validatePendingPreviewRefresh(
     return { state: "reserved" };
   }
 
-  const preview = buildPreview(character, input.itemContents, input.now, input.effect);
-  return preview.healAmount <= 0
-    ? { state: "full-hp", preview }
+  const settlement = getRegeneratedResources(character, input.itemContents, input.now);
+  const preview = recalculateFrozenItemUsePreview({
+    hpCurrent: settlement.resources.hpCurrent,
+    hpMax: settlement.resources.hpMax,
+    manaCurrent: settlement.resources.manaCurrent,
+    manaMax: settlement.resources.manaMax,
+    effect: input.effect,
+    frozen: {
+      resource: order.preview.resource,
+      resolvedEffectKind: order.preview.resolvedEffectKind,
+      startingStackQuantity: order.preview.startingStackQuantity ?? 0
+    }
+  });
+  if (!preview) {
+    return { state: "not-usable" };
+  }
+  return getItemUsePreviewAppliedAmount(preview) <= 0
+    ? { state: getFullState(preview), preview }
     : { state: "valid", preview };
 }
 
@@ -1077,14 +1142,20 @@ function buildPreview(
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
   itemContents: readonly ItemContent[],
   now: Date,
-  effect: NonNullable<ReturnType<typeof getItemUseEffect>>
+  effect: NonNullable<ReturnType<typeof getItemUseEffect>>,
+  resolutionSeed: string,
+  startingStackQuantity: number
 ): ItemUsePreview {
   const settlement = getRegeneratedResources(character, itemContents, now);
 
-  return calculateHealingPreview({
+  return calculateItemUsePreview({
     hpCurrent: settlement.resources.hpCurrent,
     hpMax: settlement.resources.hpMax,
-    effect
+    manaCurrent: settlement.resources.manaCurrent,
+    manaMax: settlement.resources.manaMax,
+    effect,
+    resolutionSeed,
+    startingStackQuantity
   });
 }
 
@@ -1109,11 +1180,18 @@ function buildRestoreToFullPreview(
   return {
     preview: {
       rulesVersion: ITEM_USE_RULES_VERSION,
+      startingStackQuantity: 0,
+      resolvedEffectKind: effect.kind,
       mode: "restore-to-full",
+      resource: "hp",
       hpBefore,
       hpMax,
       healAmount: missingHp,
-      hpAfter: hpMax
+      hpAfter: hpMax,
+      manaBefore: settlement.resources.manaCurrent,
+      manaMax: settlement.resources.manaMax,
+      manaRestoreAmount: 0,
+      manaAfter: settlement.resources.manaCurrent
     },
     neededQuantity,
     settlement
@@ -1250,8 +1328,13 @@ async function replayTerminalConfirm(
   }
 
   if (order.status === "completed") {
+    const fullState = order.result?.kind === "full-mana"
+      ? "full-mana"
+      : order.result?.kind === "full-hp"
+        ? "full-hp"
+        : null;
     return {
-      state: order.result?.kind === "full-hp" ? "full-hp" : "replayed",
+      state: fullState ?? "replayed",
       character: toCharacterRecord(character),
       order
     };
@@ -1275,17 +1358,17 @@ async function staleTerminalConfirm(
   now: Date,
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>
 ): Promise<ItemUseConfirmRepositoryResult> {
-  if (!isRestoreToFullOrder(order)) {
+  if (!isRestoreToFullOrder(order) && order.status !== "pending") {
     return { state: "stale-selection", order };
   }
 
   const stale = await setTerminalOrder(tx, order.id, "expired", now, {
     ...order.preview,
     kind: "expired",
-      itemId: order.itemId,
-      itemName: order.itemName
-  }, "processing");
-  const terminal = stale.changed || stale.order.status !== "pending"
+    itemId: order.itemId,
+    itemName: order.itemName
+  }, isRestoreToFullOrder(order) ? "processing" : "pending");
+  const terminal = stale.changed || stale.order.status !== "pending" || !isRestoreToFullOrder(order)
     ? stale
     : await setTerminalOrder(tx, order.id, "expired", now, {
         ...order.preview,
@@ -1303,11 +1386,11 @@ async function staleTerminalConfirm(
 function mapCanonicalConfirmResult(
   order: ItemUseOrderRecord,
   character: NonNullable<Awaited<ReturnType<typeof findCharacter>>>,
-  preferredState?: "used" | "full-hp" | "expired"
+  preferredState?: "used" | "full-hp" | "full-mana" | "expired"
 ): ItemUseConfirmRepositoryResult {
   if (order.status === "completed") {
-    if (order.result?.kind === "full-hp") {
-      return { state: "full-hp", character: toCharacterRecord(character), order };
+    if (order.result?.kind === "full-hp" || order.result?.kind === "full-mana") {
+      return { state: order.result.kind, character: toCharacterRecord(character), order };
     }
 
     return {
@@ -1419,20 +1502,32 @@ function parsePreview(value: unknown): ItemUsePreview {
   if (!isRecord(value)) {
     return {
       rulesVersion: ITEM_USE_RULES_VERSION,
+      resource: "hp",
       hpBefore: 0,
       hpMax: 1,
       healAmount: 0,
-      hpAfter: 0
+      hpAfter: 0,
+      manaBefore: 0,
+      manaMax: 0,
+      manaRestoreAmount: 0,
+      manaAfter: 0
     };
   }
 
   return {
     rulesVersion: typeof value.rulesVersion === "string" ? value.rulesVersion : ITEM_USE_RULES_VERSION,
     ...(value.mode === "restore-to-full" ? { mode: "restore-to-full" as const } : {}),
+    startingStackQuantity: numberOrZero(value.startingStackQuantity),
+    ...(isItemUseEffectKind(value.resolvedEffectKind) ? { resolvedEffectKind: value.resolvedEffectKind } : {}),
+    resource: value.resource === "mana" ? "mana" : value.resource === "both" ? "both" : "hp",
     hpBefore: numberOrZero(value.hpBefore),
     hpMax: Math.max(1, numberOrZero(value.hpMax)),
     healAmount: numberOrZero(value.healAmount),
-    hpAfter: numberOrZero(value.hpAfter)
+    hpAfter: numberOrZero(value.hpAfter),
+    manaBefore: numberOrZero(value.manaBefore),
+    manaMax: Math.max(0, numberOrZero(value.manaMax)),
+    manaRestoreAmount: numberOrZero(value.manaRestoreAmount),
+    manaAfter: numberOrZero(value.manaAfter)
   };
 }
 
@@ -1443,7 +1538,13 @@ function parseResult(value: unknown): ItemUseResult | null {
 
   const preview = parsePreview(value);
   const kind = value.kind === "heal-hp" ||
+    value.kind === "heal-hp-to-min-percent" ||
+    value.kind === "restore-mana" ||
+    value.kind === "restore-both" ||
+    value.kind === "random-resource" ||
+    value.kind === "heal-hp-below-percent" ||
     value.kind === "full-hp" ||
+    value.kind === "full-mana" ||
     value.kind === "expired" ||
     value.kind === "cancelled"
     ? value.kind
@@ -1455,6 +1556,54 @@ function parseResult(value: unknown): ItemUseResult | null {
     itemId: typeof value.itemId === "string" ? value.itemId : "",
     itemName: typeof value.itemName === "string" ? value.itemName : ""
   };
+}
+
+function getFullState(preview: Pick<ItemUsePreview, "resource">): "full-hp" | "full-mana" {
+  return preview.resource === "mana" ? "full-mana" : "full-hp";
+}
+
+function createStableRandomResolutionSeed(
+  characterId: string,
+  itemId: string,
+  remortCount: number,
+  stackQuantity: number
+): string {
+  return `${characterId}:${itemId}:${remortCount}:${stackQuantity}`;
+}
+
+async function isQuestConsumableUnlocked(
+  tx: TxClient,
+  characterId: string,
+  itemId: string
+): Promise<boolean> {
+  if (itemId !== "item.cellar.foamy-mirage-bottle") return true;
+  const [acquisition, completion] = await Promise.all([
+    tx.dailyAction.findUnique({
+      where: {
+        characterId_key_localDate: {
+          characterId,
+          key: "cellar.grownup.bottle",
+          localDate: "once"
+        }
+      },
+      select: { id: true }
+    }),
+    tx.dailyAction.findUnique({
+      where: {
+        characterId_key_localDate: {
+          characterId,
+          key: "cellar.grownup.completed",
+          localDate: "once"
+        }
+      },
+      select: { resultJson: true }
+    })
+  ]);
+  return !acquisition || (isRecord(completion?.resultJson) && completion.resultJson.ending === "keep");
+}
+
+function isFullState(state: string): state is "full-hp" | "full-mana" {
+  return state === "full-hp" || state === "full-mana";
 }
 
 function parseItems(value: unknown): Array<{ itemId: string; quantity: number }> {
@@ -1480,6 +1629,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function isItemUseEffectKind(value: unknown): value is ItemUseEffectContent["kind"] {
+  return typeof value === "string" && [
+    "heal-hp",
+    "heal-hp-to-min-percent",
+    "restore-mana",
+    "restore-both",
+    "random-resource",
+    "heal-hp-below-percent",
+    "paired-heal",
+    "party-heal",
+    "guard-response",
+    "evade-response",
+    "reduce-cooldowns",
+    "cleanse-negative",
+    "critical-damage"
+  ].includes(value);
 }
 
 function createReservationKey(characterId: string, itemId: string): string {

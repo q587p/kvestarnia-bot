@@ -133,7 +133,8 @@ export function createServices(
     undefined,
     achievements,
     (telegramUserId) =>
-      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services)
+      buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
+    repositories.dailyActions
   );
 
   const services: ApplicationServices = {
@@ -260,7 +261,7 @@ export function createServices(
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
       devHelpersEnabled: nonProduction
-    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial),
+    }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions),
     partyRaidChat: new PartyRaidChatService(repositories.partyRaidChat, {
       enabled: partyRaidChatEnabled,
       devHelpersEnabled: nonProduction && partyRaidChatEnabled

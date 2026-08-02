@@ -68,7 +68,7 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       await deliverGroupCombatCards(ctx.api, service, result.session);
       return;
     }
-    await ctx.reply(presentGroupCombatStartFailure(result));
+    await ctx.reply(presentGroupCombatStartFailure(result, "dev-proof"));
   });
   bot.command("dev_group_combat_timeout", async (ctx) => {
     if (!service.areDevHelpersEnabled()) {
@@ -227,10 +227,13 @@ export function registerGroupCombatReplyKeyboard(
       return;
     }
     if (replyAction === "items") {
+      const hiddenItemIds = await service.getHiddenCombatItemIdsForTelegramUser(viewer.telegramUserId);
       const keyboard = buildGroupCombatItemsKeyboard(
         session,
         viewer.characterId,
-        "reply-menu"
+        "reply-menu",
+        0,
+        hiddenItemIds
       );
       const hasAvailableItems = keyboard.inline_keyboard.length > 1;
       await ctx.reply(
@@ -357,7 +360,7 @@ export async function handleGroupCombatCallback(
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
   if (
     (callback.type === "action" || callback.type === "items") &&
-    !(callback.type === "action" && callback.source === "reply-menu") &&
+    !((callback.type === "action" || callback.type === "items") && callback.source === "reply-menu") &&
     callbackMessageId !== undefined &&
     viewer.messageId !== null &&
     callbackMessageId !== viewer.messageId
@@ -387,7 +390,14 @@ export async function handleGroupCombatCallback(
       );
       return;
     }
-    const keyboard = buildGroupCombatItemsKeyboard(session, viewer.characterId);
+    const hiddenItemIds = await service.getHiddenCombatItemIdsForTelegramUser(viewer.telegramUserId);
+    const keyboard = buildGroupCombatItemsKeyboard(
+      session,
+      viewer.characterId,
+      callback.source,
+      callback.page,
+      hiddenItemIds
+    );
     const hasAvailableItems = keyboard.inline_keyboard.length > 1;
     await safeAnswerCallbackQuery(
       ctx,
@@ -572,7 +582,7 @@ export function presentLeftPassageInviteFailure(
         ? [
             "Запаси сил мають некоректне значення, тому бій не можна безпечно заморозити.",
             `Зараз: HP ${resources.hpCurrent}/${resources.hpMax}, мана ${resources.manaCurrent}/${resources.manaMax}.`,
-            "Відкрийте персонажа, щоб синхронізувати ресурси, або скористайтеся локальною /dev_heal чи /dev_restore_mana."
+            "Відкрийте персонажа, щоб синхронізувати ресурси, і спробуйте ще раз."
           ].join("\n")
         : "Запаси сил мають некоректне значення. Відкрийте персонажа, щоб синхронізувати ресурси, і спробуйте ще раз.";
     }
@@ -751,7 +761,8 @@ function readCommandToken(text: string | undefined): string | null {
 }
 
 export function presentGroupCombatStartFailure(
-  result: Exclude<GroupCombatStartResult, { session: unknown }>
+  result: Exclude<GroupCombatStartResult, { session: unknown }>,
+  audience: "production-left-passage" | "dev-proof" = "production-left-passage"
 ): string {
   switch (result.state) {
     case "invalid-size":
@@ -775,11 +786,13 @@ export function presentGroupCombatStartFailure(
     case "expired-invitation":
       return "Зарезервована оказія вже не чекає на цю ватагу.";
     case "not-found":
-      return [
-        "Живої ватаги з таким кодом не знайдено.",
-        "",
-        PARTY_CODE_HELP
-      ].join("\n");
+      return audience === "dev-proof"
+        ? [
+            "Живої ватаги з таким кодом не знайдено.",
+            "",
+            PARTY_CODE_HELP
+          ].join("\n")
+        : "Цей збір у лівому проході вже не знайдено. Огляньте прохід і зберіть ватагу знову.";
     default:
       return "Не вдалося запустити гуртову сутичку з цієї ватаги.";
   }

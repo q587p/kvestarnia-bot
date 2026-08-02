@@ -6,10 +6,10 @@ import {
   BIG_BARREL_BROTHER_RULES_VERSION,
   buildBigBarrelLossXp,
   buildResult,
-  calculatePartyBossCombatItemHealing,
   clonePartyBossState,
   createPartyBossState,
   getPartyBossCombatItemAvailability,
+  getPartyBossCombatItemInapplicableReason,
   getWarriorRaidTauntAvailability,
   isBigBarrelEligible,
   isBigBarrelBrotherState,
@@ -31,6 +31,7 @@ import {
   parsePartyBossStatusStrict
 } from "../../domain/partyBoss/partyBossStateValidation";
 import { getCombatMantokAbilityGrantsByIds, getCombatMantokAbilityGrantsForEquippedItems, items } from "../../content";
+import { itemUseEffectSchema } from "../../content/schema";
 import { getCombatGearActionAvailabilityForActor, type CombatGearAbilityInput } from "../../domain/combat";
 import { getLevelForXp } from "../../domain/progression/level";
 import {
@@ -77,6 +78,7 @@ import { SeededRandomSource } from "../../shared/random";
 import { PARTY_BOSS_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 import { PartyBossStateValidationError } from "../../domain/partyBoss/partyBossStateValidation";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -106,6 +108,7 @@ type QueuedPartyBossActionInput = {
   action: PartyBossActionKey;
   origin: "manual";
   item?: PartyBossCombatItemInput;
+  itemCommitAllowed?: boolean;
   gearAbility?: CombatGearAbilityInput;
 };
 
@@ -852,13 +855,25 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         };
       }
 
+      if (!(await isConsumableCommitAllowed(tx, {
+        characterId: character.id,
+        itemId: item.id
+      }))) {
+        return { state: "item-unavailable", reason: "not-usable", session: this.mapSession(session) };
+      }
+
       const itemAvailability = getPartyBossCombatItemAvailability(actor, item.id);
       if (!itemAvailability.available) {
         return { state: "item-unavailable", reason: itemAvailability.reason, session: this.mapSession(session) };
       }
 
-      if (calculatePartyBossCombatItemHealing(actor.resources, item.effect) <= 0) {
-        return { state: "item-unavailable", reason: "full-hp", session: this.mapSession(session) };
+      const itemUnavailableReason = getPartyBossCombatItemInapplicableReason(state, actor, item.effect);
+      if (itemUnavailableReason) {
+        return {
+          state: "item-unavailable",
+          reason: itemUnavailableReason,
+          session: this.mapSession(session)
+        };
       }
 
       const lease = await tx.activeCombatLease.findUnique({
@@ -1225,9 +1240,15 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
         return null;
       }
 
-      const actionInputs: QueuedPartyBossActionInput[] = actions.map((entry) => {
+      const actionInputs: QueuedPartyBossActionInput[] = await Promise.all(actions.map(async (entry) => {
         const item = parseActionItem(entry.resultJson);
         const gearAbility = parseActionGearAbility(entry.resultJson);
+        const itemCommitAllowed = item
+          ? await isConsumableCommitAllowed(tx, {
+              characterId: entry.actorCharacterId,
+              itemId: item.id
+            })
+          : true;
 
         return {
           id: entry.id,
@@ -1235,9 +1256,10 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           action: parseActionKey(entry.actionKey),
           origin: "manual" as const,
           ...(item ? { item } : {}),
+          ...(item ? { itemCommitAllowed } : {}),
           ...(gearAbility ? { gearAbility } : {})
         };
-      });
+      }));
       const resolved = resolvePartyBossRound({
         state,
         now: input.now,
@@ -1247,6 +1269,7 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
           action: entry.action,
           origin: entry.origin,
           ...(entry.item ? { item: entry.item } : {}),
+          ...(entry.item ? { itemCommitAllowed: entry.itemCommitAllowed } : {}),
           ...(entry.gearAbility ? { gearAbility: entry.gearAbility } : {})
         }))
       });
@@ -1294,7 +1317,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       await appendResolvedRaidChatEvents(this.raidChat, tx, session, state, resolved.state, resolved.round, input.now);
 
       for (const action of actionInputs) {
-        if (action.action === "item" && action.item) {
+        const summary = resolved.round.actions.find((entry) => entry.characterId === action.characterId);
+        if (action.action === "item" && action.item && summary?.outcome === "item-used") {
           await consumePartyBossCombatItem(tx, action.characterId, action.item.id);
         }
       }
@@ -1310,7 +1334,8 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       }
 
       let achievementEvents: PartyBossAchievementEventRecord[] = actionInputs.flatMap((action) =>
-        action.action === "item" && action.item
+        action.action === "item" && action.item &&
+        resolved.round.actions.find((entry) => entry.characterId === action.characterId)?.outcome === "item-used"
           ? buildPartyBossItemActionAchievementEvents(session, action, action.item, input.now)
           : buildPartyBossGearActionAchievementEvents(
               session,
@@ -2573,34 +2598,8 @@ function parseActionItem(value: Prisma.JsonValue): PartyBossCombatItemInput | nu
     return null;
   }
 
-  if (!item.effect || typeof item.effect !== "object" || Array.isArray(item.effect)) {
-    return null;
-  }
-
-  const effect = item.effect as { kind?: unknown; amount?: unknown; percent?: unknown };
-  if (effect.kind === "heal-hp" && typeof effect.amount === "number") {
-    return {
-      id: item.id,
-      name: item.name,
-      effect: {
-        kind: "heal-hp",
-        amount: effect.amount
-      }
-    };
-  }
-
-  if (effect.kind === "heal-hp-to-min-percent" && typeof effect.percent === "number") {
-    return {
-      id: item.id,
-      name: item.name,
-      effect: {
-        kind: "heal-hp-to-min-percent",
-        percent: effect.percent
-      }
-    };
-  }
-
-  return null;
+  const effect = itemUseEffectSchema.safeParse(item.effect);
+  return effect.success ? { id: item.id, name: item.name, effect: effect.data } : null;
 }
 
 function parseActionGearAbility(value: Prisma.JsonValue): CombatGearAbilityInput | null {

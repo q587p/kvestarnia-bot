@@ -401,6 +401,7 @@ function validateRoundAction(value: unknown, path: string): void {
     "critical-fumble",
     "won",
     "item-used",
+    "item-not-used",
     "taunt-activated",
     "taunt-failed",
     "lament-activated"
@@ -408,12 +409,26 @@ function validateRoundAction(value: unknown, path: string): void {
     fail("round-log", `${path}.outcome is invalid.`);
   }
   ["damage", "manaSpent"].forEach((field) => requireFiniteNonNegative(action[field], `${path}.${field}`));
-  ["healing", "guard", "hpAfter"].forEach((field) => {
+  ["healing", "manaRestored", "guard", "hpAfter"].forEach((field) => {
     if (action[field] !== undefined) requireFiniteNonNegative(action[field], `${path}.${field}`);
   });
-  ["skillId", "itemId", "itemName"].forEach((field) => {
+  ["skillId", "itemId", "itemName", "itemUnavailableReason"].forEach((field) => {
     if (action[field] !== undefined) requireString(action[field], `${path}.${field}`, "round-log");
   });
+  if (
+    action.itemUnavailableReason !== undefined &&
+    ![
+      "not-usable",
+      "full-hp",
+      "full-mana",
+      "full-resources",
+      "effect-unavailable",
+      "item-on-cooldown",
+      "item-limit-reached"
+    ].includes(action.itemUnavailableReason as string)
+  ) {
+    fail("round-log", `${path}.itemUnavailableReason is invalid.`);
+  }
   if (action.supportTargets !== undefined) {
     if (!Array.isArray(action.supportTargets)) fail("round-log", `${path}.supportTargets is invalid.`);
     action.supportTargets.forEach((raw, index) => {
@@ -477,9 +492,13 @@ function validateRetaliation(value: unknown, path: string): void {
   const retaliation = record(value, "round-log", `${path} is invalid.`);
   requireString(retaliation.characterId, `${path}.characterId`, "round-log");
   ["damage", "hpAfter"].forEach((field) => requireFiniteNonNegative(retaliation[field], `${path}.${field}`));
-  ["damageBeforeWard", "wardPreventedDamage", "damageBeforeProtocol", "protocolPreventedDamage", "damageBeforeLament", "lamentPreventedDamage", "counterDamage"].forEach((field) => {
+  ["damageBeforeWard", "wardPreventedDamage", "damageBeforeProtocol", "protocolPreventedDamage", "damageBeforeLament", "lamentPreventedDamage", "itemResponsePreventedDamage", "counterDamage"].forEach((field) => {
     if (retaliation[field] !== undefined) requireFiniteNonNegative(retaliation[field], `${path}.${field}`);
   });
+  if (retaliation.itemResponseItemId !== undefined) requireString(retaliation.itemResponseItemId, `${path}.itemResponseItemId`, "round-log");
+  if (retaliation.itemResponseKind !== undefined && retaliation.itemResponseKind !== "guard" && retaliation.itemResponseKind !== "evade") {
+    fail("round-log", `${path}.itemResponseKind is invalid.`);
+  }
   if (retaliation.tauntRedirected !== undefined && typeof retaliation.tauntRedirected !== "boolean") fail("round-log", `${path}.tauntRedirected is invalid.`);
   if (retaliation.tauntOriginalKind !== undefined && retaliation.tauntOriginalKind !== "focused" && retaliation.tauntOriginalKind !== "broad") fail("round-log", `${path}.tauntOriginalKind is invalid.`);
 }

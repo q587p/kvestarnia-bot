@@ -13,8 +13,8 @@ import type {
 } from "../db/repositories/partyBossRepository";
 import type { InventoryRepository } from "../db/repositories/inventoryRepository";
 import {
-  calculatePartyBossCombatItemHealing,
   getPartyBossCombatItemAvailability,
+  isPartyBossCombatItemEffectApplicable,
   PARTY_BOSS_TURN_MS
 } from "../domain/partyBoss/partyBoss";
 import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
@@ -22,6 +22,9 @@ import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import type { BarrelBeerTutorialService } from "./barrelBeerTutorialService";
+import type { DailyActionRepository } from "../db/repositories/dailyActionRepository";
+import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
+import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 
 export interface PartyBossServiceOptions {
   enabled: boolean;
@@ -63,7 +66,8 @@ export class PartyBossService {
     private readonly barrelBeerTutorial?: Pick<
       BarrelBeerTutorialService,
       "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
-    >
+    >,
+    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">
   ) {}
 
   isEnabled(): boolean {
@@ -221,7 +225,9 @@ export class PartyBossService {
 
     const now = this.clock();
     const combatItem = findCombatUsableItemByKey(items, itemKey);
-    if (!combatItem) {
+    if (
+      !combatItem
+    ) {
       const session = await this.sessions.findByPartyInviteToken(partyInviteToken);
       return {
         state: "item-unavailable",
@@ -299,6 +305,12 @@ export class PartyBossService {
       return { state: "no-character" };
     }
 
+    const foamyMirageBottleUnlocked = !this.dailyActions || await isQuestConsumableUseUnlocked(
+      this.dailyActions,
+      telegramUserId,
+      CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID
+    );
+
     const contentById = new Map(items.map((item) => [item.id, item]));
     const entries = inventoryItems.flatMap((inventoryItem): PartyBossCombatItemMenuEntry[] => {
       if (inventoryItem.characterId !== participant.characterId || inventoryItem.quantity <= 0) {
@@ -310,14 +322,16 @@ export class PartyBossService {
       if (!combatItem) {
         return [];
       }
+      if (combatItem.item.id === CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID && !foamyMirageBottleUnlocked) {
+        return [];
+      }
 
       const availability = getPartyBossCombatItemAvailability(participant, combatItem.item.id);
       if (!availability.available) {
         return [];
       }
 
-      const healing = calculatePartyBossCombatItemHealing(participant.resources, combatItem.effect);
-      if (healing <= 0) {
+      if (!isPartyBossCombatItemEffectApplicable(session.state, participant, combatItem.effect)) {
         return [];
       }
 

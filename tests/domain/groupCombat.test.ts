@@ -848,6 +848,25 @@ describe("group combat proof reducer", () => {
     );
     expect(itemLine?.split(itemActor.name)).toHaveLength(2);
     expect(itemLine).not.toContain("«");
+
+    const manaState = leftPassageState(1);
+    const manaActor = manaState.participants[0]!;
+    manaActor.mana = 1;
+    manaActor.manaMax = 20;
+    manaActor.combatItemQuantities = { "item.loot-v1-c014": 1 };
+    manaState.enemies[0]!.attack = 1;
+    const manaResult = resolveGroupCombatTurn(manaState, [{
+      ...action(manaState, 0, "item", "self", manaActor.characterId),
+      payloadKey: "item.loot-v1-c014"
+    }]);
+    expect(manaResult.state.participants[0]?.mana).toBe(10);
+    expect(manaResult.state.recap[0]?.lines).toContain(
+      "Пригодник 0 використовує манатку — 🌱 Насіння Диванного Друїда: +0 HP і +9 мани."
+    );
+    expect(manaResult.committedConsumables).toEqual([{
+      characterId: manaActor.characterId,
+      itemId: "item.loot-v1-c014"
+    }]);
   });
 
   it("lets at most one deterministic monster speak in a multi-enemy turn", () => {
@@ -863,6 +882,571 @@ describe("group combat proof reducer", () => {
     expect(replay.state.recap[0]?.monsterBarkIds).toEqual(
       first.state.recap[0]?.monsterBarkIds
     );
+  });
+
+  it("executes paired, raid-wide, cleanse and authored consumable effects deterministically", () => {
+    const pairedState = leftPassageState(2);
+    pairedState.participants[0]!.hp = 20;
+    pairedState.participants[1]!.hp = 10;
+    pairedState.participants[0]!.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    pairedState.enemies.forEach((enemy) => { enemy.attack = 1; });
+    const paired = resolveGroupCombatTurn(pairedState, [{
+      ...action(pairedState, 0, "item", "self", pairedState.participants[0]!.characterId),
+      payloadKey: "item.loot-v1-c002"
+    }, buildGroupCombatTimeoutAction(pairedState, pairedState.participants[1]!.characterId)]);
+    expect(paired.state.contributions.find((entry) => entry.characterId === pairedState.participants[0]!.characterId)?.healing).toBe(16);
+
+    const partyState = leftPassageState(3);
+    partyState.participants.forEach((participant, index) => {
+      participant.hp = 10 + index;
+      participant.combatItemQuantities = index === 0 ? { "item.loot-v1-c012": 1 } : {};
+    });
+    partyState.enemies.forEach((enemy) => { enemy.attack = 1; });
+    const party = resolveGroupCombatTurn(partyState, partyState.participants.map((participant, index) =>
+      index === 0
+        ? { ...action(partyState, 0, "item", "self", participant.characterId), payloadKey: "item.loot-v1-c012" }
+        : buildGroupCombatTimeoutAction(partyState, participant.characterId)
+    ));
+    expect(party.state.contributions.find((entry) => entry.characterId === partyState.participants[0]!.characterId)?.healing).toBe(39);
+
+    const cleanseState = leftPassageState(1);
+    const cleanser = cleanseState.participants[0]!;
+    cleanser.combatItemQuantities = { "item.loot-v1-c004": 1 };
+    cleanseState.statuses.push({
+      id: "harmful-test",
+      kind: "monster-burn",
+      sourceEnemyId: cleanseState.enemies[0]!.id,
+      targetKind: "participant",
+      targetId: cleanser.characterId,
+      value: 3,
+      remainingTurns: 2
+    });
+    cleanseState.enemies[0]!.attack = 1;
+    const cleansed = resolveGroupCombatTurn(cleanseState, [{
+      ...action(cleanseState, 0, "item", "self", cleanser.characterId),
+      payloadKey: "item.loot-v1-c004"
+    }]);
+    expect(cleansed.state.statuses.find((status) => status.id === "harmful-test")).toBeUndefined();
+
+    const evadeState = leftPassageState(1);
+    const evader = evadeState.participants[0]!;
+    evader.combatItemQuantities = { "item.cellar.fancy-cheese": 1 };
+    evadeState.enemies[0]!.attack = 30;
+    const evadeAction = [{
+      ...action(evadeState, 0, "item", "self", evader.characterId),
+      payloadKey: "item.cellar.fancy-cheese"
+    }];
+    const first = resolveGroupCombatTurn(structuredClone(evadeState), evadeAction);
+    const replay = resolveGroupCombatTurn(structuredClone(evadeState), evadeAction);
+    expect(first.state.participants[0]!.hp).toBe(evader.hp);
+    expect(replay).toEqual(first);
+  });
+
+  it("lets a wounded lone left-passage participant use paired healing without an ally", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.hp = 9;
+    actor.hpMax = 35;
+    actor.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    state.enemies[0]!.attack = 1;
+    const itemAction = {
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c002"
+    };
+
+    expect(validateGroupCombatAction(state, itemAction)).toBe("ok");
+    const result = resolveGroupCombatTurn(state, [itemAction]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: actor.characterId,
+      itemId: "item.loot-v1-c002"
+    }]);
+    expect(result.state.contributions[0]?.healing).toBe(8);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c002"]).toBeUndefined();
+    expect(result.state.recap[0]?.lines).toContain(
+      "Пригодник 0 використовує манатку — 🥟 Вареники Парного Бафу: +8 HP собі й +0 HP союзникові."
+    );
+
+    const full = leftPassageState(1);
+    full.participants[0]!.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    expect(validateGroupCombatAction(full, {
+      ...action(full, 0, "item", "self", full.participants[0]!.characterId),
+      payloadKey: "item.loot-v1-c002"
+    })).toBe("action-unavailable");
+  });
+
+  it.each([
+    ["one", { skill: { id: "skill.test", remainingTurns: 1 } }, false],
+    ["two", { skill: { id: "skill.test", remainingTurns: 2 } }, true],
+    ["mixed", {
+      skill: { id: "skill.test", remainingTurns: 1 },
+      abilities: { "ability.test": { id: "ability.test", remainingTurns: 2 } }
+    }, true]
+  ] as const)("commits GroupCombat c005 only when post-tick cooldown benefit remains: %s", (_label, cooldowns, committed) => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.combatItemQuantities = { "item.loot-v1-c005": 1 };
+    if (cooldowns) actor.cooldowns = structuredClone(cooldowns);
+    state.enemies[0]!.attack = 1;
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c005"
+    }]);
+
+    expect(result.committedConsumables).toEqual(committed
+      ? [{ characterId: actor.characterId, itemId: "item.loot-v1-c005" }]
+      : []);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c005"]).toBe(committed ? undefined : 1);
+    expect(result.state.participants[0]?.cooldowns).toBeUndefined();
+    expect(result.state.recap[0]?.lines.some((line) => line.includes(
+      committed ? "використовує манатку" : "не витрачає манатку"
+    ))).toBe(true);
+  });
+
+  it("rejects GroupCombat c005 before queueing when no cooldown is active", () => {
+    const state = leftPassageState(1);
+    const actor = state.participants[0]!;
+    actor.combatItemQuantities = { "item.loot-v1-c005": 1 };
+
+    expect(validateGroupCombatAction(state, {
+      ...action(state, 0, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c005"
+    })).toBe("action-unavailable");
+  });
+
+  it.each([
+    ["item.loot-v1-c006", "guard"],
+    ["item.loot-v1-c013", "evade"],
+    ["item.cellar.fancy-cheese", "evade"]
+  ] as const)("applies %s to only the first of two GroupCombat responses against its owner", (itemId, kind) => {
+    const initial = proofState(2);
+    const owner = initial.participants[0]!;
+    const inactive = initial.participants[1]!;
+    owner.hp -= 1;
+    owner.threat = 100;
+    inactive.hp = 0;
+    owner.combatItemQuantities = { [itemId]: 1 };
+    initial.enemies.forEach((enemy) => { enemy.attack = 12; });
+    const itemAction = [{
+      ...action(initial, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }];
+    const baselineState = structuredClone(initial);
+    baselineState.participants[0]!.combatItemQuantities = { "item.responsible-panic-bandage": 1 };
+    const baseline = resolveGroupCombatTurn(baselineState, [{
+      ...action(baselineState, 0, "item", "self", owner.characterId),
+      payloadKey: "item.responsible-panic-bandage"
+    }]);
+    const first = resolveGroupCombatTurn(structuredClone(initial), itemAction);
+    const replay = resolveGroupCombatTurn(structuredClone(initial), itemAction);
+    const baselineEnemyDamage = baseline.state.enemyContributions.map((entry) => entry.damage);
+    const itemEnemyDamage = first.state.enemyContributions.map((entry) => entry.damage);
+
+    expect(first.committedConsumables).toEqual([{ characterId: owner.characterId, itemId }]);
+    expect(first.state.participants[0]?.combatItemQuantities[itemId]).toBeUndefined();
+    expect(itemEnemyDamage[1]).toBe(baselineEnemyDamage[1]);
+    if (kind === "evade") {
+      expect(itemEnemyDamage[0]).toBe(0);
+    } else {
+      expect(itemEnemyDamage[0]).toBeLessThan(baselineEnemyDamage[0] ?? 0);
+    }
+    expect(first.state.recap[0]?.lines.some((line) =>
+      line.includes("використовує манатку") && line.includes(first.state.enemies[0]!.name)
+    )).toBe(true);
+    expect(replay).toEqual(first);
+  });
+
+  it.each([
+    ["zero after an existing protection", 3, true, false, 0],
+    ["one", 3, false, false, 1],
+    ["two", 4, false, false, 2],
+    ["three", 5, false, true, 2]
+  ] as const)("commits GroupCombat c006 only for a positive incremental delta: %s", (
+    _label,
+    enemyAttack,
+    protectedAlready,
+    committed,
+    expectedDamage
+  ) => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    state.enemies[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.loot-v1-c006": 1 };
+    state.enemies[0]!.attack = enemyAttack;
+    if (protectedAlready) {
+      state.statuses.push({
+        id: "existing-protection",
+        kind: "response-mitigation",
+        sourceCharacterId: owner.characterId,
+        targetKind: "participant",
+        targetId: owner.characterId,
+        value: 100_100,
+        remainingTurns: 2
+      });
+    }
+
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.loot-v1-c006"
+    }]);
+
+    expect(result.state.turn).toBe(2);
+    expect(result.committedConsumables).toEqual(committed
+      ? [{ characterId: owner.characterId, itemId: "item.loot-v1-c006" }]
+      : []);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c006"])
+      .toBe(committed ? undefined : 1);
+    expect(result.state.enemyContributions?.[0]?.damage).toBe(expectedDamage);
+    expect(result.state.recap[0]?.lines.some((line) => line.includes(
+      committed ? "відвернуто 1 шкоди" : "не витрачає манатку"
+    ))).toBe(true);
+  });
+
+  it("lets only the c013 owner evade their share of an all-party accuracy response", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    const ally = state.participants[1]!;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies[0]!.abilityIds = ["monster.smoke-without-approval"];
+    state.enemies[0]!.attack = 30;
+    state.enemies[1]!.hp = 0;
+    const ownerHp = owner.hp;
+    const allyHp = ally.hp;
+
+    const result = resolveGroupCombatTurn(state, [
+      { ...action(state, 0, "item", "self", owner.characterId), payloadKey: "item.loot-v1-c013" },
+      buildGroupCombatTimeoutAction(state, ally.characterId)
+    ]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: owner.characterId,
+      itemId: "item.loot-v1-c013"
+    }]);
+    expect(result.state.participants[0]?.hp).toBe(ownerHp);
+    expect(result.state.participants[1]?.hp).toBeLessThan(allyHp);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-accuracy-penalty" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-accuracy-penalty" && status.targetId === ally.characterId
+    )).toBe(true);
+    expect(result.state.enemies[0]?.abilityCooldowns?.["monster.smoke-without-approval"]?.remainingTurns)
+      .toBeGreaterThan(0);
+  });
+
+  it("lets Fancy Cheese evade one damaging bite and its burn rider", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.cellar.fancy-cheese": 1 };
+    state.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
+    state.enemies[0]!.attack = 30;
+    state.enemies[1]!.hp = 0;
+    const ownerHp = owner.hp;
+    const itemAction = [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.cellar.fancy-cheese"
+    }];
+
+    const first = resolveGroupCombatTurn(structuredClone(state), itemAction);
+    const replay = resolveGroupCombatTurn(structuredClone(state), itemAction);
+
+    expect(first.state.participants[0]?.hp).toBe(ownerHp);
+    expect(first.state.statuses.some((status) =>
+      status.kind === "monster-burn" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(first.committedConsumables).toEqual([{
+      characterId: owner.characterId,
+      itemId: "item.cellar.fancy-cheese"
+    }]);
+    expect(first.state.enemies[0]?.abilityCooldowns?.["monster.preapproved-bite"]?.remainingTurns)
+      .toBeGreaterThan(0);
+    expect(replay).toEqual(first);
+  });
+
+  it.each([
+    ["item.loot-v1-c013", "monster.smoke-without-approval", "monster-accuracy-penalty"],
+    ["item.cellar.fancy-cheese", "monster.preapproved-bite", "monster-burn"]
+  ] as const)("keeps %s when authored GroupCombat ability %s actually misses", (
+    itemId,
+    abilityId,
+    statusKind
+  ) => {
+    const resolved = Array.from({ length: 587 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.combatItemQuantities = { [itemId]: 1 };
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = [abilityId];
+      state.enemies[0]!.attack = 30;
+      state.enemies[1]!.hp = 0;
+      const result = resolveGroupCombatTurn(state, [{
+        ...action(state, 0, "item", "self", owner.characterId),
+        payloadKey: itemId
+      }]);
+      return result.state.enemies[0]?.abilityCooldowns?.[abilityId] &&
+        result.committedConsumables.length === 0
+        ? result
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+    expect(resolved).toBeDefined();
+    expect(resolved!.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(resolved!.state.statuses.some((status) =>
+      status.kind === statusKind && status.targetId === resolved!.state.participants[0]!.characterId
+    )).toBe(false);
+    expect(resolved!.state.contributions[0]?.control).toBe(0);
+    expect(resolved!.state.recap[0]?.lines.some((line) => line.includes("не витрачає манатку")))
+      .toBe(true);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps %s when a generic compiled burn ability misses", (itemId) => {
+    const resolved = Array.from({ length: 587 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.combatItemQuantities = { [itemId]: 1 };
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.common-fire-burst"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[1]!.hp = 0;
+      const result = resolveGroupCombatTurn(state, [{
+        ...action(state, 0, "item", "self", owner.characterId),
+        payloadKey: itemId
+      }]);
+      return result.state.enemies[0]?.abilityCooldowns?.["monster.common-fire-burst"] &&
+        result.committedConsumables.length === 0
+        ? result
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+    expect(resolved).toBeDefined();
+    expect(resolved!.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(resolved!.state.abilityEffects?.some((effect) =>
+      effect.kind === "burn" && effect.targetId === resolved!.state.participants[0]!.characterId
+    )).toBe(false);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("keeps %s when earlier protection removes compiled damage and its rider eligibility", (itemId) => {
+    const startingState = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.attack = 1;
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.common-fire-burst"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[0]!.hp = state.enemies[0]!.hpMax = 93;
+      state.enemies[1]!.hp = 0;
+      const baseline = resolveGroupCombatTurn(structuredClone(state), [
+        action(state, 0, "attack", "enemy", state.enemies[0]!.id)
+      ]);
+      return baseline.state.participants[0]!.hp < owner.hp &&
+        baseline.state.abilityEffects?.some((effect) =>
+          effect.kind === "burn" && effect.targetId === owner.characterId
+        )
+        ? state
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    expect(startingState).toBeDefined();
+    const owner = startingState!.participants[0]!;
+    owner.combatItemQuantities = { [itemId]: 1 };
+    startingState!.statuses.push({
+      id: "existing-full-protection",
+      kind: "guard",
+      sourceCharacterId: owner.characterId,
+      targetKind: "participant",
+      targetId: owner.characterId,
+      value: 999,
+      remainingTurns: 1
+    });
+
+    const result = resolveGroupCombatTurn(startingState!, [{
+      ...action(startingState!, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities[itemId]).toBe(1);
+    expect(result.state.abilityEffects?.some((effect) =>
+      effect.kind === "burn" && effect.targetId === owner.characterId
+    )).toBe(false);
+  });
+
+  it.each([
+    ["item.loot-v1-c013"],
+    ["item.cellar.fancy-cheese"]
+  ] as const)("uses %s at zero remaining damage when an authored burn would really apply", (itemId) => {
+    const startingState = Array.from({ length: 93 }, (_, deterministicSeed) => {
+      const state = proofState(2);
+      const owner = state.participants[0]!;
+      state.participants[1]!.hp = 0;
+      owner.threat = 100;
+      owner.attack = 1;
+      state.deterministicSeed = deterministicSeed;
+      state.enemies[0]!.monsterId = "monster.zero-declaration-tax-dragon";
+      state.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
+      state.enemies[0]!.attack = 30;
+      state.enemies[0]!.hp = state.enemies[0]!.hpMax = 93;
+      state.enemies[1]!.hp = 0;
+      state.statuses.push({
+        id: "existing-full-protection",
+        kind: "guard",
+        sourceCharacterId: owner.characterId,
+        targetKind: "participant",
+        targetId: owner.characterId,
+        value: 999,
+        remainingTurns: 1
+      });
+      const baseline = resolveGroupCombatTurn(structuredClone(state), [
+        action(state, 0, "attack", "enemy", state.enemies[0]!.id)
+      ]);
+      return baseline.state.participants[0]!.hp === owner.hp &&
+        baseline.state.statuses.some((status) =>
+          status.kind === "monster-burn" && status.targetId === owner.characterId
+        )
+        ? state
+        : null;
+    }).find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    expect(startingState).toBeDefined();
+    const owner = startingState!.participants[0]!;
+    owner.combatItemQuantities = { [itemId]: 1 };
+
+    const result = resolveGroupCombatTurn(startingState!, [{
+      ...action(startingState!, 0, "item", "self", owner.characterId),
+      payloadKey: itemId
+    }]);
+
+    expect(result.committedConsumables).toEqual([{ characterId: owner.characterId, itemId }]);
+    expect(result.state.participants[0]?.hp).toBe(owner.hp);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-burn" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(result.state.contributions[0]?.control).toBeGreaterThanOrEqual(1);
+    expect(result.state.recap[0]?.lines.some((line) =>
+      line.includes("шкідливий наслідок цієї відповіді не спрацьовує")
+    )).toBe(true);
+  });
+
+  it("keeps an evade item through a non-damaging hostile response", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies[0]!.abilityIds = ["monster.ledger-audit"];
+    state.enemies[1]!.hp = 0;
+    const manaBefore = owner.mana;
+
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.loot-v1-c013"
+    }]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c013"]).toBe(1);
+    expect(result.state.participants[0]?.mana).toBeLessThan(manaBefore);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-incoming-damage" && status.targetId === owner.characterId
+    )).toBe(true);
+    expect(result.state.enemies[0]?.abilityCooldowns?.["monster.ledger-audit"]?.remainingTurns)
+      .toBeGreaterThan(0);
+  });
+
+  it("keeps a GroupCombat response item when both enemies target another participant", () => {
+    const state = leftPassageState(2);
+    const owner = state.participants[0]!;
+    const target = state.participants[1]!;
+    owner.threat = 0;
+    target.threat = 1_000;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 12; });
+    const result = resolveGroupCombatTurn(state, [
+      { ...action(state, 0, "item", "self", owner.characterId), payloadKey: "item.loot-v1-c013" },
+      buildGroupCombatTimeoutAction(state, target.characterId)
+    ]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c013"]).toBe(1);
+    expect(result.state.recap[0]?.lines.some((line) =>
+      line.includes("не витрачає манатку") && line.includes("жодна відповідь не дала корисного ефекту")
+    )).toBe(true);
+  });
+
+  it.each([
+    ["item.loot-v1-c002"],
+    ["item.loot-v1-c012"]
+  ])("keeps %s after an earlier shared-round raid heal makes it useless", (secondItemId) => {
+    const state = leftPassageState(2);
+    const first = state.participants[0]!;
+    const second = state.participants[1]!;
+    first.hp = second.hp = 37;
+    first.hpMax = second.hpMax = 50;
+    first.stats.dexterity = 93;
+    second.stats.dexterity = 1;
+    first.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    second.combatItemQuantities = { [secondItemId]: 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 1; });
+
+    const result = resolveGroupCombatTurn(state, [
+      {
+        ...action(state, 0, "item", "self", first.characterId),
+        payloadKey: "item.loot-v1-c012"
+      },
+      {
+        ...action(state, 1, "item", "self", second.characterId),
+        payloadKey: secondItemId
+      }
+    ]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: first.characterId,
+      itemId: "item.loot-v1-c012"
+    }]);
+    expect(result.state.participants[1]?.combatItemQuantities[secondItemId]).toBe(1);
+    expect(result.state.recap[0]?.lines).toContain(
+      `${second.name} не витрачає манатку — ${secondItemId === "item.loot-v1-c002" ? "🥟 Вареники Парного Бафу" : "🥗 Салат «Олів'є Рейдовий»"}: ефекту вже нема на що подіяти, тож манатка лишається в торбі.`
+    );
+  });
+
+  it("commits both shared-round raid heals while the second still has a useful effect", () => {
+    const state = leftPassageState(2);
+    const first = state.participants[0]!;
+    const second = state.participants[1]!;
+    first.hp = second.hp = 10;
+    first.hpMax = second.hpMax = 50;
+    first.stats.dexterity = 93;
+    second.stats.dexterity = 1;
+    first.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    second.combatItemQuantities = { "item.loot-v1-c012": 1 };
+    state.enemies.forEach((enemy) => { enemy.attack = 1; });
+
+    const result = resolveGroupCombatTurn(state, [first, second].map((participant, index) => ({
+      ...action(state, index, "item", "self", participant.characterId),
+      payloadKey: "item.loot-v1-c012"
+    })));
+
+    expect(result.committedConsumables).toEqual([
+      { characterId: first.characterId, itemId: "item.loot-v1-c012" },
+      { characterId: second.characterId, itemId: "item.loot-v1-c012" }
+    ]);
+    expect(result.state.participants.map((entry) => entry.hp)).toEqual([35, 36]);
   });
 
   it("records accepted manual participation before a start-of-turn bleed win", () => {

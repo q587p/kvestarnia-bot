@@ -1,4 +1,4 @@
-import type { ItemContent } from "../../content/schema";
+import type { ItemContent, ItemUseEffectContent } from "../../content/schema";
 import type { CharacterRecord } from "./characterRepository";
 
 export type ItemUseOrderStatus = "pending" | "processing" | "completed" | "cancelled" | "expired";
@@ -6,14 +6,31 @@ export type ItemUseOrderStatus = "pending" | "processing" | "completed" | "cance
 export interface ItemUsePreview {
   rulesVersion: string;
   mode?: "restore-to-full";
+  startingStackQuantity?: number;
+  resolvedEffectKind?: ItemUseEffectContent["kind"];
+  resource: "hp" | "mana" | "both";
   hpBefore: number;
   hpMax: number;
   healAmount: number;
   hpAfter: number;
+  manaBefore?: number;
+  manaMax?: number;
+  manaRestoreAmount?: number;
+  manaAfter?: number;
 }
 
 export interface ItemUseResult extends ItemUsePreview {
-  kind: "heal-hp" | "full-hp" | "expired" | "cancelled";
+  kind:
+    | "heal-hp"
+    | "heal-hp-to-min-percent"
+    | "restore-mana"
+    | "restore-both"
+    | "random-resource"
+    | "heal-hp-below-percent"
+    | "full-hp"
+    | "full-mana"
+    | "expired"
+    | "cancelled";
   itemId: string;
   itemName: string;
 }
@@ -52,6 +69,7 @@ export type ItemUsePreviewRepositoryResult =
   | { state: "combat-locked" }
   | { state: "reserved" }
   | { state: "full-hp"; character: CharacterRecord; preview: ItemUsePreview }
+  | { state: "full-mana"; character: CharacterRecord; preview: ItemUsePreview }
   | { state: "preview-created" | "preview-replayed"; character: CharacterRecord; order: ItemUseOrderRecord };
 
 export type ItemUseConfirmRepositoryResult =
@@ -62,6 +80,7 @@ export type ItemUseConfirmRepositoryResult =
   | { state: "cancelled"; order: ItemUseOrderRecord }
   | { state: "stale-selection"; order: ItemUseOrderRecord }
   | { state: "full-hp"; character: CharacterRecord; order: ItemUseOrderRecord }
+  | { state: "full-mana"; character: CharacterRecord; order: ItemUseOrderRecord }
   | { state: "used" | "replayed"; character: CharacterRecord; order: ItemUseOrderRecord };
 
 export type ItemUseCancelRepositoryResult =

@@ -7,6 +7,29 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
+
+### Added
+- Activated an exhaustive exact-id catalog for all twenty current consumables: three existing medical supplies, two authored cellar items and generated Loot Expansion rows `c001`–`c015`. Content validation now rejects an unmapped future `slot: consumable` row instead of inferring behavior from names, tags or `effect_id`.
+- Added explicit immediate typed effects for self, paired and party healing, HP/mana/both-resource restoration, one removable GroupCombat status cleanse, one-turn cooldown reduction, fixed critical damage, current-response guard/evasion and once-resolved bounded resource outcomes. `c001`, `c003` and `c009` heal exactly 7, 8 and 9 HP in and out of combat.
+- Generalized out-of-combat `ItemUseOrder` previews to `item-use-v5` resource snapshots with a frozen typed random branch, exact starting-stack quantity, both-resource application, life/fingerprint reservations and exact terminal replay. Confirm recalculates only the capped delta from the frozen branch; stack drift stales the old preview and cancel/reopen cannot reroll an unchanged stack/remort life.
+- Added a rewardless generic first successful consumable-use achievement and five-row GroupCombat item pagination with stable global option indices.
+
+### Changed
+- Exposed the new effects through ordinary single-/multi-enemy persistent fights, Party Boss/Big Barrel and GroupCombat where each typed target/status contract is representable. A committed combat item remains one action and keeps the normal enemy response when applicable; turn-based duels remain item-free.
+- Made all twenty explicit consumable mappings available without a catalog-specific rollout flag; existing combat-surface flags continue to govern only entry to their respective modes.
+- Protected the current-life Пінний Міраж quest bottle from inventory and combat consumption until the cellar quest ends with `keep`. A legacy or remort-carried bottle without a current-life acquisition marker remains usable, and the `turn-in` ending remains intact.
+- Updated item descriptions, combat/inventory presentation, `📖 Перекази`, current lore canon, roadmap, compact context and release ledger. Take-away purchases remain planned for `0.4.9`.
+
+### Fixed
+- Made inherited left-passage recruitment presentation origin-aware: nearby invitations now describe the real readiness/deadline attack and possible rewards without exact spoilers, full gatherings use their actual participant cap, and terminal/stale production failures no longer leak Big Barrel, rewardless-proof or dev-command guidance. Existing Big Barrel and dev-proof wording remains unchanged.
+- `c002` now remains useful when its owner is wounded but no living ally needs healing, including one-participant Left Passage and Big Barrel fights. It heals that owner exactly once for up to 8 HP; a missing ally cannot redirect the ally half back onto the owner, while full HP across all eligible targets still keeps the item.
+- Full or inapplicable resource/target states no longer consume a unit. Already-inapplicable callbacks leave the active combat session and turn unchanged; when an earlier Party Boss or GroupCombat actor makes a queued item useless, the later action is journaled without inventory decrement, new item cooldown/limit markers or achievement evidence. Duplicate confirm/action callbacks, restart replay, action replacement and timeout adoption retain the existing exact-once transaction/CAS boundaries.
+- `c005` now checks cooldown usefulness after the actor's ordinary committed-action tick. A cooldown of exactly one expires naturally without consuming the item or emitting use evidence; solo combat also keeps the same turn, while shared rounds continue normally.
+- `c006`, `c013` and Fancy Cheese now affect exactly the first eligible enemy response in canonical order and commit only for a positive actual delta after earlier protection. `c006` never spends for zero prevented damage; evade requires HP loss or a harmful owner-targeted on-hit consequence that would really apply, so actual misses and already-neutralized compiled riders keep the item while a genuine authored rider can still justify use at zero remaining damage. Evade preserves the chosen enemy action/cooldown while suppressing only that owner's selected consequence; later responses remain normal. Solo response-item attempts derive a narrow deterministic roll from the authoritative session snapshot, turn and item, preventing unchanged no-op callbacks or process restarts from farming free rerolls without making ordinary attacks or skills predictable. Stored response evidence and active-turn CAS keep eligible duplicate callbacks to one decrement, journal outcome and achievement.
+- Rechecked current-life quest-bottle eligibility inside every inventory, Solo, Party Boss and GroupCombat commit, while completed terminal receipts replay before current eligibility gates.
+- Corrected mana-only and dual-resource inventory cards plus Solo/Party Boss journals to use their stored mana and HP fields, and preserved the typed `heal-hp-to-min-percent` result when replaying completed Field Kit orders.
+
 ## [0.4.2] - 12026-08-01 - Left-Passage Party Attack
 
 ### Added

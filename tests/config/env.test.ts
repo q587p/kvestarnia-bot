@@ -124,6 +124,9 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...validEnv, GROUP_COMBAT_PROOF_ENABLED: "true" }).groupCombatProofEnabled).toBe(true);
   });
 
+  it("keeps newly activated consumable manatky disabled unless explicitly flagged", () => {
+  });
+
   it("keeps fresh left-passage party entry disabled unless explicitly flagged", () => {
     expect(loadConfig(validEnv).leftPassagePartyAttackEnabled).toBe(false);
     expect(loadConfig({

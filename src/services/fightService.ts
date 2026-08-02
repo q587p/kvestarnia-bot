@@ -57,7 +57,7 @@ import {
   normalizeCombatEnemies,
   recordCombatTimeout,
   resetCombatTimeout,
-  resolveCombatItemHealing,
+  isCombatItemEffectApplicable,
   resolveCombatItemTurn,
   resolveCombatGearTurn,
   resolveCombatTurn,
@@ -127,6 +127,7 @@ import {
 } from "../domain/trainingDoppelganger";
 import {
   BANDAGE_ITEM_ID,
+  CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID,
   enrichRewardItemGrants,
   ISKROKAMIN_ITEM_ID,
   PAN_OF_PERSUASION_ITEM_ID,
@@ -138,6 +139,7 @@ import {
 } from "./itemGrant";
 import { getEquippedItemContents } from "./equipmentService";
 import { findCombatUsableItemByKey, getCombatUsableItem } from "./combatItemUse";
+import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 import {
   buildCompletedProblemQuestBranchProgress,
   buildCompletedProblemQuestProgress,
@@ -388,7 +390,7 @@ export type PersistentFightTurnResult =
     }
   | {
       state: "item-unavailable";
-      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "item-on-cooldown" | "item-limit-reached";
+      reason: "not-usable" | "not-owned" | "reserved" | "full-hp" | "full-mana" | "full-resources" | "effect-unavailable" | "item-on-cooldown" | "item-limit-reached";
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent;
@@ -1741,6 +1743,11 @@ export class FightService {
     }
 
     const inventoryItems = await this.inventory?.listByTelegramUserId(telegramUserId);
+    const foamyMirageBottleUnlocked = await isQuestConsumableUseUnlocked(
+      this.dailyActions,
+      telegramUserId,
+      CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID
+    );
     const contentById = new Map(items.map((item) => [item.id, item]));
     const entries = (inventoryItems ?? []).flatMap(
       (inventoryItem): PersistentFightCombatItemMenuEntry[] => {
@@ -1753,12 +1760,9 @@ export class FightService {
 
         if (
           !combatItem ||
+          (combatItem.item.id === CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID && !foamyMirageBottleUnlocked) ||
           !getCombatItemAvailability(session.state!, combatItem.item.id).available ||
-          resolveCombatItemHealing(session.state!, {
-            id: combatItem.item.id,
-            name: combatItem.item.name,
-            effect: combatItem.effect
-          }) <= 0
+          !isCombatItemEffectApplicable(session.state!, combatItem.effect)
         ) {
           return [];
         }
@@ -3037,7 +3041,10 @@ export class FightService {
     }
 
     const combatItem = findCombatUsableItemByKey(items, input.itemKey);
-    if (!combatItem) {
+    if (
+      !combatItem ||
+      !(await isQuestConsumableUseUnlocked(this.dailyActions, telegramUserId, combatItem.item.id))
+    ) {
       return {
         state: "item-unavailable",
         reason: "not-usable",
@@ -3049,6 +3056,10 @@ export class FightService {
     }
 
     const resolvedAt = this.clock();
+    const itemTurnRng = combatItem.effect.kind === "guard-response" ||
+      combatItem.effect.kind === "evade-response"
+      ? buildPersistentFightResponseItemRng(currentSession, currentSession.state, combatItem.item.id)
+      : this.rng;
     const resolved = resolveCombatItemTurn({
       state: currentSession.state,
       item: {
@@ -3067,14 +3078,19 @@ export class FightService {
         recipientCharacterId: currentSession.characterId,
         now: resolvedAt
       }),
-      rng: this.rng
+      rng: itemTurnRng
     });
 
     if (!resolved.ok) {
-      if (resolved.reason === "full-hp") {
+      if (
+        resolved.reason === "full-hp" ||
+        resolved.reason === "full-mana" ||
+        resolved.reason === "full-resources" ||
+        resolved.reason === "effect-unavailable"
+      ) {
         return {
           state: "item-unavailable",
-          reason: "full-hp",
+          reason: resolved.reason,
           character: characterSummary,
           session: currentSession,
           monster,
@@ -3155,7 +3171,7 @@ export class FightService {
       };
     }
 
-    if (itemUpdate.outcome === "not-owned" || itemUpdate.outcome === "reserved") {
+    if (itemUpdate.outcome === "not-owned" || itemUpdate.outcome === "reserved" || itemUpdate.outcome === "not-usable") {
       return {
         state: "item-unavailable",
         reason: itemUpdate.outcome,
@@ -5436,6 +5452,42 @@ export function getPersistentFightDifficultyConfig(
 
 function createPersistentFightEncounterSeed(rng: RandomSource): string {
   return rng.nextInt(0, 0x7fffffff).toString(36);
+}
+
+function buildPersistentFightResponseItemRng(
+  session: SoloCombatSessionRecord,
+  state: CombatState,
+  itemId: string
+): RandomSource {
+  return new SeededRandomSource([
+    "persistent-fight-response-item-v1",
+    session.id,
+    session.characterId,
+    session.monsterId,
+    state.turn,
+    itemId,
+    stableCombatSnapshotString(state)
+  ].join(":"));
+}
+
+function stableCombatSnapshotString(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? JSON.stringify(value) : "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableCombatSnapshotString).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableCombatSnapshotString(entry)}`)
+      .join(",")}}`;
+  }
+  return "null";
 }
 
 function createPendingEncounterToken(): string {

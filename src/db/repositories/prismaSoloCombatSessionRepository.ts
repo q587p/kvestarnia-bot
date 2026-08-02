@@ -33,6 +33,7 @@ import { parseBardInspirationCombatState } from "../../domain/noncombat/bardSupp
 import { applyCombatDrinkStateCommit } from "./combatDrinkStateCommit";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 import {
   freezeVarenykSatedForSoloCombatStart,
   releaseCombatLeaseWithTimedStatuses
@@ -944,6 +945,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
       });
       if (!lease || lease.kind !== SOLO_COMBAT_LEASE_KIND || lease.referenceId !== sessionId) {
         return { outcome: "stale-turn", session: null };
+      }
+
+      if (!(await isConsumableCommitAllowed(tx, {
+        characterId: input.characterId,
+        itemId: input.itemId
+      }))) {
+        return { outcome: "not-usable", session: null };
       }
 
       await tx.characterItem.updateMany({
@@ -2812,6 +2820,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const manaSpent = intOrNull(value.manaSpent);
   const heroCounterDamage = intOrNull(value.heroCounterDamage);
   const heroHealing = intOrNull(value.heroHealing);
+  const heroManaRestored = intOrNull(value.heroManaRestored);
   const damageKind = parseDamageKind(value.damageKind);
   const monsterDamageKind = parseDamageKind(value.monsterDamageKind);
   const debugTrace = parseCombatDebugTrace(value.debugTrace);
@@ -2826,6 +2835,7 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
   const enemyActions = parseEnemyTurnSummaries(value.enemyActions);
   const enemyPressureSkips = parseEnemyPressureSkipSummaries(value.enemyPressureSkips);
   const satedRecovery = parseSatedRecovery(value.satedRecovery);
+  const itemResponse = parseCombatItemResponse(value.itemResponse);
 
   if (
     !action ||
@@ -2864,13 +2874,39 @@ function parseTurnSummary(value: unknown): CombatTurnSummary | null {
     ...(typeof value.itemId === "string" ? { itemId: value.itemId } : {}),
     ...(typeof value.itemName === "string" ? { itemName: value.itemName } : {}),
     ...(heroHealing !== null ? { heroHealing } : {}),
+    ...(heroManaRestored !== null ? { heroManaRestored } : {}),
     ...(enemyResults.length > 0 ? { enemyResults } : {}),
     ...(allyResults.length > 0 ? { allyResults } : {}),
     ...(fumble ? { fumble } : {}),
     ...(enemyActions.length > 0 ? { enemyActions } : {}),
     ...(enemyPressureSkips.length > 0 ? { enemyPressureSkips } : {}),
+    ...(itemResponse ? { itemResponse } : {}),
     ...(debugTrace ? { debugTrace } : {}),
     ...(satedRecovery ? { satedRecovery } : {})
+  };
+}
+
+function parseCombatItemResponse(
+  value: unknown
+): NonNullable<CombatTurnSummary["itemResponse"]> | null {
+  if (!isRecord(value) || typeof value.enemyId !== "string" || typeof value.monsterId !== "string") {
+    return null;
+  }
+  if (value.kind !== "guard" && value.kind !== "evade") {
+    return null;
+  }
+  const damageAfter = intOrNull(value.damageAfter);
+  const preventedDamage = intOrNull(value.preventedDamage);
+  if (damageAfter === null) {
+    return null;
+  }
+  return {
+    enemyId: value.enemyId,
+    monsterId: value.monsterId,
+    ...(typeof value.monsterName === "string" ? { monsterName: value.monsterName } : {}),
+    kind: value.kind,
+    damageAfter,
+    ...(preventedDamage !== null ? { preventedDamage } : {})
   };
 }
 

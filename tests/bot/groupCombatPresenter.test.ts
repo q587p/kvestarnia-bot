@@ -414,6 +414,24 @@ describe("group combat presenter", () => {
     ).flat()).not.toContain("🎒 Одноразові манатки");
   });
 
+  it("shows paired healing to a wounded owner when no living ally can benefit", () => {
+    const session = createSession(2);
+    const viewer = session.state.participants[0]!;
+    viewer.hp = 9;
+    viewer.hpMax = 35;
+    viewer.combatItemQuantities = { "item.loot-v1-c002": 1 };
+    session.state.participants[1]!.hp = 0;
+
+    const usefulLabels = buildGroupCombatItemsKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat().map((button) => button.text);
+    expect(usefulLabels).toContain("🥟 Вареники Парного Бафу");
+
+    viewer.hp = viewer.hpMax;
+    const fullLabels = buildGroupCombatItemsKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat().map((button) => button.text);
+    expect(fullLabels).not.toContain("🥟 Вареники Парного Бафу");
+  });
+
   it("keeps action controls available so a queued choice can be changed", () => {
     const session = createSession(2);
     session.queuedActions = [{

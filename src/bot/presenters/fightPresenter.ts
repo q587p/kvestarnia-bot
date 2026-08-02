@@ -399,6 +399,12 @@ export function presentPersistentFightTurn(
           return "Ця манатка вже зайнята іншою дією. Корчма показує поточний стан без витрачання ходу.";
         case "full-hp":
           return "HP уже повні. Корчма не дозволила витрачати манатку для красивого жесту.";
+        case "full-mana":
+          return "Мана вже повна. Корчма не дозволила переливати її через край.";
+        case "full-resources":
+          return "HP і мана вже повні. Манатка лишилася в торбі, а хід — за вами.";
+        case "effect-unavailable":
+          return "Манатці зараз нема на що подіяти. Вона лишилася в торбі, а хід не змінився.";
         case "item-on-cooldown":
           return "Ця манатка ще відсапується після минулого застосування. Корчма показує поточний стан.";
         case "item-limit-reached":
@@ -440,6 +446,12 @@ export function presentPersistentFightItemUnavailableNotice(
       return "Манатка не спрацювала: щільний бинт ще відсапується.";
     case "full-hp":
       return "Манатка не спрацювала: HP уже повні.";
+    case "full-mana":
+      return "Манатка не спрацювала: мана вже повна.";
+    case "full-resources":
+      return "Манатка не спрацювала: HP і мана вже повні.";
+    case "effect-unavailable":
+      return "Манатка не спрацювала: зараз для її ефекту немає придатної цілі.";
     case "not-owned":
       return "Манатка не спрацювала: її вже немає в торбі.";
     case "reserved":
@@ -1045,6 +1057,14 @@ function presentTimeoutNotice(summary: CombatTurnSummary | undefined): string | 
 }
 
 function presentItemUseHealingSummary(summary: CombatTurnSummary): string {
+  if (summary.heroHealing && summary.heroManaRestored) {
+    return ` HP підросли на ${summary.heroHealing}, а мана — на ${summary.heroManaRestored}.`;
+  }
+
+  if (summary.heroManaRestored) {
+    return ` Мана підросла на ${summary.heroManaRestored}.`;
+  }
+
   if (!summary.heroHealing) {
     return "";
   }
@@ -1298,6 +1318,7 @@ function presentTurnSummary(
     return withStoredContext([
       ...heading,
       `Ви використали <b>${itemName}</b>.${healing}`,
+      presentCombatItemResponse(summary),
       heroEffectResponse,
       withEnemyPressureSkips(
         enemyResponses || monsterResponse || "Монстр відреагував паузою, яка майже виглядала професійно.",
@@ -1355,6 +1376,18 @@ function presentTurnSummary(
     heroEffectResponse,
     response
   ].filter(Boolean));
+}
+
+function presentCombatItemResponse(summary: CombatTurnSummary): string {
+  const response = summary.itemResponse;
+  if (!response) {
+    return "";
+  }
+  const enemyName = escapeHtml(getShortMonsterName(response.monsterName, "Монстр"));
+  if (response.kind === "evade") {
+    return `Манатка відвела найближчу відповідь: ${enemyName} не влучає.`;
+  }
+  return `Манатка послабила найближчу відповідь: ${enemyName} завдає ${response.damageAfter} шкоди, ще ${response.preventedDamage ?? 0} відвернуто.`;
 }
 
 function presentEnemyHpRows(

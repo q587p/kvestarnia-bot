@@ -94,7 +94,7 @@ const fumblesSchema = z.object({
 }).strict();
 const combatItemQuantitiesSchema = z.record(z.string().min(1), positiveInteger).superRefine((value, context) => {
   for (const itemId of Object.keys(value)) {
-    if (!(GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(itemId)) {
+    if (!GROUP_COMBAT_SUPPORTED_ITEM_IDS.includes(itemId)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: `Unsupported group-combat item ${itemId}.` });
     }
   }

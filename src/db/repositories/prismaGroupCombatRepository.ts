@@ -89,6 +89,7 @@ import type {
   SoloCombatSessionRecord
 } from "./soloCombatSessionRepository";
 import { PrismaPartySessionRepository } from "./prismaPartySessionRepository";
+import { isConsumableCommitAllowed } from "./consumableCommitGate";
 import {
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
@@ -1017,6 +1018,19 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
               result: session
                 ? { state: "terminal", session }
                 : { state: "not-found" }
+            } as const;
+          }
+          if (
+            input.action === "item" &&
+            input.payloadKey &&
+            !(await isConsumableCommitAllowed(tx, {
+              characterId: actor.id,
+              itemId: input.payloadKey
+            }))
+          ) {
+            return {
+              kind: "result",
+              result: { state: "action-unavailable" }
             } as const;
           }
           const action: GroupCombatAction = {
@@ -3176,7 +3190,23 @@ async function resolveIfReady(
   if (actions.length !== livingCount || actionIds.size !== livingCount || [...livingIds].some((id) => !actionIds.has(id))) {
     return actionResultAfterRepair(await repairMalformedSession(tx, row, now));
   }
-  const resolution = resolveGroupCombatTurn(state, actions);
+  const blockedConsumables: GroupCombatCommittedConsumable[] = [];
+  for (const action of actions) {
+    if (
+      action.action === "item" &&
+      action.payloadKey &&
+      !(await isConsumableCommitAllowed(tx, {
+        characterId: action.actorCharacterId,
+        itemId: action.payloadKey
+      }))
+    ) {
+      blockedConsumables.push({
+        characterId: action.actorCharacterId,
+        itemId: action.payloadKey
+      });
+    }
+  }
+  const resolution = resolveGroupCombatTurn(state, actions, { blockedConsumables });
   const terminal = resolution.result !== null;
   const previouslyFled = new Set(
     state.participants
@@ -4428,7 +4458,7 @@ function collectCommittedItemEvidence(
       action.targetKind !== "self" ||
       action.targetId !== action.actorCharacterId ||
       !action.payloadKey ||
-      !(GROUP_COMBAT_SUPPORTED_ITEM_IDS as readonly string[]).includes(action.payloadKey)
+      !GROUP_COMBAT_SUPPORTED_ITEM_IDS.includes(action.payloadKey)
     ) {
       throw new GroupCombatStateValidationError(
         "Relational committed item evidence is not canonical."

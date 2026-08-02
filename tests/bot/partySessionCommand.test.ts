@@ -136,6 +136,76 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).not.toContain("v1:nd:");
   });
 
+  it.each(["nearby-open", "nearby-invite"] as const)(
+    "keeps a stale %s production callback free of dev-only recovery commands",
+    async (type) => {
+      const { ctx, answerCallbackQuery, editMessageText, sendMessage } = createCallbackContext();
+      const callback = type === "nearby-open"
+        ? { type, page: 0 } as const
+        : { type, page: 0, targetTelegramUserId: 93n } as const;
+
+      await handlePartySessionCallback(
+        ctx,
+        callback,
+        serviceWith({ getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(null) }),
+        { presence: {} as PresenceService }
+      );
+
+      expect(answerCallbackQuery).toHaveBeenCalledWith({
+        text: "Живого збору вже немає. Відкрийте актуальну картку місця й зберіть ватагу знову.",
+        show_alert: true
+      });
+      expect(JSON.stringify(answerCallbackQuery.mock.calls)).not.toMatch(/\/dev_party|\/dev_heal|\/dev_restore_mana/u);
+      expect(editMessageText).not.toHaveBeenCalled();
+      expect(sendMessage).not.toHaveBeenCalled();
+    }
+  );
+
+  it("delivers truthful left-passage copy through a nearby invitation callback", async () => {
+    const session: PartySessionRecord = {
+      ...makeSession("recruiting"),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const snapshot = {
+      state: "ready" as const,
+      location: { id: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT, name: "Лівий прохід" },
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      totalPages: 1,
+      visible: [{ telegramUserId: 93n, name: "Сусідня Пригодниця", level: 8, status: "active" as const }]
+    };
+    const { ctx, answerCallbackQuery, sendMessage } = createCallbackContext();
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "nearby-invite", page: 0, targetTelegramUserId: 93n },
+      serviceWith({
+        getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(session),
+        getByToken: vi.fn().mockResolvedValue({ state: "ready", session })
+      }),
+      {
+        botUsername: "kvestarnia_test_bot",
+        presence: {
+          isNearbyDuelTargetAvailable: vi.fn().mockResolvedValue(true),
+          getNearbyDuelCandidatesForTelegramUser: vi.fn().mockResolvedValue(snapshot)
+        } as unknown as PresenceService
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Запрошення передано, якщо Telegram не зачинив двері."
+    });
+    const inviteText = String(sendMessage.mock.calls[0]?.[1]);
+    expect(inviteText).toContain("Вас кличуть до атаки в лівому проході");
+    expect(inviteText).toContain("щойно всі будуть готові, або коли добіжить час збору");
+    expect(inviteText).toContain("Перемога може принести нагороду");
+    expect(inviteText).not.toContain("без боса, нагород і бойового зобовʼязання");
+  });
+
   it("force-expires a live recruiting party through the dev helper when allowed", async () => {
     const session = makeSession("recruiting");
     const expired = { ...session, status: "expired" as const, activeLeaderKey: null, version: 2 };

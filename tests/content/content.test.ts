@@ -19,6 +19,10 @@ import { monsterContextProfiles, monsterContextTraits } from "../../src/content/
 import { classSchema, itemSchema, monsterSchema, raceSchema } from "../../src/content/schema";
 import { getBaseItemIdForUpgradeVariant } from "../../src/domain/itemUpgrades";
 import type { ItemContent } from "../../src/content/schema";
+import {
+  supportedConsumableItemIds,
+  validateConsumableManatkaUseCoverage
+} from "../../src/content/consumableManatkaUses";
 
 type ItemEffectKey = keyof NonNullable<ItemContent["effect"]>;
 
@@ -419,6 +423,16 @@ describe("content tables", () => {
       expect(item.goldValue !== undefined || item.priceless === true).toBe(true);
       expect(item.goldValue !== undefined && item.priceless === true).toBe(false);
     }
+  });
+
+  it("requires an explicit 0.4.3 mapping for every consumable item", () => {
+    expect(items.filter((item) => item.slot === "consumable")).toHaveLength(20);
+    expect(supportedConsumableItemIds).toHaveLength(20);
+    expect(validateConsumableManatkaUseCoverage(items)).toEqual([]);
+    expect(validateConsumableManatkaUseCoverage([
+      ...items,
+      { id: "item.future-unmapped-consumable", slot: "consumable" }
+    ])).toContain("Consumable item.future-unmapped-consumable has no explicit 0.4.3 use mapping.");
   });
 
   it("keeps legacy Kharakternyk race content inactive but resolvable", () => {

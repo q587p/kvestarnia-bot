@@ -72,6 +72,7 @@ export interface ApplyCombatItemTurnInput extends UpdateSoloCombatSessionInput {
 export type ApplyCombatItemTurnOutcome =
   | "updated"
   | "stale-turn"
+  | "not-usable"
   | "not-owned"
   | "reserved";
 

@@ -1178,6 +1178,77 @@ describe("fight presenter", () => {
     expect(text).not.toContain("Польова аптечка</b>. HP підросли на 18.");
   });
 
+  it("shows both HP and mana from a dual-resource combat item", () => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        lastTurn: {
+          action: "item",
+          heroOutcome: "item-used",
+          heroDamage: 0,
+          monsterDamage: 0,
+          manaSpent: 0,
+          critical: false,
+          itemId: "item.loot-v1-c014",
+          itemName: "Насіння Диванного Друїда",
+          heroHealing: 9,
+          heroManaRestored: 9
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain("HP підросли на 9, а мана — на 9.");
+  });
+
+  it.each([
+    ["guard", "Тестовий монстр", "Манатка послабила найближчу відповідь: Тестовий завдає 7 шкоди, ще 5 відвернуто."],
+    ["evade", "Лампа попереднього погодження", "Манатка відвела найближчу відповідь: Лампа не влучає."]
+  ] as const)("names the one selected enemy response for an item %s", (kind, responseName, expected) => {
+    const text = presentPersistentFight({
+      state: "persistent-active",
+      character,
+      session: persistentSession({
+        lastTurn: {
+          action: "item",
+          heroOutcome: "item-used",
+          heroDamage: 0,
+          monsterDamage: 7,
+          manaSpent: 0,
+          critical: false,
+          itemId: kind === "guard" ? "item.loot-v1-c006" : "item.loot-v1-c013",
+          itemName: "Манатка відповіді",
+          itemResponse: {
+            enemyId: "enemy:1",
+            monsterId: "monster.test",
+            monsterName: responseName,
+            kind,
+            damageAfter: kind === "guard" ? 7 : 0,
+            ...(kind === "guard" ? { preventedDamage: 5 } : {})
+          }
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий монстр",
+        description: "Тестовий монстр.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: questProgress(4)
+    });
+
+    expect(text).toContain(expected);
+  });
+
   it("explains when a hidden class skill needs more mana after cooldown", () => {
     const text = presentPersistentFight({
       state: "persistent-active",

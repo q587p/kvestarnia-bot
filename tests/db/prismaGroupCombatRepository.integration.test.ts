@@ -4598,6 +4598,358 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(reloaded?.state.contributions[0]?.healing).toBe(7);
   });
 
+  it.each([
+    ["item.loot-v1-c002", 73_102n],
+    ["item.loot-v1-c012", 73_104n]
+  ])("preserves the second %s stack and commit evidence after an earlier raid heal", async (
+    secondItemId,
+    secondTelegramId
+  ) => {
+    const suffix = secondItemId.endsWith("c002") ? "paired" : "salad";
+    const firstTelegramId = secondTelegramId - 1n;
+    const token = `group-shared-${suffix}`;
+    await seedParty(prisma, token, [firstTelegramId, secondTelegramId]);
+    const characters = await prisma.character.findMany({
+      where: { user: { telegramUserId: { in: [firstTelegramId, secondTelegramId] } } },
+      include: { user: true }
+    });
+    const firstCharacter = characters.find((entry) => entry.user.telegramUserId === firstTelegramId)!;
+    const secondCharacter = characters.find((entry) => entry.user.telegramUserId === secondTelegramId)!;
+    await prisma.character.update({
+      where: { id: firstCharacter.id },
+      data: { hpCurrent: 38, hpMax: 43 }
+    });
+    await prisma.character.update({
+      where: { id: secondCharacter.id },
+      data: { hpCurrent: 38, hpMax: 43 }
+    });
+    await prisma.characterItem.createMany({
+      data: [
+        { characterId: firstCharacter.id, itemId: "item.loot-v1-c012", quantity: 1 },
+        { characterId: secondCharacter.id, itemId: secondItemId, quantity: 1 },
+        ...(secondItemId === "item.loot-v1-c002"
+          ? [
+              { characterId: secondCharacter.id, itemId: "item.loot-v1-c012", quantity: 1 },
+              { characterId: firstCharacter.id, itemId: secondItemId, quantity: 1 }
+            ]
+          : [])
+      ]
+    });
+    const session = await startExistingPartyProof(repository, token, firstTelegramId);
+    const firstActorId = session.state.participants[0]!.characterId;
+    const secondActorId = session.state.participants[1]!.characterId;
+    const firstParticipant = session.participants.find((entry) => entry.characterId === firstActorId)!;
+    const secondParticipant = session.participants.find((entry) => entry.characterId === secondActorId)!;
+
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: firstParticipant.telegramUserId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: firstParticipant.characterId,
+      payloadKey: "item.loot-v1-c012",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: secondParticipant.telegramUserId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: secondParticipant.characterId,
+      payloadKey: secondItemId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    await expect(prisma.characterItem.findUnique({
+      where: {
+        characterId_itemId: {
+          characterId: firstParticipant.characterId,
+          itemId: "item.loot-v1-c012"
+        }
+      }
+    })).resolves.toBeNull();
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: {
+        characterId_itemId: {
+          characterId: secondParticipant.characterId,
+          itemId: secondItemId
+        }
+      }
+    })).resolves.toMatchObject({ quantity: 1 });
+    const actions = await prisma.groupCombatAction.findMany({
+      where: { sessionId: session.id, turn: 1 },
+      orderBy: { actorCharacterId: "asc" }
+    });
+    expect(actions.find((entry) => entry.actorCharacterId === firstParticipant.characterId)?.origin)
+      .toBe("manual-item-committed");
+    expect(actions.find((entry) => entry.actorCharacterId === secondParticipant.characterId)?.origin)
+      .toBe("manual");
+    expect("session" in resolved ? resolved.session.state.recap[0]?.lines.join("\n") : "")
+      .toContain("манатка лишається в торбі");
+  });
+
+  it("commits a queued group-combat nonmedical item without a rollout gate", async () => {
+    await seedParty(prisma, "group-item-gate", [73_105n, 73_106n]);
+    const actor = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: 73_105n } }
+    });
+    await prisma.characterItem.create({
+      data: { characterId: actor.id, itemId: "item.loot-v1-c008", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, "group-item-gate", 73_105n);
+    const second = session.participants.find((entry) => entry.telegramUserId === 73_106n)!;
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: 73_105n,
+      partyInviteToken: "group-item-gate",
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: actor.id,
+      payloadKey: "item.loot-v1-c008",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: 73_106n,
+      partyInviteToken: "group-item-gate",
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: second.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    await expect(prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: actor.id, itemId: "item.loot-v1-c008" } }
+    })).resolves.toBeNull();
+    await expect(prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: actor.id
+        }
+      }
+    })).resolves.toMatchObject({ origin: "manual-item-committed" });
+    expect("session" in resolved ? resolved.session.state.recap[0]?.lines.join("\n") : "")
+      .toContain("використовує манатку");
+  });
+
+  it("keeps c005 evidence uncommitted after a shared round naturally ticks cooldown one", async () => {
+    const token = "group-c005-one";
+    const ownerTelegramId = 73_107n;
+    await seedParty(prisma, token, [ownerTelegramId, 73_108n]);
+    const owner = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: ownerTelegramId } }
+    });
+    await prisma.characterItem.create({
+      data: { characterId: owner.id, itemId: "item.loot-v1-c005", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, token, ownerTelegramId);
+    const state = structuredClone(session.state);
+    state.participants.find((entry) => entry.characterId === owner.id)!.cooldowns = {
+      skill: { id: "skill.test", remainingTurns: 1 }
+    };
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: state as unknown as Prisma.InputJsonValue }
+    });
+    const witness = session.participants.find((entry) => entry.characterId !== owner.id)!;
+
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: ownerTelegramId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: owner.id,
+      payloadKey: "item.loot-v1-c005",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: witness.telegramUserId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: witness.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId: owner.id, itemId: "item.loot-v1-c005" } }
+    })).resolves.toMatchObject({ quantity: 1 });
+    await expect(prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: owner.id
+        }
+      }
+    })).resolves.toMatchObject({ origin: "manual" });
+    const resolvedState = "session" in resolved ? resolved.session.state : null;
+    expect(resolvedState?.participants.find((entry) => entry.characterId === owner.id)?.cooldowns).toBeUndefined();
+    expect(resolvedState?.recap[0]?.lines.join("\n")).toContain("манатка лишається в торбі");
+  });
+
+  it("keeps c006 uncommitted when every owner response has zero incremental reduction", async () => {
+    const token = "group-c006-zero-delta";
+    const ownerTelegramId = 73_111n;
+    await seedParty(prisma, token, [ownerTelegramId, 73_112n]);
+    const owner = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: ownerTelegramId } }
+    });
+    await prisma.characterItem.create({
+      data: { characterId: owner.id, itemId: "item.loot-v1-c006", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, token, ownerTelegramId);
+    const state = structuredClone(session.state);
+    const ownerSnapshot = state.participants.find((entry) => entry.characterId === owner.id)!;
+    state.participants.forEach((participant) => {
+      participant.threat = participant.characterId === owner.id ? 1_000 : 0;
+    });
+    state.enemies.forEach((enemy) => { enemy.attack = ownerSnapshot.defense + 1; });
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: state as unknown as Prisma.InputJsonValue }
+    });
+    const witness = session.participants.find((entry) => entry.characterId !== owner.id)!;
+
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: ownerTelegramId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: owner.id,
+      payloadKey: "item.loot-v1-c006",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: witness.telegramUserId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: witness.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    await expect(prisma.characterItem.findUniqueOrThrow({
+      where: { characterId_itemId: { characterId: owner.id, itemId: "item.loot-v1-c006" } }
+    })).resolves.toMatchObject({ quantity: 1 });
+    await expect(prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: owner.id
+        }
+      }
+    })).resolves.toMatchObject({ origin: "manual" });
+    const resolvedState = "session" in resolved ? resolved.session.state : null;
+    expect(resolvedState?.recap[0]?.lines.join("\n")).toContain("не витрачає манатку");
+    expect(resolvedState?.recap[0]?.lines.join("\n")).not.toContain("відвернуто 0 шкоди");
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    const replay = await restarted.findById(session.id);
+    expect(replay?.state.recap[0]).toEqual(resolvedState?.recap[0]);
+  });
+
+  it("persists one c013 response target and committed evidence across GroupCombat restart", async () => {
+    const token = "group-response-c013";
+    const ownerTelegramId = 73_109n;
+    await seedParty(prisma, token, [ownerTelegramId, 73_110n]);
+    const owner = await prisma.character.findFirstOrThrow({
+      where: { user: { telegramUserId: ownerTelegramId } }
+    });
+    await prisma.characterItem.create({
+      data: { characterId: owner.id, itemId: "item.loot-v1-c013", quantity: 1 }
+    });
+    const session = await startExistingPartyProof(repository, token, ownerTelegramId);
+    const state = structuredClone(session.state);
+    state.participants.forEach((participant) => {
+      participant.threat = participant.characterId === owner.id ? 1_000 : 0;
+    });
+    state.enemies.forEach((enemy) => { enemy.attack = 8; });
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: state as unknown as Prisma.InputJsonValue }
+    });
+    const witness = session.participants.find((entry) => entry.characterId !== owner.id)!;
+
+    await expect(repository.submitActionForTelegramUser({
+      telegramUserId: ownerTelegramId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "item",
+      targetKind: "self",
+      targetId: owner.id,
+      payloadKey: "item.loot-v1-c013",
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: witness.telegramUserId,
+      partyInviteToken: token,
+      turn: 1,
+      action: "guard",
+      targetKind: "self",
+      targetId: witness.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    const storedLine = "session" in resolved
+      ? resolved.session.state.recap[0]?.lines.find((line) => line.includes("item.loot-v1-c013"))
+        ?? resolved.session.state.recap[0]?.lines.find((line) => line.includes("використовує манатку"))
+      : undefined;
+
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    expect(storedLine).toContain(state.enemies[0]!.name);
+    await expect(prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId: owner.id, itemId: "item.loot-v1-c013" } }
+    })).resolves.toBeNull();
+    await expect(prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: owner.id
+        }
+      }
+    })).resolves.toMatchObject({ origin: "manual-item-committed" });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    const reloaded = await restarted.findById(session.id);
+    expect(reloaded?.state.recap[0]?.lines).toContain(storedLine);
+    await expect(prisma.groupCombatAction.findUniqueOrThrow({
+      where: {
+        sessionId_turn_actorCharacterId: {
+          sessionId: session.id,
+          turn: 1,
+          actorCharacterId: owner.id
+        }
+      }
+    })).resolves.toMatchObject({
+      payloadKey: "item.loot-v1-c013",
+      origin: "manual-item-committed"
+    });
+  });
+
   it("keeps one terminal settlement plan and replays participant receipts independently", async () => {
     await seedParty(prisma, "group-settlement", [1193n, 1194n]);
     const started = await repository.startProofForTelegramUser({

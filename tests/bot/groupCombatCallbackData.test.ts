@@ -122,11 +122,20 @@ describe("group combat callback data", () => {
     expect(Buffer.byteLength(statistics, "utf8")).toBeLessThanOrEqual(64);
     expect(parseGroupCombatCallbackData(items)).toEqual({
       ok: true,
-      value: { type: "items", token: "proof-token-13", turn: 23 }
+      value: { type: "items", token: "proof-token-13", turn: 23, page: 0 }
     });
     expect(parseGroupCombatCallbackData(statistics)).toEqual({
       ok: true,
       value: { type: "statistics", token: "proof-token-13" }
+    });
+  });
+
+  it("round-trips paged reply-menu item callbacks", () => {
+    const data = makeGroupCombatItemsMenuCallbackData("proof-token-13", 23, 2, "reply-menu");
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "items", token: "proof-token-13", turn: 23, page: 2, source: "reply-menu" }
     });
   });
 

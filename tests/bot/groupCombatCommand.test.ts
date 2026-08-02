@@ -62,6 +62,34 @@ describe("group combat bot flow", () => {
     expect(presentLeftPassageInviteFailure({ state: "reservation-conflict" })).toContain(
       "Стан цього сліду вже змінився"
     );
+    const invalidResources = presentLeftPassageInviteFailure({
+      state: "invalid-resources",
+      resources: { hpCurrent: 13, hpMax: 0, manaCurrent: 5, manaMax: 5 }
+    });
+    expect(invalidResources).toContain("Відкрийте персонажа");
+    expect(invalidResources).not.toMatch(/\/dev_heal|\/dev_restore_mana/u);
+  });
+
+  it("keeps production left-passage start failures free of proof and dev-only help", async () => {
+    const startLeftPassage = vi.fn().mockResolvedValue({ state: "not-found" });
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: { id: "callback-missing-left-start", data: "unused" },
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "start-left", token: "missing-left-13" },
+      { startLeftPassage } as unknown as GroupCombatService
+    );
+
+    const answer = callbackAnswerText(answerCallbackQuery);
+    expect(answer).toContain("Цей збір у лівому проході вже не знайдено");
+    expect(answer).not.toMatch(/\/dev_party|\/dev_heal|\/dev_restore_mana|доказов/u);
+    expect(startLeftPassage).toHaveBeenCalledWith(1001n, "missing-left-13");
   });
 
   it("refreshes a stale left-passage invite card without a false changed-occasion alert", async () => {
@@ -90,6 +118,34 @@ describe("group combat bot flow", () => {
       text: "Ця кнопка вже не веде до збору ватаги. Оновив доступні дії."
     });
     expect(refreshLeftPassagePreview).toHaveBeenCalledWith(ctx);
+  });
+
+  it("keeps a production left-passage invite failure free of dev-only recovery commands", async () => {
+    const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+    const ctx = {
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      chat: { id: 1001, type: "private" },
+      callbackQuery: {
+        id: "callback-invalid-left-resources",
+        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+      },
+      answerCallbackQuery
+    } as unknown as Context;
+
+    await handleGroupCombatCallback(
+      ctx,
+      { type: "invite-left", token: "invalid-resources-13" },
+      {
+        createLeftPassageParty: vi.fn().mockResolvedValue({
+          state: "invalid-resources",
+          resources: { hpCurrent: 13, hpMax: 0, manaCurrent: 5, manaMax: 5 }
+        })
+      } as unknown as GroupCombatService
+    );
+
+    const answer = callbackAnswerText(answerCallbackQuery);
+    expect(answer).toContain("Відкрийте персонажа");
+    expect(answer).not.toMatch(/\/dev_party|\/dev_heal|\/dev_restore_mana/u);
   });
 
   it("cannot mutate through a dev command when the production gate is closed", async () => {
@@ -791,6 +847,7 @@ describe("group combat bot flow", () => {
       turn: 1
     }, {
       findByToken: vi.fn().mockResolvedValue(session),
+      getHiddenCombatItemIdsForTelegramUser: vi.fn().mockResolvedValue(new Set()),
       submitAction
     } as unknown as GroupCombatService);
 
@@ -816,6 +873,7 @@ describe("group combat bot flow", () => {
       turn: 1
     }, {
       findByToken: vi.fn().mockResolvedValue(session),
+      getHiddenCombatItemIdsForTelegramUser: vi.fn().mockResolvedValue(new Set()),
       submitAction
     } as unknown as GroupCombatService);
 
@@ -1476,6 +1534,11 @@ function callbackUpdate(data: string) {
       }
     }
   };
+}
+
+function callbackAnswerText(answerCallbackQuery: ReturnType<typeof vi.fn>): string {
+  const call = answerCallbackQuery.mock.calls[0] as [{ text?: string }] | undefined;
+  return call?.[0].text ?? "";
 }
 
 function inlineKeyboardLabels(value: unknown): string[] {

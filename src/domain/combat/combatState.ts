@@ -329,6 +329,7 @@ export interface CombatTurnSummary {
   itemId?: string;
   itemName?: string;
   heroHealing?: number;
+  heroManaRestored?: number;
   heroHpAfter?: number;
   enemyResults?: CombatEnemyAbilityResult[];
   allyResults?: CombatAllyAbilityResult[];
@@ -336,7 +337,17 @@ export interface CombatTurnSummary {
   satedRecovery?: { hpRestored: number; manaRestored: number };
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
+  itemResponse?: CombatItemResponseSummary;
   debugTrace?: CombatDebugTrace;
+}
+
+export interface CombatItemResponseSummary {
+  enemyId: string;
+  monsterId: string;
+  monsterName?: string;
+  kind: "guard" | "evade";
+  damageAfter: number;
+  preventedDamage?: number;
 }
 
 export interface CombatEquipmentAbilityState {
@@ -836,6 +847,7 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
     ...(summary.enemyPressureSkips
       ? { enemyPressureSkips: summary.enemyPressureSkips.map((entry) => ({ ...entry })) }
       : {}),
+    ...(summary.itemResponse ? { itemResponse: { ...summary.itemResponse } } : {}),
     ...(summary.enemyResults
       ? { enemyResults: summary.enemyResults.map((entry) => ({ ...entry })) }
       : {}),

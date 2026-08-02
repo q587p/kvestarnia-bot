@@ -81,7 +81,9 @@ export function presentPartyCreate(
   const notice = result.state === "created"
     ? isBigBarrelParty(result.session)
       ? null
-      : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
+      : isLeftPassageParty(result.session)
+        ? "Запис відкрито. Це збір до справжньої атаки в лівому проході."
+        : "Запис відкрито. Це ще не бій і не рейдова нагорода, а збір тимчасової ватаги."
     : "У вас уже є жива ватага. Показую її канонічну картку.";
 
   return presentPartySession(result.session, {
@@ -127,7 +129,7 @@ export function presentPartyJoin(
     return presentPartySession(result.session, {
       inviteUrl: options.inviteUrl,
       viewerCharacterId: options.viewerCharacterId,
-      notice: "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
+      notice: presentPartyFullNotice(result.session)
     });
   }
 
@@ -1155,17 +1157,22 @@ function presentBossRetaliationLine(
   const counter = retaliation.counterDamage && retaliation.counterDamage > 0
     ? ` 🧿 Оберіг відповідає на ${retaliation.counterDamage} шкоди.`
     : "";
+  const itemResponse = retaliation.itemResponseKind === "evade"
+    ? " Манатка відводить саме цю відповідь."
+    : retaliation.itemResponseKind === "guard"
+      ? ` Манатка відвертає ${retaliation.itemResponsePreventedDamage ?? 0} шкоди від цієї відповіді.`
+      : "";
   if (retaliation.tauntRedirected && retaliation.tauntOriginalKind === "broad") {
-    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
+    return `${BIG_BARREL_AOE_ATTACK_LABEL} згортається в один удар. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${itemResponse}${counter}`;
   }
   if (retaliation.tauntRedirected) {
-    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${counter}`;
+    return `${escapeHtml(bossName)} приймає виклик. Ціль: ${escapeHtml(targetName)}. Завдано ${retaliation.damage} шкоди.${itemResponse}${counter}`;
   }
   if ((retaliation.protocolPreventedDamage ?? 0) > 0) {
-    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.${counter}`;
+    return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь, але удар застряг у паперах і завдає 0 шкоди.${itemResponse}${counter}`;
   }
 
-  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.${counter}`;
+  return `${escapeHtml(bossName)} ${verb} ${escapeHtml(targetName)} у відповідь і завдає ${retaliation.damage} шкоди.${itemResponse}${counter}`;
 }
 
 function presentBureaucramancerProtocolTriggeredLine(
@@ -1287,7 +1294,7 @@ export function presentPartySession(
       : groupCombat
         ? "Це доказова сутичка без нагород для 2–3 пригодників. Коли час добіжить, бій почнеться автоматично з поточним складом."
         : leftPassage
-          ? "Склад ворогів підлаштується під силу ватаги."
+          ? presentLeftPassageRecruitmentContract()
         : "Бою, винагород і рейдового боса тут ще немає: тільки безпечний збір ватаги.");
   }
 
@@ -1300,7 +1307,9 @@ export function presentPartyTerminalIneligible(
 ): string {
   return presentPartySession(session, {
     viewerCharacterId,
-    notice: "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
+    notice: isLeftPassageParty(session)
+      ? "Атака не почалася: один із записів більше не підходить до цього сліду в лівому проході. Пригодники можуть оглянути прохід і зібрати нову ватагу."
+      : "Рейд не почався: один із записів більше не підходить до цього бочкового періоду. Пригодники можуть зібрати нову ватагу."
   });
 }
 
@@ -1442,6 +1451,24 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
   return session.originLocationId === "barrel.big-brother";
 }
 
+function isLeftPassageParty(session: PartySessionRecord): boolean {
+  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+}
+
+function presentPartyFullNotice(session: PartySessionRecord): string {
+  if (isLeftPassageParty(session)) {
+    return `Ватага вже повна: ${session.participantCap}/${session.participantCap}. Цей слід більше пригодників до атаки не приймає.`;
+  }
+
+  return session.participantCap === 8
+    ? "Ватага вже повна. Восьмеро пригодників — це межа, після якої стіл починає подавати скарги."
+    : `Ватага вже повна: ${session.participantCap}/${session.participantCap}. Стіл більше записів не приймає.`;
+}
+
+function presentLeftPassageRecruitmentContract(): string {
+  return "Це справжня атака: вона почнеться, щойно всі будуть готові, або коли добіжить час збору. Перемога може принести нагороду, а склад ворогів підлаштується під силу ватаги.";
+}
+
 export function presentPartyNearbyInviteSent(
   result: Extract<PartyViewResult, { state: "ready" }>,
   targetName: string,
@@ -1459,15 +1486,22 @@ export function presentPartyNearbyInviteNotification(
 ): string {
   const leader = session.leader;
   const big = isBigBarrelParty(session);
+  const leftPassage = isLeftPassageParty(session);
   return [
-    big ? "🛢️ <b>Вас кличуть до Старшого Брата Бочки</b>" : "🧭 <b>Вас кличуть у ватагу</b>",
+    big
+      ? "🛢️ <b>Вас кличуть до Старшого Брата Бочки</b>"
+      : leftPassage
+        ? "🤝 <b>Вас кличуть до атаки в лівому проході</b>"
+        : "🧭 <b>Вас кличуть у ватагу</b>",
     "",
     `Кличе: ${presentCharacterDisplayName(toDisplay(leader))}`,
     `Учасники: ${getJoinedParticipants(session).length}/${session.participantCap}`,
     "",
     big
       ? "Це збір до групового рейду: бій почнеться після старту ватаги або коли добіжить час збору."
-      : "Це поки збір тимчасової ватаги: без боса, нагород і бойового зобовʼязання.",
+      : leftPassage
+        ? presentLeftPassageRecruitmentContract()
+        : "Це поки збір тимчасової ватаги: без боса, нагород і бойового зобовʼязання.",
     ...(inviteUrl ? ["", presentPartyInviteLine(session, inviteUrl)] : [])
   ].join("\n");
 }
@@ -1641,6 +1675,12 @@ function presentPartyBossItemUnavailableNotice(
   switch (reason) {
     case "full-hp":
       return "Манатка покрутилася в руках і не знайшла синця, який варто драматизувати.";
+    case "full-mana":
+      return "Манатка перевірила запас мани й відмовилася переливати через край.";
+    case "full-resources":
+      return "HP і мана вже повні, тому манатка лишилася в торбі.";
+    case "effect-unavailable":
+      return "Манатці зараз нема на що подіяти, тому вона лишилася в торбі.";
     case "not-owned":
       return "Манатки не знайшлося в торбі. Можливо, вона відповідально панікує деінде.";
     case "reserved":
@@ -1764,6 +1804,16 @@ function presentPartyBossActionLine(
       : `${name} застосовує ${itemName}.${healing}`;
   }
 
+  if (action.outcome === "item-not-used") {
+    const itemName = presentPartyBossItemName(action.itemId, action.itemName ?? "манатку");
+    const reason = action.itemUnavailableReason
+      ? presentPartyBossItemUnavailableNotice(action.itemUnavailableReason)
+      : "Манатці вже нема на що подіяти, тому вона лишилася в торбі.";
+    return isViewer
+      ? `Ви не витратили ${itemName}. ${reason}`
+      : `${name} не витрачає ${itemName}. ${reason}`;
+  }
+
   if (action.outcome === "defended") {
     if (action.origin === "timeout") {
       return isViewer
@@ -1837,6 +1887,14 @@ function presentPartyBossActionSupport(
 function presentPartyBossItemHealing(
   action: PartyBossSessionRecord["state"]["roundLog"][number]["actions"][number]
 ): string {
+  if (action.healing && action.healing > 0 && action.manaRestored && action.manaRestored > 0) {
+    return ` HP відновлено на ${action.healing}, а ману — на ${action.manaRestored}.`;
+  }
+
+  if (action.manaRestored && action.manaRestored > 0) {
+    return ` Ману відновлено на ${action.manaRestored}.`;
+  }
+
   if (!action.healing || action.healing <= 0) {
     return " Але журнал не знайшов браку HP.";
   }

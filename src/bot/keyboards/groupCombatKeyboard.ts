@@ -2,6 +2,7 @@ import { InlineKeyboard, Keyboard } from "grammy";
 import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import {
   getGroupCombatActionProfile,
+  getGroupCombatItemPresentation,
   GROUP_COMBAT_SUPPORTED_ITEM_IDS,
   isActiveGroupCombatParticipant,
   validateGroupCombatAction,
@@ -450,11 +451,18 @@ function listGroupCombatAbilityActionButtons(
 export function buildGroupCombatItemsKeyboard(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string,
-  source?: "reply-menu"
+  source?: "reply-menu",
+  requestedPage = 0,
+  hiddenItemIds: ReadonlySet<string> = new Set()
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  const available = listAvailableGroupCombatItems(session, viewerCharacterId)
+    .filter((item) => !hiddenItemIds.has(item.itemId));
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(available.length / pageSize));
+  const page = Math.min(Math.max(0, Math.floor(requestedPage)), totalPages - 1);
 
-  for (const item of listAvailableGroupCombatItems(session, viewerCharacterId)) {
+  for (const item of available.slice(page * pageSize, (page + 1) * pageSize)) {
     keyboard.text(
       formatGroupCombatItemButton(item.itemId, item.quantity),
       makeGroupCombatActionCallbackData({
@@ -466,6 +474,23 @@ export function buildGroupCombatItemsKeyboard(
         ...(source ? { source } : {})
       })
     ).row();
+  }
+
+  if (totalPages > 1) {
+    if (page > 0) {
+      keyboard.text(
+        "◀️ Назад",
+        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn, page - 1, source)
+      );
+    }
+    keyboard.text(`${page + 1}/${totalPages}`, makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn, page, source));
+    if (page < totalPages - 1) {
+      keyboard.text(
+        "Далі ▶️",
+        makeGroupCombatItemsMenuCallbackData(session.partyInviteToken, session.turn, page + 1, source)
+      );
+    }
+    keyboard.row();
   }
 
   return keyboard.text(
@@ -514,7 +539,7 @@ export function buildGroupCombatJournalKeyboard(
 }
 
 interface AvailableGroupCombatItem {
-  itemId: (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number];
+  itemId: string;
   optionIndex: number;
   quantity: number;
   rosterOrder: number;
@@ -557,15 +582,9 @@ function listAvailableGroupCombatItems(
 }
 
 function formatGroupCombatItemButton(
-  itemId: (typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number],
+  itemId: string,
   quantity: number
 ): string {
   const quantityLabel = quantity > 1 ? ` ×${quantity}` : "";
-  return `${GROUP_COMBAT_ITEM_BUTTONS[itemId]}${quantityLabel}`;
+  return `${getGroupCombatItemPresentation(itemId)?.label ?? itemId}${quantityLabel}`;
 }
-
-const GROUP_COMBAT_ITEM_BUTTONS: Record<(typeof GROUP_COMBAT_SUPPORTED_ITEM_IDS)[number], string> = {
-  "item.responsible-panic-bandage": "🩹 Бинт відповідальної паніки",
-  "item.dense-bandage": "🩹 Щільний бинт",
-  "item.field-kit": "⚕️ Польова аптечка"
-};
