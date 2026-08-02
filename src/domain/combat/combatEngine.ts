@@ -66,6 +66,11 @@ import {
   type PlayerAbilityFumblesState,
   type PlayerCombatActionType
 } from "./combatState";
+import {
+  resolveCombatResponseItemDelta,
+  type CombatResponseItemDelta,
+  type CombatResponseItemEffect
+} from "./responseItemEffect";
 
 export interface ResolveCombatTurnInput {
   state: CombatState;
@@ -200,6 +205,7 @@ interface MonsterResponseResult {
   monsterTelegraphAbilityId?: string;
   simultaneousFinalResponse?: boolean;
   defendCounter?: boolean;
+  itemResponseDelta?: CombatResponseItemDelta;
 }
 
 export function getCombatActionAvailability(
@@ -622,31 +628,32 @@ function resolveSingleEnemyCombatItemTurn(
   if (effect.cooldownTurnsReduced > 0) {
     reduceCombatCooldowns(nextState, effect.cooldownTurnsReduced);
   }
-  recordCombatItemUse(nextState, item.id);
 
   const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
   const heroEffectDamage = heroEffect.damage;
-  const hpBeforeResponse = nextState.hero.hp;
-  const monsterResponse = !effect.evadeResponse && nextState.hero.hp > 0 && nextState.monster.hp > 0
+  const responseItemEffect = getResolvedCombatResponseItemEffect(effect);
+  const monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
     ? resolveMonsterResponse({
         state: nextState,
         input,
-        damageReduction: 0
+        damageReduction: 0,
+        responseItemEffect
       })
     : { damage: 0 };
-  const guardedDamage = applyPercentageResponseGuard(nextState, hpBeforeResponse, monsterResponse.damage, effect.guardPercent);
-  const monsterDamage = heroEffectDamage + guardedDamage;
-  const itemResponse = effect.evadeResponse
-    ? buildCombatItemResponseSummary(input, "enemy:1", "evade", 0)
-    : effect.guardPercent > 0
-      ? buildCombatItemResponseSummary(
-          input,
-          "enemy:1",
-          "guard",
-          guardedDamage,
-          monsterResponse.damage - guardedDamage
-        )
-      : undefined;
+  if (responseItemEffect && !monsterResponse.itemResponseDelta?.eligible) {
+    return buildCombatItemEffectUnavailableResult(input, item);
+  }
+  recordCombatItemUse(nextState, item.id);
+  const monsterDamage = heroEffectDamage + monsterResponse.damage;
+  const itemResponse = monsterResponse.itemResponseDelta?.eligible
+    ? buildCombatItemResponseSummary(
+        input,
+        "enemy:1",
+        responseItemEffect!.kind,
+        monsterResponse.itemResponseDelta.damageAfter,
+        monsterResponse.itemResponseDelta.preventedDamage
+      )
+    : undefined;
   const satedRecovery = applyAfterCommittedHeroAction(input, nextState);
   nextState.status = nextState.monster.hp <= 0 ? "won" : nextState.hero.hp <= 0 ? "lost" : "active";
   nextState.turn += 1;
@@ -717,21 +724,20 @@ function resolveMultiEnemyCombatItemTurn(
   if (effect.cooldownTurnsReduced > 0) {
     reduceCombatCooldowns(nextState, effect.cooldownTurnsReduced);
   }
-  recordCombatItemUse(nextState, item.id);
-
+  const responseItemEffect = getResolvedCombatResponseItemEffect(effect);
   const activationPhase = resolveHeroActivationAndLivingEnemyPhase(
     nextState,
     input,
     0,
     undefined,
     false,
-    effect.evadeResponse
-      ? { kind: "evade", percent: 100 }
-      : effect.guardPercent > 0
-        ? { kind: "guard", percent: effect.guardPercent }
-        : undefined
+    responseItemEffect
   );
   const { enemyPhase, heroEffectDamage, satedRecovery } = activationPhase;
+  if (responseItemEffect && !enemyPhase.itemResponse) {
+    return buildCombatItemEffectUnavailableResult(input, item);
+  }
+  recordCombatItemUse(nextState, item.id);
   nextState.status = getLivingCombatEnemies(nextState).length === 0
     ? "won"
     : nextState.hero.hp <= 0
@@ -944,16 +950,34 @@ function reduceCombatCooldowns(state: CombatState, turns: number): void {
   setStateCooldowns(state, hasPositiveCombatCooldown(reduced) ? reduced : undefined);
 }
 
-function applyPercentageResponseGuard(
-  state: CombatState,
-  hpBeforeResponse: number,
-  responseDamage: number,
-  guardPercent: number
-): number {
-  if (responseDamage <= 0 || guardPercent <= 0) return responseDamage;
-  const prevented = Math.min(responseDamage, Math.floor(responseDamage * guardPercent / 100));
-  state.hero.hp = Math.min(hpBeforeResponse, state.hero.hp + prevented);
-  return responseDamage - prevented;
+function getResolvedCombatResponseItemEffect(
+  effect: ReturnType<typeof resolveCombatItemEffect>
+): CombatResponseItemEffect | undefined {
+  if (effect.evadeResponse) return { kind: "evade", percent: 100 };
+  if (effect.guardPercent > 0) return { kind: "guard", percent: effect.guardPercent };
+  return undefined;
+}
+
+function buildCombatItemEffectUnavailableResult(
+  input: ResolveCombatTurnInput,
+  item: ResolveCombatItemTurnInput["item"]
+): ResolveCombatItemTurnResult {
+  const summary = buildSummary({
+    action: "item",
+    heroOutcome: "item-used",
+    heroDamage: 0,
+    monsterDamage: 0,
+    manaSpent: 0,
+    critical: false,
+    item,
+    heroHealing: 0
+  });
+  return {
+    ok: false,
+    reason: "effect-unavailable",
+    state: cloneCombatState(input.state),
+    summary
+  };
 }
 
 export function getCombatItemAvailability(
@@ -2619,21 +2643,6 @@ function resolveLivingEnemyPhase(
       delete state.monsterRuntime;
     }
 
-    if (itemResponseEffect?.kind === "evade" && !itemResponse) {
-      itemResponse = buildCombatItemResponseSummary(input, enemy.enemyId, "evade", 0);
-      monsterOutcome = "miss";
-      enemyActions.push({
-        enemyId: enemy.enemyId,
-        monsterId: enemy.id,
-        ...(enemy.name ? { monsterName: enemy.name } : {}),
-        monsterOutcome,
-        monsterDamage: 0,
-        ...(simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {})
-      });
-      continue;
-    }
-
-    const hpBeforeResponse = state.hero.hp;
     const response = resolveMonsterResponse({
       state,
       input: {
@@ -2645,18 +2654,17 @@ function resolveLivingEnemyPhase(
         livingEnemyCount,
         participantIndex
       }),
-      simultaneousFinalResponse
+      simultaneousFinalResponse,
+      responseItemEffect: itemResponse ? undefined : itemResponseEffect
     });
-    const responseDamage = itemResponseEffect?.kind === "guard" && !itemResponse
-      ? applyPercentageResponseGuard(state, hpBeforeResponse, response.damage, itemResponseEffect.percent)
-      : response.damage;
-    if (itemResponseEffect?.kind === "guard" && !itemResponse) {
+    const responseDamage = response.damage;
+    if (response.itemResponseDelta?.eligible && itemResponseEffect && !itemResponse) {
       itemResponse = buildCombatItemResponseSummary(
         input,
         enemy.enemyId,
-        "guard",
+        itemResponseEffect.kind,
         responseDamage,
-        response.damage - responseDamage
+        response.itemResponseDelta.preventedDamage
       );
     }
     const updatedEnemy: CombatEnemyState = {
@@ -2890,6 +2898,7 @@ function resolveMonsterResponse(input: {
   input: ResolveCombatTurnInput;
   damageReduction: number;
   simultaneousFinalResponse?: boolean;
+  responseItemEffect?: CombatResponseItemEffect | undefined;
 }): MonsterResponseResult {
   const monsterForResponse = applyDrinkMonsterActionModifiers(input.state, input.input.monster);
 
@@ -2908,7 +2917,8 @@ function resolveMonsterResponse(input: {
       monster: runtimeMonster,
       rng: input.input.rng,
       damageReduction: input.damageReduction,
-      defendStance: input.state.guard ? getDefendStance(input.state.guard) : undefined
+      defendStance: input.state.guard ? getDefendStance(input.state.guard) : undefined,
+      responseItemEffect: input.responseItemEffect
     });
     const basicAttackDamage = response.actionKind === "attack"
       ? rollMonsterDamage(
@@ -2927,13 +2937,26 @@ function resolveMonsterResponse(input: {
       state: input.state,
       damage: defendedBasicAttack.damage
     });
-    if (modifiedBasicAttack.damage > 0) {
-      input.state.hero.hp = Math.max(0, input.state.hero.hp - modifiedBasicAttack.damage);
+    const basicItemResponseDelta = response.actionKind === "attack"
+      ? resolveCombatResponseItemDelta(
+          input.responseItemEffect
+            ? Math.min(input.state.hero.hp, modifiedBasicAttack.damage)
+            : modifiedBasicAttack.damage,
+          input.responseItemEffect
+        )
+      : resolveCombatResponseItemDelta(modifiedBasicAttack.damage, undefined);
+    if (basicItemResponseDelta.damageAfter > 0) {
+      input.state.hero.hp = Math.max(0, input.state.hero.hp - basicItemResponseDelta.damageAfter);
     }
     const monsterSkill = response.ability ? monsterAbilityAsCombatSkill(response.ability) : undefined;
+    const itemResponseDelta = response.responseItemDelta?.eligible
+      ? response.responseItemDelta
+      : basicItemResponseDelta.eligible
+        ? basicItemResponseDelta
+        : undefined;
 
     return {
-      damage: response.damage + modifiedBasicAttack.damage,
+      damage: response.damage + basicItemResponseDelta.damageAfter,
       ...(response.outcome ? { outcome: response.outcome } : {}),
       ...(response.actionKind
         ? { monsterAction: response.actionKind === "ability" ? "skill" : response.actionKind }
@@ -2941,7 +2964,8 @@ function resolveMonsterResponse(input: {
       ...(monsterSkill ? { monsterSkill } : {}),
       ...(response.effectText ? { monsterEffectText: response.effectText } : {}),
       ...(response.telegraphAbility ? { monsterTelegraphAbilityId: response.telegraphAbility.id } : {}),
-      ...(response.actionKind === "attack" ? { defendCounter: defendedBasicAttack.counter } : {})
+      ...(response.actionKind === "attack" ? { defendCounter: defendedBasicAttack.counter } : {}),
+      ...(itemResponseDelta ? { itemResponseDelta } : {})
     };
   }
 
@@ -2954,12 +2978,17 @@ function resolveMonsterResponse(input: {
       input.input.rng,
       input.damageReduction
     );
-    input.state.hero.hp = Math.max(0, input.state.hero.hp - damage);
+    const itemResponseDelta = resolveCombatResponseItemDelta(
+      input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+      input.responseItemEffect
+    );
+    input.state.hero.hp = Math.max(0, input.state.hero.hp - itemResponseDelta.damageAfter);
 
     return {
-      damage,
+      damage: itemResponseDelta.damageAfter,
       monsterAction: "skill",
-      monsterSkill
+      monsterSkill,
+      ...(itemResponseDelta.eligible ? { itemResponseDelta } : {})
     };
   }
 
@@ -2971,6 +3000,7 @@ function resolveBasicMonsterResponse(input: {
   input: ResolveCombatTurnInput;
   damageReduction: number;
   monster: MonsterCombatStats;
+  responseItemEffect?: CombatResponseItemEffect | undefined;
 }): MonsterResponseResult {
   const monsterDamage = rollMonsterDamage(
     input.input.hero,
@@ -2987,12 +3017,19 @@ function resolveBasicMonsterResponse(input: {
     state: input.state,
     damage: defendedMonsterAttack.damage
   });
-  input.state.hero.hp = Math.max(0, input.state.hero.hp - modifiedMonsterAttack.damage);
+  const itemResponseDelta = resolveCombatResponseItemDelta(
+    input.responseItemEffect
+      ? Math.min(input.state.hero.hp, modifiedMonsterAttack.damage)
+      : modifiedMonsterAttack.damage,
+    input.responseItemEffect
+  );
+  input.state.hero.hp = Math.max(0, input.state.hero.hp - itemResponseDelta.damageAfter);
 
   return {
-    damage: modifiedMonsterAttack.damage,
+    damage: itemResponseDelta.damageAfter,
     monsterAction: "attack",
-    defendCounter: defendedMonsterAttack.counter
+    defendCounter: defendedMonsterAttack.counter,
+    ...(itemResponseDelta.eligible ? { itemResponseDelta } : {})
   };
 }
 

@@ -23,6 +23,11 @@ import type {
   CombatTurnSummary,
   MonsterCombatStats
 } from "./combatState";
+import {
+  resolveCombatResponseItemDelta,
+  type CombatResponseItemDelta,
+  type CombatResponseItemEffect
+} from "./responseItemEffect";
 
 export const MONSTER_ABILITY_RUNTIME_RULES_VERSION = "monster-abilities-v1" as const;
 
@@ -142,6 +147,7 @@ export interface ResolveMonsterRuntimeActionInput {
   rng: RandomSource;
   damageReduction?: number;
   defendStance?: MonsterRuntimeDefendStance | undefined;
+  responseItemEffect?: CombatResponseItemEffect | undefined;
 }
 
 export interface MonsterRuntimeDefendStance {
@@ -159,6 +165,7 @@ export interface ResolvedMonsterRuntimeAction {
   damageKind?: CombatDamageKind;
   effectText?: string;
   telegraphAbility?: MonsterAbilityDefinition;
+  responseItemDelta?: CombatResponseItemDelta;
 }
 
 export interface MonsterRuntimeDirectHitModifierResult {
@@ -1916,6 +1923,7 @@ export function resolveMonsterRuntimeAction(
       rng: input.rng,
       damageReduction: input.damageReduction ?? 0,
       defendStance: input.defendStance,
+      responseItemEffect: input.responseItemEffect,
       wasTelegraphed: true
     });
   }
@@ -1971,6 +1979,7 @@ export function resolveMonsterRuntimeAction(
       rng: input.rng,
       damageReduction: input.damageReduction ?? 0,
       defendStance: input.defendStance,
+      responseItemEffect: input.responseItemEffect,
       wasTelegraphed: false
     });
   }
@@ -2162,6 +2171,7 @@ function commitMonsterAbility(input: {
   rng: RandomSource;
   damageReduction: number;
   defendStance?: MonsterRuntimeDefendStance | undefined;
+  responseItemEffect?: CombatResponseItemEffect | undefined;
   wasTelegraphed: boolean;
 }): ResolvedMonsterRuntimeAction {
   tickMonsterRuntimeOwnAction(input.runtime);
@@ -2184,6 +2194,7 @@ function commitMonsterAbility(input: {
     actionKind: "ability",
     ability: input.ability,
     damageKind: getAbilityDamageKind(input.ability),
+    ...(effect.responseItemDelta?.eligible ? { responseItemDelta: effect.responseItemDelta } : {}),
     ...(effect.text ? { effectText: effect.text } : {})
   };
 }
@@ -2198,7 +2209,8 @@ function resolveMonsterAbilityEffects(input: {
   damageReduction: number;
   defendStance?: MonsterRuntimeDefendStance | undefined;
   wasTelegraphed: boolean;
-}): { damage: number; text?: string } {
+  responseItemEffect?: CombatResponseItemEffect | undefined;
+}): { damage: number; text?: string; responseItemDelta?: CombatResponseItemDelta } {
   const params = input.ability.parameters;
   const multiplier = getDamageMultiplier(input);
   const hitChance = Math.max(
@@ -2241,14 +2253,23 @@ function resolveMonsterAbilityEffects(input: {
   }
 
   const plan = compileMonsterAbilityExecutionPlan(input);
+  const responseItemDelta = resolveCombatResponseItemDelta(
+    input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+    input.responseItemEffect,
+    plan.components.some((component) => component.directHitRequired && isHarmfulHeroComponent(component))
+  );
   const effectTexts = plan.components
-    .map((component) => applyMonsterAbilityPlanComponent(input, component, { directHitLanded }))
+    .map((component) => applyMonsterAbilityPlanComponent(input, component, {
+      directHitLanded,
+      suppressHarmfulHeroDirectHit: responseItemDelta.suppressHarmfulOnHitConsequences
+    }))
     .filter((result) => result.applied)
     .map((result) => result.text)
     .filter((text): text is string => Boolean(text));
 
   return {
-    damage,
+    damage: responseItemDelta.damageAfter,
+    ...(responseItemDelta.eligible ? { responseItemDelta } : {}),
     ...(effectTexts.length > 0 ? { text: effectTexts[0] } : {})
   };
 }
@@ -2260,12 +2281,19 @@ function applyMonsterAbilityPlanComponent(
     ability: MonsterAbilityDefinition;
   },
   component: MonsterAbilityPlanComponent,
-  context: { directHitLanded: boolean }
+  context: { directHitLanded: boolean; suppressHarmfulHeroDirectHit: boolean }
 ): { applied: boolean; text?: string } {
   if (component.trigger === "on-shield-survived") {
     return { applied: false };
   }
   if (component.directHitRequired && !context.directHitLanded) {
+    return { applied: false };
+  }
+  if (
+    component.directHitRequired &&
+    context.suppressHarmfulHeroDirectHit &&
+    isHarmfulHeroComponent(component)
+  ) {
     return { applied: false };
   }
 
@@ -2342,6 +2370,23 @@ function applyMonsterAbilityPlanComponent(
     case "runtime-effect":
       return addRuntimeEffectFromComponent(input, component);
   }
+}
+
+function isHarmfulHeroComponent(component: MonsterAbilityPlanComponent): boolean {
+  if (component.target !== "hero") {
+    return false;
+  }
+  if (component.kind === "runtime-effect" && component.effectKind) {
+    return getMonsterAbilityEffectContract({
+      target: component.target,
+      kind: component.effectKind,
+      value: component.value ?? 0,
+      sourceAbilityId: "response-item-eligibility"
+    }).polarity === "harmful";
+  }
+  return component.kind === "mana-drain" ||
+    component.kind === "remove-positive" ||
+    component.kind === "cooldown-pressure";
 }
 
 function addRuntimeEffectFromComponent(

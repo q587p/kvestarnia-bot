@@ -715,6 +715,91 @@ describe("combat domain engine", () => {
     expect(replay?.turnLog?.at(-1)?.summary.itemResponse).toEqual(result.summary.itemResponse);
   });
 
+  it.each([
+    ["misses for 0 damage", 3, [0.99], false, 0],
+    ["deals 1 damage", 1, [0, 0], false, 1],
+    ["deals 2 damage", 2, [0, 0], false, 2],
+    ["deals 3 damage", 3, [0, 0], true, 2]
+  ] as const)("commits c006 only for a positive post-protection delta when the response %s", (
+    _label,
+    attack,
+    rolls,
+    committed,
+    expectedDamage
+  ) => {
+    const responseMonster = { ...monster, attack };
+    const state = startCombat({ hero: { ...warrior, hpMax: 50 }, monster: responseMonster });
+    const before = structuredClone(state);
+    const result = resolveCombatItemTurn({
+      state,
+      item: {
+        id: "item.loot-v1-c006",
+        name: "Шкарпетки Героїчного Ухилення",
+        effect: { kind: "guard-response", reductionPercent: 42 }
+      },
+      hero: { ...warrior, hpMax: 50 },
+      monster: responseMonster,
+      rng: new FakeRandomSource([...rolls])
+    });
+
+    expect(result.ok).toBe(committed);
+    if (!committed) {
+      expect(result).toMatchObject({ ok: false, reason: "effect-unavailable" });
+      expect(result.state).toEqual(before);
+      expect(result.state.turnLog).toEqual(before.turnLog);
+      expect(result.state.combatItems).toEqual(before.combatItems);
+      return;
+    }
+    expect(result.state.turn).toBe(2);
+    expect(result.summary).toMatchObject({
+      monsterDamage: expectedDamage,
+      itemResponse: { kind: "guard", preventedDamage: 1, damageAfter: expectedDamage }
+    });
+    expect(result.state.turnLog?.at(-1)?.summary.itemResponse).toEqual(result.summary.itemResponse);
+  });
+
+  it("keeps the ordinary enemy ability and cooldown while c013 suppresses its hit and burn", () => {
+    const responseMonster = { ...monster, attack: 20 };
+    const state = startCombat({ hero: { ...warrior, hpMax: 50 }, monster: responseMonster });
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "boss",
+      loadoutIds: ["monster.preapproved-bite"],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      ownActionCount: 0,
+      effects: []
+    };
+
+    const result = resolveCombatItemTurn({
+      state,
+      item: {
+        id: "item.loot-v1-c013",
+        name: "Млинці Затьмарення",
+        effect: { kind: "evade-response" }
+      },
+      hero: { ...warrior, hpMax: 50 },
+      monster: responseMonster,
+      rng: new FakeRandomSource(Array(20).fill(0))
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.hero.hp).toBe(50);
+    expect(result.summary).toMatchObject({
+      monsterAction: "skill",
+      monsterSkillId: "monster.preapproved-bite",
+      monsterDamage: 0,
+      itemResponse: { kind: "evade" }
+    });
+    expect(result.state.monsterRuntime?.cooldowns["monster.preapproved-bite"]?.remainingOwnActions)
+      .toBeGreaterThan(0);
+    expect(result.state.monsterRuntime?.effects.some((effect) =>
+      effect.target === "hero" && effect.kind === "burn"
+    )).toBe(false);
+  });
+
   it("returns exact no-op reasons for every inapplicable active-combat item family", () => {
     const fullState = startCombat({ hero: warrior, monster });
     fullState.hero.hp = fullState.hero.hpMax;

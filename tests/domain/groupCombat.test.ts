@@ -1056,6 +1056,142 @@ describe("group combat proof reducer", () => {
     expect(replay).toEqual(first);
   });
 
+  it.each([
+    ["zero after an existing protection", 3, true, false, 0],
+    ["one", 3, false, false, 1],
+    ["two", 4, false, false, 2],
+    ["three", 5, false, true, 2]
+  ] as const)("commits GroupCombat c006 only for a positive incremental delta: %s", (
+    _label,
+    enemyAttack,
+    protectedAlready,
+    committed,
+    expectedDamage
+  ) => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    state.enemies[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.loot-v1-c006": 1 };
+    state.enemies[0]!.attack = enemyAttack;
+    if (protectedAlready) {
+      state.statuses.push({
+        id: "existing-protection",
+        kind: "response-mitigation",
+        sourceCharacterId: owner.characterId,
+        targetKind: "participant",
+        targetId: owner.characterId,
+        value: 100_100,
+        remainingTurns: 2
+      });
+    }
+
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.loot-v1-c006"
+    }]);
+
+    expect(result.state.turn).toBe(2);
+    expect(result.committedConsumables).toEqual(committed
+      ? [{ characterId: owner.characterId, itemId: "item.loot-v1-c006" }]
+      : []);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c006"])
+      .toBe(committed ? undefined : 1);
+    expect(result.state.enemyContributions?.[0]?.damage).toBe(expectedDamage);
+    expect(result.state.recap[0]?.lines.some((line) => line.includes(
+      committed ? "відвернуто 1 шкоди" : "не витрачає манатку"
+    ))).toBe(true);
+  });
+
+  it("lets only the c013 owner evade their share of an all-party accuracy response", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    const ally = state.participants[1]!;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies[0]!.abilityIds = ["monster.smoke-without-approval"];
+    state.enemies[0]!.attack = 30;
+    state.enemies[1]!.hp = 0;
+    const ownerHp = owner.hp;
+    const allyHp = ally.hp;
+
+    const result = resolveGroupCombatTurn(state, [
+      { ...action(state, 0, "item", "self", owner.characterId), payloadKey: "item.loot-v1-c013" },
+      buildGroupCombatTimeoutAction(state, ally.characterId)
+    ]);
+
+    expect(result.committedConsumables).toEqual([{
+      characterId: owner.characterId,
+      itemId: "item.loot-v1-c013"
+    }]);
+    expect(result.state.participants[0]?.hp).toBe(ownerHp);
+    expect(result.state.participants[1]?.hp).toBeLessThan(allyHp);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-accuracy-penalty" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-accuracy-penalty" && status.targetId === ally.characterId
+    )).toBe(true);
+    expect(result.state.enemies[0]?.abilityCooldowns?.["monster.smoke-without-approval"]?.remainingTurns)
+      .toBeGreaterThan(0);
+  });
+
+  it("lets Fancy Cheese evade one damaging bite and its burn rider", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.cellar.fancy-cheese": 1 };
+    state.enemies[0]!.abilityIds = ["monster.preapproved-bite"];
+    state.enemies[0]!.attack = 30;
+    state.enemies[1]!.hp = 0;
+    const ownerHp = owner.hp;
+    const itemAction = [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.cellar.fancy-cheese"
+    }];
+
+    const first = resolveGroupCombatTurn(structuredClone(state), itemAction);
+    const replay = resolveGroupCombatTurn(structuredClone(state), itemAction);
+
+    expect(first.state.participants[0]?.hp).toBe(ownerHp);
+    expect(first.state.statuses.some((status) =>
+      status.kind === "monster-burn" && status.targetId === owner.characterId
+    )).toBe(false);
+    expect(first.committedConsumables).toEqual([{
+      characterId: owner.characterId,
+      itemId: "item.cellar.fancy-cheese"
+    }]);
+    expect(first.state.enemies[0]?.abilityCooldowns?.["monster.preapproved-bite"]?.remainingTurns)
+      .toBeGreaterThan(0);
+    expect(replay).toEqual(first);
+  });
+
+  it("keeps an evade item through a non-damaging hostile response", () => {
+    const state = proofState(2);
+    const owner = state.participants[0]!;
+    state.participants[1]!.hp = 0;
+    owner.threat = 100;
+    owner.combatItemQuantities = { "item.loot-v1-c013": 1 };
+    state.enemies[0]!.abilityIds = ["monster.ledger-audit"];
+    state.enemies[1]!.hp = 0;
+    const manaBefore = owner.mana;
+
+    const result = resolveGroupCombatTurn(state, [{
+      ...action(state, 0, "item", "self", owner.characterId),
+      payloadKey: "item.loot-v1-c013"
+    }]);
+
+    expect(result.committedConsumables).toEqual([]);
+    expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c013"]).toBe(1);
+    expect(result.state.participants[0]?.mana).toBeLessThan(manaBefore);
+    expect(result.state.statuses.some((status) =>
+      status.kind === "monster-incoming-damage" && status.targetId === owner.characterId
+    )).toBe(true);
+    expect(result.state.enemies[0]?.abilityCooldowns?.["monster.ledger-audit"]?.remainingTurns)
+      .toBeGreaterThan(0);
+  });
+
   it("keeps a GroupCombat response item when both enemies target another participant", () => {
     const state = leftPassageState(2);
     const owner = state.participants[0]!;
@@ -1072,7 +1208,7 @@ describe("group combat proof reducer", () => {
     expect(result.committedConsumables).toEqual([]);
     expect(result.state.participants[0]?.combatItemQuantities["item.loot-v1-c013"]).toBe(1);
     expect(result.state.recap[0]?.lines.some((line) =>
-      line.includes("не витрачає манатку") && line.includes("жодна відповідь не цілила")
+      line.includes("не витрачає манатку") && line.includes("жодна відповідь не дала корисного ефекту")
     )).toBe(true);
   });
 

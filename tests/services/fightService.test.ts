@@ -3070,6 +3070,43 @@ describe("FightService", () => {
     expect(trackEventSafely).not.toHaveBeenCalled();
   });
 
+  it("keeps c006 and all item-use evidence when the selected solo response has zero delta", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, hpCurrent: 50, hpMax: 50 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    sessions.combatItemStacks.set("item.loot-v1-c006", 1);
+    const trackEventSafely = vi.fn<AchievementService["trackEventSafely"]>();
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions,
+      rng: new FakeRandomSource([0.99, 0.99]),
+      achievements: { trackEventSafely } as unknown as AchievementService
+    });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    expect(started.state).toBe("persistent-active");
+    if (started.state !== "persistent-active") return;
+    const before = sessions.getById(started.session.id);
+    const input = {
+      sessionId: started.session.id,
+      turn: 1,
+      itemKey: getCombatItemUseKey("item.loot-v1-c006")
+    };
+
+    const first = await service.resolvePersistentFightItemTurn(telegramUserId, input);
+    const duplicate = await service.resolvePersistentFightItemTurn(telegramUserId, input);
+
+    expect(first).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(duplicate).toMatchObject({ state: "item-unavailable", reason: "effect-unavailable" });
+    expect(sessions.getById(started.session.id)).toEqual(before);
+    expect(sessions.combatItemStacks.get("item.loot-v1-c006")).toBe(1);
+    expect(sessions.consumedCombatItems).toEqual([]);
+    expect(sessions.updateCount).toBe(0);
+    expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
   it("lists only currently useful one-use manatky for the ordinary fight submenu", async () => {
     const characters = new FakeCharacterRepository();
     characters.add(telegramUserId, { xp: 25 });

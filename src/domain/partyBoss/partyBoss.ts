@@ -33,6 +33,7 @@ import {
 } from "../noncombat/bardSupport";
 import type { BardPerformanceGrade } from "../noncombat/bardPerformance";
 import type { ItemUseEffectContent } from "../../content/schema";
+import { resolveCombatResponseItemDelta } from "../combat/responseItemEffect";
 
 export const PARTY_BOSS_RULES_VERSION = "party-boss-proof-v1";
 export const BIG_BARREL_BROTHER_RULES_VERSION = "big-barrel-brother-v1";
@@ -700,6 +701,8 @@ export function resolvePartyBossRound(input: {
     itemId: string;
     kind: "guard" | "evade";
     percent: number;
+    used: boolean;
+    preventedDamage: number;
   }>();
   const retaliationTargets = next.boss.hp > 0
     ? new Set(isBigBarrelBrotherState(next)
@@ -717,14 +720,24 @@ export function resolvePartyBossRound(input: {
     itemResponseByCharacterId.set(characterId, {
       itemId: pending.item.id,
       kind: pending.effect.kind === "evade-response" ? "evade" : "guard",
-      percent: pending.effect.kind === "evade-response" ? 100 : pending.effect.reductionPercent
+      percent: pending.effect.kind === "evade-response" ? 100 : pending.effect.reductionPercent,
+      used: false,
+      preventedDamage: 0
     });
-    recordPartyBossCombatItemUse(pending.participant, pending.item.id);
-    pending.participant.contribution.itemUses = (pending.participant.contribution.itemUses ?? 0) + 1;
   }
   const retaliationResolution = next.boss.hp > 0
     ? applyBossRetaliation(next, counterDamageByCharacterId, itemResponseByCharacterId)
     : { retaliations: [] };
+  for (const [characterId, pending] of pendingItemResponses) {
+    const response = itemResponseByCharacterId.get(characterId);
+    if (!response?.used) {
+      pending.summary.outcome = "item-not-used";
+      pending.summary.itemUnavailableReason = "effect-unavailable";
+      continue;
+    }
+    recordPartyBossCombatItemUse(pending.participant, pending.item.id);
+    pending.participant.contribution.itemUses = (pending.participant.contribution.itemUses ?? 0) + 1;
+  }
   if (retaliationResolution.warriorTaunt) {
     if (retaliationResolution.warriorTaunt.expiredCharacterId) {
       delete tauntRound.bossAttacksRemaining;
@@ -1278,6 +1291,8 @@ function applyBossRetaliation(
     itemId: string;
     kind: "guard" | "evade";
     percent: number;
+    used: boolean;
+    preventedDamage: number;
   }> = new Map()
 ): {
   retaliations: PartyBossRetaliationSummary[];
@@ -1330,19 +1345,27 @@ function applyBossRetaliation(
       ? Math.min(damageBeforeWard, Math.floor(damageBeforeWard * state.wardSign!.mitigationPercent / 100))
       : 0;
     const damageAfterWardBase = Math.max(0, damageBeforeWard - wardPrevented);
-    const itemResponse = itemResponseByCharacterId.get(participant.characterId);
-    const itemGuardPercent = clamp(Math.floor(itemResponse?.percent ?? 0), 0, 100);
-    const damageAfterWard = itemResponse?.kind === "evade"
-      ? 0
-      : Math.max(0, damageAfterWardBase - Math.floor(damageAfterWardBase * itemGuardPercent / 100));
-    const itemResponsePrevented = Math.max(0, damageAfterWardBase - damageAfterWard);
     const signature = personalProtocolCanTrigger
       ? state.personalProtocol!.signatures.find((entry) =>
           entry.characterId === participant.characterId && entry.status === "unspent"
         )
       : undefined;
-    const protocolPrevented = signature ? damageAfterWard : 0;
-    const damage = signature ? 0 : damageAfterWard;
+    const protocolPrevented = signature ? damageAfterWardBase : 0;
+    const damageAfterProtocol = signature ? 0 : damageAfterWardBase;
+    const itemResponse = itemResponseByCharacterId.get(participant.characterId);
+    const itemResponseDelta = resolveCombatResponseItemDelta(
+      itemResponse
+        ? Math.min(participant.resources.hp, damageAfterProtocol)
+        : damageAfterProtocol,
+      itemResponse
+        ? { kind: itemResponse.kind, percent: itemResponse.percent }
+        : undefined
+    );
+    if (itemResponseDelta.eligible && itemResponse) {
+      itemResponse.used = true;
+      itemResponse.preventedDamage = itemResponseDelta.preventedDamage;
+    }
+    const damage = itemResponseDelta.damageAfter;
     if (wardCanTrigger) {
       wardPreventedDamage += wardPrevented;
       wardAffectedCharacterIds.push(participant.characterId);
@@ -1386,13 +1409,13 @@ function applyBossRetaliation(
         ? { tauntRedirected: true, tauntOriginalKind: originalPlan.kind }
         : {}),
       ...(wardPrevented > 0 ? { damageBeforeWard, wardPreventedDamage: wardPrevented } : {}),
-      ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWard, protocolPreventedDamage: protocolPrevented } : {}),
+      ...(protocolPrevented > 0 ? { damageBeforeProtocol: damageAfterWardBase, protocolPreventedDamage: protocolPrevented } : {}),
       ...(lamentPrevented > 0 ? { damageBeforeLament, lamentPreventedDamage: lamentPrevented } : {}),
-      ...(itemResponse
+      ...(itemResponse?.used
         ? {
             itemResponseItemId: itemResponse.itemId,
             itemResponseKind: itemResponse.kind,
-            itemResponsePreventedDamage: itemResponsePrevented
+            itemResponsePreventedDamage: itemResponse.preventedDamage
           }
         : {}),
       ...(counterDamage > 0 ? { counterDamage } : {})

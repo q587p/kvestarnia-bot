@@ -1272,6 +1272,110 @@ describe("party boss reducer", () => {
   });
 
   it.each([
+    ["zero after guard", 4, 23, false, 0],
+    ["one", 2, 0, false, 1],
+    ["two", 3, 0, false, 2],
+    ["three", 4, 0, true, 2]
+  ] as const)("commits party-boss c006 only for a positive incremental delta: %s", (
+    _label,
+    bossAttack,
+    existingReduction,
+    committed,
+    expectedDamage
+  ) => {
+    const state = createPartyBossState({
+      partySessionId: `party-c006-${_label}`,
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      participants: [participant("owner", "Власник", { hp: 100 })]
+    });
+    state.boss.attack = bossAttack;
+    if (existingReduction > 0) {
+      state.participants[0]!.resources.guard = {
+        consecutiveDefends: 1,
+        abilityDamageReduction: existingReduction
+      };
+    }
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `party-c006-${_label}`,
+      actions: [{
+        characterId: "owner",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: "item.loot-v1-c006",
+          name: "Шкарпетки Героїчного Ухилення",
+          effect: { kind: "guard-response", reductionPercent: 42 }
+        }
+      }]
+    });
+
+    expect(result.state.turn).toBe(2);
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: committed ? "item-used" : "item-not-used",
+      ...(committed ? {} : { itemUnavailableReason: "effect-unavailable" })
+    });
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(committed ? 1 : 0);
+    expect(result.round.bossRetaliations[0]).toMatchObject({
+      damage: expectedDamage,
+      ...(committed
+        ? { itemResponseItemId: "item.loot-v1-c006", itemResponsePreventedDamage: 1 }
+        : {})
+    });
+    if (!committed) {
+      expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["item.loot-v1-c006", { kind: "guard-response" as const, reductionPercent: 42 }],
+    ["item.loot-v1-c013", { kind: "evade-response" as const }],
+    ["item.cellar.fancy-cheese", { kind: "evade-response" as const }]
+  ])("lets Big Barrel personal protocol take precedence without spending %s", (itemId, effect) => {
+    const state = createPartyBossState({
+      partySessionId: `big-response-protocol-${itemId}`,
+      variant: "big-barrel",
+      leaderCharacterId: "owner",
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      personalProtocol: {
+        kind: "bureaucramancer-personal-protocol-13b",
+        protocolId: "protocol-c006",
+        filerCharacterId: "owner",
+        signerCharacterIds: ["owner"]
+      },
+      participants: [participant("owner", "Власник", { hp: 160, level: 8 })]
+    });
+    state.boss.attack = 20;
+
+    const result = resolvePartyBossRound({
+      state,
+      now: new Date("2026-06-30T10:00:23.000Z"),
+      seed: `big-response-protocol-${itemId}`,
+      actions: [{
+        characterId: "owner",
+        action: "item",
+        origin: "manual",
+        item: {
+          id: itemId,
+          name: "Манатка відповіді",
+          effect
+        }
+      }]
+    });
+
+    expect(result.round.personalProtocol).toMatchObject({ characterId: "owner", status: "triggered" });
+    expect(result.round.actions[0]).toMatchObject({
+      outcome: "item-not-used",
+      itemUnavailableReason: "effect-unavailable"
+    });
+    expect(result.round.bossRetaliations[0]).toMatchObject({ damage: 0 });
+    expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
+    expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(0);
+  });
+
+  it.each([
     ["leader", "item-used", true],
     ["striker", "item-not-used", false]
   ] as const)("commits a Big Barrel response item only when %s owns the focused response", (ownerId, outcome, targeted) => {

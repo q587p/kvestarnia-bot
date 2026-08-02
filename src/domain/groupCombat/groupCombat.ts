@@ -29,6 +29,7 @@ import {
 import { monsters } from "../../content/monsters";
 import { rollFleeSuccess, rollMonsterSkillDamage } from "../combat/combatBalance";
 import { deriveMonsterCombatStats } from "../combat/monsterCombatStats";
+import { resolveCombatResponseItemDelta } from "../combat/responseItemEffect";
 import {
   compileMonsterAbilityExecutionPlan,
   compileMonsterAbilityRecipe,
@@ -1417,7 +1418,7 @@ export function resolveGroupCombatTurn(
         pending.actor,
         "не витрачає манатку",
         label
-      )}: жодна відповідь не цілила у власника, тож манатка лишається в торбі.`;
+      )}: жодна відповідь не дала корисного ефекту, тож манатка лишається в торбі.`;
       continue;
     }
     recordGroupCombatItemUse(pending.actor, pending.itemId);
@@ -2154,7 +2155,8 @@ export function applyGroupCombatEnemyDamage(
   enemy: GroupCombatEnemyState,
   target: GroupCombatActorSnapshot,
   rawDamage: number,
-  pendingResponseItems?: Map<string, GroupCombatPendingResponseItem>
+  pendingResponseItems?: Map<string, GroupCombatPendingResponseItem>,
+  hasHarmfulOnHitConsequence = false
 ): number {
     const targetContribution = getContribution(state, target.characterId);
     let damage = Math.max(0, rawDamage);
@@ -2216,20 +2218,20 @@ export function applyGroupCombatEnemyDamage(
         source.control += prevented;
       }
     }
+    damage = Math.min(target.hp, Math.max(0, damage));
     const itemResponse = pendingResponseItems?.get(target.characterId);
     if (itemResponse && !itemResponse.used) {
-      const prevented = itemResponse.kind === "evade"
-        ? damage
-        : Math.min(damage, Math.floor(damage * itemResponse.percent / 100));
-      damage -= prevented;
-      itemResponse.used = true;
-      itemResponse.preventedDamage = prevented;
-      itemResponse.damageAfter = damage;
-      itemResponse.enemyId = enemy.id;
-      itemResponse.enemyName = enemy.name;
-      getContribution(state, target.characterId).control += prevented;
+      const delta = resolveCombatResponseItemDelta(damage, itemResponse, hasHarmfulOnHitConsequence);
+      if (delta.eligible) {
+        damage = delta.damageAfter;
+        itemResponse.used = true;
+        itemResponse.preventedDamage = delta.preventedDamage;
+        itemResponse.damageAfter = damage;
+        itemResponse.enemyId = enemy.id;
+        itemResponse.enemyName = enemy.name;
+        getContribution(state, target.characterId).control += delta.preventedDamage;
+      }
     }
-    damage = Math.min(target.hp, Math.max(0, damage));
     target.hp -= damage;
     targetContribution.damageTaken += damage;
 
@@ -2254,6 +2256,67 @@ export function applyGroupCombatEnemyDamage(
       }
     }
     return damage;
+}
+
+function didEvadeGroupCombatResponse(
+  pendingResponseItems: ReadonlyMap<string, GroupCombatPendingResponseItem>,
+  target: GroupCombatActorSnapshot,
+  enemy: GroupCombatEnemyState
+): boolean {
+  const pending = pendingResponseItems.get(target.characterId);
+  return Boolean(
+    pending?.used &&
+    pending.kind === "evade" &&
+    pending.enemyId === enemy.id
+  );
+}
+
+function hasGroupCombatHarmfulOnHitConsequence(
+  ability: MonsterAbilityDefinition,
+  plan: ReturnType<typeof compileMonsterAbilityExecutionPlan>
+): boolean {
+  if (!plan.directDamage) {
+    return false;
+  }
+  const recipe = compileMonsterAbilityRecipe(ability);
+  if (
+    (abilityNumber(ability, "markIncomingDamageMultiplier") > 1 &&
+      !plan.components.some((component) => component.effectKind === "mark")) ||
+    (recipe.heroEffects.includes("accuracy") &&
+      Math.max(
+        abilityNumber(ability, "targetAccuracyPenaltyPp"),
+        abilityNumber(ability, "accuracyAndEvasionPenaltyPp")
+      ) > 0 &&
+      !plan.components.some((component) => component.effectKind === "accuracy")) ||
+    (plan.selectedRider === null &&
+      Math.max(
+        abilityNumber(ability, "burnDamageMultiplier"),
+        abilityNumber(ability, "bleedDamageMultiplier")
+      ) > 0 &&
+      !plan.components.some((component) =>
+        component.effectKind === "burn" || component.effectKind === "bleed"
+      )) ||
+    (abilityNumber(ability, "manaDrain") > 0 &&
+      !plan.components.some((component) => component.kind === "mana-drain"))
+  ) {
+    return true;
+  }
+  return plan.components.some((component) => {
+    if (!component.directHitRequired || component.target !== "hero") {
+      return false;
+    }
+    if (component.kind === "runtime-effect" && component.effectKind) {
+      return getMonsterAbilityEffectContract({
+        target: component.target,
+        kind: component.effectKind,
+        value: component.value ?? 0,
+        sourceAbilityId: ability.id
+      }).polarity === "harmful";
+    }
+    return component.kind === "mana-drain" ||
+      component.kind === "remove-positive" ||
+      component.kind === "cooldown-pressure";
+  });
 }
 
 function applyPlayerDamageToEnemy(
@@ -2560,12 +2623,13 @@ function executeGroupCombatEnemyAbility(
   const contribution = getEnemyContribution(state, enemy.id);
   if (ability.id === "monster.smoke-without-approval") {
     let totalDamage = 0;
+    let appliedPenaltyCount = 0;
     const targets = livingParticipants(state);
     for (const target of targets) {
       const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
+      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems, true);
       totalDamage += damage;
-      if (rawDamage > 0) {
+      if (rawDamage > 0 && !didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {
         addOrRefreshMonsterStatus(state, {
           id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
           kind: "monster-accuracy-penalty",
@@ -2577,10 +2641,11 @@ function executeGroupCombatEnemyAbility(
           remainingTurns: positiveInteger(Number(ability.parameters.durationTargetActivations ?? 1)),
           appliedTurn: state.turn
         });
+        appliedPenaltyCount += 1;
       }
     }
     contribution.damage += totalDamage;
-    contribution.control += targets.length;
+    contribution.control += appliedPenaltyCount;
     lines.push(
       `${enemy.name} застосовує ${ability.label} по всій ватазі: ${totalDamage} шкоди.`
     );
@@ -2592,9 +2657,9 @@ function executeGroupCombatEnemyAbility(
       return false;
     }
     const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
+    const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems, true);
     contribution.damage += damage;
-    if (rawDamage > 0) {
+    if (rawDamage > 0 && !didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {
       addOrRefreshMonsterStatus(state, {
         id: `${state.turn}:${enemy.id}:${target.characterId}:burn`,
         kind: "monster-burn",
@@ -2764,13 +2829,25 @@ function executeGenericGroupCombatEnemyAbility(
   const effects: string[] = [];
   let applied = false;
   const directHitParticipantIds = new Set<string>();
+  const evadedParticipantIds = new Set<string>();
+  const hasHarmfulOnHitConsequence = hasGroupCombatHarmfulOnHitConsequence(ability, plan);
 
   if (plan.directDamage && participantTargets.length > 0) {
     let totalDamage = 0;
     for (const target of participantTargets) {
       const rawDamage = rollGroupCombatEnemyAbilityDamage(state, enemy, target, ability);
-      const damage = applyGroupCombatEnemyDamage(state, enemy, target, rawDamage, pendingResponseItems);
+      const damage = applyGroupCombatEnemyDamage(
+        state,
+        enemy,
+        target,
+        rawDamage,
+        pendingResponseItems,
+        hasHarmfulOnHitConsequence
+      );
       totalDamage += damage;
+      if (didEvadeGroupCombatResponse(pendingResponseItems, target, enemy)) {
+        evadedParticipantIds.add(target.characterId);
+      }
       if (damage > 0) {
         directHitParticipantIds.add(target.characterId);
       }
@@ -2788,7 +2865,7 @@ function executeGenericGroupCombatEnemyAbility(
   const manaDrain = Math.max(0, Math.floor(abilityNumber(ability, "manaDrain")));
   if (manaDrain > 0 && !plan.components.some((component) => component.kind === "mana-drain")) {
     let drained = 0;
-    for (const target of participantTargets) {
+    for (const target of participantTargets.filter((entry) => !evadedParticipantIds.has(entry.characterId))) {
       const amount = Math.min(target.mana, manaDrain);
       target.mana -= amount;
       drained += amount;
@@ -2806,7 +2883,8 @@ function executeGenericGroupCombatEnemyAbility(
     !plan.components.some((component) => component.effectKind === "mark")
   ) {
     const duration = monsterAbilityTargetDuration(ability);
-    for (const target of participantTargets) {
+    const affectedTargets = participantTargets.filter((entry) => !evadedParticipantIds.has(entry.characterId));
+    for (const target of affectedTargets) {
       addOrRefreshMonsterStatus(state, {
         id: `${state.turn}:${enemy.id}:${target.characterId}:incoming-damage`,
         kind: "monster-incoming-damage",
@@ -2819,9 +2897,11 @@ function executeGenericGroupCombatEnemyAbility(
         appliedTurn: state.turn
       });
     }
-    effects.push("наступна отримана шкода посилена");
-    contribution.control += participantTargets.length;
-    applied = true;
+    if (affectedTargets.length > 0) {
+      effects.push("наступна отримана шкода посилена");
+      contribution.control += affectedTargets.length;
+      applied = true;
+    }
   }
 
   const accuracyPenalty = Math.max(
@@ -2834,7 +2914,8 @@ function executeGenericGroupCombatEnemyAbility(
     !plan.components.some((component) => component.effectKind === "accuracy")
   ) {
     const duration = monsterAbilityTargetDuration(ability);
-    for (const target of participantTargets) {
+    const affectedTargets = participantTargets.filter((entry) => !evadedParticipantIds.has(entry.characterId));
+    for (const target of affectedTargets) {
       addOrRefreshMonsterStatus(state, {
         id: `${state.turn}:${enemy.id}:${target.characterId}:accuracy`,
         kind: "monster-accuracy-penalty",
@@ -2847,9 +2928,11 @@ function executeGenericGroupCombatEnemyAbility(
         appliedTurn: state.turn
       });
     }
-    effects.push("влучність ватаги послаблена");
-    contribution.control += participantTargets.length;
-    applied = true;
+    if (affectedTargets.length > 0) {
+      effects.push("влучність ватаги послаблена");
+      contribution.control += affectedTargets.length;
+      applied = true;
+    }
   }
 
   const ongoingDamageFraction = Math.max(
@@ -2871,7 +2954,8 @@ function executeGenericGroupCombatEnemyAbility(
       Math.floor(abilityNumber(ability, "burnTicks")),
       Math.floor(abilityNumber(ability, "bleedTicks"))
     );
-    for (const target of participantTargets) {
+    const affectedTargets = participantTargets.filter((entry) => !evadedParticipantIds.has(entry.characterId));
+    for (const target of affectedTargets) {
       addOrRefreshMonsterStatus(state, {
         id: `${state.turn}:${enemy.id}:${target.characterId}:ongoing-damage`,
         kind: "monster-burn",
@@ -2884,9 +2968,11 @@ function executeGenericGroupCombatEnemyAbility(
         appliedTurn: state.turn
       });
     }
-    effects.push("тривала шкода");
-    contribution.control += participantTargets.length;
-    applied = true;
+    if (affectedTargets.length > 0) {
+      effects.push("тривала шкода");
+      contribution.control += affectedTargets.length;
+      applied = true;
+    }
   }
 
   const healFraction = Math.max(
