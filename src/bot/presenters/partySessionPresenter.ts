@@ -163,6 +163,10 @@ export function presentPartyJoin(
 function presentPartyCreateIneligible(
   result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
+  if (result.reason === "active-combat") {
+    return "Спершу завершіть чинний бій. Нова ватага не переписує бойову печатку іншої пригоди.";
+  }
+
   if (result.reason === "pending-solo-raid") {
     return presentPendingSoloRaidConflict(result.availableAt, result.now, "відкрити новий збір");
   }

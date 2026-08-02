@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.3` consumable manatky; `0.4.4` наступна |
+| Party Progression | активна | `0.4.4` guild foundation; `0.4.5` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -142,6 +142,12 @@ require no data migration; take-away purchase shelf remains separate `0.4.9`.
 нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
 leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
 `PartySession`; вона не володіє combat state.
+
+Repository release `0.4.4` реалізує цей shell за default-off
+`GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
+remort, а party/combat лишаються current-life контрактами без Guild foreign key.
+Deployment, target flag і ручна триакаунтова Telegram QA лишаються окремим
+непідтвердженим доказом.
 
 ### 0.4.5 — Guild weekly goal
 

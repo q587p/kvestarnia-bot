@@ -28,19 +28,18 @@ Keep each task compact and link to canonical docs instead of copying them.
 
 ## Current release and next task
 
-The current repository release is `0.4.3`:
-[`0.4.3-consumable-manatka-uses.md`](0.4.3-consumable-manatka-uses.md).
-Its exhaustive twenty-id typed consumable catalog is implemented; manual Telegram QA,
-merge, deployment and production availability remain unproven.
+The current repository release is `0.4.4`:
+[`0.4.4-guild-foundation.md`](0.4.4-guild-foundation.md).
+Its default-off durable guild social shell is implemented; manual three-account
+Telegram QA, merge, deployment and production availability remain unproven.
 
-[`0.4.4-guild-foundation.md`](0.4.4-guild-foundation.md) is the next planned version.
+[`0.4.5-guild-weekly-goal.md`](0.4.5-guild-weekly-goal.md) is the next planned version.
 
 ## Accepted 0.4.x planning
 
-After `0.4.3`, use these accepted task contracts in order unless a later
+After `0.4.4`, use these accepted task contracts in order unless a later
 product decision changes the sequence:
 
-- [`0.4.4-guild-foundation.md`](0.4.4-guild-foundation.md)
 - [`0.4.5-guild-weekly-goal.md`](0.4.5-guild-weekly-goal.md)
 - [`0.4.6-old-altar-blessings-mvp.md`](0.4.6-old-altar-blessings-mvp.md)
 - [`0.4.7-nearby-greeting-buff.md`](0.4.7-nearby-greeting-buff.md)
@@ -54,7 +53,7 @@ These are planned contracts, not merged or deployed features.
 
 ## Shipped records and historical drafts
 
-- `0.4.3` is the current repository release record; `0.4.2` is the previous
+- `0.4.4` is the current repository release record; `0.4.3` is the previous
   release record.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.

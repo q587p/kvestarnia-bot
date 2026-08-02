@@ -19,6 +19,7 @@ import { PrismaDuelChallengeRepository } from "../../src/db/repositories/prismaD
 import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../../src/db/repositories/prismaHuntContractRepository";
 import { PrismaGroupCombatRepository } from "../../src/db/repositories/prismaGroupCombatRepository";
+import { PrismaGuildRepository } from "../../src/db/repositories/prismaGuildRepository";
 import { PrismaInventoryRepository } from "../../src/db/repositories/prismaInventoryRepository";
 import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
 import { PrismaKorchmaRoundPurchaseRepository } from "../../src/db/repositories/prismaKorchmaRoundPurchaseRepository";
@@ -48,6 +49,7 @@ import { EquipmentService } from "../../src/services/equipmentService";
 import { FightService } from "../../src/services/fightService";
 import { HeroService } from "../../src/services/heroService";
 import { GroupCombatService } from "../../src/services/groupCombatService";
+import { GuildService } from "../../src/services/guildService";
 import { HuntService } from "../../src/services/huntService";
 import { InventoryService } from "../../src/services/inventoryService";
 import { ItemTransferService } from "../../src/services/itemTransferService";
@@ -87,6 +89,7 @@ describe("application factory wiring", () => {
     expect(repositories.equipment).toBeInstanceOf(PrismaEquipmentRepository);
     expect(repositories.huntContracts).toBeInstanceOf(PrismaHuntContractRepository);
     expect(repositories.groupCombatSessions).toBeInstanceOf(PrismaGroupCombatRepository);
+    expect(repositories.guilds).toBeInstanceOf(PrismaGuildRepository);
     expect(repositories.inventory).toBeInstanceOf(PrismaInventoryRepository);
     expect(repositories.itemTransfers).toBeInstanceOf(PrismaItemTransferRepository);
     expect(repositories.levelBarter).toBeInstanceOf(PrismaLevelBarterRepository);
@@ -125,6 +128,7 @@ describe("application factory wiring", () => {
     expect(services.hero).toBeInstanceOf(HeroService);
     expect(services.hunt).toBeInstanceOf(HuntService);
     expect(services.groupCombat).toBeInstanceOf(GroupCombatService);
+    expect(services.guilds).toBeInstanceOf(GuildService);
     expect(services.inventory).toBeInstanceOf(InventoryService);
     expect(services.itemTransfers).toBeInstanceOf(ItemTransferService);
     expect(services.levelBarter).toBeInstanceOf(LevelBarterService);
@@ -239,11 +243,12 @@ describe("application factory wiring", () => {
       }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions)
     `));
     expect(source).toContain(compact(`
-      partySessions: new PartySessionService(repositories.partySessions, {
+      const partySessions = new PartySessionService(repositories.partySessions, {
         enabled: nonProduction ||
           config.partySessionFoundationEnabled ||
           config.bigBarrelBrotherRaidEnabled ||
-          config.leftPassagePartyAttackEnabled,
+          config.leftPassagePartyAttackEnabled ||
+          config.guildFoundationEnabled,
         runtimeServicingEnabled: true,
         devHelpersEnabled: nonProduction,
         bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
@@ -277,6 +282,21 @@ describe("application factory wiring", () => {
     expect(services.partySessions.areDevHelpersEnabled()).toBe(false);
     expect(services.partyBoss.isEnabled()).toBe(true);
     expect(services.partyBoss.areDevHelpersEnabled()).toBe(false);
+  });
+
+  it("keeps guild entry default-off and its dev mutation unavailable in production", async () => {
+    const disabled = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production"
+    }));
+    expect(disabled.guilds.isEnabled()).toBe(false);
+
+    const enabled = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      guildFoundationEnabled: true
+    }));
+    expect(enabled.guilds.isEnabled()).toBe(true);
+    expect(enabled.guilds.areDevHelpersEnabled()).toBe(false);
+    await expect(enabled.guilds.ensureCreationGoldForDev(42n)).resolves.toBe("disabled");
   });
 
   it("services group combat in production while keeping proof and left-passage entry disabled", async () => {
@@ -342,6 +362,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     partySessionDevHelpersEnabled: false,
     bigBarrelBrotherRaidEnabled: false,
     groupCombatProofEnabled: false,
+    guildFoundationEnabled: false,
     ...overrides
   };
 }

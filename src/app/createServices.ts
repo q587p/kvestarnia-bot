@@ -24,6 +24,7 @@ import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import { HeroService } from "../services/heroService";
 import { GroupCombatService } from "../services/groupCombatService";
+import { GuildService } from "../services/guildService";
 import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
@@ -136,6 +137,17 @@ export function createServices(
       buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
     repositories.dailyActions
   );
+  const partySessions = new PartySessionService(repositories.partySessions, {
+    enabled: nonProduction ||
+      config.partySessionFoundationEnabled ||
+      config.bigBarrelBrotherRaidEnabled ||
+      config.leftPassagePartyAttackEnabled ||
+      config.guildFoundationEnabled,
+    runtimeServicingEnabled: true,
+    devHelpersEnabled: nonProduction,
+    bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+    leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+  }, undefined, achievements);
 
   const services: ApplicationServices = {
     activityEvents,
@@ -235,6 +247,10 @@ export function createServices(
       repositories.huntContracts
     ),
     groupCombat,
+    guilds: new GuildService(repositories.guilds, partySessions, {
+      enabled: config.guildFoundationEnabled,
+      devHelpersEnabled: nonProduction && config.guildFoundationEnabled
+    }, undefined, achievements),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(
@@ -266,16 +282,7 @@ export function createServices(
       enabled: partyRaidChatEnabled,
       devHelpersEnabled: nonProduction && partyRaidChatEnabled
     }),
-    partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: nonProduction ||
-        config.partySessionFoundationEnabled ||
-        config.bigBarrelBrotherRaidEnabled ||
-        config.leftPassagePartyAttackEnabled,
-      runtimeServicingEnabled: true,
-      devHelpersEnabled: nonProduction,
-      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
-    }, undefined, achievements),
+    partySessions,
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     questMarkerReads: new QuestMarkerReadService(repositories.questMarkerReads),

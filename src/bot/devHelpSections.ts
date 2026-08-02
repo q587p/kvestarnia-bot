@@ -48,7 +48,7 @@ export function getDevHelpSections(
       summary: "рівні, HP, мана й речі",
       commands: commands.filter((entry) =>
         entry.command.startsWith("dev_add_")
-        || ["dev_heal", "dev_restore_mana", "dev_finish_attunements"].includes(entry.command)
+        || ["dev_heal", "dev_restore_mana", "dev_finish_attunements", "dev_guild_gold"].includes(entry.command)
       )
     }
   ];

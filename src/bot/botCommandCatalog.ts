@@ -4,7 +4,7 @@ export interface BotCommandCatalogEntry {
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery";
+  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -507,6 +507,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "скинути cooldown Допельґанґера локально",
     includeInMenu: false,
     devOnly: "grant"
+  },
+  {
+    command: "dev_guild_gold",
+    icon: "🛡️",
+    description: "видати золото для заснування ґільдії локально",
+    includeInMenu: false,
+    devOnly: "guild"
   }
 ];
 
@@ -519,6 +526,7 @@ export interface DevCommandVisibility {
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
+  includeGuild?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -547,6 +555,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "group-combat") {
       return normalized.includeGroupCombat;
+    }
+
+    if (entry.devOnly === "guild") {
+      return normalized.includeGuild;
     }
 
     return entry.devOnly === "grant"
@@ -579,7 +591,8 @@ function normalizeDevCommandVisibility(
       includeRaidChat: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
-      includeHpRecovery: visibility
+      includeHpRecovery: visibility,
+      includeGuild: visibility
     };
   }
 
@@ -591,6 +604,7 @@ function normalizeDevCommandVisibility(
     includeRaidChat: visibility.includeRaidChat ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
-    includeHpRecovery: visibility.includeHpRecovery ?? false
+    includeHpRecovery: visibility.includeHpRecovery ?? false,
+    includeGuild: visibility.includeGuild ?? false
   };
 }

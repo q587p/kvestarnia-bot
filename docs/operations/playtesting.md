@@ -355,6 +355,19 @@ hard-оказію: мають бути і сольна атака, і збір �
 Вибитий учасник бачить щонайменше `🔎 Оновити`; жоден send/edit не має лишати
 найновішу активну картку без кнопок.
 
+## Ґільдійна основа
+
+Повний триакаунтовий пакет:
+[`0.4.4-guild-foundation-qa.md`](../qa/0.4.4-guild-foundation-qa.md).
+Ручний результат на фінальній голові pending. У checkout `.env` постав
+`NODE_ENV=development` і `GUILD_FOUNDATION_ENABLED=true`, потім виконай
+`refresh-local-bot.cmd` та `status-local-bot.cmd` і звір точний candidate SHA та
+скопійований прапорець. Перевір create/duplicate confirm, нормалізовану
+унікальність, decline/reinvite/competing accept, ролі й succession, remort,
+restart, flag off/on, privacy та leave/kick/delete під час окремих active
+PartySession/GroupCombatSession. `/dev_guild_gold` готує лише creation gold і не
+має існувати у production.
+
 ## Сервісні команди
 
 - `/version` — показує поточну версію бота.
@@ -388,6 +401,7 @@ hard-оказію: мають бути і сольна атака, і збір �
   післяпереможне вікно сходів до Ярусу II; використовуйте перед повторним
   left-passage party прогоном.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
+- `/dev_guild_gold` — у локальному режимі за ввімкненої guild foundation доводить золото до суми створення ґільдії; у production команда відсутня.
 
 ## Межі поточного smoke
 
@@ -409,7 +423,11 @@ hard-оказію: мають бути і сольна атака, і збір �
   production entry default-off, ручний результат pending.
 - consumable manatka uses перевіряються за
   [`0.4.3` focused QA](../qa/0.4.3-consumable-manatka-uses-qa.md);
-  сімнадцять нових nonmedical mappings default-off, ручний результат pending.
+  усі двадцять exact-id mappings активні без catalog-specific прапорця, ручний
+  результат pending.
+- guild foundation перевіряється за
+  [`0.4.4` focused QA](../qa/0.4.4-guild-foundation-qa.md);
+  production entry default-off, ручний триакаунтовий результат pending.
 
 Індекс поточних feature-specific пакетів:
 [`docs/qa/README.md`](../qa/README.md). Цей компактний smoke не дублює їхні

@@ -19,6 +19,12 @@ model User {
   currentRaidId      String?    @map("current_raid_id")
   currentAdventureId String?    @map("current_adventure_id")
   character          Character?
+  guildMembership   GuildMember?
+  guildsLed          Guild[]              @relation("GuildLeader")
+  guildCreationIntents GuildCreationIntent[]
+  guildInvitesSent   GuildInvite[]         @relation("GuildInviteInviter")
+  guildInvitesReceived GuildInvite[]       @relation("GuildInviteTarget")
+  guildAudits        GuildAudit[]           @relation("GuildAuditActor")
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
 
@@ -27,6 +33,109 @@ model User {
   @@index([currentRaidId])
   @@index([currentAdventureId])
   @@map("users")
+}
+
+model Guild {
+  id             String   @id @default(uuid())
+  normalizedName String   @unique @map("normalized_name")
+  displayName    String   @map("display_name")
+  crest          String
+  description    String
+  leaderUserId   String   @map("leader_user_id")
+  leaderUser     User     @relation("GuildLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  status         String   @default("active")
+  version        Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  members        GuildMember[]
+  creationIntents GuildCreationIntent[]
+  invites        GuildInvite[]
+  audits         GuildAudit[]
+
+  @@index([leaderUserId])
+  @@map("guilds")
+}
+
+model GuildMember {
+  id        String   @id @default(uuid())
+  guildId   String   @map("guild_id")
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("member")
+  joinedAt  DateTime @map("joined_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([guildId, userId])
+  @@index([guildId, role, joinedAt])
+  @@map("guild_members")
+}
+
+model GuildCreationIntent {
+  id             String   @id @default(uuid())
+  token          String   @unique
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterId    String   @map("character_id")
+  remortCount    Int      @map("remort_count")
+  normalizedName String   @map("normalized_name")
+  displayName    String   @map("display_name")
+  crest          String
+  description    String
+  goldCost       Int      @map("gold_cost")
+  status         String   @default("pending")
+  guildId        String?  @map("guild_id")
+  guild          Guild?   @relation(fields: [guildId], references: [id], onDelete: SetNull)
+  expiresAt      DateTime @map("expires_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status, expiresAt])
+  @@index([normalizedName, status])
+  @@map("guild_creation_intents")
+}
+
+model GuildInvite {
+  id            String   @id @default(uuid())
+  token         String   @unique
+  guildId       String   @map("guild_id")
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  inviterUserId String   @map("inviter_user_id")
+  inviterUser   User     @relation("GuildInviteInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  targetUserId  String   @map("target_user_id")
+  targetUser    User     @relation("GuildInviteTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetName    String   @map("target_name")
+  status        String   @default("pending")
+  activeKey     String?  @unique @map("active_key")
+  expiresAt     DateTime @map("expires_at")
+  respondedAt   DateTime? @map("responded_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([guildId, status, expiresAt])
+  @@index([targetUserId, status, expiresAt])
+  @@index([inviterUserId, createdAt])
+  @@map("guild_invites")
+}
+
+model GuildAudit {
+  id            String   @id @default(uuid())
+  guildId       String   @map("guild_id")
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  eventType     String   @map("event_type")
+  actorUserId   String?  @map("actor_user_id")
+  actorUser     User?    @relation("GuildAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  subjectUserId String?  @map("subject_user_id")
+  dedupeKey     String   @unique @map("dedupe_key")
+  payloadJson   Json?    @map("payload_json")
+  occurredAt    DateTime @map("occurred_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([guildId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@map("guild_audits")
 }
 
 model Character {

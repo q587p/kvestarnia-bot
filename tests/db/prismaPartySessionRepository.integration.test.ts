@@ -68,6 +68,23 @@ describe("PrismaPartySessionRepository integration", () => {
     expect(await prisma.partyParticipant.count()).toBe(1);
   });
 
+  it("blocks ordinary party creation while a different combat lease is authoritative", async () => {
+    await seedCharacter(prisma, "guild-party-combat-user", 1002n, "Боєць із печаткою");
+    await prisma.activeCombatLease.create({
+      data: {
+        id: "guild-party-combat-lease",
+        characterId: "guild-party-combat-user-character",
+        kind: "solo-combat",
+        referenceId: "solo-session-587"
+      }
+    });
+
+    await expect(repository.createForTelegramUser(1002n, partyInput("guild-party-blocked-token")))
+      .resolves.toEqual({ state: "ineligible", reason: "active-combat" });
+    await expect(prisma.partySession.count({ where: { inviteToken: "guild-party-blocked-token" } }))
+      .resolves.toBe(0);
+  });
+
   it("joins, blocks a second live membership, and reuses left rows on rejoin", async () => {
     await seedCharacter(prisma, "leader-two-user", 2001n, "Провідник");
     await seedCharacter(prisma, "joiner-user", 2002n, "Долученець");

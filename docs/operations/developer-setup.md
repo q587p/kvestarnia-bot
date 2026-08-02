@@ -62,6 +62,7 @@ DEPLOY_NOTIFICATIONS_ENABLED=false
 HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
 LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
+GUILD_FOUNDATION_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
@@ -122,6 +123,15 @@ runtime далі обслуговує вже активні бої та settleme
 збору через поточну межу timeout звичайним service-шляхом. У production вона не
 реєструється, не показується й не може мутувати стан.
 
+`GUILD_FOUNDATION_ENABLED=true` відкриває durable `/guild` social shell;
+deploy-safe default — `false`. Ґільдія зберігає membership на `User`, не має
+foreign key до `PartySession`/`GroupCombatSession` і не відкриває bank, economy,
+buff, weekly goal, boss, chat, trade, war, territory чи PvP. Для локальної
+триакаунтової перевірки ввімкніть прапорець у checkout `.env`, виконайте
+`refresh-local-bot.cmd` та звірте candidate SHA і скопійоване значення через
+`status-local-bot.cmd`. Rollback спершу вимикає прапорець і перезапускає бот;
+SQL rollback дозволений лише на погодженій isolated/restored базі.
+
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
 Приватний рейд-чат 0.3.15 не має окремого конфігураційного ключа: він працює всередині наявної поверхні `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Вимкнення батьківського прапорця ховає нові читання, записи й кнопки та запускає фонове очищення старих карток. Для локальної перевірки достатньо ввімкнути Big Barrel; `/dev_raid_chat` усе одно не реєструється у production.
@@ -163,6 +173,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_party` — збирає тимчасову локальну ватагу; коли GroupCombat proof увімкнений, створює окремий збір на 2–3 учасників із автоматичним стартом через три хвилини. Без proof зберігає звичайний party/session контракт. У production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
 - `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.
+- `/dev_guild_gold` — за `GUILD_FOUNDATION_ENABLED=true` у non-production доводить золото поточного персонажа до суми створення ґільдії; у production не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_raid_chat fill [14..131] | clear | expire composer|retention` — наповнює або очищає поточний Big Barrel чат і прискорює строки для перевірки newest-13, ліміту, composer та retention; доступна лише поза production, коли ввімкнений наявний Big Barrel прапорець.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.

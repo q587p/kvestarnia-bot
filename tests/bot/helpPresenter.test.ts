@@ -35,7 +35,7 @@ describe("help presenter", () => {
     expect([...renderedCommands].sort()).toEqual([...expectedCommands].sort());
     expect(new Set(renderedCommands).size).toBe(renderedCommands.length);
     expect(presentHelp(visibility, "items")).toContain("Воїн може тримати по зброї в кожній руці.");
-    expect(presentHelp(visibility, "news")).toContain("Крамниці, ремесло й ґільдії ще готуються.");
+    expect(presentHelp(visibility, "news")).toContain("Крамниці й ремесло ще готуються.");
   });
 
   it("keeps related command aliases on shared compact rows", () => {
@@ -159,6 +159,10 @@ describe("help presenter", () => {
       includeDevGrant: false,
       includeHpRecovery: true
     }, "combat");
+    const guildEnabled = presentDevHelp({
+      includeDevReset: false,
+      includeGuild: true
+    }, "resources");
     const raidChatEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
@@ -220,6 +224,7 @@ describe("help presenter", () => {
     expect(hpRecoveryEnabled).toContain(
       "❤️‍🩹 /dev_hp_recovery_due — підготувати сповіщення про відновлення HP локально"
     );
+    expect(guildEnabled).toContain("🛡️ /dev_guild_gold");
     expect(hpRecoveryEnabled).not.toContain("/dev_reset_me");
     expect(disabled).toBe("Dev-команди тут не ввімкнені. Корчмар сховав викрутку.");
   });

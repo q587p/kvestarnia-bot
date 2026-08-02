@@ -135,6 +135,14 @@ describe("loadConfig", () => {
     }).leftPassagePartyAttackEnabled).toBe(true);
   });
 
+  it("keeps guild foundation default-off and enables only the named rollout flag", () => {
+    expect(loadConfig(validEnv).guildFoundationEnabled).toBe(false);
+    expect(loadConfig({
+      ...validEnv,
+      GUILD_FOUNDATION_ENABLED: "true"
+    }).guildFoundationEnabled).toBe(true);
+  });
+
   it("keeps tavern social games disabled by default", () => {
     const config = loadConfig(validEnv);
 

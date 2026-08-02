@@ -191,7 +191,7 @@ export function registerMainMenuKeyboard(
 
 type DevHelpServices = Pick<
   BotServices,
-  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications" | "guilds"
 >;
 
 export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibility {
@@ -202,7 +202,8 @@ export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibilit
     includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
     includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
-    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
+    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
   };
 }
 
@@ -215,7 +216,8 @@ export function shouldIncludeAdminMainMenu(
     || (services.groupCombat?.areDevHelpersEnabled() ?? false)
     || (services.partyRaidChat?.areDevHelpersEnabled() ?? false)
     || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
-    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);
+    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false)
+    || (services.guilds?.areDevHelpersEnabled() ?? false);
 }
 
 export async function buildCurrentMainMenuKeyboard(

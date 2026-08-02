@@ -7,6 +7,22 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.4] - 12026-08-02 - Guild Foundation
+
+### Added
+- Added a default-off durable guild social shell with normalized unique names, emoji crests, bounded descriptions, user-level membership, leader/officer/member roles, private invitations and privacy-safe audit/funnel records.
+- Added a previewed 587-gold creation receipt, durable invitation lifecycle, deterministic leadership succession, explicit transfer/delete confirmations and rewardless first-create/first-join achievements.
+- Added an additive guild migration with a narrow rollback script, three-account QA package and a non-production `/dev_guild_gold` helper.
+
+### Changed
+- Guild membership now survives remort and repository restart while active party and combat ownership remains frozen to the current character life.
+- Guild party creation delegates to the ordinary `PartySession` contract and privately notifies only eligible current characters. Nonmembers retain every ordinary invitation route, and replayed party creation does not resend guild notifications.
+- Ordinary party creation now refuses a new session while the leader owns another active combat lease; guild leave, kick, succession and soft deletion have no foreign-key path to `PartySession` or `GroupCombatSession`.
+
+### Fixed
+- Concurrent normalized-name creates, competing invitation accepts, duplicate creation confirms and stale membership callbacks converge transactionally without duplicate gold spend, double membership or leaderless guilds.
+- Guild cards, rosters, audit payloads and delivery copy omit exact location, online timestamps, Telegram identities and invitation tokens.
+
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 
 ### Added

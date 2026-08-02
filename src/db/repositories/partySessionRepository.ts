@@ -156,6 +156,7 @@ export type PartyLeftPassageRestIneligible = {
 
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
+  | { state: "ineligible"; reason: "active-combat" }
   | PartyLossCooldownIneligible
   | PartyPendingSoloRaidIneligible
   | { state: "live"; session: PartySessionRecord }

@@ -202,6 +202,14 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         } satisfies PartyCreateRepositoryResult;
       }
 
+      const activeCombatLease = await tx.activeCombatLease.findUnique({
+        where: { characterId: character.id },
+        select: { id: true }
+      });
+      if (activeCombatLease) {
+        return { state: "ineligible", reason: "active-combat" } satisfies PartyCreateRepositoryResult;
+      }
+
       const session = await tx.partySession.create({
         data: {
           inviteToken: input.inviteToken,

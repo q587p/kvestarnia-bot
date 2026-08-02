@@ -7,6 +7,7 @@ import { parseClassNoncombatCallbackData } from "../callbacks/classNoncombatCall
 import { parseNearbyDuelCallbackData } from "../callbacks/nearbyDuelCallbackData";
 import { parsePartySessionCallbackData } from "../callbacks/partySessionCallbackData";
 import { parseGroupCombatCallbackData } from "../callbacks/groupCombatCallbackData";
+import { parseGuildCallbackData } from "../callbacks/guildCallbackData";
 import { handleDuelCallback, registerDuelCommand } from "../commands/duelCommand";
 import { handleItemGiftCallback } from "../commands/itemGiftCommand";
 import { handleItemPostalCallback } from "../commands/itemPostalCommand";
@@ -18,6 +19,7 @@ import {
   registerGroupCombatDevCommand,
   registerGroupCombatReplyKeyboard
 } from "../commands/groupCombatCommand";
+import { handleGuildCallback, registerGuildCommands } from "../commands/guildCommand";
 import { playerFromContext } from "../context";
 
 import {
@@ -34,6 +36,18 @@ export function registerSocialBotModule(
   bot: Bot,
   { services, options }: BotModuleDependencies
 ): void {
+  if (services.guilds?.isEnabled()) {
+    registerGuildCommands(bot, services.guilds, { botUsername: options.botUsername });
+    registerParsedCallbackRoute(
+      bot,
+      /^v1:g:/,
+      (data) => parseWhenAvailable(data, parseGuildCallbackData, services.guilds),
+      async (ctx, { callback, service }) => {
+        await handleGuildCallback(ctx, callback, service, { botUsername: options.botUsername });
+      }
+    );
+  }
+
   if (services.duel) {
     bot.command("duel", async (ctx, next) => {
       await guardActivePassageSearchCommand(ctx, services, next);
