@@ -41,11 +41,70 @@ describe("PrismaRemortRepository integration", () => {
     });
     await createMinimalSchema(prisma);
     await applyRaidChatMigration(prisma);
+    await applyGuildMigration(prisma);
     const raidChat = new PrismaPartyRaidChatTransactionWriter(true);
     repository = new PrismaRemortRepository(prisma, undefined, raidChat);
     passages = new PrismaPendingPassageEncounterRepository(prisma);
     partyBosses = new PrismaPartyBossRepository(prisma, undefined, raidChat);
   }, 60_000);
+
+  it("preserves User-level guild membership and leadership through a real remort", async () => {
+    const now = new Date("2026-08-02T20:00:00.000Z");
+    await seedCharacter(prisma, {
+      userId: "user-remort-guild-leader",
+      characterId: "character-remort-guild-leader",
+      telegramUserId: 9350n
+    });
+    await seedDraft(prisma, "character-remort-guild-leader", "token-remort-guild-leader", now);
+    await prisma.guild.create({
+      data: {
+        id: "guild-remort-leader",
+        normalizedName: "ремортна печатка",
+        reservationKey: "ремортна печатка",
+        displayName: "Ремортна Печатка",
+        crest: "🛡️",
+        description: "",
+        founderUserId: "user-remort-guild-leader",
+        leaderUserId: "user-remort-guild-leader",
+        status: "active",
+        charterExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60_000),
+        activatedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        members: {
+          create: {
+            id: "guild-remort-leader-membership",
+            userId: "user-remort-guild-leader",
+            activeUserKey: "user-remort-guild-leader",
+            role: "leader",
+            joinedAt: now,
+            createdAt: now,
+            updatedAt: now
+          }
+        }
+      }
+    });
+
+    await expect(repository.completeDraftForTelegramUser(
+      9350n,
+      makeCompletionInput("token-remort-guild-leader", now)
+    )).resolves.toMatchObject({ state: "completed" });
+
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: "guild-remort-leader" },
+      select: {
+        leaderUserId: true,
+        members: { where: { activeUserKey: { not: null } }, select: { userId: true, role: true } }
+      }
+    })).resolves.toEqual({
+      leaderUserId: "user-remort-guild-leader",
+      members: [{ userId: "user-remort-guild-leader", role: "leader" }]
+    });
+    await expect(prisma.character.findUniqueOrThrow({
+      where: { id: "character-remort-guild-leader" },
+      select: { level: true }
+    })).resolves.toEqual({ level: 1 });
+  });
 
   afterAll(async () => {
     await prisma?.$disconnect();
@@ -1612,6 +1671,13 @@ async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
       await prisma.$executeRawUnsafe(statement);
     }
+  }
+}
+
+async function applyGuildMigration(prisma: PrismaClient): Promise<void> {
+  const sql = await readFile(resolve("prisma/migrations/20260802230000_guild_foundation/migration.sql"), "utf8");
+  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+    await prisma.$executeRawUnsafe(statement);
   }
 }
 

@@ -1,8 +1,12 @@
-export const GUILD_CREATION_GOLD = 587;
-export const GUILD_MAX_MEMBERS = 13;
+export const GUILD_CREATION_GOLD = 93;
+export const GUILD_MAX_MEMBERS = 8;
+export const GUILD_MAX_OFFICERS = 2;
 export const GUILD_NAME_MIN_GRAPHEMES = 3;
 export const GUILD_NAME_MAX_GRAPHEMES = 32;
-export const GUILD_DESCRIPTION_MAX_GRAPHEMES = 120;
+export const GUILD_DESCRIPTION_MAX_GRAPHEMES = 93;
+export const GUILD_CREST_CATALOG = [
+  "🛡️", "⚔️", "🏰", "🐉", "🦉", "🦊", "🐺", "🐸", "🦄", "🔥", "🌙", "🍄", "🥨"
+] as const;
 
 export type GuildRole = "leader" | "officer" | "member";
 
@@ -19,6 +23,10 @@ export type GuildIdentityValidation =
       reason: "name-length" | "name-reserved" | "name-unsafe" | "crest" | "description-length" | "description-unsafe";
     };
 
+export type GuildProfileValidation =
+  | { ok: true; crest: string; description: string }
+  | { ok: false; reason: "crest" | "description-length" | "description-unsafe" };
+
 const reservedNames = new Set([
   "квестарня",
   "kvestarnia",
@@ -31,8 +39,10 @@ const reservedNames = new Set([
 ]);
 
 const forbiddenText = /[\p{Cc}\p{Cf}\p{Cs}<>&]/u;
-const emojiPattern = /\p{Extended_Pictographic}/u;
 const letterOrNumberPattern = /[\p{L}\p{N}]/u;
+const cyrillicPattern = /\p{Script=Cyrillic}/u;
+const latinPattern = /\p{Script=Latin}/u;
+const crestCatalog = new Set<string>(GUILD_CREST_CATALOG);
 
 export function validateGuildIdentity(input: {
   displayName: string;
@@ -51,10 +61,14 @@ export function validateGuildIdentity(input: {
   if (reservedNames.has(normalizedName)) {
     return { ok: false, reason: "name-reserved" };
   }
-  if (forbiddenText.test(displayName) || !letterOrNumberPattern.test(displayName)) {
+  if (
+    forbiddenText.test(displayName) ||
+    !letterOrNumberPattern.test(displayName) ||
+    (cyrillicPattern.test(displayName) && latinPattern.test(displayName))
+  ) {
     return { ok: false, reason: "name-unsafe" };
   }
-  if (graphemeLength(crest) !== 1 || !emojiPattern.test(crest) || forbiddenText.test(crest)) {
+  if (!crestCatalog.has(crest)) {
     return { ok: false, reason: "crest" };
   }
   if (graphemeLength(description) > GUILD_DESCRIPTION_MAX_GRAPHEMES) {
@@ -65,6 +79,25 @@ export function validateGuildIdentity(input: {
   }
 
   return { ok: true, displayName, normalizedName, crest, description };
+}
+
+export function isEligibleGuildFounder(level: number, remortCount: number): boolean {
+  return level >= 5 || (remortCount >= 1 && level >= 3);
+}
+
+export function validateGuildProfile(input: { crest: string; description: string }): GuildProfileValidation {
+  const crest = input.crest.trim().normalize("NFC");
+  const description = collapseWhitespace(input.description.normalize("NFKC"));
+  if (!crestCatalog.has(crest)) {
+    return { ok: false, reason: "crest" };
+  }
+  if (graphemeLength(description) > GUILD_DESCRIPTION_MAX_GRAPHEMES) {
+    return { ok: false, reason: "description-length" };
+  }
+  if (forbiddenText.test(description)) {
+    return { ok: false, reason: "description-unsafe" };
+  }
+  return { ok: true, crest, description };
 }
 
 export function normalizeGuildMemberLookup(value: string): string {

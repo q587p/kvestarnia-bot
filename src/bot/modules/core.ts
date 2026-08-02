@@ -77,7 +77,7 @@ export function registerCoreBotModule(
   registerLoreBoardCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
-  registerPlannedCommands(bot, { guildEnabled: services.guilds?.isEnabled() ?? false });
+  registerPlannedCommands(bot, { guildEnabled: Boolean(services.guilds) });
   bot.command("games", async (ctx) => {
     const telegramUserId = telegramUserIdFromContext(ctx.from) ?? undefined;
     const result = await services.tavernGames?.getHub(telegramUserId) ?? { state: "disabled" as const };

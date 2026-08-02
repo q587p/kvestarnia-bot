@@ -10,18 +10,21 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.4.4] - 12026-08-02 - Guild Foundation
 
 ### Added
-- Added a default-off durable guild social shell with normalized unique names, emoji crests, bounded descriptions, user-level membership, leader/officer/member roles, private invitations and privacy-safe audit/funnel records.
-- Added a previewed 587-gold creation receipt, durable invitation lifecycle, deterministic leadership succession, explicit transfer/delete confirmations and rewardless first-create/first-join achievements.
-- Added an additive guild migration with a narrow rollback script, three-account QA package and a non-production `/dev_guild_gold` helper.
+- Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
+- Added one replaceable 13-minute preview, an exact-once non-refundable 93-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
+- Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
+- Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
 
 ### Changed
-- Guild membership now survives remort and repository restart while active party and combat ownership remains frozen to the current character life.
-- Guild party creation delegates to the ordinary `PartySession` contract and privately notifies only eligible current characters. Nonmembers retain every ordinary invitation route, and replayed party creation does not resend guild notifications.
-- Ordinary party creation now refuses a new session while the leader owns another active combat lease; guild leave, kick, succession and soft deletion have no foreign-key path to `PartySession` or `GroupCombatSession`.
+- Guild membership and leadership now survive real remort and safe Character recreation while live party/combat blockers and frozen-life contracts remain authoritative.
+- `/guild_party` now opens only a paginated member picker for an already-existing eligible gameplay `PartySession`. It reuses the ordinary invitation, `joinSource=guild` attribution and canonical party-card sender; it never creates an unattached guild lobby, and nonmembers retain ordinary routes.
+- Disabled mode preserves rows, safe reads, nonleader leave, accepted transfer and sole disband while blocking formation, invitation acceptance/new sends, roles, profile edits and guild-party writes.
 
 ### Fixed
-- Concurrent normalized-name creates, competing invitation accepts, duplicate creation confirms and stale membership callbacks converge transactionally without duplicate gold spend, double membership or leaderless guilds.
-- Guild cards, rosters, audit payloads and delivery copy omit exact location, online timestamps, Telegram identities and invitation tokens.
+- Concurrent equivalent/different-name confirms, founder cooldown claims, competing accepts, final roster slots, officer caps, duplicate confirms and stale callbacks converge transactionally without extra debit, double membership or leaderless guilds.
+- Forming expiry and active disband retain private history but release names only after the accepted 23-hour/30-day holds; bounded intent cleanup removes old terminal previews.
+- `/restart` now blocks recruiting/active PartySession leaders or participants and active GroupCombat participants even without a combat lease, preventing cascade deletion of live party/combat state.
+- Guild cards, paginated rosters, ordinary party notices and audit payloads omit exact location, activity/online timestamps, Telegram identities and invitation tokens; failed invitation delivery leaves durable `/guild` recovery.
 
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 

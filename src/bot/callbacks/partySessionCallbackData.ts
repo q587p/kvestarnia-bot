@@ -4,7 +4,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type PartySessionCallback =
   | { type: "view"; token: string }
-  | { type: "join"; token: string }
+  | { type: "join"; token: string; source?: "guild" }
   | { type: "leave"; token: string }
   | { type: "cancel"; token: string }
   | { type: "expire"; token: string }
@@ -49,8 +49,8 @@ export function makePartySessionViewCallbackData(token: string): string {
   return `${PREFIX}:v:${token}`;
 }
 
-export function makePartySessionJoinCallbackData(token: string): string {
-  return `${PREFIX}:j:${token}`;
+export function makePartySessionJoinCallbackData(token: string, source?: "guild"): string {
+  return `${PREFIX}:${source === "guild" ? "jg" : "j"}:${token}`;
 }
 
 export function makePartySessionLeaveCallbackData(token: string): string {
@@ -365,6 +365,10 @@ export function parsePartySessionCallbackData(
 
   if (action === "j") {
     return ok({ type: "join", token: tokenOrTarget });
+  }
+
+  if (action === "jg") {
+    return ok({ type: "join", token: tokenOrTarget, source: "guild" });
   }
 
   if (action === "l") {

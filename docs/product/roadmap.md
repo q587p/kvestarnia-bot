@@ -138,16 +138,21 @@ require no data migration; take-away purchase shelf remains separate `0.4.9`.
 
 ### 0.4.4 — Guild foundation
 
-Малий соціяльний shell, який не чекає готового guild boss: унікальна
-нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
-leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
-`PartySession`; вона не володіє combat state.
+Малий соціяльний shell: один 13-хвилинний preview, exact-once особиста плата
+93 золота, семиденний forming charter, target-bound opt-in invitations,
+leader/officer/member, leader-only crest/description edit і приватний audit.
+Активний склад має hard cap 8; joining безкоштовний. Історична назва лишається,
+а окрема reservation звільняється після bounded expiry/disband hold.
 
 Repository release `0.4.4` реалізує цей shell за default-off
 `GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
 remort, а party/combat лишаються current-life контрактами без Guild foreign key.
-Deployment, target flag і ручна триакаунтова Telegram QA лишаються окремим
-непідтвердженим доказом.
+`/guild_party` лише показує members для вже чинного real-gameplay recruiting
+`PartySession` і перевикористовує ordinary invite/join/canonical-card flow;
+generic guild lobby немає. PR #190, migration deployment, target flag і ручна
+триакаунтова Telegram QA лишаються окремими непідтвердженими доказами. Production
+enablement також чекає audited abandoned-leader operator runbook; automatic
+succession за presence/activity не дозволений.
 
 ### 0.4.5 — Guild weekly goal
 

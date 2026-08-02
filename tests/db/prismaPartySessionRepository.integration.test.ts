@@ -512,6 +512,24 @@ describe("PrismaPartySessionRepository integration", () => {
     })).toBe(0);
   });
 
+  it("records guild attribution through the ordinary party join contract", async () => {
+    await seedCharacter(prisma, "guild-party-leader-user", 2103n, "Ґільдійна Голова", { level: 8 });
+    await seedCharacter(prisma, "guild-party-member-user", 2104n, "Ґільдійний Учасник", { level: 8 });
+    await repository.createForTelegramUser(2103n, partyInput("party-token-guild-source"));
+
+    const joined = await repository.joinByTokenForTelegramUser(
+      2104n,
+      "party-token-guild-source",
+      joinInput("guild")
+    );
+
+    expect(joined.state).toBe("joined");
+    await expect(prisma.partyParticipant.findFirstOrThrow({
+      where: { session: { inviteToken: "party-token-guild-source" }, character: { user: { telegramUserId: 2104n } } },
+      select: { joinSource: true }
+    })).resolves.toEqual({ joinSource: "guild" });
+  });
+
   it("stores participant raid readiness in the recruiting snapshot", async () => {
     await seedCharacter(prisma, "readiness-leader-user", 2111n, "Готова", { level: 8 });
     await seedCharacter(prisma, "readiness-member-user", 2112n, "Дохиляється", { level: 8 });
@@ -2024,7 +2042,7 @@ function groupCombatInput(inviteToken: string) {
   };
 }
 
-function joinInput(joinSource: "nearby" | "deep-link" | "dev" = "deep-link") {
+function joinInput(joinSource: "nearby" | "deep-link" | "guild" | "dev" = "deep-link") {
   return {
     joinSource,
     now: now(),

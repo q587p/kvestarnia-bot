@@ -129,8 +129,12 @@ foreign key до `PartySession`/`GroupCombatSession` і не відкриває 
 buff, weekly goal, boss, chat, trade, war, territory чи PvP. Для локальної
 триакаунтової перевірки ввімкніть прапорець у checkout `.env`, виконайте
 `refresh-local-bot.cmd` та звірте candidate SHA і скопійоване значення через
-`status-local-bot.cmd`. Rollback спершу вимикає прапорець і перезапускає бот;
-SQL rollback дозволений лише на погодженій isolated/restored базі.
+`status-local-bot.cmd`. Засновник потребує 5 рівня або 3 рівня після реморту й
+93 золота; `/guild_party` працює лише для вже чинного eligible gameplay-збору,
+не створює generic lobby. Rollback спершу вимикає прапорець і перезапускає бот;
+SQL rollback дозволений лише на погодженій isolated/restored базі. До production
+enablement потрібен audited abandoned-leader operator runbook; presence/location
+не є доказом неактивности.
 
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 

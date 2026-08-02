@@ -87,9 +87,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
             telegramUserId
           }
         },
-        select: {
-          id: true
-        }
+        select: { id: true }
       });
 
       if (!character) {
@@ -115,12 +113,35 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         select: {
-          id: true
+          id: true,
+          activeCombatLease: { select: { id: true } }
         }
       });
 
       if (!character) {
         return "no-character";
+      }
+
+      if (character.activeCombatLease) {
+        return "active-combat";
+      }
+
+      const activeGroupCombat = await countActiveGroupCombats(tx, character.id);
+      if (activeGroupCombat > 0) {
+        return "active-combat";
+      }
+
+      const liveParty = await tx.partySession.count({
+        where: {
+          status: { in: ["recruiting", "active"] },
+          OR: [
+            { leaderCharacterId: character.id },
+            { participants: { some: { characterId: character.id, status: "joined" } } }
+          ]
+        }
+      });
+      if (liveParty > 0) {
+        return "active-party";
       }
 
       await reanchorTerminalPartyBossHistory(tx, character.id);
@@ -418,6 +439,35 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         character: toCharacterRecord(updated)
       };
     });
+  }
+}
+
+async function countActiveGroupCombats(
+  tx: Prisma.TransactionClient,
+  characterId: string
+): Promise<number> {
+  try {
+    return await tx.groupCombatSession.count({
+      where: {
+        status: "active",
+        participants: { some: { characterId } }
+      }
+    });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2021" &&
+      "meta" in error &&
+      typeof error.meta === "object" &&
+      error.meta !== null &&
+      "modelName" in error.meta &&
+      error.meta.modelName === "GroupCombatSession"
+    ) {
+      return 0;
+    }
+    throw error;
   }
 }
 

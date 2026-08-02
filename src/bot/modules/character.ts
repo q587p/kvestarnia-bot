@@ -72,6 +72,7 @@ import {
 import { presentRemortConfirm, presentRemortUpdate } from "../presenters/remortPresenter";
 import {
   presentRestartActiveCombat,
+  presentRestartActiveParty,
   presentRestartCancelled,
   presentRestartDeleted,
   presentRestartNoCharacter
@@ -545,7 +546,9 @@ async function handleRestartCallback(
     ? presentRestartDeleted()
     : result.state === "active-combat"
       ? presentRestartActiveCombat()
-      : presentRestartNoCharacter();
+      : result.state === "active-party"
+        ? presentRestartActiveParty()
+        : presentRestartNoCharacter();
 
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, message);

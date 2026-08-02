@@ -141,7 +141,7 @@ export class PartySessionService {
     telegramUserId: bigint,
     inviteToken: string,
     input: {
-      source: "nearby" | "deep-link" | "dev";
+      source: "nearby" | "deep-link" | "guild" | "dev";
       chatId?: bigint | null;
       messageId?: number | null;
     }

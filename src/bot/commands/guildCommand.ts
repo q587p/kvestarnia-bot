@@ -13,39 +13,52 @@ import { telegramUserIdFromContext } from "../context";
 import {
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
-  buildGuildMemberMutationKeyboard
+  buildGuildMemberMutationKeyboard,
+  buildGuildPartyPickerKeyboard
 } from "../keyboards/guildKeyboard";
-import { buildPartySessionKeyboard } from "../keyboards/partySessionKeyboard";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
   presentGuildCreationPreview,
   presentGuildCreationResult,
   presentGuildHub,
   presentGuildInviteCreate,
+  presentGuildInviteOptIn,
   presentGuildInviteResponse,
   presentGuildMemberConfirmation,
   presentGuildMemberMutation,
-  presentGuildPartyInvite,
+  presentGuildPartyPicker,
+  presentGuildProfileUpdate,
   presentGuildPrivateInvite
 } from "../presenters/guildPresenter";
-import { presentPartyCreate } from "../presenters/partySessionPresenter";
+import {
+  presentPartyNearbyInviteNotification,
+  presentPartyView
+} from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { buildPartyInviteUrl } from "../../services/partySessionService";
 import type { GuildService } from "../../services/guildService";
+import type { PartySessionService } from "../../services/partySessionService";
+import type { PartyBossService } from "../../services/partyBossService";
+import type { PartyRaidChatService } from "../../services/partyRaidChatService";
+import type { GroupCombatService } from "../../services/groupCombatService";
+import { sendCanonicalPartyPreparationCard } from "./partySessionCommand";
 
 interface GuildCommandOptions {
   botUsername?: string | undefined;
+  partySessions?: PartySessionService | undefined;
+  partyBoss?: PartyBossService | undefined;
+  partyRaidChat?: PartyRaidChatService | undefined;
+  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
 }
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
 
 export function registerGuildCommands(
   bot: Bot,
-  service: GuildService,
-  options: GuildCommandOptions = {}
+  service: GuildService
 ): void {
-  bot.command("guild", (ctx) => sendGuildHub(ctx, service, "reply"));
+  bot.command("guild", (ctx) => sendGuildHub(ctx, service, "reply", 0));
   bot.command("guild_create", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
     if (!actor) {
@@ -62,29 +75,61 @@ export function registerGuildCommands(
       ...(result.state === "ready" ? { reply_markup: buildGuildCreationPreviewKeyboard(result.intent.token) } : {})
     });
   });
-  bot.command("guild_invite", async (ctx) => {
+  bot.command("guild_invite_code", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
-    const targetName = commandArgs(ctx);
-    if (!actor || !targetName) {
-      await ctx.reply("Формат: <code>/guild_invite Точне імʼя</code>", HTML_OPTIONS);
+    if (!actor) {
       return;
     }
-    const result = await service.createInviteForTelegramUser(actor, targetName);
-    await ctx.reply(presentGuildInviteCreate(result, new Date()), HTML_OPTIONS);
-    if (result.state === "created") {
-      await ctx.api.sendMessage(
-        Number(result.deliveryTelegramUserId),
-        presentGuildPrivateInvite(result.invite.guildName, result.invite.guildCrest, result.invite.expiresAt, new Date()),
-        {
-          ...HTML_OPTIONS,
-          reply_markup: new InlineKeyboard()
-            .text("✅ Долучитися", makeGuildInviteAcceptCallbackData(result.invite.token))
-            .text("✖️ Відхилити", makeGuildInviteDeclineCallbackData(result.invite.token))
-        }
-      ).catch(() => undefined);
-    }
+    const result = await service.createInviteOptInForTelegramUser(actor);
+    await ctx.reply(presentGuildInviteOptIn(result, new Date()), HTML_OPTIONS);
   });
-  bot.command("guild_party", (ctx) => sendGuildParty(ctx, service, options));
+  bot.command("guild_invite", async (ctx) => {
+    const actor = telegramUserIdFromContext(ctx.from);
+    const targetToken = commandArgs(ctx);
+    if (!actor || !targetToken) {
+      await ctx.reply("Формат: <code>/guild_invite КОД</code>. Код створює сам адресат через /guild_invite_code.", HTML_OPTIONS);
+      return;
+    }
+    const result = await service.createInviteForTelegramUser(actor, targetToken);
+    let deliveryConfirmed: boolean | null = null;
+    if (result.state === "created") {
+      try {
+        await ctx.api.sendMessage(
+          Number(result.deliveryTelegramUserId),
+          presentGuildPrivateInvite(result.invite.guildName, result.invite.guildCrest, result.invite.expiresAt, new Date()),
+          {
+            ...HTML_OPTIONS,
+            reply_markup: new InlineKeyboard()
+              .text("✅ Долучитися", makeGuildInviteAcceptCallbackData(result.invite.token))
+              .text("✖️ Відхилити", makeGuildInviteDeclineCallbackData(result.invite.token))
+          }
+        );
+        deliveryConfirmed = true;
+      } catch {
+        deliveryConfirmed = false;
+      }
+    }
+    await ctx.reply(presentGuildInviteCreate(result, new Date(), deliveryConfirmed), HTML_OPTIONS);
+  });
+  bot.command("guild_party", (ctx) => sendGuildPartyPicker(ctx, service, "reply", 0));
+  bot.command("guild_edit", async (ctx) => {
+    const actor = telegramUserIdFromContext(ctx.from);
+    const profile = parseProfileArgs(commandArgs(ctx));
+    if (!actor || !profile) {
+      await ctx.reply("Формат: <code>/guild_edit 🦉 | короткий опис</code>", HTML_OPTIONS);
+      return;
+    }
+    const hub = await service.getHubForTelegramUser(actor);
+    if (hub.state !== "ready") {
+      await ctx.reply("Ви не належите до ґільдії.");
+      return;
+    }
+    const result = await service.updateProfileForTelegramUser(actor, {
+      ...profile,
+      expectedVersion: hub.guild.version
+    });
+    await ctx.reply(presentGuildProfileUpdate(result), HTML_OPTIONS);
+  });
   bot.command("guild_leave", (ctx) => sendSelfMutationConfirmation(ctx, service, "leave"));
   bot.command("guild_delete", (ctx) => sendSelfMutationConfirmation(ctx, service, "delete"));
   registerMemberActionCommand(bot, service, "guild_transfer", "transfer");
@@ -118,17 +163,16 @@ export async function handleGuildCallback(
   }
   if (callback.type === "open") {
     await safeAnswerCallbackQuery(ctx);
-    await sendGuildHub(ctx, service, "edit");
+    await sendGuildHub(ctx, service, "edit", callback.page);
     return;
   }
   if (callback.type === "create-confirm") {
     const result = await service.confirmCreationForTelegramUser(actor, callback.token);
-    await safeAnswerCallbackQuery(ctx, { text: result.state === "created" ? "Ґільдію засновано." : "Стан перевірено." });
+    await safeAnswerCallbackQuery(ctx, { text: result.state === "created" ? "Статут підтверджено." : "Стан перевірено." });
     await safeEditMessageText(ctx, presentGuildCreationResult(result), {
       ...HTML_OPTIONS,
       reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
     });
-    await sendAchievementNotice(ctx, result.achievementUnlocks ?? []);
     return;
   }
   if (callback.type === "invite-accept" || callback.type === "invite-decline" || callback.type === "invite-cancel") {
@@ -147,9 +191,22 @@ export async function handleGuildCallback(
       : []);
     return;
   }
-  if (callback.type === "party-create") {
+  if (callback.type === "party-open") {
     await safeAnswerCallbackQuery(ctx);
-    await sendGuildParty(ctx, service, options);
+    await sendGuildPartyPicker(ctx, service, "edit", callback.page);
+    return;
+  }
+  if (callback.type === "party-invite") {
+    await handleGuildPartyInvite(ctx, actor, callback.memberId, callback.version, service, options);
+    return;
+  }
+  if (callback.type === "transfer-accept") {
+    const result = await service.acceptLeadershipForTelegramUser(actor, callback.version);
+    await safeAnswerCallbackQuery(ctx, { text: result.state === "updated" ? "Провід прийнято." : "Стан перевірено." });
+    await safeEditMessageText(ctx, presentGuildMemberMutation(result), {
+      ...HTML_OPTIONS,
+      reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+    });
     return;
   }
   if (!("version" in callback)) {
@@ -165,7 +222,7 @@ export async function handleGuildCallback(
       result = await service.deleteForTelegramUser(actor, callback.version);
       break;
     case "transfer":
-      result = await service.transferLeadershipForTelegramUser(actor, callback.memberId, callback.version);
+      result = await service.offerLeadershipForTelegramUser(actor, callback.memberId, callback.version);
       break;
     case "promote":
       result = await service.setMemberRoleForTelegramUser(actor, callback.memberId, "officer", callback.version);
@@ -184,23 +241,22 @@ export async function handleGuildCallback(
   });
 }
 
-async function sendGuildHub(ctx: Context, service: GuildService, mode: "reply" | "edit"): Promise<void> {
+async function sendGuildHub(
+  ctx: Context,
+  service: GuildService,
+  mode: "reply" | "edit",
+  page: number
+): Promise<void> {
   const actor = telegramUserIdFromContext(ctx.from);
   if (!actor) {
     return;
   }
-  const result = await service.getHubForTelegramUser(actor);
-  if (result.state === "disabled") {
-    const text = "Ґільдійна книга зараз зачинена.";
-    if (mode === "edit") {
-      await safeEditMessageText(ctx, text);
-    } else {
-      await ctx.reply(text);
-    }
-    return;
-  }
-  const text = presentGuildHub(result, new Date());
-  const settings = { ...HTML_OPTIONS, reply_markup: buildGuildHubKeyboard(result) };
+  const result = await service.getHubForTelegramUser(actor, page);
+  const text = presentGuildHub(result, new Date(), { writesEnabled: service.isEnabled() });
+  const settings = {
+    ...HTML_OPTIONS,
+    reply_markup: buildGuildHubKeyboard(result, { writesEnabled: service.isEnabled() })
+  };
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, settings);
   } else {
@@ -208,41 +264,111 @@ async function sendGuildHub(ctx: Context, service: GuildService, mode: "reply" |
   }
 }
 
-async function sendGuildParty(ctx: Context, service: GuildService, options: GuildCommandOptions): Promise<void> {
+async function sendGuildPartyPicker(
+  ctx: Context,
+  service: GuildService,
+  mode: "reply" | "edit",
+  page: number
+): Promise<void> {
   const actor = telegramUserIdFromContext(ctx.from);
   if (!actor) {
     return;
   }
-  const result = await service.createPartyForTelegramUser(actor, {
-    chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
-    messageId: ctx.callbackQuery?.message?.message_id ?? null
-  });
-  if (result.state !== "party") {
-    await ctx.reply(result.state === "disabled" ? "Ґільдійна книга зараз зачинена." : "Спершу треба належати до ґільдії.");
+  const result = await service.getPartyPickerForTelegramUser(actor, page);
+  const text = presentGuildPartyPicker(result);
+  const settings = result.state === "ready"
+    ? { ...HTML_OPTIONS, reply_markup: buildGuildPartyPickerKeyboard(result) }
+    : HTML_OPTIONS;
+  if (mode === "edit") {
+    await safeEditMessageText(ctx, text, settings);
+  } else {
+    await ctx.reply(text, settings);
+  }
+}
+
+async function handleGuildPartyInvite(
+  ctx: Context,
+  actor: bigint,
+  memberId: string,
+  guildVersion: number,
+  service: GuildService,
+  options: GuildCommandOptions
+): Promise<void> {
+  const partyService = options.partySessions;
+  if (!partyService) {
+    await safeAnswerCallbackQuery(ctx, { text: "Звичайний збір ватаги недоступний.", show_alert: true });
     return;
   }
-  const party = result.party;
-  const session = "session" in party ? party.session : null;
-  const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
-  const viewerCharacterId = session?.participants.find((row) => row.character.telegramUserId === actor)?.characterId ?? null;
-  await ctx.reply(presentPartyCreate(party, { inviteUrl, viewerCharacterId }), {
-    ...HTML_OPTIONS,
-    ...(session ? { reply_markup: buildPartySessionKeyboard(session, { viewerCharacterId, inviteUrl }) } : {})
-  });
-  if (!session || party.state !== "created") {
+  const party = await partyService.getLiveRecruitingByTelegramUser(actor);
+  if (!party) {
+    await safeAnswerCallbackQuery(ctx, { text: "Живого збору вже немає.", show_alert: true });
     return;
   }
-  const leaderName = session.participants.find((row) => row.character.telegramUserId === actor)?.character.name ?? "Провідник";
-  for (const recipient of result.audience.recipients) {
+  const first = await service.resolvePartyRecipientForTelegramUser(actor, {
+    partySessionId: party.id,
+    memberId,
+    guildVersion
+  });
+  if (first.state !== "ready") {
+    await safeAnswerCallbackQuery(ctx, { text: "Склад або ватага вже змінилися.", show_alert: true });
+    return;
+  }
+  const current = await partyService.getByToken(first.inviteToken);
+  const second = await service.resolvePartyRecipientForTelegramUser(actor, {
+    partySessionId: first.partySessionId,
+    memberId,
+    guildVersion: first.guildVersion
+  });
+  if (current.state !== "ready" || second.state !== "ready") {
+    await safeAnswerCallbackQuery(ctx, { text: "Склад або ватага вже змінилися.", show_alert: true });
+    return;
+  }
+  const inviteUrl = buildPartyInviteUrl(options.botUsername, current.session.inviteToken);
+  let delivered = false;
+  try {
     await ctx.api.sendMessage(
-      Number(recipient.telegramUserId),
-      presentGuildPartyInvite(result.audience.guildName, result.audience.guildCrest, leaderName),
+      Number(second.recipient.telegramUserId),
+      presentPartyNearbyInviteNotification(current.session, inviteUrl),
       {
         ...HTML_OPTIONS,
-        reply_markup: new InlineKeyboard().text("🤝 Долучитися", makePartySessionJoinCallbackData(session.inviteToken))
+        reply_markup: new InlineKeyboard().text(
+          "🤝 Долучитися",
+          makePartySessionJoinCallbackData(current.session.inviteToken, "guild")
+        )
       }
-    ).catch(() => undefined);
+    );
+    delivered = true;
+  } catch {
+    delivered = false;
   }
+  if (delivered) {
+    await service.recordPartyInvite(
+      second.guildId,
+      actor,
+      second.partySessionId,
+      second.targetUserId
+    );
+  }
+  await safeAnswerCallbackQuery(ctx, {
+    text: delivered
+      ? "Звичайне запрошення передано."
+      : "Telegram не підтвердив доставку; ватага лишилася чинною."
+  });
+  await sendCanonicalPartyPreparationCard(
+    ctx,
+    current.session.inviteToken,
+    actor,
+    options.botUsername,
+    partyService,
+    options.partyBoss,
+    options.partyRaidChat,
+    options.groupCombat,
+    (session, canonicalInviteUrl, viewerCharacterId) => presentPartyView(
+      { state: "ready", session },
+      { inviteUrl: canonicalInviteUrl, viewerCharacterId }
+    ),
+    { mode: "reply", persistActorReference: true }
+  );
 }
 
 async function sendSelfMutationConfirmation(
@@ -256,11 +382,17 @@ async function sendSelfMutationConfirmation(
   }
   const hub = await service.getHubForTelegramUser(actor);
   if (hub.state !== "ready") {
-    await ctx.reply(hub.state === "disabled" ? "Ґільдійна книга зараз зачинена." : "Ви не належите до ґільдії.");
+    await ctx.reply("Ви не належите до ґільдії.");
     return;
   }
-  if (action === "delete" && hub.guild.viewerRole !== "leader") {
-    await ctx.reply("Розпустити ґільдію може лише провідник.");
+  if (action === "leave" && hub.guild.viewerRole === "leader") {
+    await ctx.reply(hub.guild.memberCount > 1
+      ? "Спершу запропонуйте провід іншому учасникові й дочекайтеся прийняття."
+      : "Голова не виходить із порожнього статуту: скористайтеся /guild_delete.");
+    return;
+  }
+  if (action === "delete" && (hub.guild.viewerRole !== "leader" || hub.guild.memberCount !== 1)) {
+    await ctx.reply("Розпустити ґільдію може лише голова, коли він єдиний чинний учасник.");
     return;
   }
   const callback = action === "leave"
@@ -289,7 +421,7 @@ function registerMemberActionCommand(
     const target = await service.findMemberForAction(actor, name);
     if (target.state !== "ready") {
       await ctx.reply(target.state === "ambiguous"
-        ? "У складі є кілька однакових імен. Спершу уточніть ідентичність поза цією карткою."
+        ? "У складі є кілька однакових імен. Виберіть учасника з картки складу."
         : "Учасника з таким точним імʼям у вашій ґільдії не знайдено.");
       return;
     }
@@ -316,4 +448,9 @@ function parseCreationArgs(value: string): { crest: string; displayName: string;
   return match
     ? { crest: match[1]!, displayName: match[2]!.trim(), description: match[3]?.trim() ?? "" }
     : null;
+}
+
+function parseProfileArgs(value: string): { crest: string; description: string } | null {
+  const match = /^(\S+)\s*\|\s*(.*)$/u.exec(value);
+  return match ? { crest: match[1]!, description: match[2]!.trim() } : null;
 }

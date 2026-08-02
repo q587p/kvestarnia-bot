@@ -36,14 +36,21 @@ export function registerSocialBotModule(
   bot: Bot,
   { services, options }: BotModuleDependencies
 ): void {
-  if (services.guilds?.isEnabled()) {
-    registerGuildCommands(bot, services.guilds, { botUsername: options.botUsername });
+  if (services.guilds) {
+    const guildOptions = {
+      botUsername: options.botUsername,
+      partySessions: services.partySessions,
+      partyBoss: services.partyBoss,
+      partyRaidChat: services.partyRaidChat,
+      groupCombat: services.groupCombat
+    };
+    registerGuildCommands(bot, services.guilds);
     registerParsedCallbackRoute(
       bot,
       /^v1:g:/,
       (data) => parseWhenAvailable(data, parseGuildCallbackData, services.guilds),
       async (ctx, { callback, service }) => {
-        await handleGuildCallback(ctx, callback, service, { botUsername: options.botUsername });
+        await handleGuildCallback(ctx, callback, service, guildOptions);
       }
     );
   }

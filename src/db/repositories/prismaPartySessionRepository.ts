@@ -3098,7 +3098,7 @@ function parseParticipantStatus(value: string): PartyParticipantStatus {
 }
 
 function parseJoinSource(value: string): PartyJoinSource {
-  return value === "nearby" || value === "deep-link" || value === "dev" ? value : "leader";
+  return value === "nearby" || value === "deep-link" || value === "guild" || value === "dev" ? value : "leader";
 }
 
 function leaderKey(characterId: string): string {

@@ -1,118 +1,116 @@
 # Ґільдії та гуртова прогресія
 
-Статус: канонічна продуктова межа для `0.4.x`; foundation реалізовано в
-repository release `0.4.4` за default-off `GUILD_FOUNDATION_ENABLED`.
+Статус: accepted product boundary for repository release `0.4.4`; runtime
+surface is default-off behind `GUILD_FOUNDATION_ENABLED`.
 
-## Продуктова гіпотеза
+## Product boundary
 
-Гравець повертається не лише по власний кулдаун, а й тому, що двоє-троє знайомих
-мають коротку спільну мету. Telegram має допомагати домовитися й сміятися з
-результату, а не перетворювати гру на обовʼязковий вечірній рейд.
+A party is a temporary team for one already-authored gameplay occasion. A guild
+is a durable small identity that helps the same people find one another again.
+The guild never owns a party, encounter, combat lease, reward or settlement.
 
-Перший доказ складається з двох незалежних шарів:
+Foundation is designed around a comfortable core of 3–5 people, with a hard
+active-member cap of 8. It stores one normalized/display name, one crest from a
+13-emoji catalog, a 0–93-grapheme description, active membership and private
+audit history. Names are retained historically while a separate reservation is
+released after the accepted expiry/disband hold.
 
-- гурт — тимчасова команда для однієї активности;
-- ґільдія — тривала мала ідентичність, яка полегшує повторний збір гурту.
+## Creation lifecycle
 
-## Гуртова експедиція
+Founder eligibility is `(currentLevel >= 5) OR (remortCount >= 1 AND
+currentLevel >= 3)`. Join has no level, remort, quest, item or payment gate.
 
-Перша production-експедиція:
+Creation uses one replaceable 13-minute intent per User. The preview freezes
+name, crest, description and 93-gold cost. Confirm atomically:
 
-- 2–3 пригодники;
-- 2–3 authored вороги;
-- одна дія кожного живого учасника за раунд;
-- явна ціль: себе, союзник або ворог відповідно до дії;
-- server-owned безпечна дія після таймера;
-- коротка canonical card кожного учасника;
-- bounded recap і contribution summary;
-- одна encounter reward budget з idempotent per-player settlement.
+1. verifies the current Character life and eligibility;
+2. claims the rolling seven-day User-level founder cooldown;
+3. conditionally debits 93 gold once;
+4. reserves the normalized name;
+5. creates a seven-day `forming` guild and its leader membership;
+6. terminalizes every incoming invitation and appends private audit.
 
-Contribution враховує не лише шкоду: лікування, guard, контроль, прийняту шкоду
-й підтверджені дії. Support-персонаж не має виглядати «пасажиром».
+The payment is non-refundable. Failures and replay spend nothing extra. The
+first accepted invitation from a second distinct User activates the guild in
+the same transaction. Only that activation writes `guild.created`; the joining
+User records `guild.joined`. If no one joins, expiry closes active memberships
+and invitations without erasing history.
 
-У першій rewardless proof-версії немає XP, золота, манаток, quest progress або
-achievement unlock. Вони додаються лише у production expedition після parity,
-race, repair, load і Telegram QA.
+The forming name reservation releases at `charterExpiresAt + 23h`. An active
+guild may be disbanded only by its sole leader; that reservation releases at
+`disbandedAt + 30d`. Lazy maintenance uses conditional updates, so release is
+idempotent and cannot free a newer reservation.
 
-## Telegram UX
+## Roles and permissions
 
-- Invite пояснює encounter, eligibility, склад і час без прихованих шансів.
-- Active card редагується, а не створює повідомлення після кожної дії.
-- Чітко видно, хто вже обрав дію, але чужий прихований вибір не розкривається.
-- Таймер показує canonical remaining time.
-- Stale card веде до refresh/replay, не повторює дію.
-- Збій Telegram не впливає на combat state; наступне відкриття відновлює картку.
-- Raid chat, якщо використовується, лишається participant-only і без нагород.
+Technical role keys remain `leader`, `officer`, `member`. `Guild.leaderUserId`
+is the exactly-one-leader anchor; role strings alone are not the invariant.
+There may be at most two officers.
 
-## Guild foundation
+| Action | Leader | Officer | Member |
+| --- | --- | --- | --- |
+| Read profile/roster | yes | yes | yes |
+| Create/cancel own invitation | yes | yes | no |
+| Cancel another inviter's invitation | yes | no | no |
+| Edit crest/description | yes | no | no |
+| Promote/demote, kick, offer transfer | yes | no | no |
+| Voluntary leave | only after accepted transfer | yes | yes |
+| Disband | sole active member only | no | no |
 
-Мінімальна ґільдія комфортна для 3–5 людей і не потребує масової спільноти.
+An officer loses cancellation authority immediately after demotion, kick or
+leave. Transfer is a durable nominee offer; only the nominated active member may
+accept it against the current guild version. No voluntary path infers a
+successor from presence, activity or join order.
 
-Поля:
+## Invitations and privacy
 
-- normalized unique name і player-visible display name;
-- emoji-герб;
-- короткий безпечний опис;
-- leader, officer, member;
-- created timestamp і durable audit важливих transitions.
+There is no global exact-character-name directory. A target creates a bounded,
+target-bound opt-in code and shares it deliberately. External failures collapse
+to one unavailable result instead of revealing whether a User exists or already
+belongs elsewhere.
 
-Дії:
+- invitation TTL: 93 hours;
+- one live guild-target pair;
+- at most three live incoming invitations per target;
+- at most three new invitations per actor per rolling 13 minutes;
+- decline blocks the guild-target pair for seven days, independent of inviter;
+- roster, candidate and invitation pages: five rows.
 
-- створити за previewed gold sink;
-- запросити відомого/eligible гравця без витоку online/location;
-- прийняти, відхилити, скасувати, вийти;
-- передати leadership або підвищити/понизити officer;
-- створити звичайний тимчасовий гурт і запросити eligible членів.
+Cards and audit DTOs never expose exact location, activity/online timestamp,
+Telegram identity or invitation token. Telegram delivery failure does not
+cancel durable state; `/guild` is the authoritative recovery surface.
 
-Membership ідентичність має явну remort policy. Базова рекомендація: ґільдія
-належить користувачеві/персонажній історії й переживає remort, але активна бойова
-участь завжди привʼязана до конкретного життя персонажа.
+## PartySession integration
 
-## Weekly goal
+`/guild_party` does not create a lobby. It opens a paginated guild-member picker
+only when the actor already leads an eligible real gameplay `PartySession` in
+recruiting state. The send path reuses ordinary party invitation copy, join
+callback and canonical card publication. `joinSource=guild` is attribution only;
+nonmembers keep all ordinary allowed invitation and join routes.
 
-Після першої production expedition ґільдія отримує одну малу тижневу мету:
+Guild and party state are revalidated immediately around audience resolution.
+The notice contains no guild branding, so a final leave/kick race cannot disclose
+membership. Guild leave, kick, disband or flag changes never mutate a party or
+combat row.
 
-- зрозумілий Kyiv/Holocene period;
-- прогрес лише від eligible завершених group encounters;
-- exact-once contribution receipt;
-- social/cosmetic-first спільний результат;
-- короткий recap у Хроніках без приватних подробиць;
-- відсутність FOMO-покарання за пропущений тиждень.
+## Character lifecycle and rollout
 
-Гравці без ґільдії можуть проходити звичайну party expedition. Ґільдія не
-монополізує базовий group-combat контент.
+Membership, leadership, founder cooldown and invitations are User-level.
+Remort keeps the same membership and leader anchor while current-life party and
+combat cleanup remains authoritative. `/restart` refuses deletion while the
+Character leads or participates in a live recruiting/active party or active
+group combat, even when no `ActiveCombatLease` exists. Safe Character recreation
+does not transfer leadership.
 
-## Safety і moderation
+Disabled rollout preserves rows and the minimum escape/recovery paths: profile
+read, nonleader leave, accepted transfer and sole-member disband. It blocks new
+formation, invite/accept, role/profile and guild-party writes. The default stays
+off until exact-head three-account QA and an abandoned-leader operator policy
+are approved.
 
-- Немає публічного сорому за малий contribution або inactivity.
-- Немає точного location/online tracking у guild roster.
-- Назва й опис мають length/Unicode normalization, reserved-name і basic abuse
-  guard; moderation action лишає audit.
-- Invite spam має rate/cooldown і block-friendly поведінку.
-- Leader deletion/restart не каскадить активний party/group encounter.
-- Guild leave/kick не скасовує вже сформований окремий PartySession.
+## Outside 0.4.4
 
-## Не входить у foundation
-
-- guild bank або спільні предмети;
-- золото між членами, auction/market чи trade custody;
-- бойові стат-бонуси;
-- guild wars, territory, forced PvP або wagers;
-- raid finder, alliance/global guild chat;
-- season pass або monetization;
-- encounters понад 3×3.
-
-Ці системи потребують окремого task, abuse/economy audit і даних реальної малої
-ґільдії; вони не виростають автоматично з membership таблиці.
-
-## Метрики доказу
-
-- party create → join → start → finish;
-- частка гуртів із повторним спільним encounter протягом 7 днів;
-- timeout/forfeit/repair і permanent delivery failure rates;
-- guild invite → accept;
-- частка ґільдій із 2+ активними учасниками за тиждень;
-- weekly goal participation без зберігання приватного message content.
-
-Успіх — не максимальна кількість ґільдій, а повторний маленький соціяльний ритуал
-без руйнування solo loop і без експлуатаційного тиску.
+No guild bank, shared economy/items, trade, XP, levels, weekly goal, buffs,
+bosses, chat, alliances, war, territory, leaderboard, matchmaking or PvP. Any
+future guild progression requires a separate version task, economy/abuse review
+and production evidence; it is not implied by the foundation tables.

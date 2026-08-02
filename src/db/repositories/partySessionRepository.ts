@@ -9,7 +9,7 @@ export type PartySessionStatus =
   | "completed";
 export type PartyParticipantStatus = "joined" | "left";
 export type PartyParticipantReadiness = "waiting" | "ready";
-export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "dev";
+export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "guild" | "dev";
 export type PartyTerminalReplayState = "cancelled" | "expired" | "terminal-ineligible";
 
 export interface PartyCharacterSnapshot extends CharacterRecord {

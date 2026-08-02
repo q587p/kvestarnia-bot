@@ -363,10 +363,13 @@ hard-оказію: мають бути і сольна атака, і збір �
 `NODE_ENV=development` і `GUILD_FOUNDATION_ENABLED=true`, потім виконай
 `refresh-local-bot.cmd` та `status-local-bot.cmd` і звір точний candidate SHA та
 скопійований прапорець. Перевір create/duplicate confirm, нормалізовану
-унікальність, decline/reinvite/competing accept, ролі й succession, remort,
+унікальність, 93-gold exact-once debit, forming activation, decline/reinvite/
+competing accept, leader-only profile edit, nominee-accepted transfer, remort,
 restart, flag off/on, privacy та leave/kick/delete під час окремих active
-PartySession/GroupCombatSession. `/dev_guild_gold` готує лише creation gold і не
-має існувати у production.
+PartySession/GroupCombatSession. Спершу відкрий real gameplay recruiting party;
+`/guild_party` має лише показати paginated picker і ordinary invite, не створити
+generic lobby. `/dev_guild_gold` готує лише creation gold і не має існувати у
+production.
 
 ## Сервісні команди
 

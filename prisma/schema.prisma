@@ -19,12 +19,16 @@ model User {
   currentRaidId      String?    @map("current_raid_id")
   currentAdventureId String?    @map("current_adventure_id")
   character          Character?
-  guildMembership   GuildMember?
+  guildMemberships  GuildMember[]
   guildsLed          Guild[]              @relation("GuildLeader")
+  guildsFounded      Guild[]              @relation("GuildFounder")
+  guildLeadershipNominations Guild[]      @relation("GuildLeadershipNominee")
   guildCreationIntents GuildCreationIntent[]
   guildInvitesSent   GuildInvite[]         @relation("GuildInviteInviter")
   guildInvitesReceived GuildInvite[]       @relation("GuildInviteTarget")
+  guildInviteOptIn   GuildInviteOptIn?
   guildAudits        GuildAudit[]           @relation("GuildAuditActor")
+  guildFounderCooldown GuildFounderCooldown?
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
 
@@ -35,16 +39,38 @@ model User {
   @@map("users")
 }
 
+model GuildFounderCooldown {
+  userId      String   @id @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availableAt DateTime @map("available_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([availableAt])
+  @@map("guild_founder_cooldowns")
+}
+
 model Guild {
   id             String   @id @default(uuid())
-  normalizedName String   @unique @map("normalized_name")
+  normalizedName String   @map("normalized_name")
+  reservationKey String?  @unique @map("reservation_key")
   displayName    String   @map("display_name")
   crest          String
   description    String
+  founderUserId  String   @map("founder_user_id")
+  founderUser    User     @relation("GuildFounder", fields: [founderUserId], references: [id], onDelete: Restrict)
   leaderUserId   String   @map("leader_user_id")
   leaderUser     User     @relation("GuildLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
-  status         String   @default("active")
+  leadershipNomineeUserId String? @map("leadership_nominee_user_id")
+  leadershipNomineeUser User? @relation("GuildLeadershipNominee", fields: [leadershipNomineeUserId], references: [id], onDelete: SetNull)
+  leadershipOfferedAt DateTime? @map("leadership_offered_at")
+  status         String   @default("forming")
   version        Int      @default(1)
+  charterExpiresAt DateTime @map("charter_expires_at")
+  activatedAt    DateTime? @map("activated_at")
+  activatedByInviteId String? @map("activated_by_invite_id")
+  disbandedAt    DateTime? @map("disbanded_at")
+  nameReleaseAt  DateTime? @map("name_release_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   members        GuildMember[]
@@ -53,6 +79,9 @@ model Guild {
   audits         GuildAudit[]
 
   @@index([leaderUserId])
+  @@index([founderUserId])
+  @@index([status, charterExpiresAt])
+  @@index([reservationKey, nameReleaseAt])
   @@map("guilds")
 }
 
@@ -60,15 +89,17 @@ model GuildMember {
   id        String   @id @default(uuid())
   guildId   String   @map("guild_id")
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  userId    String   @unique @map("user_id")
+  userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeUserKey String? @unique @map("active_user_key")
   role      String   @default("member")
   joinedAt  DateTime @map("joined_at")
+  leftAt    DateTime? @map("left_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([guildId, userId])
-  @@index([guildId, role, joinedAt])
+  @@index([guildId, activeUserKey, role, joinedAt])
+  @@index([userId, leftAt])
   @@map("guild_members")
 }
 
@@ -85,6 +116,7 @@ model GuildCreationIntent {
   description    String
   goldCost       Int      @map("gold_cost")
   status         String   @default("pending")
+  activeUserKey  String?  @unique @map("active_user_key")
   guildId        String?  @map("guild_id")
   guild          Guild?   @relation(fields: [guildId], references: [id], onDelete: SetNull)
   expiresAt      DateTime @map("expires_at")
@@ -104,6 +136,7 @@ model GuildInvite {
   guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   inviterUserId String   @map("inviter_user_id")
   inviterUser   User     @relation("GuildInviteInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  inviterMembershipId String @map("inviter_membership_id")
   targetUserId  String   @map("target_user_id")
   targetUser    User     @relation("GuildInviteTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
   targetName    String   @map("target_name")
@@ -118,6 +151,19 @@ model GuildInvite {
   @@index([targetUserId, status, expiresAt])
   @@index([inviterUserId, createdAt])
   @@map("guild_invites")
+}
+
+model GuildInviteOptIn {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@map("guild_invite_opt_ins")
 }
 
 model GuildAudit {

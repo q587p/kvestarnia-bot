@@ -28,10 +28,12 @@ Keep each task compact and link to canonical docs instead of copying them.
 
 ## Current release and next task
 
-The current repository release is `0.4.4`:
+The current implementation release is `0.4.4` on PR #190:
 [`0.4.4-guild-foundation.md`](0.4.4-guild-foundation.md).
-Its default-off durable guild social shell is implemented; manual three-account
-Telegram QA, merge, deployment and production availability remain unproven.
+Its corrected default-off durable guild social shell is under final automated
+verification. Manual three-account Telegram QA, merge, migration deployment,
+target enablement and production availability remain unproven. An audited
+abandoned-leader operator runbook is a production-enable blocker.
 
 [`0.4.5-guild-weekly-goal.md`](0.4.5-guild-weekly-goal.md) is the next planned version.
 
