@@ -213,6 +213,7 @@ export function createRuntime(input: {
       }
 
       state = "started";
+      try {
       healthServer = dependencies.startHealthServer({
         presence: services.presence,
         readiness,
@@ -337,6 +338,14 @@ export function createRuntime(input: {
       void services.deployNotifications.announceIfNeeded(bot).catch((error) => {
         console.error("Квестарня: нотифікація про нову версію не відправилась.", error);
       });
+      } catch (error) {
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
+        console.error("Квестарня: запуск runtime аварійно перервано.", {
+          errorName: runtimeError.name,
+          errorCategory: classifyPerformanceError(error)
+        });
+        failRuntime(runtimeError);
+      }
     },
     async stop() {
       await stopRuntime();

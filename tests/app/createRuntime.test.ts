@@ -298,6 +298,7 @@ describe("createRuntime", () => {
     expect(close).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
     await runtime.stop();
+    expect(onFatalRuntimeError).toHaveBeenCalledTimes(1);
   });
 
   it("fails readiness closed when Telegram polling startup rejects", async () => {
@@ -346,6 +347,70 @@ describe("createRuntime", () => {
     expect(duelScheduler.stop).not.toHaveBeenCalled();
     expect(combatScheduler.stop).not.toHaveBeenCalled();
     expect(healthRecoveryScheduler.stop).not.toHaveBeenCalled();
+    expect(onFatalRuntimeError).toHaveBeenCalledTimes(1);
+  });
+
+  it("cleans up when a scheduler factory throws after bot creation", async () => {
+    const cleanupOrder: string[] = [];
+    const close = vi.fn(() => {
+      cleanupOrder.push("health");
+    });
+    const disconnect = vi.fn(() => {
+      cleanupOrder.push("prisma");
+      return Promise.resolve();
+    });
+    const startupError = new Error("private scheduler configuration");
+    const botFixture = makeBot();
+    botFixture.stop.mockImplementation(() => {
+      cleanupOrder.push("bot");
+      return Promise.resolve();
+    });
+    const duelScheduler = makeScheduler();
+    const combatScheduler = makeScheduler();
+    const onFatalRuntimeError = vi.fn((error: Error) => {
+      cleanupOrder.push("fatal");
+      expect(error).toBe(startupError);
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const runtime = createRuntime({
+      config: makeConfig({ botToken: "token" }),
+      prisma: makePrisma(disconnect),
+      services: makeServices().services,
+      onFatalRuntimeError,
+      dependencies: {
+        createBot: vi.fn(() => botFixture.bot),
+        createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
+        createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createEquipmentAttunementScheduler: vi.fn(() => {
+          throw startupError;
+        }),
+        getTelegramMenuCommands: vi.fn(() => []),
+        startHealthServer: vi.fn(() => ({ close }) as never)
+      }
+    });
+
+    await runtime.start();
+    await vi.waitFor(() => expect(onFatalRuntimeError).toHaveBeenCalledTimes(1));
+
+    expect(botFixture.start).not.toHaveBeenCalled();
+    expect(duelScheduler.start).not.toHaveBeenCalled();
+    expect(combatScheduler.start).not.toHaveBeenCalled();
+    expect(botFixture.stop).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(cleanupOrder).toEqual(["bot", "health", "prisma", "fatal"]);
+    expect(console.error).toHaveBeenCalledWith(
+      "Квестарня: запуск runtime аварійно перервано.",
+      { errorName: "Error", errorCategory: "unknown" }
+    );
+
+    await runtime.stop();
+
+    expect(onFatalRuntimeError).toHaveBeenCalledWith(startupError);
+    expect(onFatalRuntimeError).toHaveBeenCalledTimes(1);
+    expect(botFixture.stop).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
   it("stops started schedulers once when polling rejects after onStart", async () => {
