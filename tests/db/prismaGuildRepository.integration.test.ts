@@ -13,6 +13,7 @@ const MIGRATION = "20260802230000_guild_foundation";
 const NOW = new Date("2026-08-02T20:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
+const GUILD_CLEANUP_BACKLOG_SIZE = 24;
 
 describe("PrismaGuildRepository integration", () => {
   let dir: string;
@@ -195,6 +196,144 @@ describe("PrismaGuildRepository integration", () => {
     await expect(repository.confirmCreateForTelegramUser(53_008n, "disband-reuse-after", afterDisbandRelease))
       .resolves.toMatchObject({ state: "created" });
     expect(disbanded.guild.id).toBeTruthy();
+  });
+
+  it("terminalizes each relevant expired charter behind the bounded cleanup backlog", async () => {
+    await seedCharacter(prisma, "lifecycle-cleanup-owner", 53_100n, "Писар Черги", 0);
+
+    await seedCharacter(prisma, "lifecycle-accept-founder", 53_101n, "Голова Прострочення", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-accept-target", 53_102n, "Пізній Адресат", 42);
+    const acceptanceGuild = await createAndConfirm(
+      repository,
+      53_101n,
+      "lifecycle-accept-charter",
+      "Печатка Пізньої Згоди"
+    );
+    const acceptAt = new Date(acceptanceGuild.guild.charterExpiresAt.getTime() + 1);
+    const inviteAt = new Date(acceptanceGuild.guild.charterExpiresAt.getTime() - HOUR);
+    await createOptIn(repository, 53_102n, "lifecycle-accept-code", inviteAt);
+    await createInvite(repository, 53_101n, "lifecycle-accept-invite", "lifecycle-accept-code", inviteAt);
+    const acceptanceBefore = await prisma.guild.findUniqueOrThrow({
+      where: { id: acceptanceGuild.guild.id },
+      select: { nameReleaseAt: true }
+    });
+    const founderGoldBefore = await goldFor(prisma, 53_101n);
+    const targetGoldBefore = await goldFor(prisma, 53_102n);
+    await seedExpiredGuildBacklog(prisma, "accept", "lifecycle-cleanup-owner", acceptAt);
+
+    await expect(repository.acceptInviteForTelegramUser(53_102n, "lifecycle-accept-invite", acceptAt))
+      .resolves.toEqual({ state: "expired" });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: acceptanceGuild.guild.id },
+      select: { status: true, activatedAt: true, activatedByInviteId: true, nameReleaseAt: true }
+    })).resolves.toEqual({
+      status: "expired",
+      activatedAt: null,
+      activatedByInviteId: null,
+      nameReleaseAt: acceptanceBefore.nameReleaseAt
+    });
+    const closedFounder = await prisma.guildMember.findFirstOrThrow({
+      where: { guildId: acceptanceGuild.guild.id, userId: "lifecycle-accept-founder" },
+      select: { activeUserKey: true, leftAt: true, updatedAt: true }
+    });
+    const closedInvite = await prisma.guildInvite.findUniqueOrThrow({
+      where: { token: "lifecycle-accept-invite" },
+      select: { status: true, activeKey: true, respondedAt: true, updatedAt: true }
+    });
+    expect(closedFounder).toEqual({ activeUserKey: null, leftAt: acceptAt, updatedAt: acceptAt });
+    expect(closedInvite).toEqual({ status: "expired", activeKey: null, respondedAt: acceptAt, updatedAt: acceptAt });
+    await expect(prisma.guildMember.count({
+      where: { guildId: acceptanceGuild.guild.id, userId: "lifecycle-accept-target" }
+    })).resolves.toBe(0);
+    await expect(prisma.guildAudit.count({
+      where: { guildId: acceptanceGuild.guild.id, eventType: "charter.expired" }
+    })).resolves.toBe(1);
+    await expect(prisma.guildAudit.count({
+      where: { guildId: acceptanceGuild.guild.id, eventType: { in: ["invite.accepted", "guild.created"] } }
+    })).resolves.toBe(0);
+    await expect(goldFor(prisma, 53_101n)).resolves.toBe(founderGoldBefore);
+    await expect(goldFor(prisma, 53_102n)).resolves.toBe(targetGoldBefore);
+
+    const replayAt = new Date(acceptAt.getTime() + HOUR);
+    await expect(repository.acceptInviteForTelegramUser(53_102n, "lifecycle-accept-invite", replayAt))
+      .resolves.toEqual({ state: "expired" });
+    await expect(prisma.guildMember.findFirstOrThrow({
+      where: { guildId: acceptanceGuild.guild.id, userId: "lifecycle-accept-founder" },
+      select: { leftAt: true, updatedAt: true }
+    })).resolves.toEqual({ leftAt: closedFounder.leftAt, updatedAt: closedFounder.updatedAt });
+    await expect(prisma.guildInvite.findUniqueOrThrow({
+      where: { token: "lifecycle-accept-invite" },
+      select: { respondedAt: true, updatedAt: true }
+    })).resolves.toEqual({ respondedAt: closedInvite.respondedAt, updatedAt: closedInvite.updatedAt });
+    await expect(prisma.guildAudit.count({
+      where: { guildId: acceptanceGuild.guild.id, eventType: "charter.expired" }
+    })).resolves.toBe(1);
+
+    await seedCharacter(prisma, "lifecycle-create-founder", 53_103n, "Голова Нового Запрошення", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-create-target", 53_104n, "Адресат Нового Запрошення", 0);
+    const createGuild = await createAndConfirm(
+      repository,
+      53_103n,
+      "lifecycle-create-charter",
+      "Печатка Зачиненого Конверта"
+    );
+    const createAt = new Date(createGuild.guild.charterExpiresAt.getTime() + 1);
+    await createOptIn(repository, 53_104n, "lifecycle-create-code", createAt);
+    await seedExpiredGuildBacklog(prisma, "create", "lifecycle-cleanup-owner", createAt);
+    await expect(createInvite(repository, 53_103n, "lifecycle-too-late-invite", "lifecycle-create-code", createAt))
+      .resolves.toEqual({ state: "not-member" });
+    await expect(prisma.guildInvite.count({ where: { token: "lifecycle-too-late-invite" } })).resolves.toBe(0);
+    await expect(prisma.guild.findUniqueOrThrow({ where: { id: createGuild.guild.id }, select: { status: true } }))
+      .resolves.toEqual({ status: "expired" });
+
+    await seedCharacter(prisma, "lifecycle-hub-founder", 53_105n, "Голова Зачиненого Хабу", 1_000, { level: 5 });
+    const hubGuild = await createAndConfirm(repository, 53_105n, "lifecycle-hub-charter", "Печатка Зачиненого Хабу");
+    const hubAt = new Date(hubGuild.guild.charterExpiresAt.getTime() + 1);
+    await seedExpiredGuildBacklog(prisma, "hub", "lifecycle-cleanup-owner", hubAt);
+    await expect(repository.getHubForTelegramUser(53_105n, hubAt)).resolves.toMatchObject({ state: "not-member" });
+    await expect(prisma.guild.findUniqueOrThrow({ where: { id: hubGuild.guild.id }, select: { status: true } }))
+      .resolves.toEqual({ status: "expired" });
+
+    await seedCharacter(prisma, "lifecycle-profile-founder", 53_106n, "Голова Зачиненого Профілю", 1_000, { level: 5 });
+    const profileGuild = await createAndConfirm(
+      repository,
+      53_106n,
+      "lifecycle-profile-charter",
+      "Печатка Зачиненого Профілю"
+    );
+    const profileAt = new Date(profileGuild.guild.charterExpiresAt.getTime() + 1);
+    await seedExpiredGuildBacklog(prisma, "profile", "lifecycle-cleanup-owner", profileAt);
+    await expect(repository.updateProfileForTelegramUser(53_106n, {
+      crest: "🦉",
+      description: "Цей текст не має записатися.",
+      expectedVersion: profileGuild.guild.version,
+      now: profileAt
+    })).resolves.toEqual({ state: "not-member" });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: profileGuild.guild.id },
+      select: { status: true, crest: true, description: true }
+    })).resolves.toEqual({
+      status: "expired",
+      crest: profileGuild.guild.crest,
+      description: profileGuild.guild.description
+    });
+
+    await seedCharacter(prisma, "lifecycle-live-founder", 53_107n, "Голова Живого Статуту", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-live-target", 53_108n, "Вчасний Адресат", 0);
+    const liveGuild = await createAndConfirm(
+      repository,
+      53_107n,
+      "lifecycle-live-charter",
+      "Печатка Вчасної Згоди"
+    );
+    await createOptIn(repository, 53_108n, "lifecycle-live-code", NOW);
+    await createInvite(repository, 53_107n, "lifecycle-live-invite", "lifecycle-live-code", NOW);
+    const liveAt = new Date(NOW.getTime() + 2 * DAY);
+    await seedExpiredGuildBacklog(prisma, "live", "lifecycle-cleanup-owner", liveAt);
+    await expect(repository.acceptInviteForTelegramUser(53_108n, "lifecycle-live-invite", liveAt))
+      .resolves.toMatchObject({ state: "accepted", guild: { id: liveGuild.guild.id, status: "active", memberCount: 2 } });
+    await expect(prisma.guildAudit.count({ where: { guildId: liveGuild.guild.id, eventType: "guild.created" } }))
+      .resolves.toBe(1);
   });
 
   it("enforces opt-in privacy, invite TTL/backlog/rate and the seven-day pair decline cooldown", async () => {
@@ -913,6 +1052,32 @@ async function readyHub(repository: PrismaGuildRepository, telegramUserId: bigin
     throw new Error(`Expected ready guild hub, received ${hub.state}.`);
   }
   return hub;
+}
+
+async function seedExpiredGuildBacklog(
+  prisma: PrismaClient,
+  prefix: string,
+  founderUserId: string,
+  now: Date
+): Promise<void> {
+  await prisma.guild.createMany({
+    data: Array.from({ length: GUILD_CLEANUP_BACKLOG_SIZE }, (_, index) => ({
+      id: `lifecycle-backlog-${prefix}-${index}`,
+      normalizedName: `черга ${prefix} ${index}`,
+      reservationKey: `черга ${prefix} ${index}`,
+      displayName: `Черга ${prefix} ${index}`,
+      crest: "📜",
+      description: "Старіший прострочений статут у bounded-черзі.",
+      founderUserId,
+      leaderUserId: founderUserId,
+      status: "forming",
+      version: 1,
+      charterExpiresAt: new Date(now.getTime() - 2 * DAY),
+      nameReleaseAt: new Date(now.getTime() + HOUR),
+      createdAt: new Date(now.getTime() - 9 * DAY),
+      updatedAt: new Date(now.getTime() - 9 * DAY)
+    }))
+  });
 }
 
 async function seedCharacter(

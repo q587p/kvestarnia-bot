@@ -28,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Disabled legacy guild-party callbacks now stop at the service boundary before recipient resolution, Telegram delivery, canonical-card publication or audit mutation.
 - Guild hub pages now use one stable five-row member/invitation stream; exact-name role commands read the complete membership set and duplicate names receive distinct membership-backed selectors.
 - `/restart` ignores an expired non-automatic recruiting residue while continuing to protect live ordinary parties, automatic-start Big Barrel/left-passage contracts and active group combat.
+- Forming charter expiry now terminalizes the operation's specific guild independently of the bounded 23-row maintenance backlog, preventing late invitation acceptance, new invitations, hub access or mutations from reviving an overdue charter.
 
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 
