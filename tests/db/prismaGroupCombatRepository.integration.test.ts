@@ -655,19 +655,16 @@ describe("PrismaGroupCombatRepository integration", () => {
       },
       orderBy: { characterId: "asc" }
     });
-    expect(discoveryCooldowns).toHaveLength(2);
-    expect(discoveryCooldowns.map((cooldown) => cooldown.availableAt)).toEqual([
-      new Date(
-        session.completedAt!.getTime() +
-          getLeftPassageTierTwoDiscoveryMinutes(session.state.deterministicSeed) *
-            60_000
-      ),
-      new Date(
-        session.completedAt!.getTime() +
-          getLeftPassageTierTwoDiscoveryMinutes(session.state.deterministicSeed) *
-            60_000
-      )
-    ]);
+    const expectedDiscoveryAvailableAt = new Date(
+      session.completedAt!.getTime() +
+        getLeftPassageTierTwoDiscoveryMinutes(session.state.deterministicSeed) *
+          60_000
+    );
+    expect(discoveryCooldowns.map((cooldown) => cooldown.availableAt)).toEqual(
+      session.status === "won"
+        ? [expectedDiscoveryAvailableAt, expectedDiscoveryAvailableAt]
+        : []
+    );
     expect(await prisma.activityEvent.count({
       where: { sourceId: session.id }
     })).toBe(session.status === "won" ? 1 : 0);
