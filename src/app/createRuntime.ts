@@ -37,6 +37,30 @@ interface RuntimeDependencies {
   startHealthServer: typeof startHealthServer;
 }
 
+class RuntimeCleanupError extends Error {
+  constructor(readonly errors: readonly Error[]) {
+    super(`Runtime shutdown failed in ${errors.length} cleanup steps.`);
+    this.name = "RuntimeCleanupError";
+  }
+}
+
+function recordCleanupError(errors: Error[], error: unknown): void {
+  if (error instanceof RuntimeCleanupError) {
+    errors.push(...error.errors);
+    return;
+  }
+  errors.push(error instanceof Error ? error : new Error(String(error)));
+}
+
+function throwCleanupErrors(errors: Error[]): void {
+  if (errors.length === 1) {
+    throw errors[0] ?? new Error("Runtime shutdown failed.");
+  }
+  if (errors.length > 1) {
+    throw new RuntimeCleanupError(errors);
+  }
+}
+
 export function createRuntime(input: {
   config: AppConfig;
   prisma: Pick<PrismaClient, "$disconnect" | "$queryRawUnsafe">;
@@ -110,14 +134,27 @@ export function createRuntime(input: {
       return schedulersStopPromise;
     }
     schedulersStopPromise = (async () => {
-      combatTurnTimeoutScheduler?.stop();
-      duelTurnTimeoutScheduler?.stop();
-      equipmentAttunementScheduler?.stop();
-      await groupCombatTimeoutScheduler?.stop();
-      passageSearchCompletionScheduler?.stop();
-      partyBossRecruitingStartScheduler?.stop();
-      partyRaidChatDeliveryScheduler?.stop();
-      await healthRecoveryNotificationScheduler?.stop();
+      const cleanupErrors: Error[] = [];
+      const cleanupSteps: Array<() => void | Promise<void>> = [
+        () => combatTurnTimeoutScheduler?.stop(),
+        () => duelTurnTimeoutScheduler?.stop(),
+        () => equipmentAttunementScheduler?.stop(),
+        () => groupCombatTimeoutScheduler?.stop(),
+        () => passageSearchCompletionScheduler?.stop(),
+        () => partyBossRecruitingStartScheduler?.stop(),
+        () => partyRaidChatDeliveryScheduler?.stop(),
+        () => healthRecoveryNotificationScheduler?.stop()
+      ];
+
+      for (const cleanup of cleanupSteps) {
+        try {
+          await cleanup();
+        } catch (error) {
+          recordCleanupError(cleanupErrors, error);
+        }
+      }
+
+      throwCleanupErrors(cleanupErrors);
     })();
     return schedulersStopPromise;
   };
@@ -131,25 +168,26 @@ export function createRuntime(input: {
     state = state === "new" ? "stopped" : "stopping";
     readiness.markStopping();
     stopPromise = (async () => {
-      let shutdownError: Error | null = null;
+      const cleanupErrors: Error[] = [];
+      const cleanupSteps: Array<() => void | Promise<void>> = [
+        () => stopSchedulers(),
+        () => bot?.stop(),
+        () => {
+          healthServer?.close();
+        },
+        () => prisma.$disconnect()
+      ];
 
-      await stopSchedulers();
-
-      try {
-        if (bot) {
-          await bot.stop();
+      for (const cleanup of cleanupSteps) {
+        try {
+          await cleanup();
+        } catch (error) {
+          recordCleanupError(cleanupErrors, error);
         }
-      } catch (error) {
-        shutdownError = error instanceof Error ? error : new Error(String(error));
-      } finally {
-        healthServer?.close();
-        await prisma.$disconnect();
-        state = "stopped";
       }
 
-      if (shutdownError) {
-        throw shutdownError;
-      }
+      state = "stopped";
+      throwCleanupErrors(cleanupErrors);
     })();
 
     await stopPromise;
