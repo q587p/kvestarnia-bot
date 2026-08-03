@@ -2831,17 +2831,17 @@ describe("PrismaPartyBossRepository integration", () => {
 
     const started = await bossRepository.startFromRecruitingPartyForTelegramUser(4201n, {
       partyInviteToken: "party-token-due-timeout",
-      now: now(),
-      turnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
+      now: new Date("2026-06-30T09:59:36.000Z"),
+      turnExpiresAt: new Date("2026-06-30T09:59:59.000Z")
     });
     expect(started.state).toBe("started");
 
-    expect((await bossRepository.listDueTimedOutSessions(new Date("2026-06-30T10:00:24.000Z")))
+    expect((await bossRepository.listDueTimedOutSessions(new Date("2026-06-30T10:00:00.000Z")))
       .map((session) => session.partyInviteToken)).toContain("party-token-due-timeout");
 
     const resolved = await bossRepository.resolveTimedOutByToken("party-token-due-timeout", {
-      now: new Date("2026-06-30T10:00:24.000Z"),
-      nextTurnExpiresAt: new Date("2026-06-30T10:00:47.000Z")
+      now: new Date("2026-06-30T10:00:00.000Z"),
+      nextTurnExpiresAt: new Date("2026-06-30T10:00:23.000Z")
     }, "due");
     const latest = expectPartyBossSession(resolved);
 
