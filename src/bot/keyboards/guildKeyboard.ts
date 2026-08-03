@@ -1,11 +1,13 @@
 import { InlineKeyboard } from "grammy";
 import type { GuildHubRepositoryResult, GuildMemberRecord } from "../../db/repositories/guildRepository";
 import {
+  makeGuildCreateOpenCallbackData,
   makeGuildCreateConfirmCallbackData,
   makeGuildDeleteCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
+  makeGuildInviteCodeCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberSelectCallbackData,
@@ -15,6 +17,7 @@ import {
   makeGuildTransferAcceptCallbackData
 } from "../callbacks/guildCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
+import { GUILD_CREST_CATALOG } from "../../domain/guild";
 
 export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options: { writesEnabled?: boolean } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -28,15 +31,28 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
     }
     keyboard.text("✖️ Відхилити", makeGuildInviteDeclineCallbackData(invite.token)).row();
   }
+  if (result.state === "not-member" && writesEnabled) {
+    keyboard
+      .text("📜 Заснувати ґільдію", makeGuildCreateOpenCallbackData())
+      .text("✉️ Мій код", makeGuildInviteCodeCallbackData())
+      .row();
+  }
   if (result.state === "ready") {
     if (writesEnabled) {
+      keyboard.text("🔗 Мій код запрошення", makeGuildInviteCodeCallbackData()).row();
       keyboard.text("✉️ Запросити з ґільдії", makeGuildPartyOpenCallbackData()).row();
+      if (result.guild.viewerRole === "leader" || result.guild.viewerRole === "officer") {
+        keyboard.copyText("✉️ Запросити за кодом", "/guild_invite ВСТАВТЕ_КОД").row();
+      }
+      if (result.guild.viewerRole === "leader") {
+        keyboard.copyText("✏️ Змінити профіль", "/guild_edit 🦉 | короткий опис").row();
+      }
     }
     if (result.guild.viewerIsLeadershipNominee) {
       keyboard.text("👑 Прийняти провід", makeGuildTransferAcceptCallbackData(result.guild.version)).row();
     }
-    if (result.guild.viewerRole === "leader" || result.guild.viewerRole === "officer") {
-      for (const invite of result.guild.outgoingInvites) {
+    for (const invite of result.guild.outgoingInvites) {
+      if (invite.canCancel) {
         keyboard.text(`🧹 Скасувати: ${invite.targetName}`, makeGuildInviteCancelCallbackData(invite.token)).row();
       }
     }
@@ -82,6 +98,25 @@ export function buildGuildCreationPreviewKeyboard(token: string): InlineKeyboard
   return new InlineKeyboard()
     .text("✅ Заснувати", makeGuildCreateConfirmCallbackData(token))
     .text("⬅️ Не зараз", makeGuildOpenCallbackData());
+}
+
+export function buildGuildCreationStartKeyboard(): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  GUILD_CREST_CATALOG.forEach((crest, index) => {
+    keyboard.copyText(crest, `/guild_create ${crest} Назва | короткий опис`);
+    if ((index + 1) % 5 === 0) {
+      keyboard.row();
+    }
+  });
+  return keyboard.row().text("🏰 Назад", makeGuildOpenCallbackData());
+}
+
+export function buildGuildInviteCodeKeyboard(token?: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (token) {
+    keyboard.copyText("📋 Скопіювати код", token).row();
+  }
+  return keyboard.text("🏰 Назад", makeGuildOpenCallbackData());
 }
 
 export function buildGuildMemberMutationKeyboard(

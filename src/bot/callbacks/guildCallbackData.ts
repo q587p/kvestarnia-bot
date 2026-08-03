@@ -3,6 +3,7 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GuildCallback =
   | { type: "open"; page: number }
+  | { type: "create-open" | "invite-code" }
   | { type: "create-confirm"; token: string }
   | { type: "invite-accept" | "invite-decline" | "invite-cancel"; token: string }
   | { type: "party-open"; page: number }
@@ -20,6 +21,8 @@ const MEMBER_PATTERN = /^[A-Za-z0-9-]{8,40}$/;
 const VERSION_PATTERN = /^[0-9a-z]{1,6}$/;
 
 export const makeGuildOpenCallbackData = (page = 0): string => page === 0 ? `${PREFIX}:o` : `${PREFIX}:o:${page.toString(36)}`;
+export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
+export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
 export const makeGuildCreateConfirmCallbackData = (token: string): string => `${PREFIX}:c:${token}`;
 export const makeGuildInviteAcceptCallbackData = (token: string): string => `${PREFIX}:a:${token}`;
 export const makeGuildInviteDeclineCallbackData = (token: string): string => `${PREFIX}:d:${token}`;
@@ -55,6 +58,9 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "o" && second === undefined) {
     const page = first === undefined ? 0 : VERSION_PATTERN.test(first) ? Number.parseInt(first, 36) : null;
     return page === null ? err("invalid-version") : ok({ type: "open", page });
+  }
+  if ((action === "n" || action === "i") && first === undefined && second === undefined) {
+    return ok({ type: action === "n" ? "create-open" : "invite-code" });
   }
   if (action === "po" && first && second === undefined && VERSION_PATTERN.test(first)) {
     return ok({ type: "party-open", page: Number.parseInt(first, 36) });

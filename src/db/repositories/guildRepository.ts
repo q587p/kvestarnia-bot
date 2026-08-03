@@ -14,6 +14,7 @@ export interface GuildInviteRecord {
   guildName: string;
   guildCrest: string;
   targetName: string;
+  canCancel: boolean;
   status: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   expiresAt: Date;
 }

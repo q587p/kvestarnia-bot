@@ -11,14 +11,17 @@ import {
 import { makePartySessionJoinCallbackData } from "../callbacks/partySessionCallbackData";
 import { telegramUserIdFromContext } from "../context";
 import {
+  buildGuildCreationStartKeyboard,
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
+  buildGuildInviteCodeKeyboard,
   buildGuildMemberMutationKeyboard,
   buildGuildMemberTargetKeyboard,
   buildGuildPartyPickerKeyboard
 } from "../keyboards/guildKeyboard";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
+  presentGuildCreationStart,
   presentGuildCreationPreview,
   presentGuildCreationResult,
   presentGuildHub,
@@ -67,13 +70,20 @@ export function registerGuildCommands(
     }
     const parsed = parseCreationArgs(commandArgs(ctx));
     if (!parsed) {
-      await ctx.reply("Формат: <code>/guild_create 🛡️ Назва | короткий опис</code>", HTML_OPTIONS);
+      await ctx.reply(presentGuildCreationStart(), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildCreationStartKeyboard()
+      });
       return;
     }
     const result = await service.previewCreationForTelegramUser(actor, parsed);
     await ctx.reply(presentGuildCreationPreview(result, new Date()), {
       ...HTML_OPTIONS,
-      ...(result.state === "ready" ? { reply_markup: buildGuildCreationPreviewKeyboard(result.intent.token) } : {})
+      reply_markup: result.state === "ready"
+        ? buildGuildCreationPreviewKeyboard(result.intent.token)
+        : result.state === "invalid" && result.reason === "crest"
+          ? buildGuildCreationStartKeyboard()
+          : buildGuildInviteCodeKeyboard()
     });
   });
   bot.command("guild_invite_code", async (ctx) => {
@@ -82,7 +92,10 @@ export function registerGuildCommands(
       return;
     }
     const result = await service.createInviteOptInForTelegramUser(actor);
-    await ctx.reply(presentGuildInviteOptIn(result, new Date()), HTML_OPTIONS);
+    await ctx.reply(presentGuildInviteOptIn(result, new Date()), {
+      ...HTML_OPTIONS,
+      reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined)
+    });
   });
   bot.command("guild_invite", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
@@ -165,6 +178,25 @@ export async function handleGuildCallback(
   if (callback.type === "open") {
     await safeAnswerCallbackQuery(ctx);
     await sendGuildHub(ctx, service, "edit", callback.page);
+    return;
+  }
+  if (callback.type === "create-open") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, service.isEnabled()
+      ? presentGuildCreationStart()
+      : "Нові статути зараз зачинені. Чинну ґільдійну книгу можна читати без змін.", {
+      ...HTML_OPTIONS,
+      reply_markup: service.isEnabled() ? buildGuildCreationStartKeyboard() : buildGuildInviteCodeKeyboard()
+    });
+    return;
+  }
+  if (callback.type === "invite-code") {
+    const result = await service.createInviteOptInForTelegramUser(actor);
+    await safeAnswerCallbackQuery(ctx, { text: result.state === "ready" ? "Код оновлено." : "Стан перевірено." });
+    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date()), {
+      ...HTML_OPTIONS,
+      reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined)
+    });
     return;
   }
   if (callback.type === "create-confirm") {

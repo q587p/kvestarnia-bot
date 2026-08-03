@@ -14,6 +14,7 @@ const NOW = new Date("2026-08-02T20:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const GUILD_CLEANUP_BACKLOG_SIZE = 24;
+const GUILD_DOUBLE_CLEANUP_BACKLOG_SIZE = 47;
 
 describe("PrismaGuildRepository integration", () => {
   let dir: string;
@@ -336,6 +337,155 @@ describe("PrismaGuildRepository integration", () => {
       .resolves.toBe(1);
   });
 
+  it("validates the target User membership lifecycle beyond the cleanup backlog", async () => {
+    await seedCharacter(prisma, "target-lifecycle-cleanup-owner", 53_120n, "Писар Цільової Черги", 0);
+    await seedCharacter(prisma, "target-lifecycle-inviter", 53_121n, "Голова Цільового Листа", 1_000, { level: 5 });
+    await seedCharacter(prisma, "target-lifecycle-activator", 53_122n, "Чинний Підписант", 0);
+    await activateGuild(
+      repository,
+      53_121n,
+      53_122n,
+      "target-lifecycle-inviter-guild",
+      "Печатка Цільового Листа"
+    );
+
+    await seedCharacter(prisma, "target-lifecycle-expired", 53_123n, "Вільний Після Строку", 1_000, { level: 5 });
+    const expiredTargetGuild = await createAndConfirm(
+      repository,
+      53_123n,
+      "target-lifecycle-expired-charter",
+      "Статут Колишньої Цілі"
+    );
+    const inviteAt = new Date(expiredTargetGuild.guild.charterExpiresAt.getTime() + 1);
+    await createOptIn(repository, 53_123n, "target-lifecycle-expired-code", inviteAt);
+    await seedExpiredGuildBacklog(
+      prisma,
+      "target-membership",
+      "target-lifecycle-cleanup-owner",
+      inviteAt
+    );
+
+    await expect(createInvite(
+      repository,
+      53_121n,
+      "target-lifecycle-success-invite",
+      "target-lifecycle-expired-code",
+      inviteAt
+    )).resolves.toMatchObject({
+      state: "created",
+      invite: { targetName: "Вільний Після Строку" }
+    });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: expiredTargetGuild.guild.id },
+      select: { status: true }
+    })).resolves.toEqual({ status: "expired" });
+    await expect(prisma.guildMember.findFirstOrThrow({
+      where: { guildId: expiredTargetGuild.guild.id, userId: "target-lifecycle-expired" },
+      select: { activeUserKey: true, leftAt: true }
+    })).resolves.toEqual({ activeUserKey: null, leftAt: inviteAt });
+
+    await seedCharacter(prisma, "target-lifecycle-live", 53_124n, "Ще Чинна Ціль", 1_000, { level: 5 });
+    const liveTargetGuild = await createAndConfirm(
+      repository,
+      53_124n,
+      "target-lifecycle-live-charter",
+      "Статут Чинної Цілі",
+      inviteAt
+    );
+    await createOptIn(repository, 53_124n, "target-lifecycle-live-code", inviteAt);
+    await expect(createInvite(
+      repository,
+      53_121n,
+      "target-lifecycle-blocked-invite",
+      "target-lifecycle-live-code",
+      new Date(inviteAt.getTime() + 1)
+    )).resolves.toEqual({ state: "target-unavailable" });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: liveTargetGuild.guild.id },
+      select: { status: true }
+    })).resolves.toEqual({ status: "forming" });
+  });
+
+  it("releases the specific due name owner beyond two cleanup batches and keeps live holds", async () => {
+    await seedCharacter(prisma, "name-lifecycle-cleanup-owner", 53_130n, "Писар Іменної Черги", 0);
+    await seedCharacter(prisma, "name-lifecycle-owner", 53_131n, "Старий Власник Назви", 1_000, { level: 5 });
+    const dueOwner = await createAndConfirm(
+      repository,
+      53_131n,
+      "name-lifecycle-owner-charter",
+      "Назва За Двома Чергами",
+      NOW,
+      "назва за двома чергами"
+    );
+    const releaseAt = new Date(dueOwner.guild.charterExpiresAt.getTime() + 23 * HOUR + 1);
+    await seedExpiredGuildBacklog(
+      prisma,
+      "name-reservation",
+      "name-lifecycle-cleanup-owner",
+      releaseAt,
+      GUILD_DOUBLE_CLEANUP_BACKLOG_SIZE
+    );
+    await seedCharacter(prisma, "name-lifecycle-reuser", 53_132n, "Новий Власник Назви", 1_000, { level: 5 });
+    await createIntent(
+      repository,
+      53_132n,
+      "name-lifecycle-reuse-charter",
+      "Назва За Двома Чергами",
+      releaseAt,
+      undefined,
+      "назва за двома чергами"
+    );
+
+    const created = await repository.confirmCreateForTelegramUser(
+      53_132n,
+      "name-lifecycle-reuse-charter",
+      releaseAt
+    );
+    expect(created).toMatchObject({ state: "created", guild: { normalizedName: "назва за двома чергами" } });
+    await expect(repository.confirmCreateForTelegramUser(53_132n, "name-lifecycle-reuse-charter", releaseAt))
+      .resolves.toMatchObject({ state: "replayed" });
+    await expect(goldFor(prisma, 53_132n)).resolves.toBe(1_000 - GUILD_CREATION_GOLD);
+    await expect(prisma.guildFounderCooldown.count({ where: { userId: "name-lifecycle-reuser" } }))
+      .resolves.toBe(1);
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: dueOwner.guild.id },
+      select: { status: true, reservationKey: true }
+    })).resolves.toEqual({ status: "expired", reservationKey: null });
+    await expect(prisma.guildAudit.count({
+      where: { guildId: dueOwner.guild.id, eventType: "charter.expired" }
+    })).resolves.toBe(1);
+
+    await seedCharacter(prisma, "name-lifecycle-held-owner", 53_133n, "Власник Живого Утримання", 1_000, { level: 5 });
+    const heldOwner = await createAndConfirm(
+      repository,
+      53_133n,
+      "name-lifecycle-held-charter",
+      "Назва Ще Під Печаткою",
+      releaseAt,
+      "назва ще під печаткою"
+    );
+    const heldAt = new Date(heldOwner.guild.charterExpiresAt.getTime() + 22 * HOUR);
+    await seedCharacter(prisma, "name-lifecycle-held-reuser", 53_134n, "Ранній Шукач Назви", 1_000, { level: 5 });
+    await createIntent(
+      repository,
+      53_134n,
+      "name-lifecycle-held-reuse",
+      "Назва Ще Під Печаткою",
+      heldAt,
+      undefined,
+      "назва ще під печаткою"
+    );
+    await expect(repository.confirmCreateForTelegramUser(53_134n, "name-lifecycle-held-reuse", heldAt))
+      .resolves.toEqual({ state: "name-taken" });
+    await expect(goldFor(prisma, 53_134n)).resolves.toBe(1_000);
+    await expect(prisma.guildFounderCooldown.count({ where: { userId: "name-lifecycle-held-reuser" } }))
+      .resolves.toBe(0);
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: heldOwner.guild.id },
+      select: { status: true, reservationKey: true }
+    })).resolves.toEqual({ status: "expired", reservationKey: "назва ще під печаткою" });
+  });
+
   it("enforces opt-in privacy, invite TTL/backlog/rate and the seven-day pair decline cooldown", async () => {
     await seedCharacter(prisma, "invite-founder", 54_001n, "Запрошувач", 1_000, { level: 5 });
     await seedCharacter(prisma, "invite-activator", 54_002n, "Активатор", 0);
@@ -603,6 +753,117 @@ describe("PrismaGuildRepository integration", () => {
       .resolves.toEqual({ state: "not-found" });
     leaderLaterHub = await readyHub(repository, 56_002n, roleLater);
     expect(leaderLaterHub.guild.viewerRole).toBe("leader");
+    expect(guild.guild.id).toBeTruthy();
+  });
+
+  it("expires guild-wide hub invitations and scopes cancellation controls to current authority", async () => {
+    await seedCharacter(prisma, "hub-controls-leader", 56_020n, "Голова Кнопок", 1_000, { level: 5 });
+    await seedCharacter(prisma, "hub-controls-officer-a", 56_021n, "Старшина А", 0);
+    await seedCharacter(prisma, "hub-controls-officer-b", 56_022n, "Старшина Б", 0);
+    const guild = await activateGuild(
+      repository,
+      56_020n,
+      56_021n,
+      "hub-controls-guild",
+      "Печатка Кнопок"
+    );
+    const roleAt = new Date(NOW.getTime() + HOUR);
+    await joinGuild(
+      repository,
+      56_020n,
+      56_022n,
+      "hub-controls-officer-b-invite",
+      "hub-controls-officer-b-code",
+      roleAt
+    );
+    let leaderHub = await readyHub(repository, 56_020n, roleAt);
+    const officerA = leaderHub.guild.members.find((member) => member.name === "Старшина А")!;
+    const promotedA = await repository.setMemberRoleForTelegramUser(
+      56_020n,
+      officerA.id,
+      "officer",
+      leaderHub.guild.version,
+      roleAt
+    );
+    expect(promotedA.state).toBe("updated");
+    leaderHub = await readyHub(repository, 56_020n, roleAt);
+    const officerB = leaderHub.guild.members.find((member) => member.name === "Старшина Б")!;
+    await expect(repository.setMemberRoleForTelegramUser(
+      56_020n,
+      officerB.id,
+      "officer",
+      leaderHub.guild.version,
+      roleAt
+    )).resolves.toMatchObject({ state: "updated" });
+
+    await seedCharacter(prisma, "hub-controls-expiring-target", 56_023n, "Адресат Прострочення", 0);
+    const inviteAt = new Date(NOW.getTime() + 2 * HOUR);
+    await createOptIn(repository, 56_023n, "hub-controls-expiring-code", inviteAt);
+    await expect(createInvite(
+      repository,
+      56_021n,
+      "hub-controls-expiring-invite",
+      "hub-controls-expiring-code",
+      inviteAt
+    )).resolves.toMatchObject({ state: "created" });
+    const openAt = new Date(inviteAt.getTime() + 93 * HOUR + 1);
+    const afterExpiry = await readyHub(repository, 56_020n, openAt);
+    expect(afterExpiry.guild.outgoingInvites.map((invite) => invite.token))
+      .not.toContain("hub-controls-expiring-invite");
+    await expect(prisma.guildInvite.findUniqueOrThrow({
+      where: { token: "hub-controls-expiring-invite" },
+      select: { status: true, activeKey: true, respondedAt: true }
+    })).resolves.toEqual({ status: "expired", activeKey: null, respondedAt: openAt });
+
+    const controlsAt = new Date(openAt.getTime() + HOUR);
+    await seedCharacter(prisma, "hub-controls-target-a", 56_024n, "Адресат Старшини А", 0);
+    await seedCharacter(prisma, "hub-controls-target-b", 56_025n, "Адресат Старшини Б", 0);
+    await createOptIn(repository, 56_024n, "hub-controls-target-a-code", controlsAt);
+    await createOptIn(repository, 56_025n, "hub-controls-target-b-code", controlsAt);
+    await expect(createInvite(
+      repository,
+      56_021n,
+      "hub-controls-officer-a-invite",
+      "hub-controls-target-a-code",
+      controlsAt
+    )).resolves.toMatchObject({ state: "created" });
+    await expect(createInvite(
+      repository,
+      56_022n,
+      "hub-controls-officer-b-own-invite",
+      "hub-controls-target-b-code",
+      controlsAt
+    )).resolves.toMatchObject({ state: "created" });
+
+    const officerAHub = await readyHub(repository, 56_021n, controlsAt);
+    const officerBHub = await readyHub(repository, 56_022n, controlsAt);
+    leaderHub = await readyHub(repository, 56_020n, controlsAt);
+    expect(new Map(officerAHub.guild.outgoingInvites.map((invite) => [invite.token, invite.canCancel])))
+      .toEqual(new Map([
+        ["hub-controls-officer-a-invite", true],
+        ["hub-controls-officer-b-own-invite", false]
+      ]));
+    expect(new Map(officerBHub.guild.outgoingInvites.map((invite) => [invite.token, invite.canCancel])))
+      .toEqual(new Map([
+        ["hub-controls-officer-a-invite", false],
+        ["hub-controls-officer-b-own-invite", true]
+      ]));
+    expect(leaderHub.guild.outgoingInvites.every((invite) => invite.canCancel)).toBe(true);
+    await expect(repository.cancelInviteForTelegramUser(
+      56_021n,
+      "hub-controls-officer-b-own-invite",
+      controlsAt
+    )).resolves.toEqual({ state: "not-found" });
+    await expect(repository.cancelInviteForTelegramUser(
+      56_020n,
+      "hub-controls-officer-a-invite",
+      controlsAt
+    )).resolves.toEqual({ state: "cancelled" });
+    await expect(repository.cancelInviteForTelegramUser(
+      56_020n,
+      "hub-controls-officer-b-own-invite",
+      controlsAt
+    )).resolves.toEqual({ state: "cancelled" });
     expect(guild.guild.id).toBeTruthy();
   });
 
@@ -1058,10 +1319,11 @@ async function seedExpiredGuildBacklog(
   prisma: PrismaClient,
   prefix: string,
   founderUserId: string,
-  now: Date
+  now: Date,
+  count = GUILD_CLEANUP_BACKLOG_SIZE
 ): Promise<void> {
   await prisma.guild.createMany({
-    data: Array.from({ length: GUILD_CLEANUP_BACKLOG_SIZE }, (_, index) => ({
+    data: Array.from({ length: count }, (_, index) => ({
       id: `lifecycle-backlog-${prefix}-${index}`,
       normalizedName: `черга ${prefix} ${index}`,
       reservationKey: `черга ${prefix} ${index}`,

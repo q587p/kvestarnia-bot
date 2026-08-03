@@ -7,12 +7,13 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.4] - 12026-08-03 - Guild Foundation
+## [0.4.4] - 12026-08-04 - Guild Foundation
 
 ### Added
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
 - Added one replaceable 13-minute preview, an exact-once non-refundable 93-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
 - Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
+- Added button-first `/guild` entry for charter creation and private invite codes, with canonical crest command templates, explicit copy controls and command fallbacks.
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
 
 ### Changed
@@ -29,6 +30,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Guild hub pages now use one stable five-row member/invitation stream; exact-name role commands read the complete membership set and duplicate names receive distinct membership-backed selectors.
 - `/restart` ignores an expired non-automatic recruiting residue while continuing to protect live ordinary parties, automatic-start Big Barrel/left-passage contracts and active group combat.
 - Forming charter expiry now terminalizes the operation's specific guild independently of the bounded 23-row maintenance backlog, preventing late invitation acceptance, new invitations, hub access or mutations from reviving an overdue charter.
+- Invitation creation now validates and terminalizes the target User's specific expired forming membership independently of cleanup backlog; normalized-name confirmation likewise releases its exact due reservation owner behind multiple batches without weakening live holds or race-safe gold/cooldown claims.
+- Member hubs expire all guild-owned due invitations before rendering and expose cancellation controls only where the current leader or officer still has authority; all pending rows remain visible in the combined stable pagination stream.
 
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 

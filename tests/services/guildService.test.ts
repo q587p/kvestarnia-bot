@@ -9,6 +9,7 @@ describe("GuildService rollout isolation", () => {
     const setMemberRoleForTelegramUser = vi.fn();
     const updateProfileForTelegramUser = vi.fn();
     const ensureCreationGoldForTelegramUser = vi.fn();
+    const createInviteOptInForTelegramUser = vi.fn();
     const resolvePartyRecipientForTelegramUser = vi.fn();
     const recordPartyInvite = vi.fn();
     const service = new GuildService(
@@ -16,6 +17,7 @@ describe("GuildService rollout isolation", () => {
         setMemberRoleForTelegramUser,
         updateProfileForTelegramUser,
         ensureCreationGoldForTelegramUser,
+        createInviteOptInForTelegramUser,
         resolvePartyRecipientForTelegramUser,
         recordPartyInvite
       } as unknown as GuildRepository,
@@ -28,6 +30,7 @@ describe("GuildService rollout isolation", () => {
     await expect(service.updateProfileForTelegramUser(42n, { crest: "🦉", description: "Тихо", expectedVersion: 1 }))
       .resolves.toEqual({ state: "disabled" });
     await expect(service.ensureCreationGoldForDev(42n)).resolves.toBe("disabled");
+    await expect(service.createInviteOptInForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resolvePartyRecipientForTelegramUser(42n, {
       partySessionId: "party-id",
       memberId: "member-id",
@@ -37,6 +40,7 @@ describe("GuildService rollout isolation", () => {
     expect(setMemberRoleForTelegramUser).not.toHaveBeenCalled();
     expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
     expect(ensureCreationGoldForTelegramUser).not.toHaveBeenCalled();
+    expect(createInviteOptInForTelegramUser).not.toHaveBeenCalled();
     expect(resolvePartyRecipientForTelegramUser).not.toHaveBeenCalled();
     expect(recordPartyInvite).not.toHaveBeenCalled();
   });
@@ -62,6 +66,7 @@ describe("GuildService rollout isolation", () => {
       acceptLeadershipForTelegramUser: vi.fn().mockResolvedValue({ state: "updated", guild: {} }),
       leaveForTelegramUser: vi.fn().mockResolvedValue({ state: "left", guildName: "Тиха" }),
       deleteForTelegramUser: vi.fn().mockResolvedValue({ state: "deleted", guildName: "Тиха" }),
+      cancelInviteForTelegramUser: vi.fn().mockResolvedValue({ state: "cancelled" }),
       createInviteForTelegramUser: vi.fn()
     };
     const service = new GuildService(
@@ -75,7 +80,10 @@ describe("GuildService rollout isolation", () => {
     await expect(service.acceptLeadershipForTelegramUser(42n, 7)).resolves.toMatchObject({ state: "updated" });
     await expect(service.leaveForTelegramUser(42n, 7)).resolves.toMatchObject({ state: "left" });
     await expect(service.deleteForTelegramUser(42n, 7)).resolves.toMatchObject({ state: "deleted" });
+    await expect(service.cancelInviteForTelegramUser(42n, "safe-cancel-token"))
+      .resolves.toEqual({ state: "cancelled" });
     await expect(service.createInviteForTelegramUser(42n, "private-code")).resolves.toEqual({ state: "disabled" });
+    expect(repository.cancelInviteForTelegramUser).toHaveBeenCalledWith(42n, "safe-cancel-token", now);
     expect(repository.createInviteForTelegramUser).not.toHaveBeenCalled();
   });
 

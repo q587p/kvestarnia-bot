@@ -226,6 +226,13 @@ export class PrismaGuildRepository implements GuildRepository {
         if (membership) {
           return { state: "already-member" };
         }
+        if (!await releaseSpecificNameReservationIfDue(tx, intent.normalizedName, now)) {
+          await tx.guildCreationIntent.updateMany({
+            where: { id: intent.id, status: "pending" },
+            data: { status: "conflict", activeUserKey: null, updatedAt: now }
+          });
+          return { state: "name-taken" };
+        }
         const currentCooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
         if (currentCooldown?.availableAt && currentCooldown.availableAt > now) {
           return { state: "founder-cooldown", availableAt: currentCooldown.availableAt, now };
@@ -333,12 +340,15 @@ export class PrismaGuildRepository implements GuildRepository {
       }
       const membership = await currentLiveMembership(tx, actor, now);
       await expireInvitesForUser(tx, actor.id, now);
+      if (membership) {
+        await expireGuildInvites(tx, membership.guildId, now);
+      }
       const incoming = await getIncomingInvites(tx, actor.id, now);
       const incomingPage = pageRows(incoming, page);
       if (!membership || !isLiveGuildStatus(membership.guild.status)) {
         return {
           state: "not-member",
-          incomingInvites: incomingPage.rows.map(mapInvite),
+          incomingInvites: incomingPage.rows.map((invite) => mapInvite(invite)),
           page: incomingPage.page,
           hasPreviousPage: incomingPage.page > 0,
           hasNextPage: incomingPage.hasNext
@@ -346,10 +356,10 @@ export class PrismaGuildRepository implements GuildRepository {
       }
       const guild = await findGuildViewById(tx, membership.guildId);
       return guild && isLiveGuildStatus(guild.status)
-        ? { state: "ready", guild: mapGuildView(guild, actor.id, page), incomingInvites: incomingPage.rows.map(mapInvite) }
+        ? { state: "ready", guild: mapGuildView(guild, actor.id, page), incomingInvites: incomingPage.rows.map((invite) => mapInvite(invite)) }
         : {
             state: "not-member",
-            incomingInvites: incomingPage.rows.map(mapInvite),
+            incomingInvites: incomingPage.rows.map((invite) => mapInvite(invite)),
             page: incomingPage.page,
             hasPreviousPage: incomingPage.page > 0,
             hasNextPage: incomingPage.hasNext
@@ -430,8 +440,7 @@ export class PrismaGuildRepository implements GuildRepository {
               select: {
                 id: true,
                 telegramUserId: true,
-                character: { select: { name: true } },
-                guildMemberships: { where: { activeUserKey: { not: null } }, take: 1, select: { id: true } }
+                character: { select: { name: true } }
               }
             }
           }
@@ -440,9 +449,11 @@ export class PrismaGuildRepository implements GuildRepository {
           !optIn ||
           optIn.expiresAt <= input.now ||
           !optIn.user.character ||
-          optIn.user.id === actor.id ||
-          optIn.user.guildMemberships.length > 0
+          optIn.user.id === actor.id
         ) {
+          return { state: "target-unavailable" };
+        }
+        if (await hasCurrentLiveMembership(tx, optIn.user.id, input.now)) {
           return { state: "target-unavailable" };
         }
         if (membership.guild.members.length >= GUILD_MAX_MEMBERS) {
@@ -1171,6 +1182,9 @@ export class PrismaGuildRepository implements GuildRepository {
       if (!optIn || optIn.expiresAt <= now) {
         return { state: "target-unavailable" };
       }
+      if (await hasCurrentLiveMembership(tx, optIn.user.id, now)) {
+        return { state: "target-unavailable" };
+      }
       const invite = await tx.guildInvite.findUnique({
         where: { activeKey: inviteActiveKey(membership.guildId, optIn.user.id) },
         include: incomingInviteInclude
@@ -1242,6 +1256,27 @@ async function currentLiveMembership(
   return await terminalizeGuildIfDue(tx, membership.guild, now) ? null : membership;
 }
 
+async function hasCurrentLiveMembership(tx: TxClient, userId: string, now: Date): Promise<boolean> {
+  const membership = await tx.guildMember.findUnique({
+    where: { activeUserKey: userId },
+    select: {
+      guild: {
+        select: {
+          id: true,
+          status: true,
+          version: true,
+          charterExpiresAt: true,
+          founderUserId: true
+        }
+      }
+    }
+  });
+  if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+    return false;
+  }
+  return !(await terminalizeGuildIfDue(tx, membership.guild, now));
+}
+
 async function findGuildViewById(
   client: TxClient | PrismaClient,
   guildId: string
@@ -1271,7 +1306,7 @@ function mapGuildView(row: GuildViewRow, viewerUserId: string, requestedPage: nu
     memberCount: row.members.length,
     members: rowPage.rows.flatMap((entry) => entry.kind === "member" ? [entry.member] : []),
     outgoingInvites: rowPage.rows.flatMap((entry) =>
-      entry.kind === "invite" ? [mapInviteForGuildView(row, entry.invite)] : []
+      entry.kind === "invite" ? [mapInviteForGuildView(row, entry.invite, viewer)] : []
     ),
     page: rowPage.page,
     hasPreviousPage: rowPage.page > 0,
@@ -1295,7 +1330,11 @@ function mapUniqueGuildMembers(rows: GuildViewRow["members"]): GuildViewRecord["
   return [...members.values()];
 }
 
-function mapInviteForGuildView(row: GuildViewRow, invite: GuildViewRow["invites"][number]): GuildInviteRecord {
+function mapInviteForGuildView(
+  row: GuildViewRow,
+  invite: GuildViewRow["invites"][number],
+  viewer: GuildViewRow["members"][number]
+): GuildInviteRecord {
   return mapInvite({
     ...invite,
     guild: {
@@ -1308,16 +1347,21 @@ function mapInviteForGuildView(row: GuildViewRow, invite: GuildViewRow["invites"
       founderUserId: row.founderUserId,
       activatedByInviteId: row.activatedByInviteId
     }
-  });
+  }, viewer.role === "leader" || (
+    viewer.role === "officer" &&
+    invite.inviterUserId === viewer.userId &&
+    invite.inviterMembershipId === viewer.id
+  ));
 }
 
-function mapInvite(row: IncomingInviteRow): GuildInviteRecord {
+function mapInvite(row: IncomingInviteRow, canCancel = false): GuildInviteRecord {
   return {
     token: row.token,
     guildId: row.guildId,
     guildName: row.guild.displayName,
     guildCrest: row.guild.crest,
     targetName: row.targetName,
+    canCancel,
     status: isInviteStatus(row.status) ? row.status : "expired",
     expiresAt: row.expiresAt
   };
@@ -1341,6 +1385,45 @@ async function maintainGuildState(tx: TxClient, now: Date): Promise<void> {
     },
     data: { reservationKey: null, updatedAt: now }
   });
+}
+
+async function releaseSpecificNameReservationIfDue(
+  tx: TxClient,
+  normalizedName: string,
+  now: Date
+): Promise<boolean> {
+  const owner = await tx.guild.findUnique({
+    where: { reservationKey: normalizedName },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      charterExpiresAt: true,
+      founderUserId: true,
+      nameReleaseAt: true
+    }
+  });
+  if (!owner) {
+    return true;
+  }
+  await terminalizeGuildIfDue(tx, owner, now);
+  const released = await tx.guild.updateMany({
+    where: {
+      id: owner.id,
+      reservationKey: normalizedName,
+      status: { in: ["expired", "disbanded"] },
+      nameReleaseAt: { lte: now }
+    },
+    data: { reservationKey: null, updatedAt: now }
+  });
+  if (released.count === 1) {
+    return true;
+  }
+  const current = await tx.guild.findUnique({
+    where: { id: owner.id },
+    select: { reservationKey: true }
+  });
+  return current?.reservationKey !== normalizedName;
 }
 
 async function terminalizeGuildIfDue(

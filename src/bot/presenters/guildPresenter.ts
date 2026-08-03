@@ -35,7 +35,7 @@ export function presentGuildHub(
         ), ""]
         : ["Запрошень поки немає. Навіть писар не вдає, що загубив їх.", ""]),
       ...(writesEnabled
-        ? ["Щоб хтось міг запросити вас без пошуку по гравцях: /guild_invite_code", "Заснування: <code>/guild_create 🛡️ Назва | короткий опис</code>"]
+        ? ["Створіть особистий код або почніть статут кнопками під карткою."]
         : [])
     ].join("\n");
   }
@@ -106,6 +106,15 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
     `Підтвердження коштує <b>${result.intent.goldCost} золота</b>. У вас: <b>${result.intent.availableGold}</b>.`,
     `Чернетка чинна ще <b>${formatRemaining(result.intent.expiresAt, now)}</b>.`,
     "Плата не повертається. Статут активується, коли перший окремий пригодник прийме запрошення."
+  ].join("\n");
+}
+
+export function presentGuildCreationStart(): string {
+  return [
+    "📜 <b>Новий статут</b>",
+    "",
+    "Оберіть герб унизу. Кнопка скопіює готову команду — замініть «Назва» й короткий опис, тоді надішліть її.",
+    "Підтвердження коштує <b>93 золота</b>; до підтвердження нічого не списується."
   ].join("\n");
 }
 

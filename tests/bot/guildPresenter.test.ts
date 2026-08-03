@@ -1,9 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { presentGuildHub } from "../../src/bot/presenters/guildPresenter";
-import { buildGuildHubKeyboard } from "../../src/bot/keyboards/guildKeyboard";
+import {
+  buildGuildCreationStartKeyboard,
+  buildGuildHubKeyboard,
+  buildGuildInviteCodeKeyboard
+} from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 
 describe("guild presenter privacy", () => {
+  it("offers button-first creation and private invite-code controls without exposing the token in text", () => {
+    const hub = {
+      state: "not-member" as const,
+      incomingInvites: [],
+      page: 0,
+      hasPreviousPage: false,
+      hasNextPage: false
+    };
+    const hubKeyboard = buildGuildHubKeyboard(hub, { writesEnabled: true }).inline_keyboard.flat();
+    const callbacks = hubKeyboard.flatMap((button) => {
+      if (!("callback_data" in button)) {
+        return [];
+      }
+      const parsed = parseGuildCallbackData(button.callback_data);
+      return parsed.ok ? [parsed.value.type] : [];
+    });
+    expect(callbacks).toEqual(["create-open", "invite-code", "open"]);
+
+    const creationButtons = buildGuildCreationStartKeyboard().inline_keyboard.flat();
+    const crestCopies = creationButtons.filter((button) => "copy_text" in button);
+    expect(crestCopies).toHaveLength(13);
+    expect(crestCopies.map((button) => "copy_text" in button ? button.copy_text.text : null)).toContain(
+      "/guild_create 🛡️ Назва | короткий опис"
+    );
+    expect(creationButtons.some((button) =>
+      "callback_data" in button && parseGuildCallbackData(button.callback_data).ok
+    )).toBe(true);
+
+    const token = "privateInviteCode93";
+    const inviteButtons = buildGuildInviteCodeKeyboard(token).inline_keyboard.flat();
+    expect(inviteButtons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ copy_text: { text: token } }),
+      expect.objectContaining({ callback_data: "v1:g:o" })
+    ]));
+  });
+
   it("shows safe identity, roles and canonical waits without tokens or presence data", () => {
     const now = new Date("2026-08-02T20:00:00.000Z");
     const text = presentGuildHub({
@@ -30,6 +70,7 @@ describe("guild presenter privacy", () => {
           guildName: "Тиха Печатка",
           guildCrest: "🛡️",
           targetName: "Запрошена",
+          canCancel: true,
           status: "pending",
           expiresAt: new Date(now.getTime() + 23 * 60_000)
         }],
@@ -76,6 +117,7 @@ describe("guild presenter privacy", () => {
           guildName: "Тиха Печатка",
           guildCrest: "🛡️",
           targetName: `Запрошена ${index} ${"я".repeat(23)}`,
+          canCancel: true,
           status: "pending" as const,
           expiresAt: new Date(now.getTime() + 93 * 60 * 60_000)
         })),
@@ -103,5 +145,67 @@ describe("guild presenter privacy", () => {
       return parsed.ok && parsed.value.type === "open" ? [parsed.value.page] : [];
     });
     expect(navigation).toEqual([0, 1, 2]);
+  });
+
+  it("shows every pending invitation but only actionable cancellation controls", () => {
+    const now = new Date("2026-08-02T20:00:00.000Z");
+    const result = {
+      state: "ready" as const,
+      guild: {
+        id: "guild-id",
+        displayName: "Тиха Печатка",
+        normalizedName: "тиха печатка",
+        crest: "🛡️",
+        description: "",
+        status: "active" as const,
+        charterExpiresAt: new Date(now.getTime() + 93 * 60_000),
+        version: 7,
+        viewerRole: "officer" as const,
+        memberCount: 3,
+        members: [],
+        outgoingInvites: [
+          {
+            token: "ownInviteToken93",
+            guildId: "guild-id",
+            guildName: "Тиха Печатка",
+            guildCrest: "🛡️",
+            targetName: "Власна адресатка",
+            canCancel: true,
+            status: "pending" as const,
+            expiresAt: new Date(now.getTime() + 93 * 60_000)
+          },
+          {
+            token: "otherInviteToken93",
+            guildId: "guild-id",
+            guildName: "Тиха Печатка",
+            guildCrest: "🛡️",
+            targetName: "Чужа адресатка",
+            canCancel: false,
+            status: "pending" as const,
+            expiresAt: new Date(now.getTime() + 93 * 60_000)
+          }
+        ],
+        page: 0,
+        hasPreviousPage: false,
+        hasNextPage: false,
+        leadershipNomineeName: null,
+        viewerIsLeadershipNominee: false
+      },
+      incomingInvites: []
+    };
+    const text = presentGuildHub(result, now, { writesEnabled: true });
+    const cancelTokens = buildGuildHubKeyboard(result, { writesEnabled: true }).inline_keyboard
+      .flat()
+      .flatMap((button) => {
+        if (!("callback_data" in button)) {
+          return [];
+        }
+        const parsed = parseGuildCallbackData(button.callback_data);
+        return parsed.ok && parsed.value.type === "invite-cancel" ? [parsed.value.token] : [];
+      });
+
+    expect(text).toContain("Власна адресатка");
+    expect(text).toContain("Чужа адресатка");
+    expect(cancelTokens).toEqual(["ownInviteToken93"]);
   });
 });

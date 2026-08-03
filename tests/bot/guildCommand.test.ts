@@ -68,6 +68,56 @@ describe("guild command routes", () => {
     expect(replies[0]).not.toContain("telegram");
   });
 
+  it("renders button-first guild entry, crest templates and a private code copy control", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerGuildCommands(bot, guildService({
+      getHubForTelegramUser: vi.fn().mockResolvedValue({
+        state: "not-member",
+        incomingInvites: [],
+        page: 0,
+        hasPreviousPage: false,
+        hasNextPage: false
+      }),
+      createInviteOptInForTelegramUser: vi.fn().mockResolvedValue({
+        state: "ready",
+        token: "privateInviteCode93",
+        expiresAt: new Date("2026-08-07T20:00:00.000Z")
+      }),
+      previewCreationForTelegramUser: vi.fn().mockResolvedValue({ state: "invalid", reason: "crest" })
+    }));
+
+    await bot.handleUpdate(commandUpdate("/guild", 11));
+    await bot.handleUpdate(commandUpdate("/guild_create", 12));
+    await bot.handleUpdate(commandUpdate("/guild_invite_code", 13));
+    await bot.handleUpdate(commandUpdate("/guild_create 🛡 Назва | короткий опис", 14));
+
+    expect(sent).toHaveLength(4);
+    const hubMarkup = sent[0]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
+    expect(hubMarkup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ callback_data: "v1:g:n" }),
+      expect.objectContaining({ callback_data: "v1:g:i" })
+    ]));
+    const creationMarkup = sent[1]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
+    expect(creationMarkup.inline_keyboard.flat().filter((button) => "copy_text" in button)).toHaveLength(13);
+    const codeMarkup = sent[2]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
+    expect(codeMarkup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ copy_text: { text: "privateInviteCode93" } }),
+      expect.objectContaining({ callback_data: "v1:g:o" })
+    ]));
+    expect(String(sent[2]?.text)).not.toContain("telegram");
+    const invalidCrestMarkup = sent[3]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
+    expect(invalidCrestMarkup.inline_keyboard.flat().filter((button) => "copy_text" in button)).toHaveLength(13);
+  });
+
   it("keeps a durable membership invite recoverable through /guild when Telegram blocks delivery", async () => {
     const bot = new Bot("test-token", {
       botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
