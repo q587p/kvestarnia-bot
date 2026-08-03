@@ -2,12 +2,14 @@ import { InlineKeyboard } from "grammy";
 import type { GuildHubRepositoryResult, GuildMemberRecord } from "../../db/repositories/guildRepository";
 import {
   makeGuildCreateOpenCallbackData,
+  makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
   makeGuildDeleteCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
   makeGuildInviteCodeCallbackData,
+  makeGuildInviteStartCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberSelectCallbackData,
@@ -42,7 +44,7 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
       keyboard.text("🔗 Мій код запрошення", makeGuildInviteCodeCallbackData()).row();
       keyboard.text("✉️ Запросити з ґільдії", makeGuildPartyOpenCallbackData()).row();
       if (result.guild.viewerRole === "leader" || result.guild.viewerRole === "officer") {
-        keyboard.copyText("✉️ Запросити за кодом", "/guild_invite ВСТАВТЕ_КОД").row();
+        keyboard.text("📨 Запросити за кодом", makeGuildInviteStartCallbackData()).row();
       }
       if (result.guild.viewerRole === "leader") {
         keyboard.copyText("✏️ Змінити профіль", "/guild_edit 🦉 | короткий опис").row();
@@ -103,7 +105,7 @@ export function buildGuildCreationPreviewKeyboard(token: string): InlineKeyboard
 export function buildGuildCreationStartKeyboard(): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   GUILD_CREST_CATALOG.forEach((crest, index) => {
-    keyboard.copyText(crest, `/guild_create ${crest} Назва | короткий опис`);
+    keyboard.text(crest, makeGuildCreateCrestCallbackData(index));
     if ((index + 1) % 5 === 0) {
       keyboard.row();
     }
@@ -115,6 +117,7 @@ export function buildGuildInviteCodeKeyboard(token?: string): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (token) {
     keyboard.copyText("📋 Скопіювати код", token).row();
+    keyboard.copyText("📨 Команда для запрошувача", `/guild_invite ${token}`).row();
   }
   return keyboard.text("🏰 Назад", makeGuildOpenCallbackData());
 }

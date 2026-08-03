@@ -27,11 +27,14 @@ describe("guild presenter privacy", () => {
     expect(callbacks).toEqual(["create-open", "invite-code", "open"]);
 
     const creationButtons = buildGuildCreationStartKeyboard().inline_keyboard.flat();
-    const crestCopies = creationButtons.filter((button) => "copy_text" in button);
-    expect(crestCopies).toHaveLength(13);
-    expect(crestCopies.map((button) => "copy_text" in button ? button.copy_text.text : null)).toContain(
-      "/guild_create 🛡️ Назва | короткий опис"
-    );
+    const crestChoices = creationButtons.flatMap((button) => {
+      if (!("callback_data" in button)) {
+        return [];
+      }
+      const parsed = parseGuildCallbackData(button.callback_data);
+      return parsed.ok && parsed.value.type === "create-crest" ? [parsed.value.crestIndex] : [];
+    });
+    expect(crestChoices).toEqual(Array.from({ length: 13 }, (_, index) => index));
     expect(creationButtons.some((button) =>
       "callback_data" in button && parseGuildCallbackData(button.callback_data).ok
     )).toBe(true);
@@ -40,6 +43,7 @@ describe("guild presenter privacy", () => {
     const inviteButtons = buildGuildInviteCodeKeyboard(token).inline_keyboard.flat();
     expect(inviteButtons).toEqual(expect.arrayContaining([
       expect.objectContaining({ copy_text: { text: token } }),
+      expect.objectContaining({ copy_text: { text: `/guild_invite ${token}` } }),
       expect.objectContaining({ callback_data: "v1:g:o" })
     ]));
   });

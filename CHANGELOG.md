@@ -13,7 +13,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
 - Added one replaceable 13-minute preview, an exact-once non-refundable 93-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
 - Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
-- Added button-first `/guild` entry for charter creation and private invite codes, with canonical crest command templates, explicit copy controls and command fallbacks.
+- Added guided `/guild` creation and invitation UI: requirements first, then crest selection, private name/description or target-code reply prompts, preview/confirm, explicit code copy and target-side accept/decline buttons. Commands remain fallback routes.
+- Added a `📖 Перекази` customs entry explaining the shipped guild charter, roles, first-member activation, remort continuity and the separate ordinary-vatanga/economy boundary; the existing rewardless create/join achievements remain authoritative.
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
 
 ### Changed

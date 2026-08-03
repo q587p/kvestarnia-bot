@@ -22,10 +22,12 @@ import {
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import {
   presentGuildCreationStart,
+  presentGuildCreationDetailsPrompt,
   presentGuildCreationPreview,
   presentGuildCreationResult,
   presentGuildHub,
   presentGuildInviteCreate,
+  presentGuildInvitePrompt,
   presentGuildInviteOptIn,
   presentGuildInviteResponse,
   presentGuildMemberConfirmation,
@@ -47,6 +49,7 @@ import type { PartyBossService } from "../../services/partyBossService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { GroupCombatService } from "../../services/groupCombatService";
 import { sendCanonicalPartyPreparationCard } from "./partySessionCommand";
+import { GUILD_CREST_CATALOG } from "../../domain/guild";
 
 interface GuildCommandOptions {
   botUsername?: string | undefined;
@@ -57,6 +60,9 @@ interface GuildCommandOptions {
 }
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
+const FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Назва | короткий опис" };
+const INVITE_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Особистий код адресата" };
+const INVITE_PROMPT_HEADING = "📨 Запрошення до ґільдії · крок 1 із 2";
 
 export function registerGuildCommands(
   bot: Bot,
@@ -100,30 +106,14 @@ export function registerGuildCommands(
   bot.command("guild_invite", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
     const targetToken = commandArgs(ctx);
-    if (!actor || !targetToken) {
-      await ctx.reply("Формат: <code>/guild_invite КОД</code>. Код створює сам адресат через /guild_invite_code.", HTML_OPTIONS);
+    if (!actor) {
       return;
     }
-    const result = await service.createInviteForTelegramUser(actor, targetToken);
-    let deliveryConfirmed: boolean | null = null;
-    if (result.state === "created") {
-      try {
-        await ctx.api.sendMessage(
-          Number(result.deliveryTelegramUserId),
-          presentGuildPrivateInvite(result.invite.guildName, result.invite.guildCrest, result.invite.expiresAt, new Date()),
-          {
-            ...HTML_OPTIONS,
-            reply_markup: new InlineKeyboard()
-              .text("✅ Долучитися", makeGuildInviteAcceptCallbackData(result.invite.token))
-              .text("✖️ Відхилити", makeGuildInviteDeclineCallbackData(result.invite.token))
-          }
-        );
-        deliveryConfirmed = true;
-      } catch {
-        deliveryConfirmed = false;
-      }
+    if (!targetToken) {
+      await ctx.reply(presentGuildInvitePrompt(), { ...HTML_OPTIONS, reply_markup: INVITE_FORCE_REPLY });
+      return;
     }
-    await ctx.reply(presentGuildInviteCreate(result, new Date(), deliveryConfirmed), HTML_OPTIONS);
+    await sendGuildInvite(ctx, service, actor, targetToken);
   });
   bot.command("guild_party", (ctx) => sendGuildPartyPicker(ctx, service, "reply", 0));
   bot.command("guild_edit", async (ctx) => {
@@ -150,6 +140,7 @@ export function registerGuildCommands(
   registerMemberActionCommand(bot, service, "guild_promote", "promote");
   registerMemberActionCommand(bot, service, "guild_demote", "demote");
   registerMemberActionCommand(bot, service, "guild_kick", "kick");
+  registerGuildPromptReplies(bot, service);
 
   if (service.areDevHelpersEnabled()) {
     bot.command("dev_guild_gold", async (ctx) => {
@@ -190,6 +181,23 @@ export async function handleGuildCallback(
     });
     return;
   }
+  if (callback.type === "create-crest") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Нові статути зараз зачинені.", show_alert: true });
+      return;
+    }
+    const crest = GUILD_CREST_CATALOG[callback.crestIndex];
+    if (!crest) {
+      await safeAnswerCallbackQuery(ctx, { text: "Цей герб уже зняли з дошки.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: `Герб ${crest} обрано.` });
+    await ctx.reply(presentGuildCreationDetailsPrompt(crest), {
+      ...HTML_OPTIONS,
+      reply_markup: FORCE_REPLY
+    });
+    return;
+  }
   if (callback.type === "invite-code") {
     const result = await service.createInviteOptInForTelegramUser(actor);
     await safeAnswerCallbackQuery(ctx, { text: result.state === "ready" ? "Код оновлено." : "Стан перевірено." });
@@ -197,6 +205,15 @@ export async function handleGuildCallback(
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined)
     });
+    return;
+  }
+  if (callback.type === "invite-start") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Нові запрошення зараз зачинені.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await ctx.reply(presentGuildInvitePrompt(), { ...HTML_OPTIONS, reply_markup: INVITE_FORCE_REPLY });
     return;
   }
   if (callback.type === "create-confirm") {
@@ -488,6 +505,83 @@ function registerMemberActionCommand(
       reply_markup: buildGuildMemberMutationKeyboard(action, target.memberId, target.expectedVersion)
     });
   });
+}
+
+function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
+  bot.on("message:text", async (ctx, next) => {
+    const replyTo = ctx.message.reply_to_message;
+    const replyText = replyTo && "text" in replyTo ? replyTo.text : undefined;
+    if (ctx.chat.type !== "private" || !replyTo?.from?.is_bot || !replyText) {
+      await next();
+      return;
+    }
+    const actor = telegramUserIdFromContext(ctx.from);
+    if (!actor) {
+      await next();
+      return;
+    }
+    const crest = guildCreationPromptCrest(replyText);
+    if (crest) {
+      const parsed = parseCreationArgs(`${crest} ${ctx.message.text}`);
+      if (!parsed) {
+        await ctx.reply(presentGuildCreationDetailsPrompt(crest), {
+          ...HTML_OPTIONS,
+          reply_markup: FORCE_REPLY
+        });
+        return;
+      }
+      const result = await service.previewCreationForTelegramUser(actor, parsed);
+      await ctx.reply(presentGuildCreationPreview(result, new Date()), {
+        ...HTML_OPTIONS,
+        reply_markup: result.state === "ready"
+          ? buildGuildCreationPreviewKeyboard(result.intent.token)
+          : result.state === "invalid"
+            ? buildGuildCreationStartKeyboard()
+            : buildGuildInviteCodeKeyboard()
+      });
+      return;
+    }
+    if (replyText.split("\n", 1)[0] === INVITE_PROMPT_HEADING) {
+      await sendGuildInvite(ctx, service, actor, ctx.message.text.trim());
+      return;
+    }
+    await next();
+  });
+}
+
+async function sendGuildInvite(
+  ctx: Context,
+  service: GuildService,
+  actor: bigint,
+  targetToken: string
+): Promise<void> {
+  const result = await service.createInviteForTelegramUser(actor, targetToken);
+  let deliveryConfirmed: boolean | null = null;
+  if (result.state === "created") {
+    try {
+      await ctx.api.sendMessage(
+        Number(result.deliveryTelegramUserId),
+        presentGuildPrivateInvite(result.invite.guildName, result.invite.guildCrest, result.invite.expiresAt, new Date()),
+        {
+          ...HTML_OPTIONS,
+          reply_markup: new InlineKeyboard()
+            .text("✅ Долучитися", makeGuildInviteAcceptCallbackData(result.invite.token))
+            .text("✖️ Відхилити", makeGuildInviteDeclineCallbackData(result.invite.token))
+        }
+      );
+      deliveryConfirmed = true;
+    } catch {
+      deliveryConfirmed = false;
+    }
+  }
+  await ctx.reply(presentGuildInviteCreate(result, new Date(), deliveryConfirmed), HTML_OPTIONS);
+}
+
+function guildCreationPromptCrest(text: string): string | null {
+  const firstLine = text.split("\n", 1)[0] ?? "";
+  return GUILD_CREST_CATALOG.find((crest) =>
+    firstLine === `📜 Заснування ґільдії · крок 2 із 3 · ${crest}`
+  ) ?? null;
 }
 
 async function sendAchievementNotice(ctx: Context, unlocks: Parameters<typeof presentAchievementUnlockNotification>[0]): Promise<void> {

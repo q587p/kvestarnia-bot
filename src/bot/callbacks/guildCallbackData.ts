@@ -3,7 +3,8 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GuildCallback =
   | { type: "open"; page: number }
-  | { type: "create-open" | "invite-code" }
+  | { type: "create-open" | "invite-code" | "invite-start" }
+  | { type: "create-crest"; crestIndex: number }
   | { type: "create-confirm"; token: string }
   | { type: "invite-accept" | "invite-decline" | "invite-cancel"; token: string }
   | { type: "party-open"; page: number }
@@ -22,7 +23,9 @@ const VERSION_PATTERN = /^[0-9a-z]{1,6}$/;
 
 export const makeGuildOpenCallbackData = (page = 0): string => page === 0 ? `${PREFIX}:o` : `${PREFIX}:o:${page.toString(36)}`;
 export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
+export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => `${PREFIX}:r:${crestIndex.toString(36)}`;
 export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
+export const makeGuildInviteStartCallbackData = (): string => `${PREFIX}:is`;
 export const makeGuildCreateConfirmCallbackData = (token: string): string => `${PREFIX}:c:${token}`;
 export const makeGuildInviteAcceptCallbackData = (token: string): string => `${PREFIX}:a:${token}`;
 export const makeGuildInviteDeclineCallbackData = (token: string): string => `${PREFIX}:d:${token}`;
@@ -59,8 +62,12 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
     const page = first === undefined ? 0 : VERSION_PATTERN.test(first) ? Number.parseInt(first, 36) : null;
     return page === null ? err("invalid-version") : ok({ type: "open", page });
   }
-  if ((action === "n" || action === "i") && first === undefined && second === undefined) {
-    return ok({ type: action === "n" ? "create-open" : "invite-code" });
+  if ((action === "n" || action === "i" || action === "is") && first === undefined && second === undefined) {
+    return ok({ type: action === "n" ? "create-open" : action === "i" ? "invite-code" : "invite-start" });
+  }
+  if (action === "r" && first && second === undefined && VERSION_PATTERN.test(first)) {
+    const crestIndex = Number.parseInt(first, 36);
+    return crestIndex < 13 ? ok({ type: "create-crest", crestIndex }) : err("invalid-action");
   }
   if (action === "po" && first && second === undefined && VERSION_PATTERN.test(first)) {
     return ok({ type: "party-open", page: Number.parseInt(first, 36) });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   makeGuildCreateOpenCallbackData,
+  makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
   makeGuildInviteCodeCallbackData,
+  makeGuildInviteStartCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberSelectCallbackData,
   makeGuildOpenCallbackData,
@@ -55,7 +57,9 @@ describe("guild callback data", () => {
     const values = [
       makeGuildOpenCallbackData(23),
       makeGuildCreateOpenCallbackData(),
+      makeGuildCreateCrestCallbackData(12),
       makeGuildInviteCodeCallbackData(),
+      makeGuildInviteStartCallbackData(),
       makeGuildPartyOpenCallbackData(42),
       makeGuildPartyInviteCallbackData("12345678-1234-4234-9234-123456789012", 587),
       makeGuildTransferAcceptCallbackData(587)
@@ -63,18 +67,21 @@ describe("guild callback data", () => {
     expect(values.every((value) => Buffer.byteLength(value, "utf8") <= 64)).toBe(true);
     expect(parseGuildCallbackData(values[0])).toEqual({ ok: true, value: { type: "open", page: 23 } });
     expect(parseGuildCallbackData(values[1])).toEqual({ ok: true, value: { type: "create-open" } });
-    expect(parseGuildCallbackData(values[2])).toEqual({ ok: true, value: { type: "invite-code" } });
-    expect(parseGuildCallbackData(values[3])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
-    expect(parseGuildCallbackData(values[4])).toEqual({
+    expect(parseGuildCallbackData(values[2])).toEqual({ ok: true, value: { type: "create-crest", crestIndex: 12 } });
+    expect(parseGuildCallbackData(values[3])).toEqual({ ok: true, value: { type: "invite-code" } });
+    expect(parseGuildCallbackData(values[4])).toEqual({ ok: true, value: { type: "invite-start" } });
+    expect(parseGuildCallbackData(values[5])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
+    expect(parseGuildCallbackData(values[6])).toEqual({
       ok: true,
       value: { type: "party-invite", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
-    expect(parseGuildCallbackData(values[5])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
+    expect(parseGuildCallbackData(values[7])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
   });
 
   it("rejects oversized, malformed and token-bearing lookalike callbacks", () => {
     expect(parseGuildCallbackData(`v1:g:c:${"a".repeat(58)}`)).toEqual({ ok: false, error: "too-long" });
     expect(parseGuildCallbackData("v1:g:c:short")).toEqual({ ok: false, error: "invalid-token" });
     expect(parseGuildCallbackData("v1:g:t:not-a-member:zz:extra")).toEqual({ ok: false, error: "invalid-prefix" });
+    expect(parseGuildCallbackData("v1:g:r:d")).toEqual({ ok: false, error: "invalid-action" });
   });
 });

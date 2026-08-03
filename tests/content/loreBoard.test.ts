@@ -249,6 +249,16 @@ describe("lore board content", () => {
     expect(yard?.body).toContain("Іскрокаменем");
   });
 
+  it("explains the shipped guild shell without promising shared party or economy ownership", () => {
+    const guild = loreEntries.find((entry) => entry.id === "custom-guild-charter");
+
+    expect(guild).toMatchObject({ categoryId: "customs", title: "Ґільдійний статут" });
+    expect(guild?.body).toContain("93 золота");
+    expect(guild?.body).toContain("прийняття запрошення");
+    expect(guild?.body).toContain("між ремортами");
+    expect(guild?.body).toContain("не спільний гаманець чи власна ватага");
+  });
+
   it("detects broken lore records", () => {
     expect(validateLoreBoardContent({
       categories: loreCategories,
