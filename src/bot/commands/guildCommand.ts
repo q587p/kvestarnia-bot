@@ -14,6 +14,7 @@ import {
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
   buildGuildMemberMutationKeyboard,
+  buildGuildMemberTargetKeyboard,
   buildGuildPartyPickerKeyboard
 } from "../keyboards/guildKeyboard";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
@@ -197,6 +198,10 @@ export async function handleGuildCallback(
     return;
   }
   if (callback.type === "party-invite") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Ґільдійні запрошення до ватаги зараз вимкнені.", show_alert: true });
+      return;
+    }
     await handleGuildPartyInvite(ctx, actor, callback.memberId, callback.version, service, options);
     return;
   }
@@ -206,6 +211,23 @@ export async function handleGuildCallback(
     await safeEditMessageText(ctx, presentGuildMemberMutation(result), {
       ...HTML_OPTIONS,
       reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+    });
+    return;
+  }
+  if (callback.type === "member-select") {
+    const target = await service.findMemberByIdForAction(actor, callback.memberId, callback.version);
+    if (target.state !== "ready") {
+      await safeAnswerCallbackQuery(ctx, { text: "Склад або статут уже змінилися.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildMemberConfirmation(callback.action, target.memberName), {
+      ...HTML_OPTIONS,
+      reply_markup: buildGuildMemberMutationKeyboard(
+        callback.action,
+        target.memberId,
+        target.expectedVersion
+      )
     });
     return;
   }
@@ -420,9 +442,13 @@ function registerMemberActionCommand(
     }
     const target = await service.findMemberForAction(actor, name);
     if (target.state !== "ready") {
-      await ctx.reply(target.state === "ambiguous"
-        ? "У складі є кілька однакових імен. Виберіть учасника з картки складу."
-        : "Учасника з таким точним імʼям у вашій ґільдії не знайдено.");
+      if (target.state === "ambiguous") {
+        await ctx.reply("У складі є кілька однакових імен. Виберіть конкретний запис:", {
+          reply_markup: buildGuildMemberTargetKeyboard(action, target.candidates, target.expectedVersion)
+        });
+      } else {
+        await ctx.reply("Учасника з таким точним імʼям у вашій ґільдії не знайдено.");
+      }
       return;
     }
     await ctx.reply(presentGuildMemberConfirmation(action, target.memberName), {

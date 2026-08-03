@@ -7,7 +7,9 @@ import type {
   GuildInviteCreateRepositoryResult,
   GuildInviteOptInRepositoryResult,
   GuildInviteRespondRepositoryResult,
+  GuildMemberRecord,
   GuildMemberMutationRepositoryResult,
+  GuildMemberTargetsRepositoryResult,
   GuildPartyPickerRepositoryResult,
   GuildPartyRecipientRepositoryResult,
   GuildRepository
@@ -44,7 +46,12 @@ export type GuildInviteRespondResult =
   GuildInviteRespondRepositoryResult & { achievementUnlocks?: AchievementUnlock[] };
 
 export type GuildMemberTargetResult =
-  | { state: "disabled" | "no-character" | "not-member" | "not-found" | "ambiguous" }
+  | { state: "disabled" | "no-character" | "not-member" | "not-found" | "stale" }
+  | {
+      state: "ambiguous";
+      candidates: GuildMemberRecord[];
+      expectedVersion: number;
+    }
   | {
       state: "ready";
       memberId: string;
@@ -61,6 +68,10 @@ export type GuildProfileUpdateResult =
 export type GuildPartyPickerResult =
   | { state: "disabled" | "no-party" }
   | GuildPartyPickerRepositoryResult;
+
+export type GuildPartyRecipientResult =
+  | { state: "disabled" }
+  | GuildPartyRecipientRepositoryResult;
 
 export class GuildService {
   constructor(
@@ -198,25 +209,18 @@ export class GuildService {
     if (!this.isEnabled()) {
       return { state: "disabled" };
     }
-    const first = await this.guilds.getHubForTelegramUser(telegramUserId, this.clock(), 0);
-    if (first.state !== "ready") {
-      return { state: first.state };
-    }
-    const pages = [first.guild];
-    if (first.guild.hasNextPage) {
-      const second = await this.guilds.getHubForTelegramUser(telegramUserId, this.clock(), 1);
-      if (second.state === "ready") {
-        pages.push(second.guild);
-      }
+    const targets = await this.guilds.getMemberTargetsForTelegramUser(telegramUserId, this.clock());
+    if (targets.state !== "ready") {
+      return { state: targets.state };
     }
     const normalized = normalizeGuildMemberLookup(memberName);
-    const members = pages.flatMap((page) => page.members);
+    const members = uniqueMemberTargets(targets);
     const matches = members.filter((member) => normalizeGuildMemberLookup(member.name) === normalized);
     if (matches.length === 0) {
       return { state: "not-found" };
     }
     if (matches.length > 1) {
-      return { state: "ambiguous" };
+      return { state: "ambiguous", candidates: matches, expectedVersion: targets.version };
     }
     const member = matches[0]!;
     return {
@@ -224,8 +228,35 @@ export class GuildService {
       memberId: member.id,
       memberName: member.name,
       memberRole: member.role,
-      expectedVersion: first.guild.version
+      expectedVersion: targets.version
     };
+  }
+
+  async findMemberByIdForAction(
+    telegramUserId: bigint,
+    memberId: string,
+    expectedVersion: number
+  ): Promise<GuildMemberTargetResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+    const targets = await this.guilds.getMemberTargetsForTelegramUser(telegramUserId, this.clock());
+    if (targets.state !== "ready") {
+      return { state: targets.state };
+    }
+    if (targets.version !== expectedVersion) {
+      return { state: "stale" };
+    }
+    const member = uniqueMemberTargets(targets).find((candidate) => candidate.id === memberId);
+    return member
+      ? {
+          state: "ready",
+          memberId: member.id,
+          memberName: member.name,
+          memberRole: member.role,
+          expectedVersion: targets.version
+        }
+      : { state: "not-found" };
   }
 
   setMemberRoleForTelegramUser(
@@ -288,8 +319,10 @@ export class GuildService {
   resolvePartyRecipientForTelegramUser(
     telegramUserId: bigint,
     input: { partySessionId: string; memberId: string; guildVersion: number }
-  ): Promise<GuildPartyRecipientRepositoryResult> {
-    return this.guilds.resolvePartyRecipientForTelegramUser(telegramUserId, { ...input, now: this.clock() });
+  ): Promise<GuildPartyRecipientResult> {
+    return this.isEnabled()
+      ? this.guilds.resolvePartyRecipientForTelegramUser(telegramUserId, { ...input, now: this.clock() })
+      : Promise.resolve({ state: "disabled" });
   }
 
   recordPartyInvite(
@@ -298,7 +331,9 @@ export class GuildService {
     partySessionId: string,
     targetUserId: string
   ): Promise<void> {
-    return this.guilds.recordPartyInvite(guildId, actorTelegramUserId, partySessionId, targetUserId, this.clock());
+    return this.isEnabled()
+      ? this.guilds.recordPartyInvite(guildId, actorTelegramUserId, partySessionId, targetUserId, this.clock())
+      : Promise.resolve();
   }
 
   getFunnelCounters(): Promise<GuildFunnelCounters> {
@@ -311,6 +346,10 @@ export class GuildService {
     }
     return this.guilds.ensureCreationGoldForTelegramUser(telegramUserId, GUILD_CREATION_GOLD);
   }
+}
+
+function uniqueMemberTargets(result: Extract<GuildMemberTargetsRepositoryResult, { state: "ready" }>): GuildMemberRecord[] {
+  return [...new Map(result.members.map((member) => [member.id, member])).values()];
 }
 
 function createToken(): string {

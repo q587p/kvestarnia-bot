@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { presentGuildHub } from "../../src/bot/presenters/guildPresenter";
 import { buildGuildHubKeyboard } from "../../src/bot/keyboards/guildKeyboard";
+import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 
 describe("guild presenter privacy", () => {
   it("shows safe identity, roles and canonical waits without tokens or presence data", () => {
@@ -64,12 +65,12 @@ describe("guild presenter privacy", () => {
         version: 587,
         viewerRole: "leader" as const,
         memberCount: 8,
-        members: Array.from({ length: 5 }, (_, index) => ({
+        members: Array.from({ length: 3 }, (_, index) => ({
           id: `member-${String(index).padStart(8, "0")}`,
           name: `Пригодник ${index} ${"я".repeat(23)}`,
           role: index === 0 ? "leader" as const : "member" as const
         })),
-        outgoingInvites: Array.from({ length: 5 }, (_, index) => ({
+        outgoingInvites: Array.from({ length: 2 }, (_, index) => ({
           token: `inviteToken${String(index).padStart(8, "0")}`,
           guildId: "guild-id",
           guildName: "Тиха Печатка",
@@ -78,8 +79,8 @@ describe("guild presenter privacy", () => {
           status: "pending" as const,
           expiresAt: new Date(now.getTime() + 93 * 60 * 60_000)
         })),
-        page: 0,
-        hasPreviousPage: false,
+        page: 1,
+        hasPreviousPage: true,
         hasNextPage: true,
         leadershipNomineeName: null,
         viewerIsLeadershipNominee: false
@@ -89,11 +90,18 @@ describe("guild presenter privacy", () => {
     const text = presentGuildHub(result, now, { writesEnabled: true });
     const keyboard = buildGuildHubKeyboard(result, { writesEnabled: true }).inline_keyboard;
 
-    expect(result.guild.members).toHaveLength(5);
-    expect(result.guild.outgoingInvites).toHaveLength(5);
+    expect(result.guild.members.length + result.guild.outgoingInvites.length).toBe(5);
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4096);
     expect(keyboard.flat().every((button) =>
       !("callback_data" in button) || Buffer.byteLength(button.callback_data, "utf8") <= 64
     )).toBe(true);
+    const navigation = keyboard.flat().flatMap((button) => {
+      if (!("callback_data" in button)) {
+        return [];
+      }
+      const parsed = parseGuildCallbackData(button.callback_data);
+      return parsed.ok && parsed.value.type === "open" ? [parsed.value.page] : [];
+    });
+    expect(navigation).toEqual([0, 1, 2]);
   });
 });

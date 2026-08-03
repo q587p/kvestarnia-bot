@@ -13,6 +13,11 @@ import type {
   PartySessionRecord,
   PartySessionRepository
 } from "../db/repositories/partySessionRepository";
+import {
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+} from "../db/repositories/partySessionRepository";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService } from "./achievementService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
@@ -20,9 +25,11 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 export const PARTY_SESSION_PARTICIPANT_CAP = 8;
 export const PARTY_SESSION_MINIMUM_PARTICIPANTS = 1;
 export const PARTY_SESSION_TTL_MS = 13 * 60 * 1000;
-export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
-export const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
-export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+export {
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+} from "../db/repositories/partySessionRepository";
 export const GROUP_COMBAT_PARTY_PARTICIPANT_CAP = 3;
 export const GROUP_COMBAT_PARTY_MINIMUM_PARTICIPANTS = 2;
 export const GROUP_COMBAT_PARTY_TTL_MS = 3 * 60 * 1000;

@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-02)
+## Current repository baseline (repository evidence, 12026-08-03)
 
 The current branch prepares package `0.4.4`. Merge, deployment and target
 availability remain separate evidence.
@@ -29,7 +29,7 @@ availability remain separate evidence.
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.2 left-passage party attack | yes; merged PR `#187` | target deployment unknown; repository includes additive migration `20260724233000_left_passage_party_attack` | no target evidence; repository default off | yes; merge checks passed | manual three-account Telegram QA not recorded on merged head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
 | 0.4.3 consumable manatka uses | yes; merged PR `#188` | no migration required | no catalog-specific rollout flag; existing combat-surface entry flags retain their scope | yes; merge checks passed | final manual Telegram matrix not recorded | deploy rollback; release operator unassigned | deferred |
-| 0.4.4 guild foundation | no; implementation branch | target deployment unknown; repository includes additive `20260802230000_guild_foundation` and a tested narrow rollback | no target evidence; repository default off | yes; exact-tree static + 4,435 unit + 724 integration tests, including 117 focused unit and 84 focused guild/party/remort integration tests | three-account create/invite/roles/remort/restart/party/privacy matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
+| 0.4.4 guild foundation | no; implementation branch | target deployment unknown; repository includes additive `20260802230000_guild_foundation` and a tested narrow rollback | no target evidence; repository default off | yes; exact-tree static + 4,437 unit + 726 integration tests, including 17 focused follow-up unit and 137 focused follow-up guild/party/restart compatibility integration tests | three-account create/invite/roles/remort/restart/party/privacy matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

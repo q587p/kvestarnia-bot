@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaGuildRepository } from "../../src/db/repositories/prismaGuildRepository";
 import { GUILD_CREATION_GOLD } from "../../src/domain/guild";
+import { GuildService } from "../../src/services/guildService";
+import type { PartySessionService } from "../../src/services/partySessionService";
 
 const MIGRATION = "20260802230000_guild_foundation";
 const NOW = new Date("2026-08-02T20:00:00.000Z");
@@ -465,6 +467,98 @@ describe("PrismaGuildRepository integration", () => {
     expect(guild.guild.id).toBeTruthy();
   });
 
+  it("paginates one stable hub row stream and resolves duplicate names by membership id", async () => {
+    await seedCharacter(prisma, "page-leader", 56_101n, "Голова Сторінки", 1_000, { level: 5 });
+    await seedCharacter(prisma, "page-activator", 56_102n, "Перший Учасник", 0);
+    const guild = await activateGuild(repository, 56_101n, 56_102n, "page-guild", "Печатка Сторінок");
+    for (let index = 0; index < 2; index += 1) {
+      await seedCharacter(prisma, `page-twin-${index}`, 56_103n + BigInt(index), "Двійник", 0);
+      await prisma.guildMember.create({
+        data: {
+          id: `page-twin-membership-${index}`,
+          guildId: guild.guild.id,
+          userId: `page-twin-${index}`,
+          activeUserKey: `page-twin-${index}`,
+          role: "member",
+          joinedAt: new Date(NOW.getTime() + index + 1),
+          createdAt: NOW,
+          updatedAt: NOW
+        }
+      });
+    }
+    const leaderMembership = await prisma.guildMember.findFirstOrThrow({
+      where: { guildId: guild.guild.id, userId: "page-leader", activeUserKey: { not: null } }
+    });
+    for (let index = 0; index < 6; index += 1) {
+      const targetUserId = `page-invite-target-${index}`;
+      await seedCharacter(prisma, targetUserId, 56_110n + BigInt(index), `Адресат ${index}`, 0);
+      await prisma.guildInvite.create({
+        data: {
+          id: `page-invite-${index}`,
+          token: `pageInvite${String(index).padStart(4, "0")}`,
+          guildId: guild.guild.id,
+          inviterUserId: "page-leader",
+          inviterMembershipId: leaderMembership.id,
+          targetUserId,
+          targetName: `Адресат ${index}`,
+          status: "pending",
+          activeKey: `guild-invite:${guild.guild.id}:${targetUserId}`,
+          expiresAt: new Date(NOW.getTime() + 93 * HOUR),
+          createdAt: new Date(NOW.getTime() + index),
+          updatedAt: NOW
+        }
+      });
+    }
+
+    const first = await readyHub(repository, 56_101n, NOW);
+    const secondResult = await repository.getHubForTelegramUser(56_101n, NOW, 1);
+    const overflowResult = await repository.getHubForTelegramUser(56_101n, NOW, 99);
+    if (secondResult.state !== "ready" || overflowResult.state !== "ready") {
+      throw new Error("Expected stable ready hub pages.");
+    }
+    const second = secondResult.guild;
+    const overflow = overflowResult.guild;
+    expect(first.guild).toMatchObject({ page: 0, hasPreviousPage: false, hasNextPage: true });
+    expect(second).toMatchObject({ page: 1, hasPreviousPage: true, hasNextPage: false });
+    expect(overflow.page).toBe(1);
+    expect(first.guild.members).toHaveLength(4);
+    expect(first.guild.outgoingInvites).toHaveLength(1);
+    expect(second.members).toHaveLength(0);
+    expect(second.outgoingInvites).toHaveLength(5);
+    expect(new Set([...first.guild.members, ...second.members].map((member) => member.id)).size).toBe(4);
+    expect(new Set([...first.guild.outgoingInvites, ...second.outgoingInvites].map((invite) => invite.token)).size)
+      .toBe(6);
+    expect(overflow.members).toEqual(second.members);
+    expect(overflow.outgoingInvites).toEqual(second.outgoingInvites);
+
+    const service = new GuildService(
+      repository,
+      {} as PartySessionService,
+      { enabled: true },
+      () => NOW
+    );
+    const duplicate = await service.findMemberForAction(56_101n, "Двійник");
+    expect(duplicate).toMatchObject({ state: "ambiguous", candidates: { length: 2 } });
+    if (duplicate.state !== "ambiguous") {
+      throw new Error("Expected duplicate-name member selectors.");
+    }
+    expect(new Set(duplicate.candidates.map((member) => member.id)).size).toBe(2);
+    for (const candidate of duplicate.candidates) {
+      await expect(service.findMemberByIdForAction(56_101n, candidate.id, duplicate.expectedVersion))
+        .resolves.toMatchObject({ state: "ready", memberId: candidate.id, memberName: "Двійник" });
+    }
+    const exact = await service.findMemberForAction(56_101n, "Перший Учасник");
+    if (exact.state !== "ready") {
+      throw new Error("Expected exact-name role target beyond invitation pagination.");
+    }
+    await expect(service.setMemberRoleForTelegramUser(
+      56_101n,
+      exact.memberId,
+      "officer",
+      exact.expectedVersion
+    )).resolves.toMatchObject({ state: "updated" });
+  });
+
   it("pages a real gameplay party picker, revalidates audience races, and never mutates party/combat rows", async () => {
     await seedCharacter(prisma, "party-leader", 57_001n, "Голова Ватаги", 1_000, { level: 5 });
     await seedCharacter(prisma, "party-activator", 57_002n, "Перший Учасник", 0);
@@ -553,6 +647,35 @@ describe("PrismaGuildRepository integration", () => {
       .resolves.toMatchObject({ state: "left" });
     expect(await prisma.partySession.count()).toBe(before.parties);
     expect(await prisma.groupCombatSession.count()).toBe(before.combats);
+  });
+
+  it("allows restart past an expired generic party while protecting ordinary and automatic-start recruiting contracts", async () => {
+    const characters = new PrismaCharacterRepository(prisma);
+    await seedCharacter(prisma, "restart-ordinary", 57_101n, "Звичайний Збір", 0);
+    await seedParty(prisma, "restart-ordinary-party", "restart-ordinary-character", {
+      participantCharacterIds: ["restart-ordinary-character"],
+      expiresAt: new Date(Date.now() + HOUR)
+    });
+    await expect(characters.restartByTelegramUserId(57_101n)).resolves.toBe("active-party");
+    await expect(prisma.partySession.count({ where: { id: "restart-ordinary-party" } })).resolves.toBe(1);
+
+    await seedCharacter(prisma, "restart-big-barrel", 57_102n, "Бочковий Збір", 0);
+    await seedParty(prisma, "restart-big-barrel-party", "restart-big-barrel-character", {
+      originLocationId: "barrel.big-brother",
+      participantCharacterIds: ["restart-big-barrel-character"],
+      expiresAt: new Date(Date.now() - HOUR)
+    });
+    await expect(characters.restartByTelegramUserId(57_102n)).resolves.toBe("active-party");
+    await expect(prisma.partySession.count({ where: { id: "restart-big-barrel-party" } })).resolves.toBe(1);
+
+    await seedCharacter(prisma, "restart-expired-generic", 57_103n, "Забутий Збір", 0);
+    await seedParty(prisma, "restart-expired-generic-party", "restart-expired-generic-character", {
+      participantCharacterIds: ["restart-expired-generic-character"],
+      expiresAt: new Date(Date.now() - HOUR)
+    });
+    await expect(characters.restartByTelegramUserId(57_103n)).resolves.toBe("deleted");
+    await expect(prisma.character.count({ where: { id: "restart-expired-generic-character" } })).resolves.toBe(0);
+    await expect(characters.restartByTelegramUserId(57_103n)).resolves.toBe("no-character");
   });
 
   it("blocks real restart for recruiting party leader/member and active group combat, then preserves User guild identity after safe recreate", async () => {
@@ -841,22 +964,31 @@ async function seedParty(
   prisma: PrismaClient,
   id: string,
   leaderCharacterId: string,
-  options: { originKind?: string; participantCharacterIds: string[]; active?: boolean }
+  options: {
+    originKind?: string;
+    originLocationId?: string;
+    participantCharacterIds: string[];
+    active?: boolean;
+    expiresAt?: Date;
+  }
 ): Promise<void> {
+  const status = options.active === false ? "expired" : "recruiting";
+  const expiresAt = options.expiresAt ?? new Date(NOW.getTime() + HOUR);
   await prisma.partySession.create({
     data: {
       id,
       inviteToken: `token-${id}`,
-      status: options.active === false ? "expired" : "recruiting",
+      status,
       leaderCharacterId,
+      originLocationId: options.originLocationId ?? null,
       originKind: options.originKind ?? null,
       participantCap: 8,
       minimumParticipants: 1,
-      joinUntilAt: new Date(NOW.getTime() + HOUR),
-      expiresAt: new Date(NOW.getTime() + HOUR),
+      joinUntilAt: expiresAt,
+      expiresAt,
       version: 1,
       chatRevision: 0,
-      activeLeaderKey: options.active === false ? null : `party-leader:${leaderCharacterId}:${id}`,
+      activeLeaderKey: status === "recruiting" ? `party-leader:${leaderCharacterId}:${id}` : null,
       createdAt: NOW,
       updatedAt: NOW,
       participants: {
@@ -867,7 +999,7 @@ async function seedParty(
           status: "joined",
           joinSource: index === 0 ? "leader" : "nearby",
           joinedAt: NOW,
-          activeMembershipKey: options.active === false ? null : `party-member:${characterId}:${id}`,
+          activeMembershipKey: status === "recruiting" ? `party-member:${characterId}:${id}` : null,
           createdAt: NOW,
           updatedAt: NOW
         }))

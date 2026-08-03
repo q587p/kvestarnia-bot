@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import type { GuildHubRepositoryResult } from "../../db/repositories/guildRepository";
+import type { GuildHubRepositoryResult, GuildMemberRecord } from "../../db/repositories/guildRepository";
 import {
   makeGuildCreateConfirmCallbackData,
   makeGuildDeleteCallbackData,
@@ -8,6 +8,7 @@ import {
   makeGuildInviteDeclineCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
+  makeGuildMemberSelectCallbackData,
   makeGuildOpenCallbackData,
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
@@ -91,4 +92,20 @@ export function buildGuildMemberMutationKeyboard(
   return new InlineKeyboard()
     .text("✅ Підтвердити", makeGuildMemberMutationCallbackData(action, memberId, version))
     .text("⬅️ Не зараз", makeGuildOpenCallbackData());
+}
+
+export function buildGuildMemberTargetKeyboard(
+  action: "transfer" | "promote" | "demote" | "kick",
+  candidates: GuildMemberRecord[],
+  version: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  candidates.forEach((candidate, index) => {
+    const role = candidate.role === "leader" ? "голова" : candidate.role === "officer" ? "старшина" : "учасник";
+    keyboard
+      .text(`${index + 1}. ${candidate.name} · ${role}`, makeGuildMemberSelectCallbackData(action, candidate.id, version))
+      .row();
+  });
+  keyboard.text("⬅️ Не зараз", makeGuildOpenCallbackData());
+  return keyboard;
 }

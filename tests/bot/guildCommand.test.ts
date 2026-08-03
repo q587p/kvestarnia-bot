@@ -6,6 +6,7 @@ import type { GuildService } from "../../src/services/guildService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotModuleDependencies } from "../../src/bot/modules/types";
+import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 
 describe("guild command routes", () => {
   it.each([false, true])("registers the real /guild callback recovery route with rollout enabled=%s", async (enabled) => {
@@ -167,6 +168,94 @@ describe("guild command routes", () => {
     });
     expect(reply).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps an old guild-party invite callback fully inert after rollout disable", async () => {
+    const resolvePartyRecipientForTelegramUser = vi.fn();
+    const recordPartyInvite = vi.fn();
+    const getLiveRecruitingByTelegramUser = vi.fn();
+    const getByToken = vi.fn();
+    const recordParticipantMessageReference = vi.fn();
+    const { ctx, answerCallbackQuery, reply, sendMessage } = callbackContext();
+
+    await handleGuildCallback(
+      ctx,
+      { type: "party-invite", memberId: "member-00000001", version: 7 },
+      guildService({ isEnabled: () => false, resolvePartyRecipientForTelegramUser, recordPartyInvite }),
+      {
+        partySessions: partyService({
+          getLiveRecruitingByTelegramUser,
+          getByToken,
+          recordParticipantMessageReference
+        })
+      }
+    );
+
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: "Ґільдійні запрошення до ватаги зараз вимкнені.",
+      show_alert: true
+    });
+    expect(getLiveRecruitingByTelegramUser).not.toHaveBeenCalled();
+    expect(getByToken).not.toHaveBeenCalled();
+    expect(resolvePartyRecipientForTelegramUser).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(reply).not.toHaveBeenCalled();
+    expect(recordParticipantMessageReference).not.toHaveBeenCalled();
+    expect(recordPartyInvite).not.toHaveBeenCalled();
+  });
+
+  it("provides distinct stable selectors for duplicate member names before confirmation", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: 13 } });
+    });
+    registerGuildCommands(bot, guildService({
+      findMemberForAction: vi.fn().mockResolvedValue({
+        state: "ambiguous",
+        expectedVersion: 7,
+        candidates: [
+          { id: "member-00000001", name: "Двійник", role: "member" },
+          { id: "member-00000002", name: "Двійник", role: "officer" }
+        ]
+      })
+    }));
+
+    await bot.handleUpdate(commandUpdate("/guild_promote Двійник"));
+
+    const markup = sent[0]?.reply_markup as { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
+    const selectors = (markup.inline_keyboard ?? []).flat().filter((button) => button.callback_data?.includes(":s"));
+    expect(selectors.map((button) => button.text)).toEqual([
+      "1. Двійник · учасник",
+      "2. Двійник · старшина"
+    ]);
+    expect(selectors.map((button) => parseGuildCallbackData(button.callback_data))).toEqual([
+      { ok: true, value: { type: "member-select", action: "promote", memberId: "member-00000001", version: 7 } },
+      { ok: true, value: { type: "member-select", action: "promote", memberId: "member-00000002", version: 7 } }
+    ]);
+
+    const { ctx, editMessageText } = callbackContext();
+    await handleGuildCallback(
+      ctx,
+      { type: "member-select", action: "promote", memberId: "member-00000002", version: 7 },
+      guildService({
+        findMemberByIdForAction: vi.fn().mockResolvedValue({
+          state: "ready",
+          memberId: "member-00000002",
+          memberName: "Двійник",
+          memberRole: "officer",
+          expectedVersion: 7
+        })
+      })
+    );
+    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(editMessageText.mock.calls[0]?.[0]).toContain("Двійник");
+    expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain("v1:g:p:member-00000002:7");
+  });
 });
 
 function guildService(overrides: Partial<GuildService>): GuildService {
@@ -200,6 +289,7 @@ function callbackContext() {
   const answerCallbackQuery = vi.fn().mockResolvedValue(true);
   const reply = vi.fn().mockResolvedValue({ message_id: 23 });
   const sendMessage = vi.fn().mockResolvedValue({ message_id: 93 });
+  const editMessageText = vi.fn().mockResolvedValue(true);
   const ctx = {
     from: { id: 42, is_bot: false, first_name: "Тест" },
     chat: { id: 42, type: "private" },
@@ -208,11 +298,11 @@ function callbackContext() {
       message: { message_id: 13, chat: { id: 42, type: "private" } }
     },
     answerCallbackQuery,
-    editMessageText: vi.fn().mockResolvedValue(true),
+    editMessageText,
     reply,
     api: { sendMessage, editMessageText: vi.fn().mockResolvedValue(true) }
   } as unknown as Context;
-  return { ctx, answerCallbackQuery, reply, sendMessage };
+  return { ctx, answerCallbackQuery, reply, sendMessage, editMessageText };
 }
 
 function commandUpdate(text: string, updateId = 1) {

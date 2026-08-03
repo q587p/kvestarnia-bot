@@ -27,6 +27,12 @@ import type {
   PartyParticipantStatus,
   PartyJoinSource
 } from "./partySessionRepository";
+import {
+  BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
+  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  isAutomaticStartPartyOrigin
+} from "./partySessionRepository";
 import { BIG_BARREL_BROTHER_LOSS_RETRY_COOLDOWN_KEY, isBigBarrelEligible } from "../../domain/partyBoss/partyBoss";
 import {
   buildFridayBarrelRaidPendingKey,
@@ -83,9 +89,6 @@ class PersonalProtocolFilingManaSpendLostError extends Error {
 
 const LIVE_STATUS = "recruiting";
 const LIVE_MEMBERSHIP_STATUSES = ["recruiting", "active"] as const;
-const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
-const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
-const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 const KHARAKTERNYK_CLASS_ID = "class.kharakternyk";
 const KHARAKTERNYK_WARD_PLACEMENT_BASE_MANA_COST = 13;
 const KHARAKTERNYK_WARD_SUPPORT_BASE_MANA_COST = 8;
@@ -307,7 +310,7 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
 
       if (
         session.status !== LIVE_STATUS ||
-        (session.expiresAt <= input.now && !isAutomaticStartOrigin(session.originLocationId, session.originKind))
+        (session.expiresAt <= input.now && !isAutomaticStartPartyOrigin(session.originLocationId, session.originKind))
       ) {
         const expired = await expireSessionTx(tx, session.id, input.now, this.raidChat);
         return expired ? { state: "expired", session: mapSession(expired) } : { state: "not-found" };
@@ -1702,7 +1705,7 @@ async function expireTokenIfNeededTx(
   if (
     session?.status === LIVE_STATUS &&
     session.expiresAt <= now &&
-    !isAutomaticStartOrigin(session.originLocationId, session.originKind)
+    !isAutomaticStartPartyOrigin(session.originLocationId, session.originKind)
   ) {
     await terminalizeSessionTx(tx, session.id, "expired", now, raidChat);
   }
@@ -1755,12 +1758,6 @@ async function expireRecruitingTx(
   }
 
   return sessions.length;
-}
-
-function isAutomaticStartOrigin(originLocationId: string | null, originKind: string | null): boolean {
-  return originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
-    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID ||
-    originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
 }
 
 async function terminalizeSessionTx(

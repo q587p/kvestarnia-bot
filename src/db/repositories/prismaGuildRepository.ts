@@ -16,6 +16,7 @@ import type {
   GuildInviteOptInRepositoryResult,
   GuildInviteRecord,
   GuildInviteRespondRepositoryResult,
+  GuildMemberTargetsRepositoryResult,
   GuildMemberMutationRepositoryResult,
   GuildPartyPickerRepositoryResult,
   GuildPartyRecipientRepositoryResult,
@@ -343,6 +344,29 @@ export class PrismaGuildRepository implements GuildRepository {
             hasPreviousPage: incomingPage.page > 0,
             hasNextPage: incomingPage.hasNext
           };
+    });
+  }
+
+  async getMemberTargetsForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<GuildMemberTargetsRepositoryResult> {
+    return this.serializable(async (tx) => {
+      await maintainGuildState(tx, now);
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const membership = activeMembership(actor);
+      if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+        return { state: "not-member" };
+      }
+      return {
+        state: "ready",
+        guildId: membership.guildId,
+        version: membership.guild.version,
+        members: mapUniqueGuildMembers(membership.guild.members)
+      };
     });
   }
 
@@ -1180,8 +1204,10 @@ function mapGuildView(row: GuildViewRow, viewerUserId: string, requestedPage: nu
   if (!viewer || !isGuildRole(viewer.role) || !isLiveGuildStatus(row.status)) {
     throw new Error("Guild view requested for a non-member viewer.");
   }
-  const memberPage = pageRows(row.members, requestedPage);
-  const invitePage = pageRows(row.invites, requestedPage);
+  const rowPage = pageRows([
+    ...mapUniqueGuildMembers(row.members).map((member) => ({ kind: "member" as const, member })),
+    ...row.invites.map((invite) => ({ kind: "invite" as const, invite }))
+  ], requestedPage);
   return {
     id: row.id,
     displayName: row.displayName,
@@ -1193,29 +1219,45 @@ function mapGuildView(row: GuildViewRow, viewerUserId: string, requestedPage: nu
     version: row.version,
     viewerRole: viewer.role,
     memberCount: row.members.length,
-    members: memberPage.rows.map((member) => ({
-      id: member.id,
-      name: currentMemberName(member),
-      role: isGuildRole(member.role) ? member.role : "member"
-    })),
-    outgoingInvites: invitePage.rows.map((invite) => mapInvite({
-      ...invite,
-      guild: {
-        id: row.id,
-        displayName: row.displayName,
-        crest: row.crest,
-        status: row.status,
-        version: row.version,
-        founderUserId: row.founderUserId,
-        activatedByInviteId: row.activatedByInviteId
-      }
-    })),
-    page: memberPage.page,
-    hasPreviousPage: memberPage.page > 0,
-    hasNextPage: memberPage.hasNext || invitePage.hasNext,
+    members: rowPage.rows.flatMap((entry) => entry.kind === "member" ? [entry.member] : []),
+    outgoingInvites: rowPage.rows.flatMap((entry) =>
+      entry.kind === "invite" ? [mapInviteForGuildView(row, entry.invite)] : []
+    ),
+    page: rowPage.page,
+    hasPreviousPage: rowPage.page > 0,
+    hasNextPage: rowPage.hasNext,
     leadershipNomineeName: row.leadershipNomineeUser?.character?.name ?? null,
     viewerIsLeadershipNominee: row.leadershipNomineeUserId === viewerUserId
   };
+}
+
+function mapUniqueGuildMembers(rows: GuildViewRow["members"]): GuildViewRecord["members"] {
+  const members = new Map<string, GuildViewRecord["members"][number]>();
+  for (const member of rows) {
+    if (!members.has(member.id)) {
+      members.set(member.id, {
+        id: member.id,
+        name: currentMemberName(member),
+        role: isGuildRole(member.role) ? member.role : "member"
+      });
+    }
+  }
+  return [...members.values()];
+}
+
+function mapInviteForGuildView(row: GuildViewRow, invite: GuildViewRow["invites"][number]): GuildInviteRecord {
+  return mapInvite({
+    ...invite,
+    guild: {
+      id: row.id,
+      displayName: row.displayName,
+      crest: row.crest,
+      status: row.status,
+      version: row.version,
+      founderUserId: row.founderUserId,
+      activatedByInviteId: row.activatedByInviteId
+    }
+  });
 }
 
 function mapInvite(row: IncomingInviteRow): GuildInviteRecord {

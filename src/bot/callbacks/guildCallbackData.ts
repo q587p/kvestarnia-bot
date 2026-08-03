@@ -8,6 +8,7 @@ export type GuildCallback =
   | { type: "party-open"; page: number }
   | { type: "party-invite"; memberId: string; version: number }
   | { type: "transfer-accept"; version: number }
+  | { type: "member-select"; action: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number }
   | { type: "leave" | "delete"; version: number }
   | { type: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number };
 
@@ -34,6 +35,11 @@ export const makeGuildMemberMutationCallbackData = (
   memberId: string,
   version: number
 ): string => `${PREFIX}:${({ transfer: "t", promote: "p", demote: "m", kick: "k" } as const)[action]}:${memberId}:${version.toString(36)}`;
+export const makeGuildMemberSelectCallbackData = (
+  action: "transfer" | "promote" | "demote" | "kick",
+  memberId: string,
+  version: number
+): string => `${PREFIX}:${({ transfer: "st", promote: "sp", demote: "sm", kick: "sk" } as const)[action]}:${memberId}:${version.toString(36)}`;
 
 export function parseGuildCallbackData(data: string | undefined): Result<GuildCallback, GuildCallbackError> {
   if (!data?.startsWith(`${PREFIX}:`)) {
@@ -72,6 +78,17 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "l" || action === "z") {
     const version = parseVersion(first, second);
     return version === null ? err("invalid-version") : ok({ type: action === "l" ? "leave" : "delete", version });
+  }
+  if (action === "st" || action === "sp" || action === "sm" || action === "sk") {
+    if (!first || !MEMBER_PATTERN.test(first) || !second || !VERSION_PATTERN.test(second)) {
+      return err("invalid-token");
+    }
+    return ok({
+      type: "member-select",
+      action: action === "st" ? "transfer" : action === "sp" ? "promote" : action === "sm" ? "demote" : "kick",
+      memberId: first,
+      version: Number.parseInt(second, 36)
+    });
   }
   if (action === "t" || action === "p" || action === "m" || action === "k") {
     if (!first || !MEMBER_PATTERN.test(first) || !second || !VERSION_PATTERN.test(second)) {

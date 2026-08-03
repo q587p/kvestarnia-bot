@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeGuildCreateConfirmCallbackData,
   makeGuildMemberMutationCallbackData,
+  makeGuildMemberSelectCallbackData,
   makeGuildOpenCallbackData,
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
@@ -17,8 +18,14 @@ describe("guild callback data", () => {
       "12345678-1234-4234-9234-123456789012",
       587
     );
+    const selection = makeGuildMemberSelectCallbackData(
+      "promote",
+      "12345678-1234-4234-9234-123456789012",
+      587
+    );
     expect(Buffer.byteLength(create, "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(mutation, "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(selection, "utf8")).toBeLessThanOrEqual(64);
     expect(parseGuildCallbackData(create)).toEqual({
       ok: true,
       value: { type: "create-confirm", token: "abcdefghijklmnop" }
@@ -27,6 +34,15 @@ describe("guild callback data", () => {
       ok: true,
       value: {
         type: "transfer",
+        memberId: "12345678-1234-4234-9234-123456789012",
+        version: 587
+      }
+    });
+    expect(parseGuildCallbackData(selection)).toEqual({
+      ok: true,
+      value: {
+        type: "member-select",
+        action: "promote",
         memberId: "12345678-1234-4234-9234-123456789012",
         version: 587
       }

@@ -43,6 +43,10 @@ export type GuildHubRepositoryResult =
   | { state: "not-member"; incomingInvites: GuildInviteRecord[]; page: number; hasPreviousPage: boolean; hasNextPage: boolean }
   | { state: "ready"; guild: GuildViewRecord; incomingInvites: GuildInviteRecord[] };
 
+export type GuildMemberTargetsRepositoryResult =
+  | { state: "no-character" | "not-member" }
+  | { state: "ready"; guildId: string; version: number; members: GuildMemberRecord[] };
+
 export interface GuildCreationIntentRecord {
   token: string;
   displayName: string;
@@ -161,6 +165,7 @@ export interface GuildRepository {
   }): Promise<GuildCreationPreviewRepositoryResult>;
   confirmCreateForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildCreationConfirmRepositoryResult>;
   getHubForTelegramUser(telegramUserId: bigint, now: Date, page?: number): Promise<GuildHubRepositoryResult>;
+  getMemberTargetsForTelegramUser(telegramUserId: bigint, now: Date): Promise<GuildMemberTargetsRepositoryResult>;
   createInviteOptInForTelegramUser(telegramUserId: bigint, input: { token: string; now: Date; expiresAt: Date }): Promise<GuildInviteOptInRepositoryResult>;
   createInviteForTelegramUser(telegramUserId: bigint, input: {
     token: string;

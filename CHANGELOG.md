@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.4] - 12026-08-02 - Guild Foundation
+## [0.4.4] - 12026-08-03 - Guild Foundation
 
 ### Added
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
@@ -25,6 +25,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Forming expiry and active disband retain private history but release names only after the accepted 23-hour/30-day holds; bounded intent cleanup removes old terminal previews.
 - `/restart` now blocks recruiting/active PartySession leaders or participants and active GroupCombat participants even without a combat lease, preventing cascade deletion of live party/combat state.
 - Guild cards, paginated rosters, ordinary party notices and audit payloads omit exact location, activity/online timestamps, Telegram identities and invitation tokens; failed invitation delivery leaves durable `/guild` recovery.
+- Disabled legacy guild-party callbacks now stop at the service boundary before recipient resolution, Telegram delivery, canonical-card publication or audit mutation.
+- Guild hub pages now use one stable five-row member/invitation stream; exact-name role commands read the complete membership set and duplicate names receive distinct membership-backed selectors.
+- `/restart` ignores an expired non-automatic recruiting residue while continuing to protect live ordinary parties, automatic-start Big Barrel/left-passage contracts and active group combat.
 
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 

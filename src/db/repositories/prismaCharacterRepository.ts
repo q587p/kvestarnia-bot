@@ -11,6 +11,7 @@ import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
+import { isAuthoritativeLivePartySession } from "./partySessionRepository";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -105,6 +106,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
   }
 
   async restartByTelegramUserId(telegramUserId: bigint): Promise<RestartCharacterResult> {
+    const now = new Date();
     return this.prisma.$transaction(async (tx) => {
       const character = await tx.character.findFirst({
         where: {
@@ -131,16 +133,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         return "active-combat";
       }
 
-      const liveParty = await tx.partySession.count({
-        where: {
-          status: { in: ["recruiting", "active"] },
-          OR: [
-            { leaderCharacterId: character.id },
-            { participants: { some: { characterId: character.id, status: "joined" } } }
-          ]
-        }
-      });
-      if (liveParty > 0) {
+      if (await hasAuthoritativePartyParticipation(tx, character.id, now)) {
         return "active-party";
       }
 
@@ -454,21 +447,61 @@ async function countActiveGroupCombats(
       }
     });
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2021" &&
-      "meta" in error &&
-      typeof error.meta === "object" &&
-      error.meta !== null &&
-      "modelName" in error.meta &&
-      error.meta.modelName === "GroupCombatSession"
-    ) {
+    if (isPrismaSchemaCompatibilityError(error, "GroupCombatSession", ["P2021"])) {
       return 0;
     }
     throw error;
   }
+}
+
+async function hasAuthoritativePartyParticipation(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  now: Date
+): Promise<boolean> {
+  const where = {
+    status: { in: ["recruiting", "active"] },
+    OR: [
+      { leaderCharacterId: characterId },
+      { participants: { some: { characterId, status: "joined" } } }
+    ]
+  } satisfies Prisma.PartySessionWhereInput;
+  try {
+    const sessions = await tx.partySession.findMany({
+      where,
+      select: { status: true, expiresAt: true, originLocationId: true, originKind: true }
+    });
+    return sessions.some((session) => isAuthoritativeLivePartySession(session, now));
+  } catch (error) {
+    if (isPrismaSchemaCompatibilityError(error, "PartySession", ["P2021"])) {
+      return false;
+    }
+    if (!isPrismaSchemaCompatibilityError(error, "PartySession", ["P2022"])) {
+      throw error;
+    }
+    const sessions = await tx.partySession.findMany({
+      where,
+      select: { status: true, expiresAt: true, originLocationId: true }
+    });
+    return sessions.some((session) => isAuthoritativeLivePartySession({ ...session, originKind: null }, now));
+  }
+}
+
+function isPrismaSchemaCompatibilityError(
+  error: unknown,
+  modelName: string,
+  codes: readonly string[]
+): boolean {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    codes.includes(error.code) &&
+    "meta" in error &&
+    typeof error.meta === "object" &&
+    error.meta !== null &&
+    "modelName" in error.meta &&
+    error.meta.modelName === modelName;
 }
 
 async function reanchorTerminalPartyBossHistory(

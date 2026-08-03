@@ -9,8 +9,16 @@ describe("GuildService rollout isolation", () => {
     const setMemberRoleForTelegramUser = vi.fn();
     const updateProfileForTelegramUser = vi.fn();
     const ensureCreationGoldForTelegramUser = vi.fn();
+    const resolvePartyRecipientForTelegramUser = vi.fn();
+    const recordPartyInvite = vi.fn();
     const service = new GuildService(
-      { setMemberRoleForTelegramUser, updateProfileForTelegramUser, ensureCreationGoldForTelegramUser } as unknown as GuildRepository,
+      {
+        setMemberRoleForTelegramUser,
+        updateProfileForTelegramUser,
+        ensureCreationGoldForTelegramUser,
+        resolvePartyRecipientForTelegramUser,
+        recordPartyInvite
+      } as unknown as GuildRepository,
       {} as PartySessionService,
       { enabled: false, devHelpersEnabled: true }
     );
@@ -20,9 +28,17 @@ describe("GuildService rollout isolation", () => {
     await expect(service.updateProfileForTelegramUser(42n, { crest: "🦉", description: "Тихо", expectedVersion: 1 }))
       .resolves.toEqual({ state: "disabled" });
     await expect(service.ensureCreationGoldForDev(42n)).resolves.toBe("disabled");
+    await expect(service.resolvePartyRecipientForTelegramUser(42n, {
+      partySessionId: "party-id",
+      memberId: "member-id",
+      guildVersion: 1
+    })).resolves.toEqual({ state: "disabled" });
+    await expect(service.recordPartyInvite("guild-id", 42n, "party-id", "target-id")).resolves.toBeUndefined();
     expect(setMemberRoleForTelegramUser).not.toHaveBeenCalled();
     expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
     expect(ensureCreationGoldForTelegramUser).not.toHaveBeenCalled();
+    expect(resolvePartyRecipientForTelegramUser).not.toHaveBeenCalled();
+    expect(recordPartyInvite).not.toHaveBeenCalled();
   });
 
   it("does not expose the dev helper when production wiring leaves it off", async () => {
