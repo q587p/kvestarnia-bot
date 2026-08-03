@@ -138,4 +138,31 @@ describe("GuildService rollout isolation", () => {
       sourceId: "guild-id"
     });
   });
+
+  it("deduplicates button targets by stable membership id without collapsing duplicate names", async () => {
+    const getMemberTargetsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      guildId: "guild-id",
+      version: 7,
+      viewerRole: "leader",
+      members: [
+        { id: "member-1", name: "Двійник", role: "member" },
+        { id: "member-1", name: "Двійник", role: "member" },
+        { id: "member-2", name: "Двійник", role: "officer" }
+      ]
+    });
+    const service = new GuildService(
+      { getMemberTargetsForTelegramUser } as unknown as GuildRepository,
+      {} as PartySessionService,
+      { enabled: true }
+    );
+
+    await expect(service.getMemberManagementForTelegramUser(42n)).resolves.toMatchObject({
+      state: "ready",
+      members: [
+        { id: "member-1", name: "Двійник" },
+        { id: "member-2", name: "Двійник" }
+      ]
+    });
+  });
 });

@@ -44,7 +44,7 @@ export function registerSocialBotModule(
       partyRaidChat: services.partyRaidChat,
       groupCombat: services.groupCombat
     };
-    registerGuildCommands(bot, services.guilds);
+    registerGuildCommands(bot, services.guilds, { botUsername: options.botUsername });
     registerParsedCallbackRoute(
       bot,
       /^v1:g:/,

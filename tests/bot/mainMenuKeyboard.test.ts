@@ -110,7 +110,8 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help]
+      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.help]
     ]);
     expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
@@ -127,7 +128,8 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help, mainMenuButtons.admin]
+      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
   });
@@ -136,7 +138,6 @@ describe("main menu and scene keyboards", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     expect(replyKeyboardTexts(buildMainMenuKeyboard().keyboard).at(-1)).toEqual([
-      mainMenuButtons.participants,
       mainMenuButtons.help,
       mainMenuButtons.admin
     ]);
@@ -182,6 +183,10 @@ describe("main menu and scene keyboards", () => {
       "v1:nc:b:s:0:0:0",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
+
+    const activeGuildKeyboard = buildHeroAchievementsKeyboard({ showActiveGuild: true });
+    expect(flatInlineButtonTexts(activeGuildKeyboard)).toContain("🏰 Ґільдія");
+    expect(flatInlineButtonCallbacks(activeGuildKeyboard)).toContain("v1:g:o");
   });
 
   it("paginates cosmetic title selection buttons", () => {
@@ -267,7 +272,8 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.help]
+      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.help]
     ]);
     expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(
       "location.korchma.hall"

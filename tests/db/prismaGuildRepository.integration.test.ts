@@ -499,7 +499,17 @@ describe("PrismaGuildRepository integration", () => {
     await expect(createInvite(repository, 54_001n, "invite-replay", "invite-target-code"))
       .resolves.toMatchObject({ state: "replayed", invite: { token: "invite-first" } });
     await expect(repository.declineInviteForTelegramUser(54_003n, "invite-first", NOW))
-      .resolves.toEqual({ state: "declined" });
+      .resolves.toMatchObject({
+        state: "declined",
+        transitioned: true,
+        notification: {
+          inviterTelegramUserId: 54_001n,
+          targetName: "Прихована Ціль",
+          guildName: "Запросильна Печатка"
+        }
+      });
+    await expect(repository.declineInviteForTelegramUser(54_003n, "invite-first", NOW))
+      .resolves.toEqual({ state: "declined", transitioned: false });
     await createOptIn(repository, 54_003n, "invite-target-code", new Date(NOW.getTime() + 6 * DAY));
     await expect(createInvite(repository, 54_001n, "invite-decline-block", "invite-target-code", new Date(NOW.getTime() + 6 * DAY)))
       .resolves.toMatchObject({ state: "decline-cooldown", availableAt: new Date(NOW.getTime() + 7 * DAY) });

@@ -43,6 +43,15 @@ describe("start payload parser", () => {
       raw: "party_short",
       safe: true
     });
+    expect(parseStartPayload("guild_privateInviteCode93")).toEqual({
+      type: "guild-invite",
+      token: "privateInviteCode93"
+    });
+    expect(parseStartPayload("guild_short")).toEqual({
+      type: "unknown",
+      raw: "guild_short",
+      safe: true
+    });
     expect(parseStartPayload("game_12345678-1234-4234-9234-123456789abc")).toEqual({
       type: "tavern-game",
       token: "12345678-1234-4234-9234-123456789abc"

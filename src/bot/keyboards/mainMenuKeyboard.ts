@@ -34,6 +34,7 @@ export const mainMenuButtons = {
   quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
+  guild: "🏰 Ґільдії",
   help: "📖 Допомога",
   admin: "🧰 Адмінка"
 } as const;
@@ -110,6 +111,8 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
+    .text(mainMenuButtons.guild)
+    .row()
     .text(mainMenuButtons.help);
 
   if (shouldIncludeAdminButton(options.includeAdmin)) {

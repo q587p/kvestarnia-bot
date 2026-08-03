@@ -1,5 +1,6 @@
 import { InlineKeyboard, type Bot, type Context, type Keyboard } from "grammy";
 import type { HeroService } from "../../services/heroService";
+import type { GuildService } from "../../services/guildService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import {
   buildPriestBlessingPlan,
@@ -25,10 +26,12 @@ import { safeEditMessageText } from "../safeEditMessageText";
 
 export interface HeroCommandOptions {
   buildMainMenuKeyboard?: (ctx: Context) => Promise<Keyboard>;
+  guildService?: Pick<GuildService, "getHubForTelegramUser">;
 }
 
 export interface SendHeroOptions {
   mainMenuKeyboard?: Keyboard;
+  guildService?: Pick<GuildService, "getHubForTelegramUser">;
 }
 
 export function registerHeroCommand(
@@ -40,7 +43,8 @@ export function registerHeroCommand(
     await sendHero(ctx, heroService, "reply", {
       ...(options.buildMainMenuKeyboard
         ? { mainMenuKeyboard: await options.buildMainMenuKeyboard(ctx) }
-        : {})
+        : {}),
+      ...(options.guildService ? { guildService: options.guildService } : {})
     });
   });
 
@@ -92,6 +96,9 @@ export async function sendHero(
   const result = await heroService.findByTelegramUserId(telegramUserId);
 
   if (result.state === "existing-character") {
+    const guildHub = options.guildService
+      ? await options.guildService.getHubForTelegramUser(telegramUserId)
+      : null;
     const heroText = presentHero(result.character, {
       activeDrink: result.activeDrink,
       activePriestBlessing: result.activePriestBlessing,
@@ -118,7 +125,8 @@ export async function sendHero(
       }),
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
-        : null
+        : null,
+      showActiveGuild: guildHub?.state === "ready" && guildHub.guild.status === "active"
     });
 
     // Telegram accepts one reply_markup per message; this card uses inline hero actions,

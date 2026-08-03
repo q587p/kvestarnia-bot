@@ -1,7 +1,8 @@
-import type { Context } from "grammy";
+import { Bot, type Context } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildExistingCharacterReplyOptions,
+  registerStartCommand,
   sendTavernGameJoinFromStartPayload
 } from "../../src/bot/commands/startCommand";
 import { startDicePokerTable, startQuickDicePoker } from "../../src/domain/dicePoker";
@@ -10,6 +11,51 @@ import type { OnboardingService } from "../../src/services/onboardingService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
 
 describe("start command", () => {
+  it("turns a shared guild deep link into the canonical invite flow", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const createInviteForTelegramUser = vi.fn().mockResolvedValue({
+      state: "created",
+      invite: {
+        token: "inviteABC12",
+        guildId: "guild-id",
+        guildName: "Тиха Печатка",
+        guildCrest: "🛡️",
+        targetName: "Адресатка",
+        status: "pending",
+        expiresAt: new Date("2026-08-07T20:00:00.000Z")
+      },
+      deliveryTelegramUserId: 93n
+    });
+    const delivered: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") delivered.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: delivered.length } });
+    });
+    registerStartCommand(bot, { start: vi.fn() } as unknown as OnboardingService, {
+      guilds: { createInviteForTelegramUser } as never
+    });
+
+    await bot.handleUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: 1,
+        chat: { id: 42, type: "private" },
+        from: { id: 42, is_bot: false, first_name: "Запрошувач" },
+        text: "/start guild_privateInviteCode93",
+        entities: [{ offset: 0, length: 6, type: "bot_command" }]
+      }
+    });
+
+    expect(createInviteForTelegramUser).toHaveBeenCalledWith(42n, "privateInviteCode93");
+    expect(delivered).toHaveLength(2);
+    expect(delivered[0]?.chat_id).toBe(93);
+    expect(JSON.stringify(delivered[0]?.reply_markup)).toContain("v1:g:a:inviteABC12");
+    expect(String(delivered[1]?.text)).toContain("Запрошення збережено й передано приватно");
+  });
+
   it("uses Telegram HTML parse mode for existing hero summary", () => {
     const options = buildExistingCharacterReplyOptions();
 

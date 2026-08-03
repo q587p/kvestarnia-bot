@@ -40,12 +40,16 @@ describe("guild presenter privacy", () => {
     )).toBe(true);
 
     const token = "privateInviteCode93";
-    const inviteButtons = buildGuildInviteCodeKeyboard(token).inline_keyboard.flat();
+    const inviteUrl = `https://t.me/kvestarnia_bot?start=guild_${token}`;
+    const inviteButtons = buildGuildInviteCodeKeyboard(token, inviteUrl).inline_keyboard.flat();
     expect(inviteButtons).toEqual(expect.arrayContaining([
       expect.objectContaining({ copy_text: { text: token } }),
-      expect.objectContaining({ copy_text: { text: `/guild_invite ${token}` } }),
+      expect.objectContaining({ copy_text: { text: inviteUrl } }),
       expect.objectContaining({ callback_data: "v1:g:o" })
     ]));
+    expect(inviteButtons.some((button) =>
+      "url" in button && button.url.startsWith("https://t.me/share/url?")
+    )).toBe(true);
   });
 
   it("shows safe identity, roles and canonical waits without tokens or presence data", () => {
@@ -92,6 +96,7 @@ describe("guild presenter privacy", () => {
     expect(text).toContain("Запрошена — ще 23 хв");
     expect(text).not.toContain("private-outgoing-token");
     expect(text).not.toMatch(/telegram|локаці|онлайн|lastAction|lastSeen/iu);
+    expect(text).not.toContain("/guild_");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThan(4096);
   });
 

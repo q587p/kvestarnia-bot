@@ -50,7 +50,8 @@ describe("0.3.17 callback read-path boundaries", () => {
       source.indexOf("bot.hears([...mainMenuLocationButtonTexts]")
     );
 
-    expect(heroRoute).toContain('sendHero(ctx, services.hero, "reply")');
+    expect(heroRoute).toContain('sendHero(ctx, services.hero, "reply", {');
+    expect(heroRoute).toContain('services.guilds ? { guildService: services.guilds }');
     expect(heroRoute).not.toContain("buildCurrentMainMenuKeyboardWithQuestMarkers");
   });
 });

@@ -1,6 +1,7 @@
 import { type Bot, type Context } from "grammy";
 import type { DevResetService } from "../../services/devResetService";
 import type { HeroService } from "../../services/heroService";
+import type { GuildService } from "../../services/guildService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
@@ -102,12 +103,14 @@ export function registerCharacterBotModule(
       ...(services.partySessions ? { partySessions: services.partySessions } : {}),
       ...(services.groupCombat ? { groupCombat: services.groupCombat } : {}),
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
+      ...(services.guilds ? { guilds: services.guilds } : {}),
       presence: services.presence,
       botUsername: options.botUsername,
       duelBotUsername: options.botUsername
     }
   );
   registerHeroCommand(bot, services.hero, {
+    ...(services.guilds ? { guildService: services.guilds } : {}),
     buildMainMenuKeyboard: (ctx) => buildCurrentMainMenuKeyboard(ctx, services.presence, {
       includeAdmin: shouldIncludeAdminMainMenu(services)
     })
@@ -142,7 +145,7 @@ export function registerCharacterBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:ach:/, parseAchievementCallbackData, async (ctx, callback) => {
-    await handleAchievementCallback(ctx, callback, services.hero);
+    await handleAchievementCallback(ctx, callback, services.hero, services.guilds);
   });
 
   registerParsedCallbackRoute(bot, /^v1:devreset:/, parseDevResetCallbackData, async (ctx, callback) => {
@@ -184,12 +187,15 @@ function parseWhenAvailable<TCallback>(
 async function handleAchievementCallback(
   ctx: Context,
   callback: AchievementCallback,
-  heroService: HeroService
+  heroService: HeroService,
+  guildService?: GuildService
 ): Promise<void> {
   await safeAnswerCallbackQuery(ctx);
 
   if (callback.type === "hero") {
-    await sendHero(ctx, heroService, "edit");
+    await sendHero(ctx, heroService, "edit", {
+      ...(guildService ? { guildService } : {})
+    });
     return;
   }
 

@@ -25,6 +25,7 @@ sendCellarErrandRouted
 } from "../commands/cellarCommand";
 import { sendFight } from "../commands/fightCommand";
 import { sendHero } from "../commands/heroCommand";
+import { sendGuildHub } from "../commands/guildCommand";
 import { sendEquipment } from "../commands/equipmentCommand";
 import {
 sendHuntBoard
@@ -99,7 +100,17 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendHero(ctx, services.hero, "reply");
+    await sendHero(ctx, services.hero, "reply", {
+      ...(services.guilds ? { guildService: services.guilds } : {})
+    });
+  });
+
+  bot.hears(mainMenuButtons.guild, async (ctx) => {
+    if (!services.guilds) {
+      await ctx.reply("Ґільдійна книга зараз недоступна.");
+      return;
+    }
+    await sendGuildHub(ctx, services.guilds, "reply", 0);
   });
 
   bot.hears([...mainMenuLocationButtonTexts], async (ctx) => {

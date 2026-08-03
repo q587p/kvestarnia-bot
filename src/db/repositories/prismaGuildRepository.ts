@@ -57,6 +57,7 @@ const guildViewInclude = {
 type GuildViewRow = Prisma.GuildGetPayload<{ include: typeof guildViewInclude }>;
 
 const incomingInviteInclude = {
+  inviterUser: { select: { telegramUserId: true } },
   guild: {
     select: {
       id: true,
@@ -385,6 +386,7 @@ export class PrismaGuildRepository implements GuildRepository {
         state: "ready",
         guildId: membership.guildId,
         version: membership.guild.version,
+        viewerRole: isGuildRole(membership.role) ? membership.role : "member",
         members: mapUniqueGuildMembers(membership.guild.members)
       };
     });
@@ -1032,7 +1034,13 @@ export class PrismaGuildRepository implements GuildRepository {
             payload: null,
             occurredAt: now
           });
-          return { state: action };
+          return action === "declined"
+            ? {
+                state: "declined",
+                transitioned: true,
+                notification: inviteResponseNotification(invite)
+              }
+            : { state: "cancelled" };
         }
         if (membership) {
           return { state: "already-in-guild" };
@@ -1109,7 +1117,8 @@ export class PrismaGuildRepository implements GuildRepository {
           state: "accepted",
           guild: mapGuildView(guild, actor.id, 0),
           characterId: actor.character.id,
-          activatedFounderCharacterId: founderCharacter?.id ?? null
+          activatedFounderCharacterId: founderCharacter?.id ?? null,
+          notification: inviteResponseNotification(invite)
         };
       });
     } catch (error) {
@@ -1338,14 +1347,8 @@ function mapInviteForGuildView(
   return mapInvite({
     ...invite,
     guild: {
-      id: row.id,
       displayName: row.displayName,
-      crest: row.crest,
-      status: row.status,
-      version: row.version,
-      charterExpiresAt: row.charterExpiresAt,
-      founderUserId: row.founderUserId,
-      activatedByInviteId: row.activatedByInviteId
+      crest: row.crest
     }
   }, viewer.role === "leader" || (
     viewer.role === "officer" &&
@@ -1354,7 +1357,14 @@ function mapInviteForGuildView(
   ));
 }
 
-function mapInvite(row: IncomingInviteRow, canCancel = false): GuildInviteRecord {
+function mapInvite(row: {
+  token: string;
+  guildId: string;
+  targetName: string;
+  status: string;
+  expiresAt: Date;
+  guild: { displayName: string; crest: string };
+}, canCancel = false): GuildInviteRecord {
   return {
     token: row.token,
     guildId: row.guildId,
@@ -1577,12 +1587,23 @@ async function canonicalInviteResult(
     };
   }
   if (invite.status === "declined" || invite.status === "cancelled") {
-    return { state: invite.status };
+    return invite.status === "declined"
+      ? { state: "declined", transitioned: false }
+      : { state: "cancelled" };
   }
   if (invite.status === "expired") {
     return { state: "expired" };
   }
   return membership ? { state: "already-in-guild" } : { state: "not-found" };
+}
+
+function inviteResponseNotification(invite: IncomingInviteRow) {
+  return {
+    inviterTelegramUserId: invite.inviterUser.telegramUserId,
+    targetName: invite.targetName,
+    guildName: invite.guild.displayName,
+    guildCrest: invite.guild.crest
+  };
 }
 
 async function getMutationContext(

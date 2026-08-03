@@ -6,6 +6,7 @@ import type { PartyBossService } from "../../services/partyBossService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
+import type { GuildService } from "../../services/guildService";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   type PresenceService
@@ -32,6 +33,7 @@ import { presentSupportThanks } from "../presenters/supportPresenter";
 import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
 import { parseStartPayload } from "../startPayload";
 import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
+import { sendGuildInviteFromTargetCode } from "./guildCommand";
 import {
   buildTavernGameActionKeyboard,
   buildTavernGameInviteUrl,
@@ -49,6 +51,7 @@ export interface StartCommandOptions {
   partySessions?: PartySessionService;
   groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken">;
   tavernGames?: TavernGameService;
+  guilds?: GuildService;
   presence?: PresenceService;
   botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
@@ -85,6 +88,11 @@ export function registerStartCommand(
       })) {
         return;
       }
+    }
+
+    if (payload.type === "guild-invite" && options.guilds) {
+      await sendGuildInviteFromTargetCode(ctx, options.guilds, player.telegramUserId, payload.token);
+      return;
     }
 
     if (payload.type === "tavern-game" && options.tavernGames) {

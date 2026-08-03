@@ -253,7 +253,9 @@ describe("lore board content", () => {
     const guild = loreEntries.find((entry) => entry.id === "custom-guild-charter");
 
     expect(guild).toMatchObject({ categoryId: "customs", title: "Ґільдійний статут" });
-    expect(guild?.body).toContain("93 золота");
+    expect(guild?.body).toContain("587 золота");
+    expect(guild?.body).toContain("🏰 Ґільдії");
+    expect(guild?.body).toContain("приватним посиланням");
     expect(guild?.body).toContain("прийняття запрошення");
     expect(guild?.body).toContain("між ремортами");
     expect(guild?.body).toContain("не спільний гаманець чи власна ватага");

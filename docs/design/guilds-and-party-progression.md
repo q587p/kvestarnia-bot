@@ -21,11 +21,11 @@ Founder eligibility is `(currentLevel >= 5) OR (remortCount >= 1 AND
 currentLevel >= 3)`. Join has no level, remort, quest, item or payment gate.
 
 Creation uses one replaceable 13-minute intent per User. The preview freezes
-name, crest, description and 93-gold cost. Confirm atomically:
+name, crest, description and 587-gold cost. Confirm atomically:
 
 1. verifies the current Character life and eligibility;
 2. claims the rolling seven-day User-level founder cooldown;
-3. conditionally debits 93 gold once;
+3. conditionally debits 587 gold once;
 4. reserves the normalized name;
 5. creates a seven-day `forming` guild and its leader membership;
 6. terminalizes every incoming invitation and appends private audit.

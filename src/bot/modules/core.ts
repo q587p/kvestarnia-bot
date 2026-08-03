@@ -119,7 +119,9 @@ async function handleMenuCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hero") {
-    await sendHero(ctx, services.hero, "edit");
+    await sendHero(ctx, services.hero, "edit", {
+      ...(services.guilds ? { guildService: services.guilds } : {})
+    });
     return;
   }
 

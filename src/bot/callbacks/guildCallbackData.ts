@@ -5,6 +5,10 @@ export type GuildCallback =
   | { type: "open"; page: number }
   | { type: "create-open" | "invite-code" | "invite-start" }
   | { type: "create-crest"; crestIndex: number }
+  | { type: "profile-open"; version: number }
+  | { type: "profile-crest"; crestIndex: number; version: number }
+  | { type: "members-open"; version: number; page: number }
+  | { type: "member-manage"; memberId: string; version: number }
   | { type: "create-confirm"; token: string }
   | { type: "invite-accept" | "invite-decline" | "invite-cancel"; token: string }
   | { type: "party-open"; page: number }
@@ -26,6 +30,13 @@ export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
 export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => `${PREFIX}:r:${crestIndex.toString(36)}`;
 export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
 export const makeGuildInviteStartCallbackData = (): string => `${PREFIX}:is`;
+export const makeGuildProfileOpenCallbackData = (version: number): string => `${PREFIX}:e:${version.toString(36)}`;
+export const makeGuildProfileCrestCallbackData = (crestIndex: number, version: number): string =>
+  `${PREFIX}:er:${crestIndex.toString(36)}:${version.toString(36)}`;
+export const makeGuildMembersOpenCallbackData = (version: number, page = 0): string =>
+  `${PREFIX}:ml:${version.toString(36)}:${page.toString(36)}`;
+export const makeGuildMemberManageCallbackData = (memberId: string, version: number): string =>
+  `${PREFIX}:mm:${memberId}:${version.toString(36)}`;
 export const makeGuildCreateConfirmCallbackData = (token: string): string => `${PREFIX}:c:${token}`;
 export const makeGuildInviteAcceptCallbackData = (token: string): string => `${PREFIX}:a:${token}`;
 export const makeGuildInviteDeclineCallbackData = (token: string): string => `${PREFIX}:d:${token}`;
@@ -68,6 +79,26 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "r" && first && second === undefined && VERSION_PATTERN.test(first)) {
     const crestIndex = Number.parseInt(first, 36);
     return crestIndex < 13 ? ok({ type: "create-crest", crestIndex }) : err("invalid-action");
+  }
+  if (action === "e") {
+    const version = parseVersion(first, second);
+    return version === null ? err("invalid-version") : ok({ type: "profile-open", version });
+  }
+  if (action === "er" && first && VERSION_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
+    const crestIndex = Number.parseInt(first, 36);
+    return crestIndex < 13
+      ? ok({ type: "profile-crest", crestIndex, version: Number.parseInt(second, 36) })
+      : err("invalid-action");
+  }
+  if (action === "ml" && first && VERSION_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
+    return ok({
+      type: "members-open",
+      version: Number.parseInt(first, 36),
+      page: Number.parseInt(second, 36)
+    });
+  }
+  if (action === "mm" && first && MEMBER_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
+    return ok({ type: "member-manage", memberId: first, version: Number.parseInt(second, 36) });
   }
   if (action === "po" && first && second === undefined && VERSION_PATTERN.test(first)) {
     return ok({ type: "party-open", page: Number.parseInt(first, 36) });

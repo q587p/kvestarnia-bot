@@ -5,6 +5,7 @@ import type {
   GuildInviteOptInRepositoryResult,
   GuildInviteRecord,
   GuildInviteRespondRepositoryResult,
+  GuildInviteResponseNotification,
   GuildMemberMutationRepositoryResult,
   GuildViewRecord
 } from "../../db/repositories/guildRepository";
@@ -71,7 +72,7 @@ export function presentGuildView(
       )]
       : []),
     "",
-    ...managementHints(guild.viewerRole)
+    "Керуйте ґільдією кнопками під карткою."
   ].join("\n");
 }
 
@@ -98,7 +99,7 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
     return "Чернетку не вдалося підготувати.";
   }
   return [
-    "📜 <b>Чернетка статуту</b>",
+    "📜 <b>Заснування ґільдії · крок 4 із 4</b>",
     "",
     `${result.intent.crest} <b>${escapeHtml(result.intent.displayName)}</b>`,
     result.intent.description ? escapeHtml(result.intent.description) : "Без опису — загадково, але законно.",
@@ -111,26 +112,47 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
 
 export function presentGuildCreationStart(): string {
   return [
-    "📜 <b>Заснування ґільдії · крок 1 із 3</b>",
+    "📜 <b>Заснування ґільдії · крок 1 із 4</b>",
     "",
     "Потрібно:",
     "• <b>5 рівень</b>, або <b>3 рівень</b> після першого реморту;",
     "• не належати до іншої ґільдії;",
-    "• <b>93 золота</b> й вільний семиденний засновницький облік.",
+    "• <b>587 золота</b> й вільний семиденний засновницький облік.",
     "",
     "Оберіть герб. Далі Квестарня окремо попросить назву й опис, покаже чернетку та лише тоді запропонує підтвердження.",
     "Після підтвердження запросіть іншого пригодника: його прийняття активує статут у межах семи днів."
   ].join("\n");
 }
 
-export function presentGuildCreationDetailsPrompt(crest: string): string {
+export const GUILD_CREATION_NAME_PROMPT_HEADING = "📜 Заснування ґільдії · крок 2 із 4";
+export const GUILD_CREATION_DESCRIPTION_PROMPT_HEADING = "📜 Заснування ґільдії · крок 3 із 4";
+
+export function presentGuildCreationNamePrompt(crest: string, error?: string): string {
   return [
-    `📜 <b>Заснування ґільдії · крок 2 із 3 · ${crest}</b>`,
+    `<b>${GUILD_CREATION_NAME_PROMPT_HEADING} · ${crest}</b>`,
     "",
-    "Відповідайте на це повідомлення у форматі:",
-    "<code>Назва | короткий опис</code>",
+    ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
+    "Як називатиметься ґільдія? Відповідайте лише назвою.",
     "",
-    "Назва має 3–32 знаки, опис — до 93. Опис можна не додавати."
+    "Назва має містити 3–32 знаки."
+  ].join("\n");
+}
+
+export function presentGuildCreationDescriptionPrompt(
+  crest: string,
+  displayName: string,
+  error?: string
+): string {
+  return [
+    `<b>${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
+    "",
+    `<b>Назва:</b> ${escapeHtml(displayName)}`,
+    "",
+    ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
+    "Який короткий опис матиме ґільдія? Відповідайте лише описом.",
+    "Щоб лишити статут без опису, напишіть «Без опису».",
+    "",
+    "Опис може містити до 93 знаків."
   ].join("\n");
 }
 
@@ -138,8 +160,31 @@ export function presentGuildInvitePrompt(): string {
   return [
     "📨 <b>Запрошення до ґільдії · крок 1 із 2</b>",
     "",
-    "Попросіть адресата відкрити /guild і натиснути «Мій код». Відповіддю на це повідомлення вставте отриманий особистий код.",
+    "Попросіть адресата натиснути «🏰 Ґільдії» у головному меню, далі «Мій код». Відповіддю на це повідомлення вставте отриманий резервний код.",
     "Квестарня перевірить право запросити, а адресат отримає окремі кнопки «Долучитися» та «Відхилити»."
+  ].join("\n");
+}
+
+export const GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING = "✏️ Профіль ґільдії · крок 2 із 2";
+
+export function presentGuildProfileStart(): string {
+  return [
+    "✏️ <b>Профіль ґільдії · крок 1 із 2</b>",
+    "",
+    "Оберіть новий герб. Далі писар окремо запитає короткий опис і ще раз перевірить вашу редакцію статуту."
+  ].join("\n");
+}
+
+export function presentGuildProfileDescriptionPrompt(crest: string, version: number, error?: string): string {
+  return [
+    `<b>${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
+    "",
+    ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
+    "Який короткий опис матиме ґільдія? Відповідайте лише описом.",
+    "Щоб лишити профіль без опису, напишіть «Без опису».",
+    "",
+    "Опис може містити до 93 знаків.",
+    `<i>Редакція статуту: ${version}</i>`
   ].join("\n");
 }
 
@@ -176,7 +221,8 @@ export function presentGuildCreationResult(result: GuildCreationConfirmRepositor
 
 export function presentGuildInviteOptIn(
   result: GuildInviteOptInRepositoryResult | { state: "disabled" },
-  now: Date
+  now: Date,
+  options: { deepLinkAvailable?: boolean } = {}
 ): string {
   if (result.state === "disabled") {
     return "Нові ґільдійні запрошення зараз зачинені.";
@@ -185,11 +231,15 @@ export function presentGuildInviteOptIn(
     return "Спершу створіть пригодника через /start.";
   }
   return [
-    "✉️ <b>Особистий код запрошення</b>",
+    "✉️ <b>Особисте запрошення</b>",
     "",
-    `<code>${escapeHtml(result.token)}</code>`,
-    `Код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>. Передайте його лише тому, від кого хочете отримати запрошення.`,
-    "Далі запрошувач вставить код у покроковий бланк, а ви отримаєте кнопки прийняти або відхилити. Прийняття першого окремого учасника активує формований статут.",
+    options.deepLinkAvailable
+      ? `Посилання чинне ще <b>${formatRemaining(result.expiresAt, now)}</b>. Натисніть «Поділитися запрошенням» і надішліть його лише тому, від кого хочете отримати запрошення.`
+      : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>. Передайте його лише тому, від кого хочете отримати запрошення.`,
+    options.deepLinkAvailable
+      ? "Коли запрошувач відкриє посилання, Квестарня перевірить його повноваження, а ви отримаєте кнопки «Долучитися» та «Відхилити»."
+      : "Запрошувач може вставити резервний код через /guild_invite, після чого ви отримаєте кнопки «Долучитися» та «Відхилити».",
+    "Прийняття першого окремого учасника активує формований статут.",
     "Новий код одразу скасує попередній; місце, час появи й Telegram-дані він не розкриває."
   ].join("\n");
 }
@@ -244,6 +294,15 @@ export function presentGuildInviteResponse(result: GuildInviteRespondRepositoryR
     "not-found": "Запрошення не знайшлося або не належить вам."
   };
   return text[result.state] ?? "Відповідь не записалася.";
+}
+
+export function presentGuildInviteResponseNotification(
+  notification: GuildInviteResponseNotification,
+  response: "accepted" | "declined"
+): string {
+  return response === "accepted"
+    ? `${notification.guildCrest} Запрошення прийнято: <b>${escapeHtml(notification.targetName)}</b> тепер у <b>${escapeHtml(notification.guildName)}</b>.`
+    : `${notification.guildCrest} Відповідь на запрошення для <b>${escapeHtml(notification.targetName)}</b>: відхилено.`;
 }
 
 export function presentGuildMemberMutation(result: GuildMemberMutationRepositoryResult): string {
@@ -352,15 +411,22 @@ function invalidIdentityText(reason: Extract<GuildCreationPreviewResult, { state
   return text[reason];
 }
 
-function managementHints(role: GuildRole): string[] {
-  const common = ["Ватага: /guild_party", "Код для запрошення вас: /guild_invite_code"];
-  if (role === "member") {
-    return [...common, "Вихід: /guild_leave"];
-  }
-  const officer = ["Запросити: /guild_invite КОД"];
-  return role === "leader"
-    ? [...common, ...officer, "Профіль: /guild_edit ГЕРБ | опис", "Ролі: /guild_promote, /guild_demote, /guild_transfer, /guild_kick"]
-    : [...common, ...officer, "Вихід: /guild_leave"];
+export function presentGuildMemberManagement(page: number, totalPages: number): string {
+  return [
+    "👥 <b>Учасники ґільдії</b>",
+    "",
+    "Оберіть запис, щоб побачити доступні дії.",
+    `Сторінка <b>${page + 1}/${Math.max(1, totalPages)}</b>.`
+  ].join("\n");
+}
+
+export function presentGuildMemberActions(member: { name: string; role: GuildRole }): string {
+  return [
+    "👤 <b>Керування учасником</b>",
+    "",
+    `<b>${escapeHtml(member.name)}</b> · ${roleLabel(member.role)}`,
+    member.role === "leader" ? "Для голови тут немає дій над самим собою." : "Оберіть дію кнопкою нижче."
+  ].join("\n");
 }
 
 function roleLabel(role: GuildRole): string {

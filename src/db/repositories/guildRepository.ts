@@ -46,7 +46,7 @@ export type GuildHubRepositoryResult =
 
 export type GuildMemberTargetsRepositoryResult =
   | { state: "no-character" | "not-member" }
-  | { state: "ready"; guildId: string; version: number; members: GuildMemberRecord[] };
+  | { state: "ready"; guildId: string; version: number; viewerRole: GuildRole; members: GuildMemberRecord[] };
 
 export interface GuildCreationIntentRecord {
   token: string;
@@ -86,13 +86,26 @@ export type GuildInviteCreateRepositoryResult =
 
 export type GuildInviteRespondRepositoryResult =
   | { state: "no-character" | "not-found" | "expired" | "already-in-guild" | "guild-full" }
-  | { state: "declined" | "cancelled" }
+  | { state: "cancelled" }
+  | {
+      state: "declined";
+      transitioned: boolean;
+      notification?: GuildInviteResponseNotification;
+    }
   | {
       state: "accepted" | "replayed";
       guild: GuildViewRecord;
       characterId: string;
       activatedFounderCharacterId: string | null;
+      notification?: GuildInviteResponseNotification;
     };
+
+export interface GuildInviteResponseNotification {
+  inviterTelegramUserId: bigint;
+  targetName: string;
+  guildName: string;
+  guildCrest: string;
+}
 
 export type GuildMemberMutationRepositoryResult =
   | {

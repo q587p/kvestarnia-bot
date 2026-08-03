@@ -11,9 +11,9 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
-- Added one replaceable 13-minute preview, an exact-once non-refundable 93-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
+- Added one replaceable 13-minute preview, an exact-once non-refundable 587-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
 - Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
-- Added guided `/guild` creation and invitation UI: requirements first, then crest selection, private name/description or target-code reply prompts, preview/confirm, explicit code copy and target-side accept/decline buttons. Commands remain fallback routes.
+- Added button-first guild UI from the persistent main menu and active character card: requirements, crest, separate private name and description prompts, preview/confirm, private share deep links, target-side accept/decline, inviter response notices, profile editing and stable member-action menus. Commands remain fallback routes.
 - Added a `📖 Перекази` customs entry explaining the shipped guild charter, roles, first-member activation, remort continuity and the separate ordinary-vatanga/economy boundary; the existing rewardless create/join achievements remain authoritative.
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
 
@@ -33,6 +33,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Forming charter expiry now terminalizes the operation's specific guild independently of the bounded 23-row maintenance backlog, preventing late invitation acceptance, new invitations, hub access or mutations from reviving an overdue charter.
 - Invitation creation now validates and terminalizes the target User's specific expired forming membership independently of cleanup backlog; normalized-name confirmation likewise releases its exact due reservation owner behind multiple batches without weakening live holds or race-safe gold/cooldown claims.
 - Member hubs expire all guild-owned due invitations before rendering and expose cancellation controls only where the current leader or officer still has authority; all pending rows remain visible in the combined stable pagination stream.
+- Guild controls no longer require players to compose role/profile commands: leaders select a stable member row and then a permitted action, while duplicate names remain independently targetable and active members can return from the character card.
 
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 

@@ -65,6 +65,10 @@ export type GuildProfileUpdateResult =
   | { state: "invalid"; reason: "crest" | "description-length" | "description-unsafe" }
   | GuildMemberMutationRepositoryResult;
 
+export type GuildMemberManagementResult =
+  | { state: "disabled" | "no-character" | "not-member" }
+  | Extract<GuildMemberTargetsRepositoryResult, { state: "ready" }>;
+
 export type GuildPartyPickerResult =
   | { state: "disabled" | "no-party" }
   | GuildPartyPickerRepositoryResult;
@@ -230,6 +234,16 @@ export class GuildService {
       memberRole: member.role,
       expectedVersion: targets.version
     };
+  }
+
+  async getMemberManagementForTelegramUser(telegramUserId: bigint): Promise<GuildMemberManagementResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+    const targets = await this.guilds.getMemberTargetsForTelegramUser(telegramUserId, this.clock());
+    return targets.state === "ready"
+      ? { ...targets, members: uniqueMemberTargets(targets) }
+      : targets;
   }
 
   async findMemberByIdForAction(

@@ -12,10 +12,14 @@ import {
   makeGuildInviteStartCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
+  makeGuildMemberManageCallbackData,
   makeGuildMemberSelectCallbackData,
+  makeGuildMembersOpenCallbackData,
   makeGuildOpenCallbackData,
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
+  makeGuildProfileCrestCallbackData,
+  makeGuildProfileOpenCallbackData,
   makeGuildTransferAcceptCallbackData
 } from "../callbacks/guildCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
@@ -47,7 +51,8 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
         keyboard.text("📨 Запросити за кодом", makeGuildInviteStartCallbackData()).row();
       }
       if (result.guild.viewerRole === "leader") {
-        keyboard.copyText("✏️ Змінити профіль", "/guild_edit 🦉 | короткий опис").row();
+        keyboard.text("✏️ Змінити профіль", makeGuildProfileOpenCallbackData(result.guild.version)).row();
+        keyboard.text("👥 Учасники", makeGuildMembersOpenCallbackData(result.guild.version)).row();
       }
     }
     if (result.guild.viewerIsLeadershipNominee) {
@@ -113,11 +118,26 @@ export function buildGuildCreationStartKeyboard(): InlineKeyboard {
   return keyboard.row().text("🏰 Назад", makeGuildOpenCallbackData());
 }
 
-export function buildGuildInviteCodeKeyboard(token?: string): InlineKeyboard {
+export function buildGuildProfileCrestKeyboard(version: number): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  GUILD_CREST_CATALOG.forEach((crest, index) => {
+    keyboard.text(crest, makeGuildProfileCrestCallbackData(index, version));
+    if ((index + 1) % 5 === 0) {
+      keyboard.row();
+    }
+  });
+  return keyboard.row().text("🏰 Назад", makeGuildOpenCallbackData());
+}
+
+export function buildGuildInviteCodeKeyboard(token?: string, inviteUrl?: string | null): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (token) {
-    keyboard.copyText("📋 Скопіювати код", token).row();
-    keyboard.copyText("📨 Команда для запрошувача", `/guild_invite ${token}`).row();
+    if (inviteUrl) {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent("Запроси мене до ґільдії в Квестарні.")}`;
+      keyboard.url("📨 Поділитися запрошенням", shareUrl).row();
+      keyboard.copyText("🔗 Скопіювати посилання", inviteUrl).row();
+    }
+    keyboard.copyText("📋 Резервний код", token).row();
   }
   return keyboard.text("🏰 Назад", makeGuildOpenCallbackData());
 }
@@ -146,4 +166,47 @@ export function buildGuildMemberTargetKeyboard(
   });
   keyboard.text("⬅️ Не зараз", makeGuildOpenCallbackData());
   return keyboard;
+}
+
+export const GUILD_MEMBER_MANAGEMENT_PAGE_SIZE = 5;
+
+export function buildGuildMemberManagementKeyboard(
+  members: GuildMemberRecord[],
+  version: number,
+  page: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const totalPages = Math.max(1, Math.ceil(members.length / GUILD_MEMBER_MANAGEMENT_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(0, page), totalPages - 1);
+  const rows = members.slice(
+    currentPage * GUILD_MEMBER_MANAGEMENT_PAGE_SIZE,
+    (currentPage + 1) * GUILD_MEMBER_MANAGEMENT_PAGE_SIZE
+  );
+  rows.forEach((member) => {
+    const role = member.role === "leader" ? "голова" : member.role === "officer" ? "старшина" : "учасник";
+    keyboard.text(`${member.name} · ${role}`, makeGuildMemberManageCallbackData(member.id, version)).row();
+  });
+  if (currentPage > 0) {
+    keyboard.text("⬅️", makeGuildMembersOpenCallbackData(version, currentPage - 1));
+  }
+  keyboard.text(`${currentPage + 1}/${totalPages}`, makeGuildMembersOpenCallbackData(version, currentPage));
+  if (currentPage < totalPages - 1) {
+    keyboard.text("➡️", makeGuildMembersOpenCallbackData(version, currentPage + 1));
+  }
+  return keyboard.row().text("🏰 До ґільдії", makeGuildOpenCallbackData());
+}
+
+export function buildGuildMemberActionsKeyboard(member: GuildMemberRecord, version: number): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (member.role === "member") {
+    keyboard.text("⬆️ Призначити старшиною", makeGuildMemberSelectCallbackData("promote", member.id, version)).row();
+  }
+  if (member.role === "officer") {
+    keyboard.text("⬇️ Повернути до учасників", makeGuildMemberSelectCallbackData("demote", member.id, version)).row();
+  }
+  if (member.role !== "leader") {
+    keyboard.text("👑 Запропонувати провід", makeGuildMemberSelectCallbackData("transfer", member.id, version)).row();
+    keyboard.text("🚪 Виключити", makeGuildMemberSelectCallbackData("kick", member.id, version)).row();
+  }
+  return keyboard.text("👥 До учасників", makeGuildMembersOpenCallbackData(version));
 }

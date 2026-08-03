@@ -57,7 +57,7 @@ describe("guild command routes", () => {
       isEnabled: () => false,
       areDevHelpersEnabled: () => false,
       getHubForTelegramUser
-    }));
+    }), { botUsername: "kvestarnia_bot" });
 
     await bot.handleUpdate(commandUpdate("/guild"));
     await bot.handleUpdate(commandUpdate("/dev_guild_gold", 2));
@@ -93,7 +93,7 @@ describe("guild command routes", () => {
         expiresAt: new Date("2026-08-07T20:00:00.000Z")
       }),
       previewCreationForTelegramUser: vi.fn().mockResolvedValue({ state: "invalid", reason: "crest" })
-    }));
+    }), { botUsername: "kvestarnia_bot" });
 
     await bot.handleUpdate(commandUpdate("/guild", 11));
     await bot.handleUpdate(commandUpdate("/guild_create", 12));
@@ -113,9 +113,12 @@ describe("guild command routes", () => {
     const codeMarkup = sent[2]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(codeMarkup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
       expect.objectContaining({ copy_text: { text: "privateInviteCode93" } }),
-      expect.objectContaining({ copy_text: { text: "/guild_invite privateInviteCode93" } }),
+      expect.objectContaining({ copy_text: { text: "https://t.me/kvestarnia_bot?start=guild_privateInviteCode93" } }),
       expect.objectContaining({ callback_data: "v1:g:o" })
     ]));
+    expect(codeMarkup.inline_keyboard.flat().some((button) =>
+      typeof button.url === "string" && button.url.startsWith("https://t.me/share/url?")
+    )).toBe(true);
     expect(String(sent[2]?.text)).not.toContain("telegram");
     const invalidCrestMarkup = sent[3]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(invalidCrestMarkup.inline_keyboard.flat().filter((button) =>
@@ -130,7 +133,9 @@ describe("guild command routes", () => {
       { type: "create-crest", crestIndex: 0 },
       guildService({ isEnabled: () => true })
     );
-    expect(String(enabled.reply.mock.calls[0]?.[0])).toContain("крок 2 із 3");
+    expect(String(enabled.reply.mock.calls[0]?.[0])).toContain("крок 2 із 4");
+    expect(String(enabled.reply.mock.calls[0]?.[0])).toContain("лише назвою");
+    expect(String(enabled.reply.mock.calls[0]?.[0])).not.toContain("|");
     expect((enabled.reply.mock.calls[0]?.[1] as { reply_markup?: { force_reply?: boolean } } | undefined)
       ?.reply_markup?.force_reply).toBe(true);
 
@@ -165,8 +170,8 @@ describe("guild command routes", () => {
         normalizedName: "тиха печатка",
         crest: "🛡️",
         description: "Без зайвого галасу.",
-        goldCost: 93,
-        availableGold: 100,
+        goldCost: 587,
+        availableGold: 600,
         expiresAt: new Date("2026-08-04T01:00:00.000Z")
       }
     });
@@ -181,14 +186,19 @@ describe("guild command routes", () => {
     registerGuildCommands(bot, guildService({ previewCreationForTelegramUser, createInviteForTelegramUser }));
 
     await bot.handleUpdate(replyUpdate(
-      "Тиха Печатка | Без зайвого галасу.",
-      "📜 Заснування ґільдії · крок 2 із 3 · 🛡️",
+      "Тиха Печатка",
+      "📜 Заснування ґільдії · крок 2 із 4 · 🛡️",
       21
+    ));
+    await bot.handleUpdate(replyUpdate(
+      "Без зайвого галасу.",
+      "📜 Заснування ґільдії · крок 3 із 4 · 🛡️\n\nНазва: Тиха Печатка",
+      22
     ));
     await bot.handleUpdate(replyUpdate(
       "privateInviteCode93",
       "📨 Запрошення до ґільдії · крок 1 із 2",
-      22
+      23
     ));
 
     expect(previewCreationForTelegramUser).toHaveBeenCalledWith(42n, {
@@ -197,9 +207,33 @@ describe("guild command routes", () => {
       description: "Без зайвого галасу."
     });
     expect(createInviteForTelegramUser).toHaveBeenCalledWith(42n, "privateInviteCode93");
-    expect(String(sent[0]?.text)).toContain("Чернетка статуту");
-    expect(JSON.stringify(sent[0]?.reply_markup)).toContain("v1:g:c:creationToken93");
-    expect(String(sent[1]?.text)).toContain("Цей код не можна використати");
+    expect(String(sent[0]?.text)).toContain("крок 3 із 4");
+    expect(String(sent[0]?.text)).not.toContain("|");
+    expect(String(sent[1]?.text)).toContain("Заснування ґільдії · крок 4 із 4");
+    expect(JSON.stringify(sent[1]?.reply_markup)).toContain("v1:g:c:creationToken93");
+    expect(String(sent[2]?.text)).toContain("Цей код не можна використати");
+  });
+
+  it("accepts the explicit no-description reply without a combined input format", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const previewCreationForTelegramUser = vi.fn().mockResolvedValue({ state: "ineligible" });
+    bot.api.config.use(() =>
+      Promise.resolve({ ok: true, result: { message_id: 13 } }));
+    registerGuildCommands(bot, guildService({ previewCreationForTelegramUser }));
+
+    await bot.handleUpdate(replyUpdate(
+      "Без опису",
+      "📜 Заснування ґільдії · крок 3 із 4 · 🛡️\n\nНазва: Тиха Печатка",
+      24
+    ));
+
+    expect(previewCreationForTelegramUser).toHaveBeenCalledWith(42n, {
+      crest: "🛡️",
+      displayName: "Тиха Печатка",
+      description: ""
+    });
   });
 
   it("keeps a durable membership invite recoverable through /guild when Telegram blocks delivery", async () => {
@@ -389,6 +423,164 @@ describe("guild command routes", () => {
     expect(editMessageText).toHaveBeenCalledTimes(1);
     expect(editMessageText.mock.calls[0]?.[0]).toContain("Двійник");
     expect(JSON.stringify(editMessageText.mock.calls[0]?.[1])).toContain("v1:g:p:member-00000002:7");
+  });
+
+  it("manages every member through paginated stable buttons, including duplicate names", async () => {
+    const members = Array.from({ length: 6 }, (_, index) => ({
+      id: `member-0000000${index + 1}`,
+      name: index < 2 ? "Двійник" : `Учасник ${index + 1}`,
+      role: index === 0 ? "leader" as const : index === 1 ? "officer" as const : "member" as const
+    }));
+    const getMemberManagementForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      guildId: "guild-id",
+      version: 7,
+      viewerRole: "leader",
+      members
+    });
+    const first = callbackContext();
+
+    await handleGuildCallback(
+      first.ctx,
+      { type: "members-open", version: 7, page: 0 },
+      guildService({ getMemberManagementForTelegramUser })
+    );
+
+    const firstMarkup = first.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
+    };
+    const firstButtons = firstMarkup.reply_markup?.inline_keyboard?.flat() ?? [];
+    expect(firstButtons.filter((button) => button.callback_data?.startsWith("v1:g:mm:"))).toHaveLength(5);
+    expect(firstButtons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ callback_data: "v1:g:mm:member-00000001:7" }),
+      expect.objectContaining({ callback_data: "v1:g:mm:member-00000002:7" }),
+      expect.objectContaining({ callback_data: "v1:g:ml:7:1" })
+    ]));
+
+    const second = callbackContext();
+    await handleGuildCallback(
+      second.ctx,
+      { type: "members-open", version: 7, page: 1 },
+      guildService({ getMemberManagementForTelegramUser })
+    );
+    expect(JSON.stringify(second.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:mm:member-00000006:7");
+    expect(JSON.stringify(second.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:ml:7:0");
+
+    const duplicate = callbackContext();
+    await handleGuildCallback(
+      duplicate.ctx,
+      { type: "member-manage", memberId: "member-00000002", version: 7 },
+      guildService({ getMemberManagementForTelegramUser })
+    );
+    const duplicateMarkup = JSON.stringify(duplicate.editMessageText.mock.calls[0]?.[1]);
+    expect(String(duplicate.editMessageText.mock.calls[0]?.[0])).toContain("Двійник");
+    expect(duplicateMarkup).toContain("v1:g:sm:member-00000002:7");
+    expect(duplicateMarkup).not.toContain("member-00000001");
+  });
+
+  it("opens profile editing and submits its description through buttons and ForceReply", async () => {
+    const hub = {
+      state: "ready" as const,
+      guild: {
+        status: "active" as const,
+        viewerRole: "leader" as const,
+        version: 7
+      }
+    };
+    const profile = callbackContext();
+    await handleGuildCallback(
+      profile.ctx,
+      { type: "profile-open", version: 7 },
+      guildService({ getHubForTelegramUser: vi.fn().mockResolvedValue(hub) })
+    );
+    expect(String(profile.editMessageText.mock.calls[0]?.[0])).toContain("Профіль ґільдії · крок 1 із 2");
+    expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:er:0:7");
+
+    const crest = callbackContext();
+    await handleGuildCallback(
+      crest.ctx,
+      { type: "profile-crest", crestIndex: 0, version: 7 },
+      guildService({ getHubForTelegramUser: vi.fn().mockResolvedValue(hub) })
+    );
+    expect(String(crest.reply.mock.calls[0]?.[0])).toContain("крок 2 із 2");
+    expect((crest.reply.mock.calls[0]?.[1] as { reply_markup?: { force_reply?: boolean } }).reply_markup?.force_reply)
+      .toBe(true);
+
+    const updateProfileForTelegramUser = vi.fn().mockResolvedValue({
+      state: "updated",
+      guild: { crest: "🛡️", displayName: "Тиха Печатка" }
+    });
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: 13 } });
+    });
+    registerGuildCommands(bot, guildService({ updateProfileForTelegramUser }));
+    await bot.handleUpdate(replyUpdate(
+      "Новий опис",
+      "✏️ Профіль ґільдії · крок 2 із 2 · 🛡️\n\nРедакція статуту: 7",
+      31
+    ));
+    expect(updateProfileForTelegramUser).toHaveBeenCalledWith(42n, {
+      crest: "🛡️",
+      description: "Новий опис",
+      expectedVersion: 7
+    });
+    expect(JSON.stringify(sent[0]?.reply_markup)).toContain("v1:g:o");
+  });
+
+  it("notifies the inviter exactly once for acceptance and decline", async () => {
+    const notification = {
+      inviterTelegramUserId: 93n,
+      targetName: "Адресатка",
+      guildName: "Тиха Печатка",
+      guildCrest: "🛡️"
+    };
+    const accepted = callbackContext();
+    await handleGuildCallback(
+      accepted.ctx,
+      { type: "invite-accept", token: "inviteABC12" },
+      guildService({
+        acceptInviteForTelegramUser: vi.fn().mockResolvedValue({
+          state: "accepted",
+          guild: { crest: "🛡️", displayName: "Тиха Печатка" },
+          characterId: "character-42",
+          activatedFounderCharacterId: null,
+          notification
+        })
+      })
+    );
+    expect(accepted.sendMessage).toHaveBeenCalledTimes(1);
+    expect(accepted.sendMessage.mock.calls[0]?.[0]).toBe(93);
+    expect(String(accepted.sendMessage.mock.calls[0]?.[1])).toContain("прийнято");
+
+    const declined = callbackContext();
+    await handleGuildCallback(
+      declined.ctx,
+      { type: "invite-decline", token: "inviteABC12" },
+      guildService({
+        declineInviteForTelegramUser: vi.fn().mockResolvedValue({
+          state: "declined",
+          transitioned: true,
+          notification
+        })
+      })
+    );
+    expect(declined.sendMessage).toHaveBeenCalledTimes(1);
+    expect(String(declined.sendMessage.mock.calls[0]?.[1])).toContain("відхилено");
+
+    const replay = callbackContext();
+    await handleGuildCallback(
+      replay.ctx,
+      { type: "invite-decline", token: "inviteABC12" },
+      guildService({
+        declineInviteForTelegramUser: vi.fn().mockResolvedValue({ state: "declined", transitioned: false })
+      })
+    );
+    expect(replay.sendMessage).not.toHaveBeenCalled();
   });
 });
 

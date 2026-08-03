@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sendHero, sendShortHero } from "../../src/bot/commands/heroCommand";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { HeroService } from "../../src/services/heroService";
@@ -115,6 +115,35 @@ describe("hero command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup?.inline_keyboard).toBeDefined();
+  });
+
+  it("shows the guild button on the character card only for an active membership", async () => {
+    const activeReplies: Array<{ text: string; options: unknown }> = [];
+    const formingReplies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character,
+        inventoryGoldValue: 0,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+    const guildService = (status: "active" | "forming") => ({
+      getHubForTelegramUser: vi.fn().mockResolvedValue({ state: "ready", guild: { status } })
+    });
+
+    await sendHero(makeReplyContext(activeReplies), heroService, "reply", {
+      guildService: guildService("active")
+    });
+    await sendHero(makeReplyContext(formingReplies), heroService, "reply", {
+      guildService: guildService("forming")
+    });
+
+    expect(flatInlineButtonTexts(activeReplies[0]?.options)).toContain("🏰 Ґільдія");
+    expect(flatInlineButtonCallbacks(activeReplies[0]?.options)).toContain("v1:g:o");
+    expect(flatInlineButtonTexts(formingReplies[0]?.options)).not.toContain("🏰 Ґільдія");
   });
 
   it("renders the authoritative full-HP recovery notice once in an edited hero card", async () => {

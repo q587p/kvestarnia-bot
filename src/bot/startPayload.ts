@@ -2,6 +2,7 @@ export type StartPayload =
   | { type: "none" }
   | { type: "duel"; token: string; mode?: "quick" | "turn-based" }
   | { type: "party"; token: string }
+  | { type: "guild-invite"; token: string }
   | { type: "tavern-game"; token: string }
   | { type: "support-thanks" }
   | { type: "unknown"; raw: string; safe: boolean };
@@ -50,6 +51,14 @@ export function parseStartPayload(raw: string | undefined): StartPayload {
 
     if (/^[A-Za-z0-9_-]{8,24}$/.test(token)) {
       return { type: "party", token };
+    }
+  }
+
+  if (payload.startsWith("guild_")) {
+    const token = payload.slice("guild_".length);
+
+    if (/^[A-Za-z0-9_-]{8,32}$/.test(token)) {
+      return { type: "guild-invite", token };
     }
   }
 

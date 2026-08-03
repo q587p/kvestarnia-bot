@@ -139,7 +139,7 @@ require no data migration; take-away purchase shelf remains separate `0.4.9`.
 ### 0.4.4 — Guild foundation
 
 Малий соціяльний shell: один 13-хвилинний preview, exact-once особиста плата
-93 золота, семиденний forming charter, target-bound opt-in invitations,
+587 золота, семиденний forming charter, target-bound opt-in invitations,
 leader/officer/member, leader-only crest/description edit і приватний audit.
 Активний склад має hard cap 8; joining безкоштовний. Історична назва лишається,
 а окрема reservation звільняється після bounded expiry/disband hold.

@@ -34,7 +34,7 @@ describe("guild identity", () => {
   });
 
   it("keeps the accepted founder, gold and crest boundaries exact", () => {
-    expect(GUILD_CREATION_GOLD).toBe(93);
+    expect(GUILD_CREATION_GOLD).toBe(587);
     expect(GUILD_CREST_CATALOG).toHaveLength(13);
     expect(isEligibleGuildFounder(5, 0)).toBe(true);
     expect(isEligibleGuildFounder(3, 1)).toBe(true);
