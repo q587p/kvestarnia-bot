@@ -37,11 +37,36 @@ interface RuntimeDependencies {
   startHealthServer: typeof startHealthServer;
 }
 
+class RuntimeCleanupError extends Error {
+  constructor(readonly errors: readonly Error[]) {
+    super(`Runtime shutdown failed in ${errors.length} cleanup steps.`);
+    this.name = "RuntimeCleanupError";
+  }
+}
+
+function recordCleanupError(errors: Error[], error: unknown): void {
+  if (error instanceof RuntimeCleanupError) {
+    errors.push(...error.errors);
+    return;
+  }
+  errors.push(error instanceof Error ? error : new Error(String(error)));
+}
+
+function throwCleanupErrors(errors: Error[]): void {
+  if (errors.length === 1) {
+    throw errors[0] ?? new Error("Runtime shutdown failed.");
+  }
+  if (errors.length > 1) {
+    throw new RuntimeCleanupError(errors);
+  }
+}
+
 export function createRuntime(input: {
   config: AppConfig;
   prisma: Pick<PrismaClient, "$disconnect" | "$queryRawUnsafe">;
   services: ApplicationServices;
   dependencies?: Partial<RuntimeDependencies>;
+  onFatalRuntimeError?: (error: Error) => void;
 }): ApplicationRuntime {
   const { config, prisma, services } = input;
   const dependencies: RuntimeDependencies = {
@@ -109,16 +134,76 @@ export function createRuntime(input: {
       return schedulersStopPromise;
     }
     schedulersStopPromise = (async () => {
-      combatTurnTimeoutScheduler?.stop();
-      duelTurnTimeoutScheduler?.stop();
-      equipmentAttunementScheduler?.stop();
-      await groupCombatTimeoutScheduler?.stop();
-      passageSearchCompletionScheduler?.stop();
-      partyBossRecruitingStartScheduler?.stop();
-      partyRaidChatDeliveryScheduler?.stop();
-      await healthRecoveryNotificationScheduler?.stop();
+      const cleanupErrors: Error[] = [];
+      const cleanupSteps: Array<() => void | Promise<void>> = [
+        () => combatTurnTimeoutScheduler?.stop(),
+        () => duelTurnTimeoutScheduler?.stop(),
+        () => equipmentAttunementScheduler?.stop(),
+        () => groupCombatTimeoutScheduler?.stop(),
+        () => passageSearchCompletionScheduler?.stop(),
+        () => partyBossRecruitingStartScheduler?.stop(),
+        () => partyRaidChatDeliveryScheduler?.stop(),
+        () => healthRecoveryNotificationScheduler?.stop()
+      ];
+
+      for (const cleanup of cleanupSteps) {
+        try {
+          await cleanup();
+        } catch (error) {
+          recordCleanupError(cleanupErrors, error);
+        }
+      }
+
+      throwCleanupErrors(cleanupErrors);
     })();
     return schedulersStopPromise;
+  };
+
+  const stopRuntime = async (): Promise<void> => {
+    if (stopPromise) {
+      await stopPromise;
+      return;
+    }
+
+    state = state === "new" ? "stopped" : "stopping";
+    readiness.markStopping();
+    stopPromise = (async () => {
+      const cleanupErrors: Error[] = [];
+      const cleanupSteps: Array<() => void | Promise<void>> = [
+        () => stopSchedulers(),
+        () => bot?.stop(),
+        () => {
+          healthServer?.close();
+        },
+        () => prisma.$disconnect()
+      ];
+
+      for (const cleanup of cleanupSteps) {
+        try {
+          await cleanup();
+        } catch (error) {
+          recordCleanupError(cleanupErrors, error);
+        }
+      }
+
+      state = "stopped";
+      throwCleanupErrors(cleanupErrors);
+    })();
+
+    await stopPromise;
+  };
+
+  const failRuntime = (error: Error): void => {
+    readiness.markFailed();
+    void stopRuntime()
+      .catch((shutdownError) => {
+        console.error("Квестарня: runtime не завершився чисто після критичної помилки.", {
+          errorName: shutdownError instanceof Error ? shutdownError.name : "unknown"
+        });
+      })
+      .finally(() => {
+        input.onFatalRuntimeError?.(error);
+      });
   };
 
   return {
@@ -128,6 +213,7 @@ export function createRuntime(input: {
       }
 
       state = "started";
+      try {
       healthServer = dependencies.startHealthServer({
         presence: services.presence,
         readiness,
@@ -143,10 +229,11 @@ export function createRuntime(input: {
         await prisma.$queryRawUnsafe("SELECT 1");
         readiness.markDatabaseReady();
       } catch (error) {
-        readiness.markFailed();
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
         console.error("Квестарня: база не пройшла перевірку готовності.", {
           errorCategory: classifyPerformanceError(error)
         });
+        failRuntime(runtimeError);
         return;
       }
 
@@ -232,57 +319,36 @@ export function createRuntime(input: {
         }
       }).then(() => {
         if (state === "started") {
-          readiness.markFailed();
-          void stopSchedulers();
+          const error = new Error("Telegram polling stopped unexpectedly.");
           console.error("Квестарня: Telegram polling завершився без зупинки runtime.");
+          failRuntime(error);
         }
       }).catch((error) => {
         if (state !== "started") {
           return;
         }
 
-        readiness.markFailed();
-        void stopSchedulers();
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
         console.error("Квестарня: Telegram polling не запустився або аварійно завершився.", {
           errorCategory: classifyPerformanceError(error)
         });
+        failRuntime(runtimeError);
       });
 
       void services.deployNotifications.announceIfNeeded(bot).catch((error) => {
         console.error("Квестарня: нотифікація про нову версію не відправилась.", error);
       });
+      } catch (error) {
+        const runtimeError = error instanceof Error ? error : new Error(String(error));
+        console.error("Квестарня: запуск runtime аварійно перервано.", {
+          errorName: runtimeError.name,
+          errorCategory: classifyPerformanceError(error)
+        });
+        failRuntime(runtimeError);
+      }
     },
     async stop() {
-      if (stopPromise) {
-        await stopPromise;
-        return;
-      }
-
-      state = state === "new" ? "stopped" : "stopping";
-      readiness.markStopping();
-      stopPromise = (async () => {
-        let shutdownError: Error | null = null;
-
-        await stopSchedulers();
-
-        try {
-          if (bot) {
-            await bot.stop();
-          }
-        } catch (error) {
-          shutdownError = error instanceof Error ? error : new Error(String(error));
-        } finally {
-          healthServer?.close();
-          await prisma.$disconnect();
-          state = "stopped";
-        }
-
-        if (shutdownError) {
-          throw shutdownError;
-        }
-      })();
-
-      await stopPromise;
+      await stopRuntime();
     }
   };
 }

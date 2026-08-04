@@ -15,7 +15,10 @@ const services = createServices(repositories, config);
 const runtime = createRuntime({
   config,
   prisma,
-  services
+  services,
+  onFatalRuntimeError: () => {
+    process.exitCode = 1;
+  }
 });
 
 registerSignalShutdown(runtime);
