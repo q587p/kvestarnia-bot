@@ -18,6 +18,7 @@ import {
   buildGroupCombatJournalKeyboard,
   buildGroupCombatStatisticsKeyboard,
   buildGroupCombatTargetKeyboard,
+  getSingleGroupCombatActionTargetIndex,
   groupCombatActionRequiresExplicitTarget,
   parseGroupCombatReplyAbility,
   parseGroupCombatReplyButton
@@ -126,6 +127,20 @@ export function registerGroupCombatReplyKeyboard(
       return;
     }
     if (replyAbility) {
+      const singleTargetIndex = getSingleGroupCombatActionTargetIndex(
+        session,
+        viewer.characterId,
+        replyAbility.action,
+        replyAbility.optionIndex
+      );
+      if (singleTargetIndex !== null) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: replyAbility.action,
+          optionIndex: replyAbility.optionIndex,
+          targetIndex: singleTargetIndex
+        });
+        return;
+      }
       if (groupCombatActionRequiresExplicitTarget(
         session,
         viewer.characterId,
@@ -165,6 +180,18 @@ export function registerGroupCombatReplyKeyboard(
       return;
     }
     if (replyAction === "attack") {
+      const singleTargetIndex = getSingleGroupCombatActionTargetIndex(
+        session,
+        viewer.characterId,
+        "attack"
+      );
+      if (singleTargetIndex !== null) {
+        await submitGroupCombatReplyAction(ctx, service, session, viewer.characterId, {
+          action: "attack",
+          targetIndex: singleTargetIndex
+        });
+        return;
+      }
       await ctx.reply(presentGroupCombatTargetPrompt(session, viewer.characterId, "attack", 0), {
         reply_markup: buildGroupCombatTargetKeyboard(
           session,
@@ -251,7 +278,7 @@ export async function handleGroupCombatCallback(
     );
     const inviteUrl = buildPartyInviteUrlForSession(ctx.me.username, result.session);
     await safeAnswerCallbackQuery(ctx, {
-      text: result.state === "created" ? "Заклик розіслано. Слід за вами ніхто не пересував." : "Показую вже відкритий збір."
+      text: result.state === "created" ? "Ватагу відкрито." : "Показую вже відкритий збір."
     });
     await safeEditMessageText(ctx, presentPartySession(result.session, {
       inviteUrl,

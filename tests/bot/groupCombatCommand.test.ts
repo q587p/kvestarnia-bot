@@ -305,9 +305,13 @@ describe("group combat bot flow", () => {
     } as unknown as GroupCombatService;
     const services = { groupCombat: service } as unknown as BotServices;
     const edits: Record<string, unknown>[] = [];
+    const callbackAnswers: Record<string, unknown>[] = [];
     bot.api.config.use((_prev, method, payload) => {
       if (method === "editMessageText") {
         edits.push(payload);
+      }
+      if (method === "answerCallbackQuery") {
+        callbackAnswers.push(payload);
       }
       return Promise.resolve({ ok: true, result: true });
     });
@@ -350,9 +354,13 @@ describe("group combat bot flow", () => {
     } as unknown as GroupCombatService;
     const services = { groupCombat: service } as unknown as BotServices;
     const edits: Record<string, unknown>[] = [];
+    const callbackAnswers: Record<string, unknown>[] = [];
     bot.api.config.use((_prev, method, payload) => {
       if (method === "editMessageText") {
         edits.push(payload);
+      }
+      if (method === "answerCallbackQuery") {
+        callbackAnswers.push(payload);
       }
       return Promise.resolve({ ok: true, result: true });
     });
@@ -364,11 +372,13 @@ describe("group combat bot flow", () => {
     await bot.handleUpdate(update);
 
     expect(createLeftPassageParty).toHaveBeenCalledOnce();
+    expect(callbackAnswers).toHaveLength(1);
+    expect(callbackAnswers[0]?.["text"]).toBe("Ватагу відкрито.");
     expect(JSON.stringify(edits)).toContain("nyz_left_attack_leftToken13");
     expect(JSON.stringify(edits)).not.toContain("start=party_leftToken13");
   });
 
-  it("opens a target-only reply picker even when one enemy remains", async () => {
+  it("submits an attack directly when one enemy remains", async () => {
     const bot = testBot();
     const session = makeSession();
     session.state.enemies[1]!.hp = 0;
@@ -399,9 +409,16 @@ describe("group combat bot flow", () => {
 
     await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
 
-    expect(submitAction).not.toHaveBeenCalled();
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "attack",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
     expect(sentTexts).toHaveLength(1);
-    expect(sentTexts[0]).toContain("Оберіть ціль для атаки");
+    expect(sentTexts[0]).not.toContain("Оберіть ціль для атаки");
   });
 
   it("durably requests refresh before publishing one fresh card with the reply keyboard", async () => {
@@ -455,7 +472,7 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("opens a target-only picker for a concrete one-target ability", async () => {
+  it("submits a concrete single-target ability directly when one target remains", async () => {
     const bot = testBot();
     const session = makeSession();
     session.state.participants[0]!.classId = "class.warrior";
@@ -482,7 +499,14 @@ describe("group combat bot flow", () => {
 
     await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
 
-    expect(submitAction).not.toHaveBeenCalled();
+    expect(submitAction).toHaveBeenCalledWith({
+      telegramUserId: 1001n,
+      partyInviteToken: session.partyInviteToken,
+      turn: 1,
+      action: "class",
+      targetKind: "enemy",
+      targetId: "enemy-1"
+    });
   });
 
   it("keeps repeated target-picker openings read-only", async () => {
@@ -491,7 +515,6 @@ describe("group combat bot flow", () => {
     const actor = session.state.participants[0]!;
     actor.classId = "class.warrior";
     actor.raceId = "race.dwarf";
-    session.state.enemies[1]!.hp = 0;
     const delivery = cardDeliveryHarness(session);
     const sentTexts: string[] = [];
     const inlineKeyboards: string[][] = [];

@@ -1283,6 +1283,10 @@ export function resolveGroupCombatTurn(
   const state = cloneGroupCombatState(current);
   const lines: string[] = [];
   const monsterBarkIds: string[] = [];
+  const currentEnemyFocusCharacterId = getGroupCombatEnemyFocusTarget(state)?.characterId ?? null;
+  const damageBeforeTurn = new Map(
+    state.contributions.map((contribution) => [contribution.characterId, contribution.damage])
+  );
   const defeatedEnemyIds = new Set(
     state.enemies.filter((enemy) => enemy.hp <= 0).map((enemy) => enemy.id)
   );
@@ -1346,7 +1350,6 @@ export function resolveGroupCombatTurn(
         GROUP_COMBAT_BASIC_GUARD_SENTINEL
       );
       contribution.guardedTurns += 1;
-      actor.threat += 2;
       lines.push(
         action.origin === "timeout"
           ? `${actor.name} мовчить і стає в захист.`
@@ -1393,7 +1396,6 @@ export function resolveGroupCombatTurn(
         decrementGroupCombatItemQuantity(actor, itemId);
         contribution.healing += restored.healing;
         contribution.damage += restored.damage;
-        actor.threat += restored.healing * 2;
         committedConsumables.push({ characterId: actor.characterId, itemId });
         lines.push(
           `${presentParticipantActionLabel(
@@ -1439,6 +1441,7 @@ export function resolveGroupCombatTurn(
   }
   pruneExpiredGroupCombatAbilityEffects(state);
   appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
+  recordGroupCombatTurnDamageForFocus(state, damageBeforeTurn);
   // Match persistent PvE: defeating the final enemy is a win even when the
   // same landed hit triggers a lethal counter, reflect or shield-break reaction.
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
@@ -1464,6 +1467,15 @@ export function resolveGroupCombatTurn(
     )
   ) {
     return terminalize(state, "lost", lines, committedConsumables, monsterBarkIds);
+  }
+
+  const nextEnemyFocus = getGroupCombatEnemyFocusTarget(state);
+  if (
+    nextEnemyFocus &&
+    currentEnemyFocusCharacterId &&
+    nextEnemyFocus.characterId !== currentEnemyFocusCharacterId
+  ) {
+    lines.push(`🎯 На наступний хід увага ворогів переходить на ${nextEnemyFocus.name}.`);
   }
 
   state.recap = appendRecap(state, lines, monsterBarkIds);
@@ -1674,7 +1686,6 @@ function applyBasicAttack(
     reactionLines
   );
   contribution.damage += damage;
-  actor.threat += damage;
   tickGroupCombatItemCooldowns(actor);
   lines.push(
     resolved.summary.actorOutcome === "miss"
@@ -1841,7 +1852,6 @@ function applyAbilityAction(
   }
   contribution.damage += dealt;
   contribution.specialActions = (contribution.specialActions ?? 0) + 1;
-  actor.threat += dealt;
 
   const primarySupportTargets = isSupportScope(primaryTargetScope) ? primaryTargets : [];
   const secondarySupportTargets = ability.secondaryTargetScope && isSupportScope(ability.secondaryTargetScope)
@@ -1859,7 +1869,6 @@ function applyAbilityAction(
       }
       const healed = healParticipant(target, ability.healAmount);
       contribution.healing += healed;
-      actor.threat += healed * 2;
       healingEntries.push({ name: target.name, healing: healed });
     }
   }
@@ -2046,7 +2055,7 @@ function applyEnemyPhase(
       ]
     : undefined;
   for (const enemy of respondingEnemies) {
-    if (!chooseEnemyTarget(state)) {
+    if (!getGroupCombatEnemyFocusTarget(state)) {
       break;
     }
     const defeatedFinalResponder = enemy.hp <= 0;
@@ -2128,7 +2137,7 @@ function applyEnemyPhase(
     } else {
       enemy.lastActionKind = "attack";
       delete enemy.lastAbilityId;
-      const target = chooseEnemyTarget(state);
+      const target = getGroupCombatEnemyFocusTarget(state);
       if (!target) {
         break;
       }
@@ -2259,10 +2268,6 @@ export function applyGroupCombatEnemyDamage(
         enemy.hp -= counterDamage;
         getContribution(state, counter.sourceCharacterId!).damage += counterDamage;
         getEnemyContribution(state, enemy.id).damageTaken += counterDamage;
-        const source = state.participants.find((candidate) => candidate.characterId === counter.sourceCharacterId);
-        if (source) {
-          source.threat += counterDamage;
-        }
       }
     }
     return damage;
@@ -2729,7 +2734,7 @@ function executeGroupCombatEnemyAbility(
     return true;
   }
   if (ability.id === "monster.preapproved-bite") {
-    const target = chooseEnemyTarget(state);
+    const target = getGroupCombatEnemyFocusTarget(state);
     if (!target) {
       return false;
     }
@@ -2769,7 +2774,7 @@ function executeGroupCombatEnemyAbility(
     return true;
   }
   if (ability.id === "monster.ledger-charge") {
-    const target = chooseEnemyTarget(state);
+    const target = getGroupCombatEnemyFocusTarget(state);
     if (!target) {
       return false;
     }
@@ -2784,7 +2789,7 @@ function executeGroupCombatEnemyAbility(
     return true;
   }
   if (ability.id === "monster.ledger-audit") {
-    const target = chooseEnemyTarget(state);
+    const target = getGroupCombatEnemyFocusTarget(state);
     if (!target) {
       return false;
     }
@@ -3647,7 +3652,7 @@ function resolveMonsterAbilityParticipantTargets(
         )]
       : [];
   }
-  const target = chooseEnemyTarget(state);
+  const target = getGroupCombatEnemyFocusTarget(state);
   return target ? [target] : [];
 }
 
@@ -4372,13 +4377,24 @@ function multiplyGroupCombatStatusValues(
     .reduce((product, status) => Math.floor(product * status.value / 10_000), 10_000);
 }
 
-function chooseEnemyTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
+export function getGroupCombatEnemyFocusTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
   const living = state.participants.filter(isActiveGroupCombatParticipant);
   return living.sort((left, right) =>
     right.threat - left.threat ||
-    compareHpRatio(left, right, "rosterOrder") ||
     left.rosterOrder - right.rosterOrder
   )[0] ?? null;
+}
+
+function recordGroupCombatTurnDamageForFocus(
+  state: GroupCombatState,
+  damageBeforeTurn: ReadonlyMap<string, number>
+): void {
+  for (const participant of state.participants) {
+    const contribution = getContribution(state, participant.characterId);
+    participant.threat = participant.fledAtTurn === undefined
+      ? Math.max(0, contribution.damage - (damageBeforeTurn.get(participant.characterId) ?? 0))
+      : 0;
+  }
 }
 
 function applyBleedStatuses(state: GroupCombatState, lines: string[]): void {

@@ -124,14 +124,6 @@ export function buildPartySessionKeyboard(
     ) {
       keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();
     }
-    if (
-      isLeftPassage &&
-      options.isPrivateDestination &&
-      options.viewerCharacterId === session.leaderCharacterId
-    ) {
-      keyboard.text("⚔️ Почати атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
-    }
-
     if (viewer && options.includeRaidChat) {
       keyboard.text("💬 Написати в рейд-чат", makePartyRaidChatComposeCallbackData(token)).row();
     }
@@ -152,6 +144,14 @@ export function buildPartySessionKeyboard(
 
     if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (
+      isLeftPassage &&
+      options.isPrivateDestination &&
+      options.viewerCharacterId === session.leaderCharacterId
+    ) {
+      keyboard.text("⚔️ Почати атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
     }
   }
 

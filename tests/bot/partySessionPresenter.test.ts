@@ -1470,7 +1470,8 @@ describe("party session presenter", () => {
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
       participantCap: 3,
-      minimumParticipants: 1
+      minimumParticipants: 1,
+      joinUntilAt: new Date("2026-08-04T10:01:00.000Z")
     };
     const inviteUrl = "https://t.me/kvestarnia_test_bot?start=nyz_left_attack_partyBIG12";
     const firstIndex = getInitialPartyInviteTemplateIndex(session);
@@ -1488,7 +1489,24 @@ describe("party session presenter", () => {
     expect(first).toContain("Ватажок: <b>Голова</b>");
     expect(first).toContain("Учасників: <b>2/3</b>");
     expect(first).toContain("Готові:");
-    expect(first).toContain("До автозапуску:");
+    expect(first).toContain("До автозапуску: <b>1 хвилина</b>.");
+    expect(first).not.toContain("1 хвилину");
+    for (const [minutes, expected] of [
+      [2, "2 хвилини"],
+      [5, "5 хвилин"],
+      [11, "11 хвилин"],
+      [21, "21 хвилина"],
+      [22, "22 хвилини"]
+    ] as const) {
+      const text = presentPartyInviteShare({
+        ...session,
+        joinUntilAt: new Date(Date.parse("2026-08-04T10:00:00.000Z") + minutes * 60_000)
+      }, inviteUrl, {
+        templateIndex: firstIndex,
+        now: new Date("2026-08-04T10:00:00.000Z")
+      });
+      expect(text).toContain(`До автозапуску: <b>${expected}</b>.`);
+    }
     expect(first).not.toContain("Щоби відгукнутися");
     expect(first).not.toMatch(/\b(?:XP|золота|досвіду)\b/u);
     expect(next).not.toBe(first);

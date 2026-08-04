@@ -215,15 +215,24 @@ export function buildGroupCombatKeyboard(
 
   const attackButtons: CombatActionKeyboardButton[] = [];
   const abilityButtons: CombatActionKeyboardButton[] = [];
-  const livingEnemies = session.state.enemies.filter((enemy) => enemy.hp > 0);
+  const livingEnemies = session.state.enemies
+    .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+    .filter(({ enemy }) => enemy.hp > 0);
   if (livingEnemies.length > 0) {
     attackButtons.push({
       label: groupCombatReplyButtons.attack,
-      callbackData: makeGroupCombatTargetMenuCallbackData({
-        token: session.partyInviteToken,
-        turn: session.turn,
-        action: "attack"
-      })
+      callbackData: livingEnemies.length === 1
+        ? makeGroupCombatActionCallbackData({
+            token: session.partyInviteToken,
+            turn: session.turn,
+            action: "attack",
+            targetIndex: livingEnemies[0]!.targetIndex
+          })
+        : makeGroupCombatTargetMenuCallbackData({
+            token: session.partyInviteToken,
+            turn: session.turn,
+            action: "attack"
+          })
     });
   }
   const addAbilityButtons = (
@@ -245,7 +254,7 @@ export function buildGroupCombatKeyboard(
     if (!profile?.ability.label) {
       return;
     }
-    const targeted = requiresExplicitGroupCombatTarget(profile.ability);
+    const targeted = requiresExplicitGroupCombatTarget(profile.ability) && buttons.length > 1;
     abilityButtons.push({
       label: profile.ability.label,
       callbackData: targeted
@@ -396,7 +405,7 @@ function listGroupCombatAbilityActionButtons(
   optionIndex: number,
   explicitPayloadKey?: string,
   source?: "reply-menu"
-): Array<{ label: string; callbackData: string }> {
+): Array<{ label: string; callbackData: string; targetIndex: number }> {
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
   );
@@ -465,6 +474,7 @@ function listGroupCombatAbilityActionButtons(
           );
     return [{
       label: targetLabel,
+      targetIndex: target.targetIndex,
       callbackData: makeGroupCombatActionCallbackData({
         token: session.partyInviteToken,
         turn: session.turn,
@@ -475,6 +485,28 @@ function listGroupCombatAbilityActionButtons(
       })
     }];
   });
+}
+
+export function getSingleGroupCombatActionTargetIndex(
+  session: GroupCombatSessionRecord,
+  viewerCharacterId: string,
+  action: Extract<GroupCombatActionKey, "attack" | "class" | "race" | "gear">,
+  optionIndex = 0
+): number | null {
+  if (action === "attack") {
+    const targets = session.state.enemies
+      .map((enemy, targetIndex) => ({ enemy, targetIndex }))
+      .filter(({ enemy }) => enemy.hp > 0);
+    return targets.length === 1 ? targets[0]!.targetIndex : null;
+  }
+
+  const targets = listGroupCombatAbilityActionButtons(
+    session,
+    viewerCharacterId,
+    action,
+    optionIndex
+  );
+  return targets.length === 1 ? targets[0]!.targetIndex : null;
 }
 
 function presentDistinctGroupCombatAllyName(

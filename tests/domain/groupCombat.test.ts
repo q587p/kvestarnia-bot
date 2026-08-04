@@ -14,6 +14,7 @@ import {
   expandGroupCombatRecapSnapshot,
   getEffectiveGroupCombatAbilityManaCost,
   getGroupCombatActionProfile,
+  getGroupCombatEnemyFocusTarget,
   getGroupCombatPresentedEffectTargetSides,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
@@ -3308,6 +3309,43 @@ describe("group combat proof reducer", () => {
     expect(defended.state.participants[0]!.hp).toBe(0);
     expect(defended.state.contributions[0]!.damageTaken).toBe(1);
     expect(defended.state.contributions.slice(1).some((row) => row.damageTaken > 0)).toBe(true);
+  });
+
+  it("focuses the leader first and then the living top damage dealer from the previous turn", () => {
+    const state = proofState(2);
+    const leader = state.participants[0]!;
+    const striker = state.participants[1]!;
+    striker.attack = 30;
+    striker.stats.dexterity = 30;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+      enemy.defense = 0;
+      enemy.dexterity = 0;
+      enemy.attack = 3;
+    });
+
+    expect(getGroupCombatEnemyFocusTarget(state)?.characterId).toBe(leader.characterId);
+
+    const first = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", leader.characterId),
+      action(state, 1, "attack", "enemy", state.enemies[0]!.id)
+    ]);
+
+    expect(first.state.status).toBe("active");
+    expect(first.state.participants[0]!.threat).toBe(0);
+    expect(first.state.participants[1]!.threat).toBeGreaterThan(0);
+    expect(getGroupCombatEnemyFocusTarget(first.state)?.characterId).toBe(striker.characterId);
+    expect(first.state.recap.at(-1)?.lines).toContain(
+      `🎯 На наступний хід увага ворогів переходить на ${striker.name}.`
+    );
+
+    const damageTakenBefore = first.state.contributions[1]!.damageTaken;
+    const second = resolveGroupCombatTurn(first.state, [
+      action(first.state, 0, "guard", "self", leader.characterId),
+      action(first.state, 1, "guard", "self", striker.characterId)
+    ]);
+    expect(second.state.contributions[1]!.damageTaken).toBeGreaterThan(damageTakenBefore);
   });
 
   it("wins at the turn cap when a counter kills the final enemy", () => {

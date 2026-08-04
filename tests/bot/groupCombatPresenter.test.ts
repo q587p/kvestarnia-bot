@@ -3,6 +3,7 @@ import {
   createGroupCombatProofState,
   GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND
 } from "../../src/domain/groupCombat/groupCombat";
+import { parseGroupCombatCallbackData } from "../../src/bot/callbacks/groupCombatCallbackData";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
   buildGroupCombatAbilityTargetKeyboard,
@@ -171,6 +172,33 @@ describe("group combat presenter", () => {
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
     ).at(-1)).toEqual(["🏃 Відступити", "🔎 Оновити"]);
+
+    const actionButtons = buildGroupCombatKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat()
+      .map((button) => ({
+        text: button.text,
+        callbackData: "callback_data" in button ? button.callback_data : undefined
+      }));
+    expect(parseGroupCombatCallbackData(
+      actionButtons.find((button) => button.text === "🗡️ Вдарити")?.callbackData
+    )).toMatchObject({ ok: true, value: { type: "action", action: "attack", targetIndex: 0 } });
+    expect(parseGroupCombatCallbackData(
+      actionButtons.find((button) => button.text === "🪓 Силовий замах")?.callbackData
+    )).toMatchObject({ ok: true, value: { type: "action", action: "class", targetIndex: 0 } });
+  });
+
+  it("marks the current enemy focus on participant rows like the raid card", () => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const striker = session.state.participants[1]!;
+
+    expect(presentGroupCombat(session, leader.characterId, NOW))
+      .toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
+
+    striker.threat = 13;
+    const shifted = presentGroupCombat(session, leader.characterId, NOW);
+    expect(shifted).toContain(`${striker.name}: ${striker.hp}/${striker.hpMax} · мана ${striker.mana}/${striker.manaMax} ← 🎯 ціль ворогів`);
+    expect(shifted).not.toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
   });
 
   it("packs multi-enemy guard and abilities into paired rows", () => {

@@ -268,6 +268,11 @@ export function formatRemainingWait(availableAt: Date, now: Date): string {
   return `${minutes} ${formatUkrainianMinutes(minutes)}`;
 }
 
+function formatRemainingWaitNominative(availableAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
+  return `${minutes} ${pluralizeUk(minutes, "хвилина", "хвилини", "хвилин")}`;
+}
+
 function formatUkrainianMinutes(value: number): string {
   const lastTwo = value % 100;
   const last = value % 10;
@@ -2166,7 +2171,7 @@ export function presentPartyInviteShare(
     ...(leftPassage
       ? [
           `Готові: <b>${readyCount}/${participantCount}</b>.`,
-          `До автозапуску: <b>${formatRemainingWait(session.joinUntilAt, options.now ?? new Date())}</b>.`
+          `До автозапуску: <b>${formatRemainingWaitNominative(session.joinUntilAt, options.now ?? new Date())}</b>.`
         ]
       : []),
     "",

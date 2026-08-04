@@ -135,13 +135,16 @@ availability and manual Telegram QA remain pending evidence.
 
 ### 0.4.4 — Bugfix & Polish
 
-Compact GroupCombat cards now open explicit target-only pickers for attacks and
-single-target abilities, including one remaining target. Left-passage invite
-links are origin-bound and can atomically relocate an otherwise eligible
-joiner, while blocked joins keep location unchanged. Owned gated equipment is
-marked `🔎 🔒` from one shared in-memory requirement projection; detail remains
-available and never offers Equip while locked. No migration, ґільдія runtime or
-new rollout flag is included.
+Compact GroupCombat cards now commit attacks and explicit abilities directly
+when exactly one canonical target remains, and open target-only pickers for two
+or more targets. Enemy focus starts on the living party leader, then follows
+the participant with the most actual damage in the previous resolved turn and
+is marked on active cards. Left-passage invite links are origin-bound and can
+atomically relocate an otherwise eligible joiner, while blocked joins keep
+location unchanged. Owned gated equipment is marked `🔎 🔒` from one shared
+in-memory requirement projection; detail remains available and never offers
+Equip while locked. No migration, ґільдія runtime or new rollout flag is
+included.
 
 ### 0.4.5 — Guild foundation
 
@@ -154,7 +157,10 @@ leader/officer/member та audit. Ґільдія може лише зручні�
 
 Одна тижнева групова мета, що використовує звичайні PartySession +
 GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
-втрачають базову solo/party progression.
+втрачають базову solo/party progression. Цей slice також проводить явний аудит
+кожного класового прийому, що вже працює у PartyBoss/Big Barrel: або додає
+рівнозначну типізовану дію в GroupCombat із тестами, або документує raid-only
+причину та окремого майбутнього власника.
 
 ### 0.4.7 — Старий жертовник
 

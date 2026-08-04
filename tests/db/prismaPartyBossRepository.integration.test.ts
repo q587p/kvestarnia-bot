@@ -2824,6 +2824,10 @@ describe("PrismaPartyBossRepository integration", () => {
   });
 
   it("resolves production due-timeout after the turn deadline", async () => {
+    await prisma.partyBossSession.updateMany({
+      where: { status: "active" },
+      data: { turnExpiresAt: new Date("2026-07-01T00:00:00.000Z") }
+    });
     await seedCharacter(prisma, "due-timeout-leader-user", 4201n, "Лідерка Пізня", { hp: 300 });
     await seedCharacter(prisma, "due-timeout-joiner-user", 4202n, "Помічник Пізній", { hp: 300 });
     await partyRepository.createForTelegramUser(4201n, partyInput("party-token-due-timeout"));

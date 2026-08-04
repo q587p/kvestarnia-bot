@@ -499,6 +499,8 @@ describe("party session keyboard", () => {
       isPrivateDestination: true
     });
     expect(inlineButtonTexts(shareKeyboard)).toContain("🔗 Покликати до атаки");
+    expect(inlineButtonRows(shareKeyboard).filter((row) => row.length > 0).at(-1))
+      .toEqual(["⚔️ Почати атаку"]);
     expect(keyboardText(shareKeyboard)).toContain("v1:party:sh:partyABC12");
   });
 
