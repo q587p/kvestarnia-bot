@@ -102,11 +102,11 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Манатки нарешті знають, навіщо вони");
+    expect(text).toContain("Менше кнопкового галасу, більше чесних підказок");
     expect(text).toContain("У грі вже:");
-    expect(text).toContain("Корчмар перечитав етикетки");
-    expect(text).toContain("усі чинні разові манатки мають власну чесну дію");
-    expect(text).toContain("Пляшка Пінного Міражу чекає на чесне рішення");
+    expect(text).toContain("Корчмар прибрав зі столу дублікати");
+    expect(text).toContain("гуртовий бій показує одну кнопку удару");
+    expect(text).toContain("манатки зі ще не виконаними вимогами мають видимий замок");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

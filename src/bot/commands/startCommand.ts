@@ -47,7 +47,7 @@ export interface StartCommandOptions {
   partyBoss?: PartyBossService;
   partyRaidChat?: PartyRaidChatService;
   partySessions?: PartySessionService;
-  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken">;
+  groupCombat?: GroupCombatService;
   tavernGames?: TavernGameService;
   presence?: PresenceService;
   botUsername?: string | undefined;
@@ -76,12 +76,13 @@ export function registerStartCommand(
       return;
     }
 
-    if (payload.type === "party" && options.partySessions) {
+    if ((payload.type === "party" || payload.type === "left-passage-attack") && options.partySessions) {
       if (await sendPartyJoinFromStartPayload(ctx, options.partySessions, payload.token, {
         botUsername: options.botUsername,
         partyBoss: options.partyBoss,
         partyRaidChat: options.partyRaidChat,
-        groupCombat: options.groupCombat
+        groupCombat: options.groupCombat,
+        requireLeftPassage: payload.type === "left-passage-attack"
       })) {
         return;
       }

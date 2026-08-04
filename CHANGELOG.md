@@ -7,6 +7,23 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.4] - 12026-08-04 - Group Targeting, Left Invitations and Equipment Locks
+
+### Changed
+- Replaced repeated GroupCombat target/action buttons with one Attack, Defend and one button per available class/race/gear ability. Attacks and explicit single-enemy or ally/self abilities now open a collision-safe target-only picker even when one target remains; auto-target abilities still commit directly. Inline and temporary reply-menu pickers share `↩️ До дій`, while only final target taps use the canonical action mutation path.
+- Added the origin-bound `nyz_left_attack_<token>` start payload. An otherwise eligible player may follow it from another ordinary location and atomically relocate to the exact left passage while joining; legacy left-passage `party_` links keep the same safe behavior. Wrong-origin, malformed, expired, full, dead, stale-life, invalid-resource, combat, search, rest, adventure, raid and other-live-party paths do not relocate.
+- Extended the existing invite-card flow to left-passage attacks with member authorization, deterministic rotating Ukrainian variants, a visible canonical link, leader/count/readiness/deadline context and `🔗 Покликати до атаки`. The compact preparation card no longer repeats the raw link or future reward details.
+- Added `🔎 🔒` to owned unequipped equipment whose canonical level/class/race/title or Loot Expansion requirements are unmet. Equipped `✅` takes precedence; non-equipment remains unmarked. Inventory now loads character/equipment once and evaluates all rows in memory, while detail/preview/equip share the same requirement evaluator.
+- Shifted the accepted post-polish `0.4.x` plan forward by one version: Guild Foundation is now `0.4.5`, followed by the previously accepted sequence through Guild Cosmetic Progression at `0.4.13`.
+
+### Fixed
+- Locked item detail remains reachable from ordinary, sorted and slot-filtered inventory paths, shows the canonical denial reasons and never offers Equip. Unknown evaluator state falls back to the neutral inspect marker.
+- Reopening a left-passage link as a current active/completed GroupCombat participant routes to the canonical combat card/result instead of attempting a second join.
+- Removed the obsolete trace-following instruction from left-passage runtime and active docs. Reconciled merged PR `#188` as repository evidence for `0.4.3` and PR `#189` as the shipped direct-supervision/bounded rotating-log replacement; deployment and manual-QA evidence remain separate.
+
+### Operations
+- No Prisma schema or migration, new rollout flag, ґільдія runtime, reward, item, achievement, lore promise or combat-debug instrumentation is included. Existing combat and left-passage entry flags retain their scope; privacy-safe combat transition logging remains deferred.
+
 ## [0.4.3] - 12026-08-02 - Consumable Manatka Uses
 
 ### Added

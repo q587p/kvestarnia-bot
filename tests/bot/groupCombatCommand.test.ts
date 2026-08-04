@@ -290,7 +290,7 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("redraws an unavailable reply-menu action as the newest canonical battle card", async () => {
+  it("opens a target-only reply picker even when one enemy remains", async () => {
     const bot = testBot();
     const session = makeSession();
     session.state.enemies[1]!.hp = 0;
@@ -321,22 +321,9 @@ describe("group combat bot flow", () => {
 
     await bot.handleUpdate(textUpdate("⚔️ Атакувати"));
 
-    expect(submitAction).toHaveBeenCalledWith({
-      telegramUserId: 1001n,
-      partyInviteToken: session.partyInviteToken,
-      turn: 1,
-      action: "attack",
-      targetKind: "enemy",
-      targetId: "enemy-1"
-    });
+    expect(submitAction).not.toHaveBeenCalled();
     expect(sentTexts).toHaveLength(1);
-    expect(sentTexts[0]).toContain("<b>Бій</b>:");
-    expect(sentTexts.join("\n")).not.toContain("Ця дія зараз недоступна");
-    expect(session.participants[0]).toMatchObject({
-      chatId: 1001n,
-      messageId: 31,
-      deliveredRevision: session.deliveryRevision
-    });
+    expect(sentTexts[0]).toContain("Оберіть ціль для атаки");
   });
 
   it("durably requests refresh before publishing one fresh card with the reply keyboard", async () => {
@@ -382,7 +369,7 @@ describe("group combat bot flow", () => {
     expect(order.filter((entry) => entry === "send")).toHaveLength(1);
     expect(sentInlineKeyboards).toHaveLength(1);
     expect(sentInlineKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentInlineKeyboards[0]).toContain("🗡️ Шурхіт");
+    expect(sentInlineKeyboards[0]).toContain("🗡️ Вдарити");
     expect(session.participants[0]).toMatchObject({
       chatId: 1001n,
       messageId: 31,
@@ -390,7 +377,7 @@ describe("group combat bot flow", () => {
     });
   });
 
-  it("submits a concrete one-target ability directly without opening an ability submenu", async () => {
+  it("opens a target-only picker for a concrete one-target ability", async () => {
     const bot = testBot();
     const session = makeSession();
     session.state.participants[0]!.classId = "class.warrior";
@@ -417,17 +404,10 @@ describe("group combat bot flow", () => {
 
     await bot.handleUpdate(textUpdate("🪓 Силовий замах"));
 
-    expect(submitAction).toHaveBeenCalledWith({
-      telegramUserId: 1001n,
-      partyInviteToken: session.partyInviteToken,
-      turn: 1,
-      action: "class",
-      targetKind: "enemy",
-      targetId: "enemy-1"
-    });
+    expect(submitAction).not.toHaveBeenCalled();
   });
 
-  it("routes an immediate duplicate frozen ability press through canonical validation and redraws once", async () => {
+  it("keeps repeated target-picker openings read-only", async () => {
     const bot = testBot();
     const session = makeSession();
     const actor = session.state.participants[0]!;
@@ -484,17 +464,11 @@ describe("group combat bot flow", () => {
     const sendsAfterFirstPress = sentTexts.length;
     await bot.handleUpdate({ ...textUpdate("🪓 Силовий замах"), update_id: 2 });
 
-    expect(submitAction).toHaveBeenCalledTimes(2);
-    expect(submitAction).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      action: "class",
-      targetKind: "enemy",
-      targetId: "enemy-1"
-    }));
+    expect(submitAction).not.toHaveBeenCalled();
     expect(sentTexts.slice(sendsAfterFirstPress)).toHaveLength(1);
-    expect(sentTexts.at(-1)).toContain("<b>Бій</b>:");
-    expect(sentTexts.join("\n")).not.toContain("Оберіть точну ціль");
-    expect(inlineKeyboards.at(-1)).not.toContain("🪓 Силовий замах → Шурхіт");
-    expect(inlineKeyboards.at(-1)).toContain("🔎 Оновити");
+    expect(sentTexts.at(-1)).toContain("Оберіть ціль для «🪓 Силовий замах»");
+    expect(inlineKeyboards.at(-1)).toContain("Шурхіт");
+    expect(inlineKeyboards.at(-1)).toContain("↩️ До дій");
   });
 
   it("delegates a stale GroupCombat reply label when no matching group fight remains", async () => {

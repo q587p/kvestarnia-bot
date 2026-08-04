@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.3` consumable manatky; `0.4.4` наступна |
+| Party Progression | активна | `0.4.3` merged; `0.4.4` bugfix/polish наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -104,22 +104,16 @@ bounded журнал і підсумки
 не доводить production enablement, deployment чи ручну Telegram QA; ці докази
 лишаються pending.
 
-Відкладені runtime і бойові follow-ups без номера релізу:
+Відкладені бойові follow-ups без номера релізу:
 
-- надійна діягностика isolated local bot: bounded rotating stdout/stderr
-  crash-log поза repository з snapshot SHA, PID tree, timestamps, exit code,
-  health/polling state та дозволеною error category без token, Telegram ids,
-  приватного тексту, callback payloads, SQL-параметрів і сирих state/exception;
-- local-runtime worker watchdog: manager і `status-local-bot.cmd` мають
-  перевіряти фактичний bot worker та `/health`, а не лише живу npm/`ts-node-dev`
-  оболонку; загиблий worker із живим wrapper позначається як failed, лишає
-  придатний crash-log і отримує bounded restart/recovery contract із тестами;
+- PR `#189` shipped direct worker supervision, bounded restart and rotating
+  isolated-runtime logs; це більше не backlog;
 - privacy-safe бойовий debug log для зависань і переходів сесій:
   session/rules/turn/state category та scheduler/CAS/settlement stage без
   приватних payloads;
 - спільна восьмивимірна статистика внеску для звичайних боїв, тренування,
   дуелей і Big Barrel/raid після окремого cross-mode contract review. Це не
-  розширює `0.4.2` і не починає `0.4.4`.
+  розширює `0.4.2` і не починає `0.4.5`.
 
 ### 0.4.3 — Consumable manatky
 
@@ -134,57 +128,70 @@ protected until its `keep` ending, while remort-carried stacks stay usable.
 Source tags/effect ids не вмикають прихованої поведінки. A catalog-specific
 rollout flag is not used: all twenty exact mappings are active
 where their existing inventory/combat surface is available. Existing stacks
-require no data migration; take-away purchase shelf remains separate `0.4.9`.
+require no data migration; take-away purchase shelf remains separate `0.4.10`.
 
-### 0.4.4 — Guild foundation
+PR `#188` merged this repository release. Target deployment, production
+availability and manual Telegram QA remain pending evidence.
+
+### 0.4.4 — Bugfix & Polish
+
+Compact GroupCombat cards now open explicit target-only pickers for attacks and
+single-target abilities, including one remaining target. Left-passage invite
+links are origin-bound and can atomically relocate an otherwise eligible
+joiner, while blocked joins keep location unchanged. Owned gated equipment is
+marked `🔎 🔒` from one shared in-memory requirement projection; detail remains
+available and never offers Equip while locked. No migration, ґільдія runtime or
+new rollout flag is included.
+
+### 0.4.5 — Guild foundation
 
 Малий соціяльний shell, який не чекає готового guild boss: унікальна
 нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
 leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
 `PartySession`; вона не володіє combat state.
 
-### 0.4.5 — Guild weekly goal
+### 0.4.6 — Guild weekly goal
 
 Одна тижнева групова мета, що використовує звичайні PartySession +
 GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
 втрачають базову solo/party progression.
 
-### 0.4.6 — Старий жертовник
+### 0.4.7 — Старий жертовник
 
 Gold-only MVP із `Благоволінням` і обрядом Жерця. Перед реалізацією один
 канонічний blessing-aware summary contract має довести, що заявлений stat bonus
 справді однаково діє або чесно не діє у solo, duel, PartyBoss і GroupCombat.
 Манатки й окрема локація до цього slice не входять.
 
-### 0.4.7 — Greeting buff
+### 0.4.8 — Greeting buff
 
 Одна тепла дія `👋 Привітатися` з одним bounded target status і `93`-хвилинним
 actor-target wait. До коду треба обрати рівно один ефект і його stacking/time
 policy проти напоїв, `Ситого`, Натхнення та благословення; XP/gold bonus не є
 рекомендованим MVP.
 
-### 0.4.8 — Їжа Шинку
+### 0.4.9 — Їжа Шинку
 
 Один активний food buff, до трьох авторських страв, явна покупка/заміна й
 канонічне споживання/expiry. Це їжа, зʼїдена зараз, без coffee cooldown state,
 five-buff stacking-а та carried items. До runtime треба затвердити exact
 ids/prices/effects/modes, interaction matrix і окремий food-owned status.
 
-### 0.4.9 — Shynok take-away consumables
+### 0.4.10 — Shynok take-away consumables
 
 Окремий replay-safe take-away shelf використовує лише вже затверджений
 `0.4.3` exact catalog. Він не розширює typed effect family і не змішує carried
 манатки з їжею, випитою або зʼїденою одразу.
 
-### 0.4.10–0.4.11 — Resale і Korchmar recycling
+### 0.4.11–0.4.12 — Resale і Korchmar recycling
 
-Поточний продаж Корчмарю за 42% уже shipped. `0.4.10` додає лише server-owned
+Поточний продаж Корчмарю за 42% уже shipped. `0.4.11` додає лише server-owned
 resale listings для sold units із `goldValue >= 93`, atomic sale intake receipt
-та opaque exact-once purchase receipt. `0.4.11` окремо додає bounded neutral
+та opaque exact-once purchase receipt. `0.4.12` окремо додає bounded neutral
 recycling після freezing batch identity/order/seed/outcome/repair policy, без
 player LUCK/achievements і без scheduler-а.
 
-### 0.4.12 — Guild cosmetic progression
+### 0.4.13 — Guild cosmetic progression
 
 Невеликий XP/level шар ґільдії, косметичні milestones і season-zero recap лише
 після достатніх даних тижневої мети. Пізніший номер дає зібрати ці дані, поки
@@ -235,7 +242,7 @@ Admin allowlist із раннього roadmap не є автоматичною �
   ordering, restart recovery та відсутности keyboard-less станів;
 - сезони, guild wars, crafting, web/Mini App.
 
-Нумеровані `0.4.3` і `0.4.6`–`0.4.11` tasks активують bounded частини старих
+Нумеровані `0.4.3` і `0.4.7`–`0.4.12` tasks активують bounded частини старих
 drafts.
 Решту ідей треба активувати новим versioned task після даних, а не запускати
 старий `0.2.x-*` draft verbatim.

@@ -2390,6 +2390,39 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
   });
 
+  it("routes left-passage payloads through the origin-bound relocation join and canonical URL", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const joinLeftPassageByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "already-joined",
+      session
+    });
+    const { ctx, reply } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, { joinLeftPassageByTokenForTelegramUser }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      chatId: 93n
+    });
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Щоби відгукнутися");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1]))
+      .toContain(`nyz_left_attack_${session.inviteToken}`);
+  });
+
   it("persists a deep-link join card and refreshes it with the leader card after protocol filing", async () => {
     const joinedSession = makeBigBarrelSessionWithMember();
     let storedSession = joinedSession;

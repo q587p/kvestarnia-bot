@@ -1970,6 +1970,62 @@ describe("main menu and scene keyboards", () => {
       "✅ Пательня переконання",
       "🔎 Квиток мокрого пригодника"
     ]);
+    expect(flatInlineButtonTexts(buildInventoryKeyboard({
+      state: "found",
+      totalGoldValue: 0,
+      items: [
+        {
+          id: "locked-equipment",
+          itemId: "item.pan-of-persuasion",
+          quantity: 1,
+          content: {
+            id: "item.pan-of-persuasion",
+            name: "Пательня переконання",
+            description: "Важкий аргумент.",
+            rarity: "common",
+            slot: "weapon",
+            goldValue: 25
+          }
+        },
+        {
+          id: "locked-chest",
+          itemId: "item.apron-of-foam-resistance",
+          quantity: 1,
+          content: {
+            id: "item.apron-of-foam-resistance",
+            name: "Фартух опору піні",
+            description: "Піниться стримано.",
+            rarity: "common",
+            slot: "armor",
+            goldValue: 25
+          }
+        },
+        {
+          id: "locked-junk",
+          itemId: "item.wet-hero-ticket",
+          quantity: 1,
+          content: {
+            id: "item.wet-hero-ticket",
+            name: "Квиток мокрого пригодника",
+            description: "Трофей.",
+            rarity: "common",
+            slot: "junk",
+            priceless: true
+          }
+        }
+      ]
+    }, 0, null, {
+      equippedItemIds: new Set(["item.pan-of-persuasion"]),
+      requirementLockedItemIds: new Set([
+        "item.pan-of-persuasion",
+        "item.apron-of-foam-resistance",
+        "item.wet-hero-ticket"
+      ])
+    }))).toEqual(expect.arrayContaining([
+      "✅ Пательня переконання",
+      "🔎 🔒 Фартух опору піні",
+      "🔎 Квиток мокрого пригодника"
+    ]));
     expect(
       flatInlineButtonTexts(
         buildInventoryKeyboard(
@@ -2857,6 +2913,38 @@ describe("main menu and scene keyboards", () => {
       "v1:item:inventory:s:o",
       "v1:equip:view"
     ]);
+  });
+
+  it("keeps a locked owned item inspectable but never offers Equip from detail", () => {
+    const content = {
+      id: "item.locked-test",
+      name: "Замкнена манатка",
+      description: "Замок чесно попереджає.",
+      rarity: "rare" as const,
+      slot: "weapon" as const,
+      goldValue: 42
+    };
+    const keyboard = buildItemDetailKeyboard({
+      state: "found",
+      item: {
+        id: "owned-locked-test",
+        itemId: content.id,
+        quantity: 1,
+        content
+      }
+    }, null, 0, null, {
+      equipPreview: {
+        state: "requirements-not-met",
+        reasons: ["min-level"],
+        requirements: { minLevel: 13, classes: [], races: [], titles: [] },
+        item: { itemId: content.id, content },
+        slot: "weapon",
+        currentItem: null
+      }
+    });
+
+    expect(flatInlineButtonTexts(keyboard)).not.toContain("🧥 Екіпірувати");
+    expect(flatInlineButtonTexts(keyboard)).toContain("⬅️ До манаток");
   });
 
   it("adds another item-use button only when requested", () => {

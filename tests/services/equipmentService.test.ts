@@ -212,6 +212,49 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("projects all inventory requirement locks with one character and one equipment read", async () => {
+    const listByTelegramUserId = vi.fn().mockResolvedValue({
+      characterId,
+      equipment: [buildEquipment({ itemId: "item.loot-v1-w027", slot: "weapon" })]
+    });
+    const findByTelegramUserId = vi.fn().mockResolvedValue(
+      buildCharacter({ level: 8, classId: "class.warrior" })
+    );
+    const inventoryRead = vi.fn(() => {
+      throw new Error("inventory projection must use the already loaded rows");
+    });
+    const service = new EquipmentService(
+      { listByTelegramUserId } as unknown as EquipmentRepository,
+      { listByTelegramUserId: inventoryRead },
+      { findByTelegramUserId } as unknown as CharacterRepository
+    );
+    const inventoryItems = [
+      "item.loot-v1-w027",
+      "item.mantok.coverage.race.dwarf-stone-buckler",
+      "item.pan-of-persuasion",
+      "item.wet-hero-ticket"
+    ].map((itemId, index) => ({
+      itemId,
+      quantity: 1,
+      content: items.find((item) => item.id === itemId)!,
+      id: `inventory-${index}`
+    }));
+
+    const projection = await service.getInventoryEquipmentProjectionForTelegramUser(
+      telegramUserId,
+      inventoryItems
+    );
+
+    expect([...projection.equippedItemIds]).toEqual(["item.loot-v1-w027"]);
+    expect([...(projection.requirementLockedItemIds ?? [])]).toEqual([
+      "item.loot-v1-w027",
+      "item.mantok.coverage.race.dwarf-stone-buckler"
+    ]);
+    expect(listByTelegramUserId).toHaveBeenCalledTimes(1);
+    expect(findByTelegramUserId).toHaveBeenCalledTimes(1);
+    expect(inventoryRead).not.toHaveBeenCalled();
+  });
+
   it("enforces authored class requirements in preview and equip", async () => {
     const service = createService({
       inventoryRows: [buildItem({ itemId: "item.mantok.coverage.class.ranger.twohand-bow" })],

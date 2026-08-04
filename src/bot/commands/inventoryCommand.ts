@@ -15,13 +15,15 @@ import { safeEditMessageText } from "../safeEditMessageText";
 
 type SendMode = "reply" | "edit";
 
+type InventoryEquipmentService = Pick<
+  EquipmentService,
+  "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
+> & Partial<Pick<EquipmentService, "getInventoryEquipmentProjectionForTelegramUser">>;
+
 export function registerInventoryCommand(
   bot: Bot,
   inventoryService: InventoryService,
-  equipmentService?: Pick<
-    EquipmentService,
-    "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
-  >
+  equipmentService?: InventoryEquipmentService
 ): void {
   bot.command("inventory", async (ctx) => {
     await sendInventory(ctx, inventoryService, "reply", 0, null, equipmentService);
@@ -42,10 +44,7 @@ export async function sendInventory(
   mode: SendMode,
   page = 0,
   filter: InventoryFilter = null,
-  equipmentService?: Pick<
-    EquipmentService,
-    "getEquipmentForTelegramUser" | "getCompatibleItemIdsForSlotForTelegramUser"
-  >,
+  equipmentService?: InventoryEquipmentService,
   sort: InventorySort = DEFAULT_INVENTORY_SORT
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
@@ -58,21 +57,31 @@ export async function sendInventory(
   const perf = startPerfSpan(mode === "edit" ? "inventory.edit" : "inventory.open", {
     telegramUserId
   });
-  const { result, equipment, slotCompatibleItemIds } = await perf.measureDb(async () => {
-    const [inventoryResult, equipmentResult] = await Promise.all([
-      inventoryService.listForTelegramUser(telegramUserId),
-      equipmentService
-        ? equipmentService.getEquipmentForTelegramUser(telegramUserId)
-        : Promise.resolve(null)
-    ]);
+  const { result, equipment, equippedItemIds, requirementLockedItemIds, slotCompatibleItemIds } = await perf.measureDb(async () => {
+    const inventoryResult = await inventoryService.listForTelegramUser(telegramUserId);
+    const inventoryItems = inventoryResult.state === "found" ? inventoryResult.items : [];
+    const projection = equipmentService?.getInventoryEquipmentProjectionForTelegramUser
+      ? await equipmentService.getInventoryEquipmentProjectionForTelegramUser(
+          telegramUserId,
+          inventoryItems,
+          isInventoryEquipmentSlotFilter(filter) ? filter : null
+        )
+      : null;
+    const equipmentResult = projection?.equipment ?? (equipmentService
+      ? await equipmentService.getEquipmentForTelegramUser(telegramUserId)
+      : null);
     const compatibleItemIds =
-      isInventoryEquipmentSlotFilter(filter) && equipmentService
+      projection?.slotCompatibleItemIds ?? (
+        isInventoryEquipmentSlotFilter(filter) && equipmentService
         ? await equipmentService.getCompatibleItemIdsForSlotForTelegramUser(telegramUserId, filter)
-        : null;
+        : null
+      );
 
     return {
       result: inventoryResult,
       equipment: equipmentResult,
+      equippedItemIds: projection?.equippedItemIds ?? null,
+      requirementLockedItemIds: projection?.requirementLockedItemIds ?? null,
       slotCompatibleItemIds: compatibleItemIds
     };
   });
@@ -81,13 +90,15 @@ export async function sendInventory(
       isInventoryEquipmentSlotFilter(filter) && equipment?.state === "ready"
         ? (equipment.slots.find((slot) => slot.slot === filter)?.item ?? null)
         : null;
-    const equippedItemIds =
+    const resolvedEquippedItemIds = equippedItemIds ?? (
       equipment?.state === "ready"
         ? new Set(equipment.slots.flatMap((slot) => slot.item ? [slot.item.itemId] : []))
-        : null;
+        : null
+    );
     const inventoryOptions = {
       currentSlotItem,
-      equippedItemIds,
+      equippedItemIds: resolvedEquippedItemIds,
+      requirementLockedItemIds,
       slotCompatibleItemIds,
       sort
     };

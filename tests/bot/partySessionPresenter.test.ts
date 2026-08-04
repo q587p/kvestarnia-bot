@@ -4,8 +4,10 @@ import {
   BIG_BARREL_INVITE_TEMPLATES,
   getInitialBigBarrelApproachTemplateIndex,
   getInitialBigBarrelInviteTemplateIndex,
+  getInitialPartyInviteTemplateIndex,
   getNextBigBarrelApproachTemplateIndex,
   getNextBigBarrelInviteTemplateIndex,
+  getNextPartyInviteTemplateIndex,
   presentBigBarrelApproachNotice,
   presentPartyCancel,
   presentPartyCreate,
@@ -1460,6 +1462,36 @@ describe("party session presenter", () => {
     expect(firstText).toContain("Ватажок: <b>Голова</b>");
     expect(firstText).toContain("Учасників: <b>2/8</b>");
     expect(nextText).not.toBe(firstText);
+  });
+
+  it("renders deterministic rotating left-passage invite cards without trace instructions or reward spoilers", () => {
+    const session = {
+      ...makePartySession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const inviteUrl = "https://t.me/kvestarnia_test_bot?start=nyz_left_attack_partyBIG12";
+    const firstIndex = getInitialPartyInviteTemplateIndex(session);
+    const nextIndex = getNextPartyInviteTemplateIndex(session, firstIndex);
+    const first = presentPartyInviteShare(session, inviteUrl, {
+      templateIndex: firstIndex,
+      now: new Date("2026-08-04T10:00:00.000Z")
+    });
+    const next = presentPartyInviteShare(session, inviteUrl, {
+      templateIndex: nextIndex,
+      now: new Date("2026-08-04T10:00:00.000Z")
+    });
+
+    expect(first).toContain(inviteUrl);
+    expect(first).toContain("Ватажок: <b>Голова</b>");
+    expect(first).toContain("Учасників: <b>2/3</b>");
+    expect(first).toContain("Готові:");
+    expect(first).toContain("До автозапуску:");
+    expect(first).not.toContain("Щоби відгукнутися");
+    expect(first).not.toMatch(/\b(?:XP|золота|досвіду)\b/u);
+    expect(next).not.toBe(first);
   });
 
   it("renders stable rotating Big Barrel Brother approach notices", () => {

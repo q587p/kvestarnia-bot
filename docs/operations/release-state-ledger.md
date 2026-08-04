@@ -8,10 +8,10 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-02)
+## Current repository baseline (repository evidence, 12026-08-04)
 
-The current branch prepares package `0.4.3`. Merge, deployment and target
-availability remain separate evidence.
+The current branch prepares package `0.4.4`. Merge, deployment and target
+availability remain separate evidence; PR merges prove repository state only.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -28,7 +28,9 @@ availability remain separate evidence.
 | 0.4.0 party-vs-many proof | yes; repository `0.4.0` | unknown; repository includes `20260722090000_group_combat_proof` with durable card-delivery revisions | unavailable in production; default off and production-hard-disabled | yes; repository gates plus restart/convergence/privacy regressions | pending | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.1 group-combat hardening | yes; repository `0.4.1` | unknown; repository includes additive `20260723194500_group_combat_hardening` | unavailable in production; default off and production-hard-disabled | yes; focused domain/repository/parser/delivery/race tests, bounded simulator matrix and repository gates | pending on final exact head | `GROUP_COMBAT_PROOF_ENABLED`; release operator unassigned | deferred |
 | 0.4.2 left-passage party attack | yes; merged PR `#187` | target deployment unknown; repository includes additive migration `20260724233000_left_passage_party_attack` | no target evidence; repository default off | yes; merge checks passed | manual three-account Telegram QA not recorded on merged head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
-| 0.4.3 consumable manatka uses | no; implementation branch | no migration required | no target evidence; all 20 exact mappings have no catalog-specific rollout flag, while existing combat-surface entry flags retain their scope | yes; exact-head static + 4,406 unit + 712 integration tests; 879 focused response-effect/runtime/combat/FightService/Party Boss/GroupCombat/Solo repository tests across 13 files; docs and combat simulator pass | one-account ordinary/out-of-combat and lone-owner `c002`, three-account Party Boss/GroupCombat matrix, cooldown `1`, `c006` zero-delta/protection composition, actual evade miss/retry/restart, earlier-protection/rider-only delta, two-enemy one-response, all-party owner scope, left-passage nearby invitation and full `3/3` checks pending | deploy rollback; release operator unassigned | deferred |
+| 0.4.3 consumable manatka uses | yes; merged PR `#188` | no migration required | no target evidence; all 20 exact mappings have no catalog-specific rollout flag, while existing combat-surface entry flags retain their scope | yes; merge checks passed | final-head Telegram matrix not recorded | deploy rollback; release operator unassigned | deferred |
+| Local isolated-runtime supervision/log retention | yes; merged PR `#189` | no production migration | local tooling only | yes; merge checks passed | local crash/restart observation not recorded here | managed runtime stop/refresh; owner unassigned | deferred |
+| 0.4.4 bugfix & polish | no; implementation branch | no migration required | no new flag; existing GroupCombat/left-passage entry flags retain scope | yes on implementation head: `npm run check`, Prisma validation, combat simulation, docs check and diff check | GroupCombat picker, left-link relocation/invite and equipment-lock matrix pending | deploy rollback; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

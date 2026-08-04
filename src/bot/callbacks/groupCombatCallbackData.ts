@@ -11,6 +11,15 @@ export type GroupCombatCallback =
   | { type: "statistics"; token: string }
   | { type: "items"; token: string; turn: number; page: number; source?: "reply-menu" }
   | {
+      type: "target-menu";
+      token: string;
+      turn: number;
+      action: Exclude<GroupCombatActionKey, "guard" | "item" | "flee">;
+      optionIndex?: number;
+      source?: "reply-menu";
+    }
+  | { type: "target-back"; token: string; turn: number; source?: "reply-menu" }
+  | {
       type: "action";
       token: string;
       turn: number;
@@ -74,6 +83,27 @@ export function makeGroupCombatActionCallbackData(input: {
   ).toString(36)}:${input.targetIndex.toString(36)}`;
 }
 
+export function makeGroupCombatTargetMenuCallbackData(input: {
+  token: string;
+  turn: number;
+  action: Exclude<GroupCombatActionKey, "guard" | "item" | "flee">;
+  optionIndex?: number;
+  source?: "reply-menu";
+}): string {
+  return `v5:gc:q:${input.token}:${input.turn.toString(36)}:${actionKey(input.action)}:${Math.max(
+    0,
+    Math.floor(input.optionIndex ?? 0)
+  ).toString(36)}:${input.source ? "r" : "c"}`;
+}
+
+export function makeGroupCombatTargetBackCallbackData(input: {
+  token: string;
+  turn: number;
+  source?: "reply-menu";
+}): string {
+  return `v5:gc:b:${input.token}:${input.turn.toString(36)}:${input.source ? "r" : "c"}`;
+}
+
 export function parseGroupCombatCallbackData(
   data: string | undefined
 ): Result<GroupCombatCallback, GroupCombatCallbackError> {
@@ -82,7 +112,7 @@ export function parseGroupCombatCallbackData(
   }
   const parts = data.split(":");
   if (
-    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3" && parts[0] !== "v4") ||
+    (parts[0] !== "v1" && parts[0] !== "v2" && parts[0] !== "v3" && parts[0] !== "v4" && parts[0] !== "v5") ||
     parts[1] !== "gc" ||
     !TOKEN_PATTERN.test(parts[3] ?? "")
   ) {
@@ -119,6 +149,31 @@ export function parseGroupCombatCallbackData(
     return turn === null || page === null || source === null
       ? err("invalid")
       : ok({ type: "items", token, turn, page, ...(source ? { source } : {}) });
+  }
+  if (parts[0] === "v5" && parts[2] === "q" && parts.length === 8) {
+    const turn = parseBase36(parts[4]);
+    const action = parseAction(parts[5]);
+    const optionIndex = parseBase36(parts[6], true);
+    const source = parts[7] === "r" ? "reply-menu" as const : parts[7] === "c" ? undefined : null;
+    return turn !== null &&
+      (action === "attack" || action === "class" || action === "race" || action === "gear") &&
+      optionIndex !== null && source !== null
+      ? ok({
+          type: "target-menu",
+          token,
+          turn,
+          action,
+          ...(optionIndex > 0 ? { optionIndex } : {}),
+          ...(source ? { source } : {})
+        })
+      : err("invalid");
+  }
+  if (parts[0] === "v5" && parts[2] === "b" && parts.length === 6) {
+    const turn = parseBase36(parts[4]);
+    const source = parts[5] === "r" ? "reply-menu" as const : parts[5] === "c" ? undefined : null;
+    return turn !== null && source !== null
+      ? ok({ type: "target-back", token, turn, ...(source ? { source } : {}) })
+      : err("invalid");
   }
   if ((parts[0] !== "v2" && parts[0] !== "v3") || parts[2] !== "a" || parts.length !== 8) {
     return err("invalid");

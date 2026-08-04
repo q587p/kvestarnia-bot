@@ -158,6 +158,29 @@ export class PartySessionService {
     });
   }
 
+  async joinLeftPassageByTokenForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string,
+    input: {
+      chatId?: bigint | null;
+      messageId?: number | null;
+    } = {}
+  ): Promise<PartyJoinResult> {
+    if (!this.isLeftPassagePartyAttackEnabled()) {
+      return { state: "not-found" };
+    }
+
+    return this.sessions.joinByTokenForTelegramUser(telegramUserId, inviteToken, {
+      joinSource: "deep-link",
+      now: this.clock(),
+      chatId: input.chatId ?? null,
+      messageId: input.messageId ?? null,
+      expectedOriginKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      expectedOriginLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      relocateToExpectedOrigin: true
+    });
+  }
+
   async leaveByTokenForTelegramUser(
     telegramUserId: bigint,
     inviteToken: string
@@ -393,11 +416,37 @@ export class PartySessionService {
 }
 
 export function buildPartyInviteUrl(botUsername: string | undefined, token: string): string | null {
-  if (!botUsername) {
+  const normalizedUsername = normalizeBotUsername(botUsername);
+  if (!normalizedUsername) {
     return null;
   }
 
-  return `https://t.me/${botUsername}?start=party_${token}`;
+  return `https://t.me/${normalizedUsername}?start=party_${token}`;
+}
+
+export function buildLeftPassagePartyInviteUrl(botUsername: string | undefined, token: string): string | null {
+  const normalizedUsername = normalizeBotUsername(botUsername);
+  if (!normalizedUsername) {
+    return null;
+  }
+
+  return `https://t.me/${normalizedUsername}?start=nyz_left_attack_${token}`;
+}
+
+export function buildPartyInviteUrlForSession(
+  botUsername: string | undefined,
+  session: Pick<PartySessionRecord, "inviteToken" | "originKind" | "originLocationId">
+): string | null {
+  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
+    session.originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    ? buildLeftPassagePartyInviteUrl(botUsername, session.inviteToken)
+    : buildPartyInviteUrl(botUsername, session.inviteToken);
+}
+
+function normalizeBotUsername(botUsername: string | undefined): string | null {
+  const normalized = botUsername?.trim().replace(/^@/u, "") ?? "";
+
+  return /^[A-Za-z0-9_]{5,32}$/u.test(normalized) ? normalized : null;
 }
 
 function createInviteToken(): string {

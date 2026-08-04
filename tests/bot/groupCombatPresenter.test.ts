@@ -133,16 +133,13 @@ describe("group combat presenter", () => {
     ).flat();
 
     expect(rows.flat().map((button) => button.text)).toEqual([
-      "🗡️ Комірний 1",
-      "🗡️ Комірний 2",
-      "🗡️ Комірний 3",
+      "🗡️ Вдарити",
       "🛡 Захищатися",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
-      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
-      ["🗡️ Комірний 3", "🛡 Захищатися"],
+      ["🗡️ Вдарити", "🛡 Захищатися"],
       ["🏃 Відступити", "🔎 Оновити"]
     ]);
     expect(replyLabels).toEqual([
@@ -184,9 +181,8 @@ describe("group combat presenter", () => {
 
     expect(buildGroupCombatKeyboard(session, viewer.characterId).inline_keyboard
       .map((row) => row.map((button) => button.text))).toEqual([
-      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
-      ["🛡 Захищатися", "🔥 Гаряче закляття"],
-      ["🎯 Ображена точність → Комірний 1", "🎯 Ображена точність → Комірний 2"],
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["🔥 Гаряче закляття", "🎯 Ображена точність"],
       ["🏃 Відступити", "🔎 Оновити"]
     ]);
   });
@@ -209,7 +205,7 @@ describe("group combat presenter", () => {
       viewerCharacterId,
       { action: "class", label: "🪓 Силовий замах", optionIndex: 0 }
     ).inline_keyboard.flat().map((button) => button.text);
-    expect(targetLabels.filter((label) => label.startsWith("🪓 Силовий замах"))).toHaveLength(2);
+    expect(targetLabels).toEqual(["Комірний 1", "Комірний 2", "↩️ До дій"]);
     expect(targetLabels.some((label) => label.includes("Низький центр ваги"))).toBe(false);
   });
 
@@ -286,7 +282,7 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("Потім Корчма поставить вас у захист");
   });
 
-  it("uses one plain attack button when only one monster remains", () => {
+  it("still asks for the explicit attack target when only one monster remains", () => {
     const session = createSession(2);
     session.state.enemies[1]!.hp = 0;
 
@@ -296,8 +292,7 @@ describe("group combat presenter", () => {
       "attack"
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("🗡️ Вдарити");
-    expect(labels).not.toContain(`🗡️ ${session.state.enemies[0]!.name}`);
+    expect(labels).toEqual(["Комірний", "↩️ До дій"]);
   });
 
   it("uses distinct ordinary-fight short monster names on the live card and target buttons", () => {
@@ -324,9 +319,9 @@ describe("group combat presenter", () => {
     expect(text).toContain("Архівний відповідає Пригодник 1: 3 шкоди.");
     expect(text).toContain("Капустяний відповідає Пригодник 1: 3 шкоди.");
     expect(labels).toEqual([
-      "🗡️ Архівний",
-      "🗡️ Капустяний",
-      "↩️ До бою"
+      "Архівний",
+      "Капустяний",
+      "↩️ До дій"
     ]);
   });
 
@@ -345,7 +340,7 @@ describe("group combat presenter", () => {
     expect(labels).not.toContain("📊 Статистика");
   });
 
-  it("offers authored class support without restoring generic ally support", () => {
+  it("keeps an authored ally/self picker target-only and marks self unambiguously", () => {
     const session = createSession(2);
     session.state.participants[0]!.classId = "class.priest";
     session.state.participants[1]!.hp -= 1;
@@ -355,9 +350,32 @@ describe("group combat presenter", () => {
       "abilities"
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("✨ Суворе благословення");
+    expect(labels).toContain("Пригодник 1 (ви)");
+    expect(labels).not.toContain("✨ Суворе благословення");
     expect(labels).not.toContain("🫶 Пригодник 2");
-    expect(labels).toContain("↩️ До бою");
+    expect(labels).toContain("↩️ До дій");
+  });
+
+  it("keeps duplicate ally names distinct in a target-only gear picker", () => {
+    const session = createSession(3);
+    const viewer = session.state.participants[0]!;
+    viewer.level = 12;
+    viewer.gearAbilityIds = ["gear.siege-filling"];
+    for (const participant of session.state.participants) {
+      participant.name = "Тезка";
+      participant.hp -= 1;
+    }
+
+    const labels = buildGroupCombatAbilityTargetKeyboard(session, viewer.characterId, {
+      action: "gear",
+      label: "🥟 Облога начинки",
+      optionIndex: 0
+    }).inline_keyboard.flat().map((button) => button.text);
+
+    expect(labels).toContain("Тезка (ви)");
+    expect(labels).toContain("Тезка · 2");
+    expect(labels).toContain("Тезка · 3");
+    expect(new Set(labels).size).toBe(labels.length);
   });
 
   it("retains the frozen cosmetic title in the combat presentation", () => {

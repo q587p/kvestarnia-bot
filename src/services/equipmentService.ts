@@ -11,7 +11,10 @@ import {
 } from "../content/lootExpansionV1";
 import { activeRaces } from "../content/races";
 import type { ItemContent } from "../content/schema";
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import type {
+  CharacterRecord,
+  CharacterRepository
+} from "../db/repositories/characterRepository";
 import type {
   CharacterEquipmentRecord,
   EquipmentAttunementNotificationRecord,
@@ -49,6 +52,19 @@ export interface EquipmentRequirementDetails {
 export interface EquipmentRequirementCheck {
   canEquip: boolean;
   reasons: EquipmentRequirementReason[];
+}
+
+export interface InventoryEquipmentProjection {
+  equipment: EquipmentResult;
+  equippedItemIds: ReadonlySet<string>;
+  requirementLockedItemIds: ReadonlySet<string> | null;
+  slotCompatibleItemIds: ReadonlySet<string> | null;
+}
+
+export interface EquipmentInventoryItem {
+  itemId: string;
+  quantity: number;
+  content: ItemContent;
 }
 
 export type EquipmentResult =
@@ -202,14 +218,79 @@ export class EquipmentService {
     };
   }
 
+  async getInventoryEquipmentProjectionForTelegramUser(
+    telegramUserId: bigint,
+    inventoryItems: readonly EquipmentInventoryItem[],
+    slot: EquipmentSlot | null = null
+  ): Promise<InventoryEquipmentProjection> {
+    const [snapshot, character] = await Promise.all([
+      this.equipment.listByTelegramUserId(telegramUserId),
+      this.characters
+        ? this.characters.findByTelegramUserId(telegramUserId)
+        : Promise.resolve(null)
+    ]);
+
+    if (!snapshot) {
+      return {
+        equipment: { state: "no-character" },
+        equippedItemIds: new Set(),
+        requirementLockedItemIds: null,
+        slotCompatibleItemIds: null
+      };
+    }
+
+    const equippedItemIds = new Set(snapshot.equipment.map((row) => row.itemId));
+    const requirementLockedItemIds = this.characters && !character
+      ? null
+      : new Set(
+          inventoryItems.flatMap((item) => {
+            if (!isEquippableItem(item.content)) {
+              return [];
+            }
+
+            const check = evaluateEquipmentRequirement(item.content, item.itemId, character);
+
+            return check && !check.canEquip ? [item.itemId] : [];
+          })
+        );
+    const slotCompatibleItemIds = slot
+      ? new Set(
+          inventoryItems.flatMap((item) => {
+            const resolution = resolveEquipmentSlotForItem(item.content, slot, character?.classId);
+
+            if (!resolution.slot || !resolution.allowed || getHandConflictReason(item.content, slot)) {
+              return [];
+            }
+
+            return hasAvailableCopyForSlot(inventoryItems, snapshot.equipment, item.itemId, slot)
+              ? [item.itemId]
+              : [];
+          })
+        )
+      : null;
+
+    return {
+      equipment: {
+        state: "ready",
+        slots: buildSlots(snapshot.equipment)
+      },
+      equippedItemIds,
+      requirementLockedItemIds,
+      slotCompatibleItemIds
+    };
+  }
+
   async previewItemEquipForTelegramUser(
     telegramUserId: bigint,
     itemId: string,
     targetSlot?: EquipmentSlot | null
   ): Promise<ItemEquipPreviewResult> {
-    const [snapshot, inventoryRows] = await Promise.all([
+    const [snapshot, inventoryRows, character] = await Promise.all([
       this.equipment.listByTelegramUserId(telegramUserId),
-      this.inventory.listByTelegramUserId(telegramUserId)
+      this.inventory.listByTelegramUserId(telegramUserId),
+      this.characters
+        ? this.characters.findByTelegramUserId(telegramUserId)
+        : Promise.resolve(null)
     ]);
 
     if (!snapshot || !inventoryRows) {
@@ -228,9 +309,9 @@ export class EquipmentService {
       return { state: "not-equippable" };
     }
 
-    const character = this.characters
-      ? await this.characters.findByTelegramUserId(telegramUserId)
-      : null;
+    if (this.characters && !character) {
+      return { state: "no-character" };
+    }
     const slotResolution = resolveEquipmentSlotForItem(
       content,
       targetSlot,
@@ -298,11 +379,9 @@ export class EquipmentService {
     const requirements = getEquipmentRequirementDetails(content, itemId);
 
     if (requirements) {
-      const equipCheck = await this.checkEquipmentRequirementForTelegramUser(
-        telegramUserId,
-        content,
-        itemId
-      );
+      const equipCheck = this.characters
+        ? evaluateEquipmentRequirement(content, itemId, character)
+        : { canEquip: true, reasons: [] };
 
       if (!equipCheck) {
         return { state: "no-character" };
@@ -364,9 +443,12 @@ export class EquipmentService {
     targetSlot?: EquipmentSlot | null,
     options: EquipItemOptions = {}
   ): Promise<EquipItemResult> {
-    const [snapshot, inventoryRows] = await Promise.all([
+    const [snapshot, inventoryRows, character] = await Promise.all([
       this.equipment.listByTelegramUserId(telegramUserId),
-      this.inventory.listByTelegramUserId(telegramUserId)
+      this.inventory.listByTelegramUserId(telegramUserId),
+      this.characters
+        ? this.characters.findByTelegramUserId(telegramUserId)
+        : Promise.resolve(null)
     ]);
 
     if (!snapshot || !inventoryRows) {
@@ -385,9 +467,9 @@ export class EquipmentService {
       return { state: "not-equippable" };
     }
 
-    const character = this.characters
-      ? await this.characters.findByTelegramUserId(telegramUserId)
-      : null;
+    if (this.characters && !character) {
+      return { state: "no-character" };
+    }
     const slotResolution = resolveEquipmentSlotForItem(
       content,
       targetSlot,
@@ -468,11 +550,9 @@ export class EquipmentService {
     const requirements = getEquipmentRequirementDetails(content, itemId);
 
     if (requirements) {
-      const equipCheck = await this.checkEquipmentRequirementForTelegramUser(
-        telegramUserId,
-        content,
-        itemId
-      );
+      const equipCheck = this.characters
+        ? evaluateEquipmentRequirement(content, itemId, character)
+        : { canEquip: true, reasons: [] };
 
       if (!equipCheck) {
         return { state: "no-character" };
@@ -690,103 +770,14 @@ export class EquipmentService {
     );
   }
 
-  private async checkEquipmentRequirementForTelegramUser(
-    telegramUserId: bigint,
-    item: ItemContent,
-    itemId: string
-  ): Promise<EquipmentRequirementCheck | null> {
-    if (isLootExpansionItemId(itemId)) {
-      return this.checkLootExpansionEquipRequirementForTelegramUser(telegramUserId, itemId);
-    }
+}
 
-    const requirement = item.equipmentRequirements;
-
-    if (!requirement) {
-      return {
-        canEquip: true,
-        reasons: []
-      };
-    }
-
-    if (!this.characters) {
-      return {
-        canEquip: true,
-        reasons: []
-      };
-    }
-
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
-
-    if (!character) {
-      return null;
-    }
-
-    const summary = summarizeCharacter(character);
-    const reasons: EquipmentRequirementReason[] = [];
-    const minLevel = requirement.minLevel ?? 1;
-    const classIds = requirement.classIds ?? [];
-    const raceIds = requirement.raceIds ?? [];
-    const titleLabels = requirement.titleLabels ?? [];
-    const titleBucketIds = requirement.titleBucketIds ?? [];
-    const activeTitleLabel = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
-    const titleIds = normalizeLootExpansionTitleIds({
-      level: summary.level,
-      classId: summary.classId,
-      raceId: summary.raceId,
-      title: summary.title
-    });
-
-    if (activeTitleLabel) {
-      for (const titleId of normalizeLootExpansionTitleIds({
-        level: summary.level,
-        classId: summary.classId,
-        raceId: summary.raceId,
-        title: activeTitleLabel
-      })) {
-        titleIds.add(titleId);
-      }
-    }
-
-    if (summary.level < minLevel) {
-      reasons.push("min-level");
-    }
-
-    if (classIds.length > 0 && !classIds.includes(summary.classId)) {
-      reasons.push("class");
-    }
-
-    if (raceIds.length > 0 && !raceIds.includes(summary.raceId)) {
-      reasons.push("race");
-    }
-
-    if (
-      (titleLabels.length > 0 || titleBucketIds.length > 0) &&
-      !titleLabels.includes(summary.title) &&
-      (!activeTitleLabel || !titleLabels.includes(activeTitleLabel)) &&
-      !titleBucketIds.some((titleId) => titleBucketMatchesProfile(titleId, titleIds))
-    ) {
-      reasons.push("title");
-    }
-
-    return {
-      canEquip: reasons.length === 0,
-      reasons
-    };
-  }
-
-  private async checkLootExpansionEquipRequirementForTelegramUser(
-    telegramUserId: bigint,
-    itemId: string
-  ): Promise<EquipmentRequirementCheck | null> {
-    if (!this.characters) {
-      return {
-        canEquip: true,
-        reasons: []
-      };
-    }
-
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
-
+export function evaluateEquipmentRequirement(
+  item: ItemContent,
+  itemId: string,
+  character: CharacterRecord | null
+): EquipmentRequirementCheck | null {
+  if (isLootExpansionItemId(itemId)) {
     if (!character) {
       return null;
     }
@@ -800,6 +791,71 @@ export class EquipmentService {
       title: summary.title
     });
   }
+
+  const requirement = item.equipmentRequirements;
+
+  if (!requirement) {
+    return {
+      canEquip: true,
+      reasons: []
+    };
+  }
+
+  if (!character) {
+    return null;
+  }
+
+  const summary = summarizeCharacter(character);
+  const reasons: EquipmentRequirementReason[] = [];
+  const minLevel = requirement.minLevel ?? 1;
+  const classIds = requirement.classIds ?? [];
+  const raceIds = requirement.raceIds ?? [];
+  const titleLabels = requirement.titleLabels ?? [];
+  const titleBucketIds = requirement.titleBucketIds ?? [];
+  const activeTitleLabel = resolveActiveCosmeticTitleLabel(character.activeCosmeticTitleGrantId);
+  const titleIds = normalizeLootExpansionTitleIds({
+    level: summary.level,
+    classId: summary.classId,
+    raceId: summary.raceId,
+    title: summary.title
+  });
+
+  if (activeTitleLabel) {
+    for (const titleId of normalizeLootExpansionTitleIds({
+      level: summary.level,
+      classId: summary.classId,
+      raceId: summary.raceId,
+      title: activeTitleLabel
+    })) {
+      titleIds.add(titleId);
+    }
+  }
+
+  if (summary.level < minLevel) {
+    reasons.push("min-level");
+  }
+
+  if (classIds.length > 0 && !classIds.includes(summary.classId)) {
+    reasons.push("class");
+  }
+
+  if (raceIds.length > 0 && !raceIds.includes(summary.raceId)) {
+    reasons.push("race");
+  }
+
+  if (
+    (titleLabels.length > 0 || titleBucketIds.length > 0) &&
+    !titleLabels.includes(summary.title) &&
+    (!activeTitleLabel || !titleLabels.includes(activeTitleLabel)) &&
+    !titleBucketIds.some((titleId) => titleBucketMatchesProfile(titleId, titleIds))
+  ) {
+    reasons.push("title");
+  }
+
+  return {
+    canEquip: reasons.length === 0,
+    reasons
+  };
 }
 
 function titleBucketMatchesProfile(titleBucketId: string, titleIds: ReadonlySet<string>): boolean {
@@ -1039,7 +1095,7 @@ function getTwohandConfirmPrompt(
 }
 
 function hasAvailableCopyForSlot(
-  inventoryRows: CharacterItemRecord[],
+  inventoryRows: readonly Pick<CharacterItemRecord, "itemId" | "quantity">[],
   equipmentRows: CharacterEquipmentRecord[],
   itemId: string,
   targetSlot: EquipmentSlot
