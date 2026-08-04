@@ -1,15 +1,13 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
-import {
-  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
-  type GroupCombatService
-} from "../../services/groupCombatService";
+import type { GroupCombatService } from "../../services/groupCombatService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
   buildPartyInviteUrlForSession,
   BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  isLeftPassagePartySession,
   type PartySessionService
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
@@ -641,7 +639,7 @@ export async function handlePartySessionCallback(
     );
     const shouldAutoStartLeftPassage =
       result.session.status === "recruiting" &&
-      result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
+      isLeftPassagePartySession(result.session) &&
       joined.length >= 1 &&
       joined.length <= 3 &&
       joined.every((participant) => participant.readiness === "ready") &&
@@ -993,7 +991,7 @@ export async function sendPartyJoinFromStartPayload(
 
   const initialParty = await service.getByToken(token);
   const isLeftPassage = initialParty.state === "ready" &&
-    initialParty.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+    isLeftPassagePartySession(initialParty.session);
 
   if (options.requireLeftPassage && !isLeftPassage) {
     await ctx.reply(presentPartyJoin({ state: "not-found" }, { inviteUrl: null }), HTML_MESSAGE_OPTIONS);
@@ -1326,7 +1324,7 @@ async function handlePartyInviteShare(
 
   if (
     result.state !== "ready" ||
-    (!isBigBarrelParty(result.session) && result.session.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) ||
+    (!isBigBarrelParty(result.session) && !isLeftPassagePartySession(result.session)) ||
     result.session.status !== "recruiting"
   ) {
     await safeAnswerCallbackQuery(ctx, { text: "Цей збір уже не редагує запрошення." });
@@ -1386,7 +1384,7 @@ async function sendCanonicalPartyPreparationCard(
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
   partyRaidChat: PartyRaidChatService | undefined,
-  groupCombat: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined,
+  groupCombat: GroupCombatService | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
     inviteUrl: string | null,
@@ -1422,6 +1420,16 @@ async function sendCanonicalPartyPreparationCard(
       const groupViewer = ctx.chat?.type === "private"
         ? groupSession?.participants.find((participant) => participant.telegramUserId === telegramUserId)
         : null;
+      if (groupSession?.status === "active" && groupViewer && groupCombat) {
+        await deliverGroupCombatParticipantCard(
+          ctx.api,
+          groupCombat,
+          groupSession.id,
+          groupViewer.characterId,
+          { forceRefresh: true, forceReplacement: true }
+        );
+        return;
+      }
       if (groupSession && groupSession.status !== "active" && groupViewer) {
         const groupOptions = {
           ...HTML_MESSAGE_OPTIONS,

@@ -502,6 +502,23 @@ describe("party session keyboard", () => {
     expect(keyboardText(shareKeyboard)).toContain("v1:party:sh:partyABC12");
   });
 
+  it("does not expose left-passage controls for the matching kind at another location", () => {
+    const session = {
+      ...makeSession(),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "korchma.board"
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      isPrivateDestination: true
+    });
+
+    expect(keyboardText(keyboard)).not.toContain("v3:gc:s:partyABC12");
+    expect(keyboardText(keyboard)).not.toContain("v1:party:sh:partyABC12");
+  });
+
   it("rotates Big Barrel Brother invite-card text", () => {
     const keyboard = buildPartySessionInviteShareKeyboard("partyABC12", 12);
 

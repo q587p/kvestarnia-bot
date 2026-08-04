@@ -5,7 +5,7 @@ import {
 } from "../../content/characterFlavor";
 import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
-  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  isLeftPassagePartySession,
   type PartyCancelResult,
   type PartyCreateResult,
   type PartyJoinResult,
@@ -182,7 +182,7 @@ function presentPartyJoinIneligible(
 ): string {
   const reason = result.reason;
 
-  if (result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+  if (isLeftPassagePartySession(result.session)) {
     if (reason === "wrong-location") {
       return "Цей поклик належить лівому проходу Низу. Відкрийте чинне запрошення або поверніться до проходу.";
     }
@@ -1251,7 +1251,7 @@ export function presentPartySession(
     : null;
   const big = session.originLocationId === "barrel.big-brother";
   const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
-  const leftPassage = session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+  const leftPassage = isLeftPassagePartySession(session);
   const lines = [
     big
       ? "🛢️ <b>Збір до Старшого Брата Бочки</b>"
@@ -1458,7 +1458,7 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
 }
 
 function isLeftPassageParty(session: PartySessionRecord): boolean {
-  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+  return isLeftPassagePartySession(session);
 }
 
 function presentPartyFullNotice(session: PartySessionRecord): string {
@@ -1518,7 +1518,7 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   if (session.status === "expired") {
-    return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    return isLeftPassagePartySession(session)
       ? "Стан: збір завершено без атаки"
       : "Стан: строк збору минув";
   }
@@ -1545,11 +1545,11 @@ function getStatusLine(session: PartySessionRecord): string {
     ].join("\n");
   }
 
-    if (session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
-      return [
-        `Стан: атака почнеться, щойно всі будуть готові, або автоматично о ${formatTime(session.expiresAt)}.`,
-        "Лідер може рушити раніше."
-      ].join("\n");
+  if (isLeftPassagePartySession(session)) {
+    return [
+      `Стан: атака почнеться, щойно всі будуть готові, або автоматично о ${formatTime(session.expiresAt)}.`,
+      "Лідер може рушити раніше."
+    ].join("\n");
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;

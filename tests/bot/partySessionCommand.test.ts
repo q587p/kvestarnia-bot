@@ -2423,6 +2423,107 @@ describe("handlePartySessionCallback", () => {
       .toContain(`nyz_left_attack_${session.inviteToken}`);
   });
 
+  it.each(["active", "terminal"] as const)(
+    "rejects a left-passage payload at a noncanonical location before %s GroupCombat replay lookup",
+    async (groupState) => {
+      const session = {
+        ...makeSession("recruiting"),
+        originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+        originLocationId: "korchma.board"
+      };
+      const groupSession = groupState === "active"
+        ? makeActiveGroupCombatSession()
+        : makeTerminalGroupCombatSession();
+      const findByToken = vi.fn().mockResolvedValue(groupSession);
+      const joinLeftPassageByTokenForTelegramUser = vi.fn();
+      const joinByTokenForTelegramUser = vi.fn();
+      const { ctx, reply, apiEditMessageText, sendMessage } = createCallbackContext(93);
+
+      const handled = await sendPartyJoinFromStartPayload(
+        ctx,
+        serviceWithCanonicalSession(session, {
+          joinLeftPassageByTokenForTelegramUser,
+          joinByTokenForTelegramUser
+        }),
+        session.inviteToken,
+        {
+          botUsername: "kvestarnia_test_bot",
+          requireLeftPassage: true,
+          groupCombat: {
+            areDevHelpersEnabled: () => false,
+            findByToken
+          } as unknown as GroupCombatService
+        }
+      );
+
+      expect(handled).toBe(true);
+      expect(findByToken).not.toHaveBeenCalled();
+      expect(joinLeftPassageByTokenForTelegramUser).not.toHaveBeenCalled();
+      expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+      expect(reply).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(reply.mock.calls)).not.toContain(session.inviteToken);
+      expect(JSON.stringify(reply.mock.calls)).not.toContain(groupSession.id);
+      expect(apiEditMessageText).not.toHaveBeenCalled();
+      expect(sendMessage).not.toHaveBeenCalled();
+    }
+  );
+
+  it("delivers one active combat card when combat starts after a left-passage deep-link join", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const groupSession = makeActiveGroupCombatSession();
+    const joinLeftPassageByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "joined",
+      session
+    });
+    const joinByTokenForTelegramUser = vi.fn();
+    const findByToken = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(groupSession);
+    const findById = vi.fn().mockResolvedValue(groupSession);
+    const { ctx, reply, apiEditMessageText, sendMessage } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, {
+        joinLeftPassageByTokenForTelegramUser,
+        joinByTokenForTelegramUser
+      }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true,
+        groupCombat: {
+          areDevHelpersEnabled: () => false,
+          findByToken,
+          findById
+        } as unknown as GroupCombatService
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(findByToken).toHaveBeenCalledTimes(2);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      chatId: 93n
+    });
+    expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(apiEditMessageText).toHaveBeenCalledTimes(1);
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      93,
+      24,
+      expect.any(String),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(reply).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("persists a deep-link join card and refreshes it with the leader card after protocol filing", async () => {
     const joinedSession = makeBigBarrelSessionWithMember();
     let storedSession = joinedSession;
@@ -3235,6 +3336,19 @@ function makeTerminalGroupCombatSession(): GroupCombatSessionRecord {
     })),
     queuedActions: []
   };
+}
+
+function makeActiveGroupCombatSession(): GroupCombatSessionRecord {
+  const session = makeTerminalGroupCombatSession();
+  session.status = "active";
+  session.state.status = "active";
+  session.state.enemies.forEach((enemy) => {
+    enemy.hp = enemy.hpMax;
+  });
+  session.result = null;
+  session.completedAt = null;
+  session.turnExpiresAt = new Date("2026-07-24T10:03:23.000Z");
+  return session;
 }
 
 function makeBossParticipant(characterId: string, name: string): PartyBossSessionRecord["state"]["participants"][number] {

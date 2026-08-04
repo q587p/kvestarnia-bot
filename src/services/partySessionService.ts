@@ -27,6 +27,13 @@ export const GROUP_COMBAT_PARTY_PARTICIPANT_CAP = 3;
 export const GROUP_COMBAT_PARTY_MINIMUM_PARTICIPANTS = 2;
 export const GROUP_COMBAT_PARTY_TTL_MS = 3 * 60 * 1000;
 
+export function isLeftPassagePartySession(
+  session: Pick<PartySessionRecord, "originKind" | "originLocationId">
+): boolean {
+  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
+    session.originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT;
+}
+
 export type PartyCreateResult =
   | { state: "disabled" }
   | PartyCreateRepositoryResult;
@@ -381,7 +388,7 @@ export class PartySessionService {
       return { state: "not-found" };
     }
     const current = await this.sessions.findByToken(inviteToken, this.clock());
-    if (current?.originKind !== LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+    if (!current || !isLeftPassagePartySession(current)) {
       return { state: "not-found" };
     }
     const session = await this.sessions.forceExpireByToken(inviteToken, this.clock(), expectedVersion);
@@ -437,8 +444,7 @@ export function buildPartyInviteUrlForSession(
   botUsername: string | undefined,
   session: Pick<PartySessionRecord, "inviteToken" | "originKind" | "originLocationId">
 ): string | null {
-  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
-    session.originLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+  return isLeftPassagePartySession(session)
     ? buildLeftPassagePartyInviteUrl(botUsername, session.inviteToken)
     : buildPartyInviteUrl(botUsername, session.inviteToken);
 }

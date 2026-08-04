@@ -22,6 +22,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Routed every supported GroupCombat callback generation (`v1`–`v5`) through the social module and combat-lock safe path, so inline target pickers and `↩️ До дій` reach their read-only handlers exactly once.
 - Made left-passage invite creation and deferred raid-chat recruiting-card refresh/redaction use the origin-aware `nyz_left_attack_<token>` URL; Big Barrel and generic parties keep `party_<token>`.
 - Reopening a left-passage link as a current active/completed GroupCombat participant routes to the canonical combat card/result instead of attempting a second join.
+- Bound every Left Passage classification to both the canonical origin kind and exact left-passage location. A forged or legacy-mismatched `nyz_left_attack_*` token now fails before GroupCombat lookup and cannot expose session details, while valid legacy `party_*`, Big Barrel and generic party behavior is unchanged.
+- Closed the join-to-combat-start presentation race: after one successful origin-bound join/relocation, canonical rendering rechecks GroupCombat and delivers the participant's current active card exactly once instead of a stale preparation reply. Terminal combat still renders its canonical result without retrying the join.
 - Removed the obsolete trace-following instruction from left-passage runtime and active docs. Reconciled merged PR `#188` as repository evidence for `0.4.3` and PR `#189` as the shipped direct-supervision/bounded rotating-log replacement; deployment and manual-QA evidence remain separate.
 
 ### Operations

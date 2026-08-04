@@ -51,6 +51,7 @@ import {
   type CombatActionKeyboardButton
 } from "./combatActionKeyboardLayout";
 import { addPaginationControls } from "./pagination";
+import { isLeftPassagePartySession } from "../../services/partySessionService";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
 
@@ -72,7 +73,7 @@ export function buildPartySessionKeyboard(
 
   if (session.status === "recruiting") {
     const isBigBarrel = session.originLocationId === "barrel.big-brother";
-    const isLeftPassage = session.originKind === "nyz-left-passage-party.v1";
+    const isLeftPassage = isLeftPassagePartySession(session);
     const joinedParticipantCount = session.participants.filter((participant) => participant.status === "joined").length;
     const viewer = options.viewerCharacterId
       ? session.participants.find(
@@ -124,7 +125,7 @@ export function buildPartySessionKeyboard(
       keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();
     }
     if (
-      session.originKind === "nyz-left-passage-party.v1" &&
+      isLeftPassage &&
       options.isPrivateDestination &&
       options.viewerCharacterId === session.leaderCharacterId
     ) {

@@ -15,10 +15,12 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 import type { DailyActionRepository } from "../db/repositories/dailyActionRepository";
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
+import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
+
+export { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
-export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
 export interface GroupCombatResolvedDelivery {
   session: GroupCombatSessionRecord;
   settlementNotices: GroupCombatSettlementNotice[];

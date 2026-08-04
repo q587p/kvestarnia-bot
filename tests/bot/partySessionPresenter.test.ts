@@ -1717,7 +1717,7 @@ describe("party session presenter", () => {
     const session = {
       ...makePartySession(),
       originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
-      originLocationId: "presence.location.korchma.deep.level1.left"
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     };
     const searchText = presentPartyJoin({
       state: "ineligible",

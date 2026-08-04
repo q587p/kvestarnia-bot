@@ -123,5 +123,10 @@ describe("PartySessionService GroupCombat proof recruiting", () => {
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       inviteToken: "leftToken13"
     })).toContain("start=nyz_left_attack_leftToken13");
+    expect(buildPartyInviteUrlForSession("kvestarnia_test_bot", {
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "korchma.board",
+      inviteToken: "leftToken13"
+    })).toContain("start=party_leftToken13");
   });
 });
