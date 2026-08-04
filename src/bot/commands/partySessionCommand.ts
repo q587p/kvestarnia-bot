@@ -659,7 +659,9 @@ export async function handlePartySessionCallback(
           (participant) => participant.telegramUserId === telegramUserId
         );
         await deliverGroupCombatCards(ctx.api, groupCombat, started.session, {
-          ...(actor ? { priorityCharacterId: actor.characterId } : {})
+          ...(actor
+            ? { priorityCharacterId: actor.characterId, deferRemaining: true }
+            : {})
         });
         return;
       }

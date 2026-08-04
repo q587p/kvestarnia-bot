@@ -148,10 +148,11 @@ included.
 
 PR `#191` merged this repository release and production reported SQLite
 contention while GroupCombat published several canonical cards concurrently.
-The unnumbered follow-up serializes participant delivery with the initiating
-player first and paces failed-delivery recovery; it does not change combat
-rules, rewards, schema or the `0.4.5` scope. Formal final-hotfix Telegram QA
-remains pending.
+The unnumbered follow-up publishes the initiating player first, returns the
+active callback before a session-scoped serial ally tail, and paces
+failed-delivery recovery. Scheduler and terminal delivery still await the full
+roster; combat rules, rewards, schema and the `0.4.5` scope do not change.
+Formal final-hotfix Telegram QA remains pending.
 
 ### 0.4.5 — Guild foundation
 

@@ -31,6 +31,7 @@ const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const LOSING_CANDIDATE_DELETE_ATTEMPTS = 3;
 const SUPERSEDED_CANDIDATE_TEXT = "♻️ Цю бойову картку замінено актуальною нижче.";
 const deliveryTails = new Map<string, Promise<void>>();
+const deferredSessionDeliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
 type MessageOptions = NonNullable<Parameters<Api["editMessageText"]>[3]>;
@@ -67,6 +68,7 @@ export async function deliverGroupCombatCards(
   options: {
     forceReplacementCharacterId?: string;
     priorityCharacterId?: string;
+    deferRemaining?: boolean;
   } = {}
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
@@ -83,64 +85,110 @@ export async function deliverGroupCombatCards(
         )
       ]
     : authoritative.participants;
+  if (
+    options.deferRemaining === true &&
+    priorityCharacterId !== undefined &&
+    participants[0]?.characterId === priorityCharacterId &&
+    participants.length > 1
+  ) {
+    const delivered = await deliverGroupCombatParticipants({
+      api,
+      service,
+      authoritative,
+      participants: participants.slice(0, 1),
+      transport,
+      ...(options.forceReplacementCharacterId !== undefined
+        ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+        : {})
+    });
+    queueDeferredGroupCombatParticipants({
+      api,
+      service,
+      fallback: authoritative,
+      priorityCharacterId
+    });
+    return delivered;
+  }
+  const delivered = await deliverGroupCombatParticipants({
+    api,
+    service,
+    authoritative,
+    participants,
+    transport,
+    ...(options.forceReplacementCharacterId !== undefined
+      ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+      : {})
+  });
+  await finalizeGroupCombatDelivery(service, authoritative.id);
+  return delivered;
+}
+
+async function deliverGroupCombatParticipants(input: {
+  api: Api;
+  service: GroupCombatService;
+  authoritative: GroupCombatSessionRecord;
+  participants: GroupCombatParticipantRecord[];
+  transport: GroupCombatDeliveryTransport;
+  forceReplacementCharacterId?: string;
+}): Promise<number> {
   let delivered = 0;
-  for (const participant of participants) {
+  for (const participant of input.participants) {
     try {
-      const actor = authoritative.state.participants.find(
+      const actor = input.authoritative.state.participants.find(
         (candidate) => candidate.characterId === participant.characterId
       );
       const participantFledThisTurn = Boolean(
         actor?.fledAtTurn !== undefined &&
         (
-          (authoritative.status === "active" &&
-            authoritative.state.turn === actor.fledAtTurn + 1) ||
-          (authoritative.status !== "active" &&
-            authoritative.state.turn === actor.fledAtTurn)
+          (input.authoritative.status === "active" &&
+            input.authoritative.state.turn === actor.fledAtTurn + 1) ||
+          (input.authoritative.status !== "active" &&
+            input.authoritative.state.turn === actor.fledAtTurn)
         )
       );
       let result: boolean | GroupCombatParticipantDeliveryResult;
       if (exitDeliveryStateOf(participant) !== "none") {
         result = await deliverParticipantExitNavigation({
-          api,
-          service,
-          sessionId: authoritative.id,
+          api: input.api,
+          service: input.service,
+          sessionId: input.authoritative.id,
           participantCharacterId: participant.characterId,
-          transport
+          transport: input.transport
         });
       } else if (
-        authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-        authoritative.status !== "active" &&
+        input.authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+        input.authoritative.status !== "active" &&
         participant.settlementStatus !== "completed"
       ) {
         result = false;
       } else {
         if (
-          authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+          input.authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
           participantFledThisTurn &&
-          participant.deliveredRevision < authoritative.deliveryRevision
+          participant.deliveredRevision < input.authoritative.deliveryRevision
         ) {
-          await api.sendMessage(
+          await input.api.sendMessage(
             Number(participant.telegramUserId),
             "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
             {
               reply_markup: buildMainMenuKeyboard({
-                ...(authoritative.state.production?.locationId
-                  ? { locationId: authoritative.state.production.locationId }
+                ...(input.authoritative.state.production?.locationId
+                  ? { locationId: input.authoritative.state.production.locationId }
                   : {})
               })
             }
           );
         }
         result = await deliverCanonicalGroupCombatParticipantCard({
-          service,
-          sessionId: authoritative.id,
+          service: input.service,
+          sessionId: input.authoritative.id,
           participantCharacterId: participant.characterId,
-          transport,
-          now: () => serviceTime(service),
-          ...(options.forceReplacementCharacterId === participant.characterId ||
-            (authoritative.status === "active" && participantFledThisTurn) ||
-            (authoritative.status !== "active" &&
-              participant.deliveredRevision < authoritative.deliveryRevision)
+          transport: input.transport,
+          now: () => serviceTime(input.service),
+          ...(input.forceReplacementCharacterId === participant.characterId ||
+            (input.authoritative.status === "active" && participantFledThisTurn) ||
+            (input.authoritative.status !== "active" &&
+              participant.deliveredRevision < input.authoritative.deliveryRevision)
             ? { forceReplacement: true }
             : {}),
           ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
@@ -153,11 +201,49 @@ export async function deliverGroupCombatCards(
       continue;
     }
   }
-  const latest = await loadAuthoritativeSession(service, authoritative.id);
+  return delivered;
+}
+
+function queueDeferredGroupCombatParticipants(input: {
+  api: Api;
+  service: GroupCombatService;
+  fallback: GroupCombatSessionRecord;
+  priorityCharacterId: string;
+}): void {
+  const previous = deferredSessionDeliveryTails.get(input.fallback.id) ?? Promise.resolve();
+  const operation = previous
+    .catch(() => undefined)
+    .then(async () => {
+      const authoritative =
+        await loadAuthoritativeSession(input.service, input.fallback.id) ?? input.fallback;
+      await deliverGroupCombatParticipants({
+        api: input.api,
+        service: input.service,
+        authoritative,
+        participants: authoritative.participants.filter(
+          (participant) => participant.characterId !== input.priorityCharacterId
+        ),
+        transport: apiTransport(input.api)
+      });
+      await finalizeGroupCombatDelivery(input.service, authoritative.id);
+    })
+    .catch(() => undefined);
+  deferredSessionDeliveryTails.set(input.fallback.id, operation);
+  void operation.finally(() => {
+    if (deferredSessionDeliveryTails.get(input.fallback.id) === operation) {
+      deferredSessionDeliveryTails.delete(input.fallback.id);
+    }
+  });
+}
+
+async function finalizeGroupCombatDelivery(
+  service: GroupCombatService,
+  sessionId: string
+): Promise<void> {
+  const latest = await loadAuthoritativeSession(service, sessionId);
   if (latest) {
     await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
   }
-  return delivered;
 }
 
 export function deliverGroupCombatParticipantExitNavigation(

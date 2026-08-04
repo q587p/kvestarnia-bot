@@ -172,6 +172,67 @@ describe("group-combat canonical participant delivery", () => {
     expect(canonicalEdits).toEqual([1003, 1001, 1002]);
   });
 
+  it("returns after the actor card while the serial ally tail keeps draining", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.participants.push(participantRecord("character-3", 1003n, "Остання готова", 2));
+    session.state.participants.push(actor("character-3", "1003", "Остання готова", 2));
+    session.state.contributions.push({
+      characterId: "character-3",
+      damage: 0,
+      healing: 0,
+      guardedTurns: 0
+    });
+    const firstAllyClaimEntered = deferred<void>();
+    const releaseFirstAllyClaim = deferred<void>();
+    const finalized = deferred<void>();
+    const claimOrder: bigint[] = [];
+    const claimParticipantUiPublication = vi.fn(async (input: { telegramUserId: bigint }) => {
+      claimOrder.push(input.telegramUserId);
+      if (input.telegramUserId === 1001n) {
+        firstAllyClaimEntered.resolve(undefined);
+        await releaseFirstAllyClaim.promise;
+      }
+      return {
+        state: "claimed" as const,
+        publishReplyKeyboard: true,
+        keyboardGeneration: 0
+      };
+    });
+    const finalizeDeliveryAttempt = vi.fn().mockImplementation(() => {
+      finalized.resolve(undefined);
+      return Promise.resolve(true);
+    });
+    const service = {
+      ...claimedUiService(session),
+      claimParticipantUiPublication,
+      finalizeDeliveryAttempt
+    } as unknown as GroupCombatService;
+
+    const actorDelivery = deliverGroupCombatCards({
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, service, session, {
+      priorityCharacterId: "character-3",
+      deferRemaining: true
+    });
+    await firstAllyClaimEntered.promise;
+
+    await expect(actorDelivery).resolves.toBe(1);
+    expect(claimOrder).toEqual([1003n, 1001n]);
+    expect(finalizeDeliveryAttempt).not.toHaveBeenCalled();
+
+    releaseFirstAllyClaim.resolve(undefined);
+    await finalized.promise;
+    expect(claimOrder).toEqual([1003n, 1001n, 1002n]);
+    expect(finalizeDeliveryAttempt).toHaveBeenCalledWith(
+      session.id,
+      session.deliveryRevision
+    );
+  });
+
   it("continues serial delivery after one participant hits a database timeout", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";
