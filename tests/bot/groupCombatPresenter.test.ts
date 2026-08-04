@@ -201,6 +201,31 @@ describe("group combat presenter", () => {
     expect(shifted).not.toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
   });
 
+  it.each([
+    ["group-combat.v2", "group-combat.proof.v1"],
+    ["group-combat.v3", "nyz-left-passage-party.v1"]
+  ] as const)("marks the living leader for persisted %s cards without focus semantics", (
+    rulesVersion,
+    encounterKey
+  ) => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const legacyTopThreat = session.state.participants[1]!;
+    session.state.rulesVersion = rulesVersion;
+    session.state.encounterKey = encounterKey;
+    delete session.state.enemyFocusVersion;
+    leader.threat = 7;
+    legacyTopThreat.threat = 93;
+
+    const text = presentGroupCombat(session, leader.characterId, NOW);
+    expect(text).toContain(
+      `${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`
+    );
+    expect(text).not.toContain(
+      `${legacyTopThreat.name}: ${legacyTopThreat.hp}/${legacyTopThreat.hpMax} · мана ${legacyTopThreat.mana}/${legacyTopThreat.manaMax} ← 🎯 ціль ворогів`
+    );
+  });
+
   it("marks the stored enemy focus on compact journal snapshots without inferring legacy focus", () => {
     const session = createSession(2);
     const leader = session.state.participants[0]!;

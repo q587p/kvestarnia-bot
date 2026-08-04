@@ -126,8 +126,12 @@ initial living target is the party leader, then the highest actual participant
 damage from the previous resolved turn wins, with roster order as the stable
 tie-breaker. Active participant cards and each newly stored journal turn mark
 that focus, while recap actions announce a change; legacy journal snapshots
-without focus evidence remain unmarked. A single canonical action target commits directly; explicit target
-selection is reserved for two or more valid targets.
+without focus evidence remain unmarked. Additive `enemyFocusVersion: 1` state
+evidence distinguishes previous-turn damage from legacy cumulative threat; an
+active unmarked v2/v3 state uses the living leader for one transition turn and
+then persists exact resolved-turn damage. A single canonical action target
+commits directly; explicit target selection is reserved for two or more valid
+targets.
 
 The next GroupCombat-owning task must audit every class ability already enabled
 in PartyBoss/Big Barrel. Each ability needs equivalent typed GroupCombat

@@ -14,6 +14,7 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   deriveLeftPassageEnemyCount,
+  GROUP_COMBAT_ENEMY_FOCUS_VERSION,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -3587,6 +3588,7 @@ function buildInvalidFallbackState(
   });
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
+    enemyFocusVersion: GROUP_COMBAT_ENEMY_FOCUS_VERSION,
     sessionId: row.id,
     partySessionId: row.partySessionId,
     encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,

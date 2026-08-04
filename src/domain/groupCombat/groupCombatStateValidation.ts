@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isDeepStrictEqual } from "node:util";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_ENEMY_FOCUS_VERSION,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -544,6 +545,7 @@ const productionSchema = z.object({
 
 const stateSchema = z.object({
   rulesVersion: z.enum([GROUP_COMBAT_RULES_VERSION, GROUP_COMBAT_PRODUCTION_RULES_VERSION]),
+  enemyFocusVersion: z.literal(GROUP_COMBAT_ENEMY_FOCUS_VERSION).optional(),
   sessionId: z.string().min(1),
   partySessionId: z.string().min(1),
   encounterKey: z.enum([GROUP_COMBAT_PROOF_ENCOUNTER_KEY, GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY]),

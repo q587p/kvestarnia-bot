@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Closed the join-to-combat-start presentation race: after one successful origin-bound join/relocation, canonical rendering rechecks GroupCombat and delivers the participant's current active card exactly once instead of a stale preparation reply. Terminal combat still renders its canonical result without retrying the join.
 - Polished left-passage gathering controls: `⚔️ Почати атаку` is the final visible row after invitation actions, a newly opened gathering answers `Ватагу відкрито.`, and the deadline uses nominative numeric forms after the colon (`1 хвилина`, `2 хвилини`, `5 хвилин`).
 - Isolated the PartyBoss due-timeout integration fixture from older active rows before asserting the bounded default due page, removing an order-dependent CI failure without changing the production batch limit.
+- Added an additive `enemyFocusVersion: 1` GroupCombat state contract. Persisted active v2/v3 sessions without it ignore legacy cumulative threat, show and target the living leader for one safe transition turn, then store exact resolved-turn damage for deterministic next-turn focus; new and relationally rebuilt states carry the marker immediately.
 - Removed the obsolete trace-following instruction from left-passage runtime and active docs. Reconciled merged PR `#188` as repository evidence for `0.4.3` and PR `#189` as the shipped direct-supervision/bounded rotating-log replacement; deployment and manual-QA evidence remain separate.
 
 ### Operations

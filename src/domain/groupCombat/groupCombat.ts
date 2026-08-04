@@ -76,6 +76,7 @@ export const LEFT_PASSAGE_TIER_TWO_DISCOVERY_MAX_MINUTES = 23;
 export const GROUP_COMBAT_TURN_LIMIT = 25;
 export const GROUP_COMBAT_RECAP_LIMIT = GROUP_COMBAT_TURN_LIMIT;
 export const GROUP_COMBAT_STATE_BYTE_LIMIT = 65_536;
+export const GROUP_COMBAT_ENEMY_FOCUS_VERSION = 1 as const;
 export const GROUP_COMBAT_CARD_BYTE_LIMIT = 4_096;
 export const GROUP_COMBAT_PARTICIPANT_LIMIT = 3;
 export const GROUP_COMBAT_PRODUCTION_ENEMY_LIMIT = 6;
@@ -699,6 +700,7 @@ export function expandGroupCombatRecapSnapshot(
 
 export interface GroupCombatState {
   rulesVersion: GroupCombatRulesVersion;
+  enemyFocusVersion?: typeof GROUP_COMBAT_ENEMY_FOCUS_VERSION;
   sessionId: string;
   partySessionId: string;
   encounterKey: typeof GROUP_COMBAT_PROOF_ENCOUNTER_KEY | typeof GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY;
@@ -840,6 +842,7 @@ export function createGroupCombatProofState(input: {
 
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
+    enemyFocusVersion: GROUP_COMBAT_ENEMY_FOCUS_VERSION,
     sessionId: input.sessionId,
     partySessionId: input.partySessionId,
     encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
@@ -889,7 +892,7 @@ function normalizeGroupCombatParticipants(
           return quantities;
         }, {}),
       ...(participant.combatItems ? { combatItems: structuredClone(participant.combatItems) } : {}),
-      threat: nonNegativeInteger(participant.threat ?? 0),
+      threat: 0,
       ...(participant.cooldowns ? { cooldowns: structuredClone(participant.cooldowns) } : {}),
       ...(participant.playerAbilityFumbles
         ? { playerAbilityFumbles: structuredClone(participant.playerAbilityFumbles) }
@@ -936,6 +939,7 @@ export function createLeftPassageGroupCombatState(input: {
   };
   const state: GroupCombatState = {
     rulesVersion: GROUP_COMBAT_PRODUCTION_RULES_VERSION,
+    enemyFocusVersion: GROUP_COMBAT_ENEMY_FOCUS_VERSION,
     sessionId: input.sessionId,
     partySessionId: input.partySessionId,
     encounterKey: GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -1290,6 +1294,7 @@ export function resolveGroupCombatTurn(
   const lines: string[] = [];
   const monsterBarkIds: string[] = [];
   const currentEnemyFocusCharacterId = getGroupCombatEnemyFocusTarget(state)?.characterId ?? null;
+  transitionGroupCombatEnemyFocusSemantic(state);
   const damageBeforeTurn = new Map(
     state.contributions.map((contribution) => [contribution.characterId, contribution.damage])
   );
@@ -4405,11 +4410,26 @@ function multiplyGroupCombatStatusValues(
 }
 
 export function getGroupCombatEnemyFocusTarget(state: GroupCombatState): GroupCombatActorSnapshot | null {
-  const living = state.participants.filter(isActiveGroupCombatParticipant);
+  const living = state.participants
+    .filter(isActiveGroupCombatParticipant)
+    .sort((left, right) => left.rosterOrder - right.rosterOrder);
+  if (state.enemyFocusVersion !== GROUP_COMBAT_ENEMY_FOCUS_VERSION) {
+    return living[0] ?? null;
+  }
   return living.sort((left, right) =>
     right.threat - left.threat ||
     left.rosterOrder - right.rosterOrder
   )[0] ?? null;
+}
+
+function transitionGroupCombatEnemyFocusSemantic(state: GroupCombatState): void {
+  if (state.enemyFocusVersion === GROUP_COMBAT_ENEMY_FOCUS_VERSION) {
+    return;
+  }
+  state.enemyFocusVersion = GROUP_COMBAT_ENEMY_FOCUS_VERSION;
+  for (const participant of state.participants) {
+    participant.threat = 0;
+  }
 }
 
 function recordGroupCombatTurnDamageForFocus(
