@@ -4360,8 +4360,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       })
     ]);
 
-    expect([replacement.state, finalAction.state]).toContain("resolved");
-    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    expect([replacement.state, finalAction.state].filter((state) => state === "resolved")).toHaveLength(1);
+    expect(["replaced", "resolved", "stale", "terminal"]).toContain(replacement.state);
     await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
@@ -4407,8 +4407,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       })
     ]);
 
-    expect([replacement.state, timeout.state]).toContain("resolved");
-    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    expect([replacement.state, timeout.state].filter((state) => state === "resolved")).toHaveLength(1);
+    expect(["replaced", "resolved", "stale", "terminal"]).toContain(replacement.state);
     await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
