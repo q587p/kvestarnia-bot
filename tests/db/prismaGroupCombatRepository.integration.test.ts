@@ -314,7 +314,14 @@ describe("PrismaGroupCombatRepository integration", () => {
         hpCurrent: 28,
         hpMax: 20,
         manaCurrent: 14,
-        manaMax: 10
+        manaMax: 10,
+        statsJson: {
+          strength: 42,
+          dexterity: 6,
+          intelligence: 7,
+          charisma: 7,
+          luck: 5
+        }
       }
     });
     const leaderCharacterId = `${token}-user-0-character`;
