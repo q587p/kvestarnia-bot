@@ -1,15 +1,13 @@
 import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
-import {
-  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
-  type GroupCombatService
-} from "../../services/groupCombatService";
+import type { GroupCombatService } from "../../services/groupCombatService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
-  buildPartyInviteUrl,
+  buildPartyInviteUrlForSession,
   BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
+  isLeftPassagePartySession,
   type PartySessionService
 } from "../../services/partySessionService";
 import { telegramUserIdFromContext } from "../context";
@@ -23,7 +21,10 @@ import {
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
 import { buildGroupCombatKeyboard } from "../keyboards/groupCombatKeyboard";
-import { deliverGroupCombatCards } from "../groupCombatCardDelivery";
+import {
+  deliverGroupCombatCards,
+  deliverGroupCombatParticipantCard
+} from "../groupCombatCardDelivery";
 import {
   presentPartyCancel,
   presentPartyBoss,
@@ -40,8 +41,8 @@ import {
   presentPartyNearbyInviteSent,
   presentPartyInviteShare,
   formatRemainingWait,
-  getInitialBigBarrelInviteTemplateIndex,
-  getNextBigBarrelInviteTemplateIndex,
+  getInitialPartyInviteTemplateIndex,
+  getNextPartyInviteTemplateIndex,
   presentPartyView
 } from "../presenters/partySessionPresenter";
 import { presentGroupCombat } from "../presenters/groupCombatPresenter";
@@ -113,7 +114,7 @@ export async function sendPartyCreate(
     ? service.createGroupCombatProofForTelegramUser(telegramUserId, createInput)
     : service.createForTelegramUser(telegramUserId, createInput));
   const session = "session" in result ? result.session : null;
-  const inviteUrl = session ? buildPartyInviteUrl(options.botUsername, session.inviteToken) : null;
+  const inviteUrl = session ? buildPartyInviteUrlForSession(options.botUsername, session) : null;
   const viewerCharacterId = session ? getViewerCharacterId(session, telegramUserId) : null;
   const raidChat = session
     ? await options.partyRaidChat?.getAuthorizedView(telegramUserId, session.inviteToken) ?? null
@@ -638,7 +639,7 @@ export async function handlePartySessionCallback(
     );
     const shouldAutoStartLeftPassage =
       result.session.status === "recruiting" &&
-      result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND &&
+      isLeftPassagePartySession(result.session) &&
       joined.length >= 1 &&
       joined.length <= 3 &&
       joined.every((participant) => participant.readiness === "ready") &&
@@ -853,7 +854,7 @@ export async function handlePartySessionCallback(
     });
     await safeAnswerCallbackQuery(ctx);
     const inviteUrl = "session" in result
-      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      ? buildPartyInviteUrlForSession(options.botUsername, result.session)
       : null;
     if ("session" in result && result.state !== "ineligible") {
       await sendCanonicalPartyPreparationCard(
@@ -900,7 +901,7 @@ export async function handlePartySessionCallback(
     const result = await service.leaveByTokenForTelegramUser(telegramUserId, callback.token);
     await safeAnswerCallbackQuery(ctx);
     const inviteUrl = "session" in result
-      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      ? buildPartyInviteUrlForSession(options.botUsername, result.session)
       : null;
     if ("session" in result) {
       await sendCanonicalPartyPreparationCard(
@@ -978,7 +979,8 @@ export async function sendPartyJoinFromStartPayload(
     botUsername?: string | undefined;
     partyBoss?: PartyBossService | undefined;
     partyRaidChat?: PartyRaidChatService | undefined;
-    groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
+    groupCombat?: GroupCombatService | undefined;
+    requireLeftPassage?: boolean | undefined;
   } = {}
 ): Promise<boolean> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
@@ -987,7 +989,16 @@ export async function sendPartyJoinFromStartPayload(
     return false;
   }
 
-  if (options.partyBoss && await options.partyBoss.getByPartyInviteToken(token)) {
+  const initialParty = await service.getByToken(token);
+  const isLeftPassage = initialParty.state === "ready" &&
+    isLeftPassagePartySession(initialParty.session);
+
+  if (options.requireLeftPassage && !isLeftPassage) {
+    await ctx.reply(presentPartyJoin({ state: "not-found" }, { inviteUrl: null }), HTML_MESSAGE_OPTIONS);
+    return true;
+  }
+
+  if (!options.requireLeftPassage && options.partyBoss && await options.partyBoss.getByPartyInviteToken(token)) {
     await sendCanonicalPartyPreparationCard(
       ctx,
       token,
@@ -1006,10 +1017,31 @@ export async function sendPartyJoinFromStartPayload(
     return true;
   }
 
-  const result = await service.joinByTokenForTelegramUser(telegramUserId, token, {
-    source: "deep-link",
-    chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
-  });
+  if (isLeftPassage && options.groupCombat) {
+    const groupSession = await options.groupCombat.findByToken(token);
+    const groupViewer = groupSession?.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    if (groupSession && groupViewer) {
+      await deliverGroupCombatParticipantCard(
+        ctx.api,
+        options.groupCombat,
+        groupSession.id,
+        groupViewer.characterId,
+        { forceRefresh: true, forceReplacement: true }
+      );
+      return true;
+    }
+  }
+
+  const result = isLeftPassage
+    ? await service.joinLeftPassageByTokenForTelegramUser(telegramUserId, token, {
+        chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
+      })
+    : await service.joinByTokenForTelegramUser(telegramUserId, token, {
+        source: "deep-link",
+        chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null
+      });
 
   if ("session" in result && result.state !== "ineligible") {
     await sendCanonicalPartyPreparationCard(
@@ -1033,7 +1065,7 @@ export async function sendPartyJoinFromStartPayload(
     );
   } else {
     const inviteUrl = "session" in result
-      ? buildPartyInviteUrl(options.botUsername, result.session.inviteToken)
+      ? buildPartyInviteUrlForSession(options.botUsername, result.session)
       : null;
     await ctx.reply(presentPartyJoin(result, { inviteUrl }), HTML_MESSAGE_OPTIONS);
   }
@@ -1089,11 +1121,11 @@ async function handleNearbyInvite(
       state: "ready",
       session
     }, {
-      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
+      inviteUrl: buildPartyInviteUrlForSession(options.botUsername, session),
       viewerCharacterId: getViewerCharacterId(session, telegramUserId)
     }), {
       session,
-      inviteUrl: buildPartyInviteUrl(options.botUsername, session.inviteToken),
+      inviteUrl: buildPartyInviteUrlForSession(options.botUsername, session),
       viewerCharacterId: getViewerCharacterId(session, telegramUserId),
       includeDevExpire: service.areDevHelpersEnabled(),
       includeGroupCombatStart: options.groupCombat?.areDevHelpersEnabled(),
@@ -1103,7 +1135,7 @@ async function handleNearbyInvite(
   }
 
   const target = await findNearbyTarget(options.presence, telegramUserId, callback.targetTelegramUserId, callback.page);
-  const inviteUrl = buildPartyInviteUrl(options.botUsername, session.inviteToken);
+  const inviteUrl = buildPartyInviteUrlForSession(options.botUsername, session);
 
   try {
     await ctx.api.sendMessage(
@@ -1131,7 +1163,7 @@ async function handleNearbyInvite(
       ),
       {
         session: view.session,
-        inviteUrl: buildPartyInviteUrl(options.botUsername, view.session.inviteToken),
+        inviteUrl: buildPartyInviteUrlForSession(options.botUsername, view.session),
         viewerCharacterId: getViewerCharacterId(view.session, telegramUserId),
         includeDevExpire: service.areDevHelpersEnabled(),
         includeGroupCombatStart: options.groupCombat?.areDevHelpersEnabled(),
@@ -1152,7 +1184,7 @@ async function sendPartyView(
   botUsername?: string
 ): Promise<void> {
   const inviteUrl = result.state === "ready"
-    ? buildPartyInviteUrl(botUsername, result.session.inviteToken)
+    ? buildPartyInviteUrlForSession(botUsername, result.session)
     : null;
   const viewerCharacterId = result.state === "ready"
     ? getViewerCharacterId(result.session, telegramUserId)
@@ -1290,8 +1322,12 @@ async function handlePartyInviteShare(
 ): Promise<void> {
   const result = await service.getByToken(callback.token);
 
-  if (result.state !== "ready" || !isBigBarrelParty(result.session) || result.session.status !== "recruiting") {
-    await safeAnswerCallbackQuery(ctx, { text: "Цей рейдовий збір уже не редагує запрошення." });
+  if (
+    result.state !== "ready" ||
+    (!isBigBarrelParty(result.session) && !isLeftPassagePartySession(result.session)) ||
+    result.session.status !== "recruiting"
+  ) {
+    await safeAnswerCallbackQuery(ctx, { text: "Цей збір уже не редагує запрошення." });
     return;
   }
 
@@ -1300,15 +1336,15 @@ async function handlePartyInviteShare(
     return;
   }
 
-  const inviteUrl = buildPartyInviteUrl(options.botUsername, result.session.inviteToken);
+  const inviteUrl = buildPartyInviteUrlForSession(options.botUsername, result.session);
   if (!inviteUrl) {
     await safeAnswerCallbackQuery(ctx, { text: "Посилання ще не зібралося: бот не знає свій username." });
     return;
   }
 
   const templateIndex = callback.type === "share"
-    ? getInitialBigBarrelInviteTemplateIndex(result.session.inviteToken)
-    : getNextBigBarrelInviteTemplateIndex(result.session.inviteToken, callback.templateIndex);
+    ? getInitialPartyInviteTemplateIndex(result.session)
+    : getNextPartyInviteTemplateIndex(result.session, callback.templateIndex);
 
   await safeAnswerCallbackQuery(ctx);
 
@@ -1348,7 +1384,7 @@ async function sendCanonicalPartyPreparationCard(
   service: PartySessionService,
   partyBoss: PartyBossService | undefined,
   partyRaidChat: PartyRaidChatService | undefined,
-  groupCombat: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined,
+  groupCombat: GroupCombatService | undefined,
   render: (
     session: Parameters<typeof buildPartySessionKeyboard>[0],
     inviteUrl: string | null,
@@ -1384,6 +1420,16 @@ async function sendCanonicalPartyPreparationCard(
       const groupViewer = ctx.chat?.type === "private"
         ? groupSession?.participants.find((participant) => participant.telegramUserId === telegramUserId)
         : null;
+      if (groupSession?.status === "active" && groupViewer && groupCombat) {
+        await deliverGroupCombatParticipantCard(
+          ctx.api,
+          groupCombat,
+          groupSession.id,
+          groupViewer.characterId,
+          { forceRefresh: true, forceReplacement: true }
+        );
+        return;
+      }
       if (groupSession && groupSession.status !== "active" && groupViewer) {
         const groupOptions = {
           ...HTML_MESSAGE_OPTIONS,
@@ -1411,7 +1457,7 @@ async function sendCanonicalPartyPreparationCard(
       }
 
       const session = canonical.session;
-      const inviteUrl = buildPartyInviteUrl(botUsername, session.inviteToken);
+      const inviteUrl = buildPartyInviteUrlForSession(botUsername, session);
       const actorViewerCharacterId = getViewerCharacterId(session, telegramUserId);
       const actorChat = await partyRaidChat?.getAuthorizedView(telegramUserId, inviteToken) ?? null;
       const renderedActorText = render(session, inviteUrl, actorViewerCharacterId);

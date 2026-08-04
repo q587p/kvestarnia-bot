@@ -5,6 +5,8 @@ import {
   GROUP_COMBAT_PARTY_PARTICIPANT_CAP,
   GROUP_COMBAT_PARTY_TTL_MS,
   LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  buildLeftPassagePartyInviteUrl,
+  buildPartyInviteUrlForSession,
   PartySessionService
 } from "../../src/services/partySessionService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
@@ -92,5 +94,39 @@ describe("PartySessionService GroupCombat proof recruiting", () => {
       PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
     )).resolves.toEqual([]);
     expect(listRecruitingByOriginKind).not.toHaveBeenCalled();
+  });
+
+  it("binds left-passage joins and URLs to the exact canonical origin", async () => {
+    const joinByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "not-found" });
+    const service = new PartySessionService(
+      { joinByTokenForTelegramUser } as unknown as PartySessionRepository,
+      { enabled: true, leftPassagePartyAttackEnabled: true }
+    );
+
+    await service.joinLeftPassageByTokenForTelegramUser(42n, "leftToken13", {
+      chatId: 42n,
+      messageId: 13
+    });
+
+    expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(42n, "leftToken13", expect.objectContaining({
+      chatId: 42n,
+      messageId: 13,
+      joinSource: "deep-link",
+      expectedOriginKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      expectedOriginLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      relocateToExpectedOrigin: true
+    }));
+    expect(buildLeftPassagePartyInviteUrl("@kvestarnia_test_bot", "leftToken13"))
+      .toBe("https://t.me/kvestarnia_test_bot?start=nyz_left_attack_leftToken13");
+    expect(buildPartyInviteUrlForSession("kvestarnia_test_bot", {
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      inviteToken: "leftToken13"
+    })).toContain("start=nyz_left_attack_leftToken13");
+    expect(buildPartyInviteUrlForSession("kvestarnia_test_bot", {
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "korchma.board",
+      inviteToken: "leftToken13"
+    })).toContain("start=party_leftToken13");
   });
 });

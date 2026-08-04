@@ -19,8 +19,9 @@ Use these docs for future ideas, deferred mechanics and planning notes that are 
 - [`post-combat-contribution-cards.md`](post-combat-contribution-cards.md) —
   explained contribution statistics after raids and, where canonical evidence
   exists, other completed fights.
-- [`local-runtime-debug-logging.md`](local-runtime-debug-logging.md) — bounded
-  isolated-runtime stdout/stderr, crash evidence and status diagnostics.
+- [`local-runtime-debug-logging.md`](local-runtime-debug-logging.md) — shipped
+  PR `#189` supervision/log-retention replacement plus the remaining deferred
+  privacy-safe combat-debug boundary.
 - [`bard-performance-in-combat.md`](bard-performance-in-combat.md) — deferred
   deterministic contract for applying a new performance buff after combat has
   already started.

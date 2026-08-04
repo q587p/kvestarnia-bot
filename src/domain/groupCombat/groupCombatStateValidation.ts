@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isDeepStrictEqual } from "node:util";
 import {
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
+  GROUP_COMBAT_ENEMY_FOCUS_VERSION,
   GROUP_COMBAT_PRODUCTION_RULES_VERSION,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_PARTICIPANT_LIMIT,
@@ -361,6 +362,7 @@ const monsterAbilityEffectSchema = z.object({
 }).strict();
 
 const verboseRecapSnapshotSchema = z.object({
+    enemyFocusCharacterId: z.string().min(1).optional(),
     participants: z.array(z.object({
       hp: nonNegativeInteger,
       mana: nonNegativeInteger,
@@ -392,6 +394,7 @@ const compactCooldownSchema = z.array(z.tuple([
 ])).max(13).nullable();
 
 const compactRecapSnapshotSchema = z.object({
+  f: nonNegativeInteger.max(GROUP_COMBAT_PARTICIPANT_LIMIT - 1).optional(),
   p: z.array(z.tuple([
     nonNegativeInteger,
     nonNegativeInteger,
@@ -542,6 +545,7 @@ const productionSchema = z.object({
 
 const stateSchema = z.object({
   rulesVersion: z.enum([GROUP_COMBAT_RULES_VERSION, GROUP_COMBAT_PRODUCTION_RULES_VERSION]),
+  enemyFocusVersion: z.literal(GROUP_COMBAT_ENEMY_FOCUS_VERSION).optional(),
   sessionId: z.string().min(1),
   partySessionId: z.string().min(1),
   encounterKey: z.enum([GROUP_COMBAT_PROOF_ENCOUNTER_KEY, GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY]),
@@ -656,6 +660,17 @@ const stateSchema = z.object({
     if (
       storedSnapshot &&
       "p" in storedSnapshot &&
+      storedSnapshot.f !== undefined &&
+      !state.participants[storedSnapshot.f]
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recap enemy focus is not canonical."
+      });
+    }
+    if (
+      storedSnapshot &&
+      "p" in storedSnapshot &&
       typeof storedSnapshot.x === "string"
     ) {
       try {
@@ -678,6 +693,15 @@ const stateSchema = z.object({
     }
     if (!snapshot) {
       continue;
+    }
+    if (
+      snapshot.enemyFocusCharacterId !== undefined &&
+      !participantIds.includes(snapshot.enemyFocusCharacterId)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Recap enemy focus is not canonical."
+      });
     }
     const recapEffectKeys = new Set<string>();
     if ((snapshot.effects ?? []).some((effect) => {

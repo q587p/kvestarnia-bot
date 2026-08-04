@@ -110,6 +110,9 @@ export interface JoinPartySessionInput {
   now: Date;
   chatId?: bigint | null;
   messageId?: number | null;
+  expectedOriginKind?: string;
+  expectedOriginLocationId?: string;
+  relocateToExpectedOrigin?: boolean;
 }
 
 export type PartyJoinIneligibleReason =
@@ -119,6 +122,8 @@ export type PartyJoinIneligibleReason =
   | "pending-solo-raid"
   | "loss-cooldown"
   | "wrong-location"
+  | "active-adventure"
+  | "active-raid"
   | "stale-life"
   | "dead"
   | "invalid-resources"

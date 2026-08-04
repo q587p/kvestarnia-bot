@@ -3,6 +3,7 @@ import {
   deriveGroupCombatPresentedEffectPolarity,
   expandGroupCombatRecapSnapshot,
   getGroupCombatActionProfile,
+  getGroupCombatEnemyFocusTarget,
   GROUP_COMBAT_CARD_BYTE_LIMIT,
   isActiveGroupCombatParticipant,
   listGroupCombatVisibleEffects,
@@ -41,6 +42,9 @@ export function presentGroupCombat(
         ? production ? "🪦 Лівий прохід відбив атаку" : "🪦 Доказову сутичку програно"
         : production ? "🧯 Сутичку безпечно зупинено" : "🧯 Доказову сутичку безпечно зупинено";
   const shortEnemyNames = getDistinctShortMonsterNames(state.enemies);
+  const enemyFocusCharacterId = state.status === "active"
+    ? getGroupCombatEnemyFocusTarget(state)?.characterId ?? null
+    : null;
   const enemies = state.enemies.map((enemy) => presentBattleCombatantResourceLine({
     icon: enemy.hp > 0 ? "👹" : "☠️",
     name: shortEnemyNames.get(enemy.order) ?? "Монстр",
@@ -58,7 +62,10 @@ export function presentGroupCombat(
     hp: participant.hp,
     hpMax: participant.hpMax,
     mana: participant.mana,
-    manaMax: participant.manaMax
+    manaMax: participant.manaMax,
+    targetLabel: participant.characterId === enemyFocusCharacterId
+      ? "🎯 ціль ворогів"
+      : undefined
   }));
   const queued = Boolean(
     viewer && session.queuedActions.some((action) => action.actorCharacterId === viewer.characterId)
@@ -412,7 +419,11 @@ function presentGroupCombatRecapSnapshot(
       continue;
     }
     actorRows.push(
-      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}`
+      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}${
+        snapshot.enemyFocusCharacterId === participant.characterId
+          ? " ← 🎯 ціль ворогів"
+          : ""
+      }`
     );
     for (const cooldown of row.cooldowns ?? []) {
       const skill = getCombatSkillDisplay(cooldown.id);

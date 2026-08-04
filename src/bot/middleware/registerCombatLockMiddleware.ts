@@ -53,6 +53,7 @@ import {
   SOLO_COMBAT_LEASE_KIND,
   TURN_BASED_DUEL_LEASE_KIND
 } from "../../domain/combat/combatLeaseRegistry";
+import { GROUP_COMBAT_CALLBACK_ROUTE_PATTERN } from "../callbacks/groupCombatCallbackData";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -216,7 +217,7 @@ function shouldCheckCombatLock(ctx: Context): boolean {
       !data.startsWith("v1:party:bt:") &&
       !data.startsWith("v1:party:rc:") &&
       !data.startsWith("v1:party:rw:") &&
-      !/^v[123]:gc:/.test(data) &&
+      !GROUP_COMBAT_CALLBACK_ROUTE_PATTERN.test(data) &&
       !data.startsWith("v1:fight:mimic:") &&
       !isCombatLockSafeCallback(data)
     );

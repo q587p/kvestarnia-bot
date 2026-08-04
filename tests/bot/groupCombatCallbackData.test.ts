@@ -5,6 +5,8 @@ import {
   makeGroupCombatJournalCallbackData,
   makeGroupCombatStartCallbackData,
   makeGroupCombatStatisticsCallbackData,
+  makeGroupCombatTargetBackCallbackData,
+  makeGroupCombatTargetMenuCallbackData,
   makeLeftPassageGroupCombatStartCallbackData,
   makeLeftPassagePartyInviteCallbackData,
   parseGroupCombatCallbackData
@@ -69,6 +71,39 @@ describe("group combat callback data", () => {
     expect(parseGroupCombatCallbackData(data)).toEqual({
       ok: true,
       value: { type: "journal", token: "proof-token-13", page: 4 }
+    });
+  });
+
+  it("round-trips distinct target-menu presentation callbacks within Telegram's budget", () => {
+    const menu = makeGroupCombatTargetMenuCallbackData({
+      token: "proof-token-13",
+      turn: 23,
+      action: "gear",
+      optionIndex: 42,
+      source: "reply-menu"
+    });
+    const back = makeGroupCombatTargetBackCallbackData({
+      token: "proof-token-13",
+      turn: 23,
+      source: "reply-menu"
+    });
+
+    expect(Buffer.byteLength(menu, "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(back, "utf8")).toBeLessThanOrEqual(64);
+    expect(parseGroupCombatCallbackData(menu)).toEqual({
+      ok: true,
+      value: {
+        type: "target-menu",
+        token: "proof-token-13",
+        turn: 23,
+        action: "gear",
+        optionIndex: 42,
+        source: "reply-menu"
+      }
+    });
+    expect(parseGroupCombatCallbackData(back)).toEqual({
+      ok: true,
+      value: { type: "target-back", token: "proof-token-13", turn: 23, source: "reply-menu" }
     });
   });
 
@@ -146,6 +181,8 @@ describe("group combat callback data", () => {
     expect(parseGroupCombatCallbackData("v2:gc:a:proof-token-13:1:h:0:1").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:m:proof-token-13:0").ok).toBe(false);
     expect(parseGroupCombatCallbackData("v2:gc:v:proof-token-13").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v5:gc:q:proof-token-13:1:g:0:c").ok).toBe(false);
+    expect(parseGroupCombatCallbackData("v5:gc:b:proof-token-13:0:c").ok).toBe(false);
     expect(parseGroupCombatCallbackData(`v1:gc:v:${"x".repeat(93)}`).ok).toBe(false);
   });
 });

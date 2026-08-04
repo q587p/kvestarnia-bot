@@ -43,6 +43,15 @@ describe("start payload parser", () => {
       raw: "party_short",
       safe: true
     });
+    expect(parseStartPayload("nyz_left_attack_abCD_123-xy")).toEqual({
+      type: "left-passage-attack",
+      token: "abCD_123-xy"
+    });
+    expect(parseStartPayload("nyz_left_attack_short")).toEqual({
+      type: "unknown",
+      raw: "nyz_left_attack_short",
+      safe: true
+    });
     expect(parseStartPayload("game_12345678-1234-4234-9234-123456789abc")).toEqual({
       type: "tavern-game",
       token: "12345678-1234-4234-9234-123456789abc"

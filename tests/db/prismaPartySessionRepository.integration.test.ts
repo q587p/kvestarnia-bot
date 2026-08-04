@@ -1672,6 +1672,75 @@ describe("PrismaPartySessionRepository integration", () => {
     ]);
   });
 
+  it("atomically relocates an eligible deep-link joiner to the exact left-passage origin", async () => {
+    const token = "party-left-relocate";
+    await seedCharacter(prisma, "left-relocate-leader-user", 4033n, "Ватажок переходу");
+    await seedCharacter(prisma, "left-relocate-joiner-user", 4034n, "Прибулець за лінком");
+    await repository.createForTelegramUser(4033n, {
+      ...partyInput(token),
+      participantCap: 3,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+
+    await expect(repository.joinByTokenForTelegramUser(4034n, token, {
+      ...joinInput("deep-link"),
+      expectedOriginKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      expectedOriginLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      relocateToExpectedOrigin: true
+    })).resolves.toMatchObject({ state: "joined" });
+    await expect(prisma.user.findUniqueOrThrow({
+      where: { telegramUserId: 4034n },
+      select: { lastSeenLocationId: true }
+    })).resolves.toEqual({ lastSeenLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT });
+  });
+
+  it("does not relocate malformed-origin, busy, full, or losing final-slot deep links", async () => {
+    const token = "left-relocate-guards";
+    await seedCharacter(prisma, "left-guards-leader-user", 4035n, "Ватажок межі");
+    await seedCharacter(prisma, "left-guards-busy-user", 4036n, "Зайнята пригодниця");
+    await seedCharacter(prisma, "left-guards-racer-a-user", 4037n, "Перший бігун");
+    await seedCharacter(prisma, "left-guards-racer-b-user", 4038n, "Другий бігун");
+    await repository.createForTelegramUser(4035n, {
+      ...partyInput(token),
+      participantCap: 2,
+      minimumParticipants: 1,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    });
+    const guardedJoin = (telegramUserId: bigint, overrides: Record<string, unknown> = {}) =>
+      repository.joinByTokenForTelegramUser(telegramUserId, token, {
+        ...joinInput("deep-link"),
+        expectedOriginKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+        expectedOriginLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+        relocateToExpectedOrigin: true,
+        ...overrides
+      });
+
+    await expect(guardedJoin(4036n, { expectedOriginKind: "wrong-origin" }))
+      .resolves.toEqual({ state: "not-found" });
+    await prisma.user.update({
+      where: { telegramUserId: 4036n },
+      data: { currentAdventureId: "adventure.busy" }
+    });
+    await expect(guardedJoin(4036n)).resolves.toMatchObject({
+      state: "ineligible",
+      reason: "active-adventure"
+    });
+
+    const results = await Promise.all([guardedJoin(4037n), guardedJoin(4038n)]);
+    expect(results.filter((result) => result.state === "joined")).toHaveLength(1);
+    const users = await prisma.user.findMany({
+      where: { telegramUserId: { in: [4036n, 4037n, 4038n] } },
+      orderBy: { telegramUserId: "asc" },
+      select: { telegramUserId: true, lastSeenLocationId: true }
+    });
+    expect(users.find((user) => user.telegramUserId === 4036n)?.lastSeenLocationId).toBe("korchma.board");
+    expect(users.filter((user) => user.lastSeenLocationId === PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT))
+      .toHaveLength(1);
+  });
+
   it("blocks another left-passage gathering through nearby and deep links while group combat is held", async () => {
     await seedCharacter(prisma, "left-busy-leader-user", 4024n, "Ватажок зайнятого збору");
     await seedCharacter(prisma, "left-busy-joiner-user", 4025n, "Зайнята пригодниця");

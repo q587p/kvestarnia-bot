@@ -1,32 +1,25 @@
 # Local runtime debug logging backlog
 
-Status: deferred. This is not implementation permission for the current release.
+Status: supervision and bounded rotating log retention shipped in PR `#189`;
+privacy-safe combat transition instrumentation remains deferred.
 
 ## Problem
 
-The isolated Windows local bot can leave the runtime manager and `ts-node-dev`
-alive after the actual `src/bot.ts` child exits. The current launcher inherits a
-console but does not retain a bounded startup/crash log, so a later diagnosis
-may see a healthy manager PID without the exception that killed polling.
+The isolated Windows runtime now builds the snapshot, supervises the compiled
+bot directly, restarts boundedly after an unexpected exit, and retains a
+bounded rotating runtime log outside the repository. `status-local-bot.cmd`
+reports the worker/health state and retained log path.
 
-## Future task contract
+## Shipped replacement
 
-- Persist stdout and stderr for every `run-local-bot.cmd` and
-  `refresh-local-bot.cmd` launch under the isolated runtime directory.
-- Keep logs bounded through rotation by run and total byte budget.
-- Record the snapshot SHA, package version, manager PID, bot PID, start/exit
-  timestamps and exit code without copying secrets or `.env` values.
-- Make `status-local-bot.cmd` report the current log paths and the last bounded
-  crash summary when the manager is alive but the bot child or healthcheck is
-  gone.
-- Preserve the existing one-runtime ownership check and target only the managed
-  process tree.
-- Keep production runtime, production tokens and the repository checkout DB out
-  of scope.
-- Cover clean start, child crash, respawn, stale metadata, rotation and
-  redaction with focused launcher tests; run `node --check` for the manager.
+See [`local-bot-runtime.md`](../operations/local-bot-runtime.md). The old wrapper
+watchdog and unbounded-console diagnosis contract is superseded; do not reopen
+it as a new runtime task without evidence that the direct supervisor fails.
 
-## Current workaround
+## Deferred boundary
 
-Redirect the isolated manager's stdout/stderr to a runtime-only log for the
-specific manual QA session. Do not commit those logs.
+Do not add production or local combat-state dumps as part of the shipped log.
+A future privacy-safe combat debug contract may record only bounded categories
+such as session/rules/turn/state and scheduler/CAS/settlement stage. It must not
+retain tokens, Telegram ids, private text, callback payloads, SQL parameters,
+raw state or raw exceptions. This note is not implementation permission.

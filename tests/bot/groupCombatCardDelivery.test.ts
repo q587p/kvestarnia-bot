@@ -1310,7 +1310,7 @@ describe("group-combat canonical participant delivery", () => {
     })).resolves.toMatchObject({ state: "activated" });
     expect(sentKeyboards).toHaveLength(1);
     expect(sentKeyboards[0]).toContain("🔎 Оновити");
-    expect(sentKeyboards[0]).toContain("🗡️ Шурхіт");
+    expect(sentKeyboards[0]).toContain("🗡️ Вдарити");
   });
 
   it.each(["send", "edit", "delete"] as const)(
@@ -1574,8 +1574,8 @@ describe("group-combat canonical participant delivery", () => {
       finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
     } as unknown as GroupCombatService, session)).resolves.toBe(2);
 
-    expect(inlineKeyboards.get(1001)).toContain("🪓 Силовий замах → Шурхіт");
-    expect(inlineKeyboards.get(1002)).not.toContain("🪓 Силовий замах → Шурхіт");
+    expect(inlineKeyboards.get(1001)).toContain("🪓 Силовий замах");
+    expect(inlineKeyboards.get(1002)).not.toContain("🪓 Силовий замах");
   });
 
   it("publishes one actor keyboard-card plus one changed ally keyboard-card", async () => {
@@ -1629,8 +1629,8 @@ describe("group-combat canonical participant delivery", () => {
     })).resolves.toBe(2);
 
     expect(sends.map((entry) => entry.chatId)).toEqual([1001, 1002]);
-    expect(sends[0]?.inlineLabels).toContain("🪓 Силовий замах → Шурхіт");
-    expect(sends[1]?.inlineLabels).not.toContain("🪓 Силовий замах → Шурхіт");
+    expect(sends[0]?.inlineLabels).toContain("🪓 Силовий замах");
+    expect(sends[1]?.inlineLabels).not.toContain("🪓 Силовий замах");
     expect(editMessageText.mock.calls.filter((call) => call[0] === 1001))
       .toHaveLength(2);
     expect(editMessageText.mock.calls.filter((call) => call[0] === 1002))

@@ -44,6 +44,10 @@ run-local-bot.cmd
 
 This synchronizes the current source once, prepares the isolated dependencies and database, builds the snapshot, then runs the compiled bot as the directly supervised child process. The manager restarts an unexpected exit up to three consecutive times with bounded backoff.
 
+This direct-supervision and rotating-log contract shipped in PR `#189`. It
+supersedes the old wrapper-watchdog/debug-log backlog; combat-state diagnostic
+instrumentation remains deliberately deferred and must preserve privacy.
+
 ### Promote current repository changes and restart
 
 ```text

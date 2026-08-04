@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { runPartyRaidChatDeliveryTick } from "../../src/bot/partyRaidChatDeliveryScheduler";
 import type { PartyRaidChatDeliveryRecord } from "../../src/db/repositories/partyRaidChatRepository";
+import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { PartyRaidChatService } from "../../src/services/partyRaidChatService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 
@@ -75,6 +76,79 @@ describe("party raid chat delivery recovery", () => {
     expect(raidChat.markDeliveryRendered).toHaveBeenCalledWith("replace", 8, 3);
     expect(raidChat.recordDeliveryReference.mock.invocationCallOrder[0]).toBeLessThan(
       raidChat.markDeliveryRendered.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it("refreshes a left-passage recruiting embed with the origin-aware deep link", async () => {
+    const delivery = makeDelivery({
+      id: "left-refresh",
+      surfaceMode: "recruiting_embed",
+      chatId: 82n,
+      messageId: 42
+    });
+    const session = makePartySession({
+      originLocationId: "location.korchma.deep.level1.left",
+      originKind: "nyz-left-passage-party.v1"
+    });
+    const { services } = makeServices(delivery, { session });
+    const bot = makeBot();
+
+    await runPartyRaidChatDeliveryTick(
+      services,
+      bot,
+      { botUsername: "kvestarnia_test_bot" },
+      () => NOW
+    );
+
+    expect(JSON.stringify(bot.editMessageMock.mock.calls)).toContain(
+      `nyz_left_attack_${session.inviteToken}`
+    );
+  });
+
+  it.each([
+    {
+      label: "left-passage",
+      originLocationId: "location.korchma.deep.level1.left",
+      originKind: "nyz-left-passage-party.v1",
+      expectedPrefix: "nyz_left_attack_"
+    },
+    {
+      label: "Big Barrel",
+      originLocationId: "barrel.big-brother",
+      originKind: null,
+      expectedPrefix: "party_"
+    },
+    {
+      label: "generic party",
+      originLocationId: "korchma.board",
+      originKind: null,
+      expectedPrefix: "party_"
+    }
+  ])("redacts a $label recruiting embed with its canonical invite prefix", async ({
+    originLocationId,
+    originKind,
+    expectedPrefix
+  }) => {
+    const delivery = makeDelivery({
+      id: `redact-${expectedPrefix}`,
+      surfaceMode: "recruiting_embed",
+      chatId: 82n,
+      messageId: 42,
+      redactionRequired: true
+    });
+    const session = makePartySession({ originLocationId, originKind });
+    const { services } = makeServices(delivery, { session });
+    const bot = makeBot();
+
+    await runPartyRaidChatDeliveryTick(
+      services,
+      bot,
+      { botUsername: "kvestarnia_test_bot" },
+      () => NOW
+    );
+
+    expect(JSON.stringify(bot.editMessageMock.mock.calls)).toContain(
+      `${expectedPrefix}${session.inviteToken}`
     );
   });
 
@@ -280,7 +354,11 @@ function makeDelivery(overrides: Partial<PartyRaidChatDeliveryRecord> = {}): Par
 
 function makeServices(
   delivery: PartyRaidChatDeliveryRecord,
-  options: { enabled?: boolean; view?: ReturnType<typeof makeView> | null } = {}
+  options: {
+    enabled?: boolean;
+    view?: ReturnType<typeof makeView> | null;
+    session?: PartySessionRecord;
+  } = {}
 ) {
   const raidChat = {
     prepareDisabledRedactions: vi.fn().mockResolvedValue(0),
@@ -298,8 +376,75 @@ function makeServices(
     raidChat,
     services: {
       partyRaidChat: raidChat as unknown as PartyRaidChatService,
-      partySessions: { areDevHelpersEnabled: () => false } as unknown as PartySessionService
+      partySessions: {
+        areDevHelpersEnabled: () => false,
+        getByToken: vi.fn().mockResolvedValue({
+          state: "ready",
+          session: options.session ?? makePartySession()
+        })
+      } as unknown as PartySessionService
     }
+  };
+}
+
+function makePartySession(
+  overrides: Pick<PartySessionRecord, "originLocationId" | "originKind"> = {
+    originLocationId: "korchma.board",
+    originKind: null
+  }
+): PartySessionRecord {
+  const leader: PartySessionRecord["leader"] = {
+    id: "character-1",
+    userId: "user-1",
+    telegramUserId: 82n,
+    currentLocationId: overrides.originLocationId,
+    name: "Лідерка",
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 42,
+    gold: 13,
+    hpCurrent: 25,
+    hpMax: 25,
+    manaCurrent: 10,
+    manaMax: 10,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+  return {
+    id: "party-1",
+    inviteToken: "raid-token-1",
+    status: "recruiting",
+    leaderCharacterId: leader.id,
+    periodId: null,
+    ...overrides,
+    participantCap: 3,
+    minimumParticipants: 1,
+    joinUntilAt: new Date(NOW.getTime() + 180_000),
+    expiresAt: new Date(NOW.getTime() + 180_000),
+    version: 1,
+    activeLeaderKey: "party-leader:character-1",
+    createdAt: NOW,
+    updatedAt: NOW,
+    leader,
+    participants: [{
+      id: "participant-1",
+      sessionId: "party-1",
+      characterId: leader.id,
+      remortCount: 0,
+      status: "joined",
+      joinSource: "leader",
+      joinedAt: NOW,
+      leftAt: null,
+      chatId: 82n,
+      messageId: 42,
+      character: leader
+    }]
   };
 }
 
