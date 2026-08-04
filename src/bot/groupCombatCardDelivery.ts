@@ -737,6 +737,15 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
     const current = await loadAuthoritativeSession(input.service, input.sessionId);
     const participant = findParticipant(current, input.participantCharacterId);
     if (
+      current &&
+      participant &&
+      current.status !== "active" &&
+      participant.exitDeliveryState === "completed" &&
+      input.forceReplacement === true
+    ) {
+      return replaceCompletedParticipantTerminalCard(input, current, participant);
+    }
+    if (
       !current ||
       !participant ||
       exitDeliveryStateOf(participant) !== "none"
@@ -857,6 +866,84 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   return { state: "retryable-edit-failure", reference: null };
 }
 
+async function replaceCompletedParticipantTerminalCard(
+  input: {
+    service: GroupCombatService;
+    sessionId: string;
+    participantCharacterId: string;
+    transport: GroupCombatDeliveryTransport;
+    now?: () => Date;
+  },
+  current: GroupCombatSessionRecord,
+  participant: GroupCombatParticipantRecord
+): Promise<GroupCombatParticipantDeliveryResult> {
+  const previousReference = privateReference(participant);
+  const card = buildCard(current, participant.characterId, input.now?.() ?? new Date());
+  const messageId = await input.transport.sendInertMessage(
+    participant.telegramUserId,
+    card.text,
+    card.options
+  );
+  if (!messageId) {
+    return { state: "send-failed", reference: null };
+  }
+  const candidate = { chatId: participant.telegramUserId, messageId };
+  let replaced: boolean;
+  try {
+    replaced = await input.service.replaceCompletedParticipantTerminalCard({
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: current.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion,
+      previousChatId: previousReference?.chatId ?? null,
+      previousMessageId: previousReference?.messageId ?? null,
+      terminalCard: candidate
+    });
+  } catch (error) {
+    const afterFailure = await loadAuthoritativeSession(input.service, input.sessionId);
+    const afterFailureParticipant = findParticipant(
+      afterFailure,
+      input.participantCharacterId
+    );
+    const afterFailureReference = afterFailureParticipant
+      ? privateReference(afterFailureParticipant)
+      : null;
+    if (afterFailureReference && sameReference(afterFailureReference, candidate)) {
+      replaced = true;
+    } else {
+      await retireLosingCandidate(input.transport, candidate);
+      throw error;
+    }
+  }
+  if (!replaced) {
+    await retireLosingCandidate(input.transport, candidate);
+    const winner = await loadAuthoritativeSession(input.service, input.sessionId);
+    const winnerParticipant = findParticipant(winner, input.participantCharacterId);
+    return {
+      state: "candidate-lost",
+      reference: winnerParticipant ? privateReference(winnerParticipant) : null
+    };
+  }
+
+  const fresh = await loadAuthoritativeSession(input.service, input.sessionId);
+  const freshParticipant = findParticipant(fresh, input.participantCharacterId);
+  const freshReference = freshParticipant ? privateReference(freshParticipant) : null;
+  if (!freshReference || !sameReference(freshReference, candidate)) {
+    await retireLosingCandidate(input.transport, candidate);
+    return { state: "candidate-lost", reference: freshReference };
+  }
+  if (previousReference && !sameReference(previousReference, candidate)) {
+    const previousState = await makePreviousReferenceInert(
+      input.transport,
+      previousReference
+    );
+    if (previousState === "inert") {
+      await input.transport.deleteMessage(previousReference).catch(() => undefined);
+    }
+  }
+  return { state: "activated", reference: candidate };
+}
+
 async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   service: GroupCombatService;
   sessionId: string;
@@ -870,6 +957,15 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
   let participant = findParticipant(current, input.participantCharacterId);
+  if (
+    current &&
+    participant &&
+    current.status !== "active" &&
+    participant.exitDeliveryState === "completed" &&
+    input.forceReplacement === true
+  ) {
+    return replaceCompletedParticipantTerminalCard(input, current, participant);
+  }
   if (
     !current ||
     !participant ||

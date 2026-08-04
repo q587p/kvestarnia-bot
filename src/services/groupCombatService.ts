@@ -397,6 +397,21 @@ export class GroupCombatService {
     return this.repository.compareAndSetParticipantCard(input);
   }
 
+  replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
+  }): Promise<boolean> {
+    return this.repository.replaceCompletedParticipantTerminalCard(input);
+  }
+
   releaseParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;

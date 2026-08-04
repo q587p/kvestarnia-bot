@@ -2039,6 +2039,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     });
   }
 
+  async replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
+  }): Promise<boolean> {
+    if (input.terminalCard.chatId !== input.telegramUserId) {
+      return false;
+    }
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        settlementStatus: "completed",
+        exitDeliveryState: "completed",
+        referenceVersion: input.expectedReferenceVersion,
+        chatId: input.previousChatId,
+        messageId: input.previousMessageId,
+        session: {
+          status: { not: "active" },
+          deliveryRevision: input.expectedDeliveryRevision,
+          repairState: null
+        },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      data: {
+        chatId: input.terminalCard.chatId,
+        messageId: input.terminalCard.messageId,
+        referenceVersion: { increment: 1 },
+        deliveredRevision: input.expectedDeliveryRevision
+      }
+    });
+    return updated.count === 1;
+  }
+
   async releaseParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;

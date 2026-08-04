@@ -3435,7 +3435,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toEqual({ repairState: null, repairReason: null });
   });
 
-  it("atomically adopts the newest terminal result card while completing exit delivery", async () => {
+  it("atomically adopts and reopens the newest completed terminal result card", async () => {
     const session = await startLeftPassageProduction(
       prisma,
       repository,
@@ -3511,6 +3511,31 @@ describe("PrismaGroupCombatRepository integration", () => {
       retainReference: true
     })).resolves.toBe(true);
 
+    await expect(repository.replaceCompletedParticipantTerminalCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion + 2,
+      previousChatId: participant.telegramUserId,
+      previousMessageId: 93,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 94
+      }
+    })).resolves.toBe(true);
+    await expect(repository.replaceCompletedParticipantTerminalCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion + 2,
+      previousChatId: participant.telegramUserId,
+      previousMessageId: 93,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 95
+      }
+    })).resolves.toBe(false);
+
     await expect(prisma.groupCombatParticipant.findFirstOrThrow({
       where: {
         sessionId: session.id,
@@ -3526,8 +3551,8 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toEqual({
       exitDeliveryState: "completed",
       chatId: participant.telegramUserId,
-      messageId: 93,
-      referenceVersion: participant.referenceVersion + 2,
+      messageId: 94,
+      referenceVersion: participant.referenceVersion + 3,
       deliveredRevision: session.deliveryRevision
     });
   });

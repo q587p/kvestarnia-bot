@@ -244,6 +244,19 @@ export interface GroupCombatRepository {
     publishedKeyboardFingerprint?: string | null;
   }): Promise<boolean>;
 
+  replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
+  }): Promise<boolean>;
+
   releaseParticipantCard(input: {
     sessionId: string;
     telegramUserId: bigint;

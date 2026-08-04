@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deliverCanonicalGroupCombatParticipantCard,
   deliverGroupCombatCards,
+  deliverGroupCombatParticipantCard,
   deliverGroupCombatSettlementNotifications,
   type GroupCombatDeliveryTransport
 } from "../../src/bot/groupCombatCardDelivery";
@@ -640,6 +641,63 @@ describe("group-combat canonical participant delivery", () => {
     ]));
     expect(deleteMessage).toHaveBeenCalledWith(1001, 21, expect.any(AbortSignal));
     expect(deleteMessage).toHaveBeenCalledWith(1002, 22, expect.any(AbortSignal));
+  });
+
+  it("reopens a completed terminal result from its deep link as the newest canonical card", async () => {
+    const session = makeSession({ deliveryRevision: 13, deliveredRevision: 13 });
+    session.status = "won";
+    session.state.status = "won";
+    session.participants = session.participants.slice(0, 1);
+    session.state.participants = session.state.participants.slice(0, 1);
+    session.state.enemies.forEach((enemy) => {
+      enemy.hp = 0;
+    });
+    session.state.recap = [{
+      turn: 1,
+      lines: ["Лідерка завершує доказову сутичку."]
+    }];
+    const participant = session.participants[0]!;
+    participant.exitDeliveryState = "completed";
+    participant.settlementStatus = "completed";
+    participant.referenceVersion = 3;
+    participant.messageId = 90;
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 91 });
+    const editMessageText = vi.fn().mockResolvedValue(true);
+    const deleteMessage = vi.fn().mockResolvedValue(true);
+    const service = mutableCardService(session);
+
+    await expect(deliverGroupCombatParticipantCard({
+      sendMessage,
+      editMessageText,
+      deleteMessage
+    } as unknown as Api, service, session.id, participant.characterId, {
+      forceRefresh: true,
+      forceReplacement: true
+    })).resolves.toEqual({
+      state: "activated",
+      reference: { chatId: 1001n, messageId: 91 }
+    });
+
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Доказову сутичку виграно");
+    expect(inlineButtonLabels((sendMessage.mock.calls[0]?.[2] as {
+      reply_markup?: unknown;
+    } | undefined)?.reply_markup)).toEqual(["📜 Журнал", "📊 Статистика"]);
+    expect(editMessageText).toHaveBeenCalledWith(
+      1001,
+      90,
+      "♻️ Цю бойову картку замінено актуальною нижче.",
+      expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
+    );
+    expect(deleteMessage).toHaveBeenCalledWith(1001, 90);
+    expect(participant).toMatchObject({
+      exitDeliveryState: "completed",
+      settlementStatus: "completed",
+      chatId: 1001n,
+      messageId: 91,
+      referenceVersion: 4,
+      deliveredRevision: 13
+    });
   });
 
   it("cannot leave the previous full terminal result when Telegram refuses its deletion", async () => {
@@ -2594,6 +2652,34 @@ function mutableCardService(session: GroupCombatSessionRecord): GroupCombatServi
         participant.replyKeyboardFingerprint = input.publishedKeyboardFingerprint;
         participant.replyKeyboardGeneration += 1;
       }
+      return Promise.resolve(true);
+    }),
+    replaceCompletedParticipantTerminalCard: vi.fn((input: {
+      telegramUserId: bigint;
+      expectedDeliveryRevision: number;
+      expectedReferenceVersion: number;
+      previousChatId: bigint | null;
+      previousMessageId: number | null;
+      terminalCard: { chatId: bigint; messageId: number };
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (
+        !participant ||
+        session.status === "active" ||
+        participant.exitDeliveryState !== "completed" ||
+        participant.referenceVersion !== input.expectedReferenceVersion ||
+        participant.chatId !== input.previousChatId ||
+        participant.messageId !== input.previousMessageId ||
+        session.deliveryRevision !== input.expectedDeliveryRevision
+      ) {
+        return Promise.resolve(false);
+      }
+      participant.chatId = input.terminalCard.chatId;
+      participant.messageId = input.terminalCard.messageId;
+      participant.referenceVersion += 1;
+      participant.deliveredRevision = input.expectedDeliveryRevision;
       return Promise.resolve(true);
     }),
     markParticipantCardDelivered: vi.fn().mockImplementation((input: {
