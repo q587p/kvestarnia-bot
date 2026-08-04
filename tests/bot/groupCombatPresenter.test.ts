@@ -918,6 +918,7 @@ describe("group combat presenter", () => {
       guardedTurns: 1,
       specialActions: 2
     };
+    session.state.enemyContributions![0]!.guardPrevented = 4;
     const result = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
     const statistics = presentGroupCombatStatistics(session);
     const labels = buildGroupCombatStatisticsKeyboard(session)
@@ -933,7 +934,7 @@ describe("group combat presenter", () => {
     expect(statistics).toContain("<b>Пригодники:</b>");
     expect(statistics).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4, ✨ 2, 🧱 1");
     expect(statistics).toContain("<b>Монстри:</b>");
-    expect(statistics).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 0, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
+    expect(statistics).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 4, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
     expect(labels).toEqual(["↩️ До результатів"]);
     expect(Buffer.byteLength(statistics, "utf8")).toBeLessThanOrEqual(4_096);
   });

@@ -1942,7 +1942,9 @@ function applyAbilityAction(
   if (dealt > 0) {
     effects.push(allEnemyScope
       ? presentMultiTargetDamage(damageEntries)
-      : `${dealt} шкоди`);
+      : damageEntries.length === 1 && state.enemies.length > 1
+        ? `${damageEntries[0]!.name}: ${damageEntries[0]!.damage} шкоди`
+        : `${dealt} шкоди`);
   }
   if (healingEntries.some((entry) => entry.healing > 0)) {
     effects.push(healingAllAllies

@@ -18,6 +18,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Shifted the accepted post-polish `0.4.x` plan forward by one version: Guild Foundation is now `0.4.5`, followed by the previously accepted sequence through Guild Cosmetic Progression at `0.4.13`.
 
 ### Fixed
+- GroupCombat single-target ability recaps now name the damaged enemy whenever the fight has multiple enemies. Mixed support/damage actions such as `✨ Суворе благословення` can no longer show an unlabeled damage number beside a different 1-HP survivor; monster shield absorption continues to count as the shielding monster's `🛡️ відвернена шкода` statistic. The measured 25-turn 3x6 journal remains within the state cap at `64,827/65,536` bytes.
 - Locked item detail remains reachable from ordinary, sorted and slot-filtered inventory paths, shows the canonical denial reasons and never offers Equip. Unknown evaluator state falls back to the neutral inspect marker.
 - Canonical requirement denial now wins over two-hand, attunement-start and attunement-interruption confirmations in both previews and committed equip attempts, including already-confirmed callbacks.
 - Routed every supported GroupCombat callback generation (`v1`–`v5`) through the social module and combat-lock safe path, so inline target pickers and `↩️ До дій` reach their read-only handlers exactly once.

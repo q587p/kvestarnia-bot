@@ -2134,9 +2134,14 @@ describe("group combat proof reducer", () => {
       buildGroupCombatTimeoutAction(shieldState, shieldState.participants[0]!.characterId)
     ]).state;
     expect(shielded.enemies[0]!.shield?.points).toBeGreaterThan(0);
+    const shieldPoints = shielded.enemies[0]!.shield!.points;
+    const preventedBeforeShieldHit = shielded.enemyContributions![0]!.guardPrevented;
     const broken = resolveGroupCombatTurn(shielded, [
       action(shielded, 0, "attack", "enemy", shielded.enemies[0]!.id)
     ]);
+    expect(
+      broken.state.enemyContributions![0]!.guardPrevented - preventedBeforeShieldHit
+    ).toBe(shieldPoints);
     expect(broken.state.recap.at(-1)!.lines.join("\n"))
       .toContain(`💥 ${shielded.enemies[0]!.name}: щит розбито, ${shielded.participants[0]!.name} отримує 4 шкоди.`);
   });
@@ -3565,6 +3570,15 @@ describe("group combat proof reducer", () => {
       state.participants[1]!.hp = 5;
       state.participants[1]!.defense = 100;
       state.participants[1]!.threat = 1_000;
+      state.enemies[0]!.name = "Троль останнього коментаря";
+      state.enemies[0]!.hp = 9;
+      state.enemies[0]!.hpMax = 30;
+      state.enemies[1]!.name = "Медузка звітности";
+      state.enemies[1]!.hp = 1;
+      state.enemies[1]!.hpMax = 30;
+      state.enemies[2]!.name = "Крамарик без здачі";
+      state.enemies[2]!.hp = 28;
+      state.enemies[2]!.hpMax = 30;
       const initialEnemyHp = state.enemies.map((enemy) => enemy.hp);
       const submitted = [
         {
@@ -3592,9 +3606,12 @@ describe("group combat proof reducer", () => {
       expect(resolved.state.enemies[0]!.hp).toBeLessThan(initialEnemyHp[0]!);
       expect(resolved.state.enemies[1]!.hp).toBe(initialEnemyHp[1]);
       expect(resolved.state.enemies[2]!.hp).toBe(initialEnemyHp[2]);
-      expect(recap).toMatch(new RegExp(`${abilityId === "skill.strict-blessing"
+      expect(recap).toContain(
+        `${state.enemies[0]!.name}: ${initialEnemyHp[0]! - resolved.state.enemies[0]!.hp} шкоди`
+      );
+      expect(recap).not.toMatch(new RegExp(`${abilityId === "skill.strict-blessing"
         ? "Суворе благословення"
-        : "Інструкція Асклепія"}.*\\d+ шкоди`));
+        : "Інструкція Асклепія"}: \\d+ шкоди;`));
       expect(actor.mana).toBe(10 - manaCost);
       expect(actionKey === "class"
         ? actor.cooldowns?.skill?.id
