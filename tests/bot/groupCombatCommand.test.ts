@@ -23,6 +23,16 @@ import {
   buildGroupCombatKeyboard
 } from "../../src/bot/keyboards/groupCombatKeyboard";
 
+async function waitForCondition(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 93; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("Timed out waiting for deferred GroupCombat delivery.");
+}
+
 describe("group combat bot flow", () => {
   afterEach(() => {
     clearMessageFreshnessTracking();
@@ -686,6 +696,9 @@ describe("group combat bot flow", () => {
       expect.any(String),
       expect.any(Object)
     );
+    await waitForCondition(() => delivery.editMessageText.mock.calls.some(
+      (call) => Number(call[0]) === 1002
+    ));
     expect(delivery.editMessageText).toHaveBeenCalledWith(
       1002,
       22,
@@ -705,20 +718,27 @@ describe("group combat bot flow", () => {
       Promise.resolve({ message_id: nextMessageId++ })
     );
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
-    const releaseParticipantCard = vi.fn((input: {
+    let releaseAlly!: () => void;
+    const allyGate = new Promise<void>((resolve) => {
+      releaseAlly = resolve;
+    });
+    const releaseParticipantCard = vi.fn(async (input: {
       telegramUserId: bigint;
       expectedReferenceVersion: number;
     }) => {
+      if (input.telegramUserId === 1002n) {
+        await allyGate;
+      }
       const participant = session.participants.find(
         (candidate) => candidate.telegramUserId === input.telegramUserId
       );
       if (!participant || participant.referenceVersion !== input.expectedReferenceVersion) {
-        return Promise.resolve(false);
+        return false;
       }
       participant.chatId = null;
       participant.messageId = null;
       participant.referenceVersion += 1;
-      return Promise.resolve(true);
+      return true;
     });
     const compareAndSetParticipantCard = vi.fn((input: {
       telegramUserId: bigint;
@@ -763,15 +783,31 @@ describe("group combat bot flow", () => {
     );
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
-    expect(sendMessage).toHaveBeenCalledTimes(4);
-    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
-      String(call[1]).includes("Бій починається. Корчма відкриває журнал ходів") &&
-      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
-    )).toBe(true);
-    expect(sendMessage.mock.calls.slice(2).every((call) =>
-      String(call[1]).includes("<b>Бій</b>:") &&
-      inlineKeyboardLabels((call[2] as { reply_markup?: unknown })?.reply_markup).length > 0
-    )).toBe(true);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls.map((call) => Number(call[0]))).toEqual([1001, 1001]);
+    releaseAlly();
+    await waitForCondition(() => sendMessage.mock.calls.length === 4);
+    expect(sendMessage.mock.calls.map((call) => Number(call[0]))).toEqual([
+      1001,
+      1001,
+      1002,
+      1002
+    ]);
+    for (const chatId of [1001, 1002]) {
+      const participantCalls = sendMessage.mock.calls.filter((call) => call[0] === chatId);
+      expect(participantCalls).toHaveLength(2);
+      expect(String(participantCalls[0]?.[1])).toContain(
+        "Бій починається. Корчма відкриває журнал ходів"
+      );
+      expect(Boolean(
+        (participantCalls[0]?.[2] as { reply_markup?: { keyboard?: unknown } })
+          ?.reply_markup?.keyboard
+      )).toBe(true);
+      expect(String(participantCalls[1]?.[1])).toContain("<b>Бій</b>:");
+      expect(inlineKeyboardLabels(
+        (participantCalls[1]?.[2] as { reply_markup?: unknown })?.reply_markup
+      ).length).toBeGreaterThan(0);
+    }
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);
@@ -1316,6 +1352,10 @@ describe("group combat bot flow", () => {
     await bot.handleUpdate(groupCommandUpdate("/dev_group_combat proof-token-13"));
 
     expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
+    await waitForCondition(() => apiCalls.filter((call) => call.method === "sendMessage").length === 2);
+    await waitForCondition(() => apiCalls.filter(
+      (call) => call.method === "editMessageText"
+    ).length === 2);
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
     expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
       .toEqual([1001, 1002]);

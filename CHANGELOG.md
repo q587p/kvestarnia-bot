@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.4] - 12026-08-04 - Group Targeting, Left Invitations and Equipment Locks
+## [0.4.4] - 12026-08-05 - Group Targeting, Left Invitations and Equipment Locks
 
 ### Changed
 - Replaced repeated GroupCombat target/action buttons with one Attack, Defend and one button per available class/race/gear ability. Attacks and explicit single-enemy or ally/self abilities now commit directly when exactly one canonical target remains and open a collision-safe target-only picker for two or more; auto-target abilities still commit directly. Inline and temporary reply-menu pickers share `↩️ До дій`, while only final target taps use the canonical action mutation path.
@@ -23,7 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Canonical requirement denial now wins over two-hand, attunement-start and attunement-interruption confirmations in both previews and committed equip attempts, including already-confirmed callbacks.
 - Routed every supported GroupCombat callback generation (`v1`–`v5`) through the social module and combat-lock safe path, so inline target pickers and `↩️ До дій` reach their read-only handlers exactly once.
 - Made left-passage invite creation and deferred raid-chat recruiting-card refresh/redaction use the origin-aware `nyz_left_attack_<token>` URL; Big Barrel and generic parties keep `party_<token>`.
-- Reopening a left-passage link as a current active/completed GroupCombat participant routes to the canonical combat card/result instead of attempting a second join.
+- Reopening a left-passage link as a current active/completed GroupCombat participant routes to the canonical combat card/result instead of attempting a second join. A completed terminal-exit delivery now replaces the participant's recorded result reference through an exact revision/reference CAS, so `/start nyz_left_attack_*` publishes a fresh result instead of silently treating the participant as missing.
 - Bound every Left Passage classification to both the canonical origin kind and exact left-passage location. A forged or legacy-mismatched `nyz_left_attack_*` token now fails before GroupCombat lookup and cannot expose session details, while valid legacy `party_*`, Big Barrel and generic party behavior is unchanged.
 - Closed the join-to-combat-start presentation race: after one successful origin-bound join/relocation, canonical rendering rechecks GroupCombat and delivers the participant's current active card exactly once instead of a stale preparation reply. Terminal combat still renders its canonical result without retrying the join.
 - Polished left-passage gathering controls: `⚔️ Почати атаку` is the final visible row after invitation actions, a newly opened gathering answers `Ватагу відкрито.`, and the deadline uses nominative numeric forms after the colon (`1 хвилина`, `2 хвилини`, `5 хвилин`).

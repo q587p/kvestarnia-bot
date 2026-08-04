@@ -2423,6 +2423,75 @@ describe("handlePartySessionCallback", () => {
       .toContain(`nyz_left_attack_${session.inviteToken}`);
   });
 
+  it("reopens a completed left-passage result after terminal exit delivery finished", async () => {
+    const session = {
+      ...makeSession("completed"),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    };
+    const groupSession = makeTerminalGroupCombatSession();
+    const viewer = groupSession.participants.find(
+      (participant) => participant.telegramUserId === 93n
+    )!;
+    viewer.exitDeliveryState = "completed";
+    viewer.settlementStatus = "completed";
+    viewer.referenceVersion = 3;
+    const findByToken = vi.fn().mockResolvedValue(groupSession);
+    const findById = vi.fn().mockResolvedValue(groupSession);
+    const replaceCompletedParticipantTerminalCard = vi.fn().mockImplementation((input: {
+      terminalCard: { chatId: bigint; messageId: number };
+    }) => {
+      viewer.chatId = input.terminalCard.chatId;
+      viewer.messageId = input.terminalCard.messageId;
+      viewer.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const joinLeftPassageByTokenForTelegramUser = vi.fn();
+    const { ctx, reply, sendMessage } = createCallbackContext(93);
+    sendMessage.mockResolvedValue({ message_id: 95 });
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, { joinLeftPassageByTokenForTelegramUser }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true,
+        groupCombat: {
+          areDevHelpersEnabled: () => false,
+          findByToken,
+          findById,
+          replaceCompletedParticipantTerminalCard
+        } as unknown as GroupCombatService
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinLeftPassageByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      93,
+      expect.stringContaining("Доказову сутичку виграно"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(replaceCompletedParticipantTerminalCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: groupSession.id,
+        telegramUserId: 93n,
+        expectedDeliveryRevision: groupSession.deliveryRevision,
+        expectedReferenceVersion: 3,
+        previousChatId: 93n,
+        terminalCard: { chatId: 93n, messageId: 95 }
+      })
+    );
+    expect(viewer).toMatchObject({
+      exitDeliveryState: "completed",
+      settlementStatus: "completed",
+      messageId: 95,
+      referenceVersion: 4
+    });
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it.each(["active", "terminal"] as const)(
     "rejects a left-passage payload at a noncanonical location before %s GroupCombat replay lookup",
     async (groupState) => {

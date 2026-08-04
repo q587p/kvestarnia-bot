@@ -146,6 +146,17 @@ in-memory requirement projection; detail remains available and never offers
 Equip while locked. No migration, ґільдія runtime or new rollout flag is
 included.
 
+PR `#191` merged this repository release and production reported SQLite
+contention while GroupCombat published several canonical cards concurrently.
+The unnumbered follow-up publishes the initiating player first, returns the
+active callback before a session-scoped serial ally tail, and queues every
+active, scheduler and terminal delivery for that session behind the same tail.
+Each operation finalizes only its frozen delivery revision through repository
+CAS. Completed left-passage invitation replays replace the participant's exact
+terminal result reference instead of returning silently after exit delivery;
+combat rules, rewards, schema and the `0.4.5` scope do not change.
+Formal final-hotfix Telegram QA remains pending.
+
 ### 0.4.5 — Guild foundation
 
 Малий соціяльний shell, який не чекає готового guild boss: унікальна

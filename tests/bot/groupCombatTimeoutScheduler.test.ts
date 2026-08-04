@@ -1,6 +1,7 @@
-import type { Bot } from "grammy";
+import type { Api, Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { createGroupCombatTimeoutScheduler } from "../../src/bot/groupCombatTimeoutScheduler";
+import { deliverGroupCombatCards } from "../../src/bot/groupCombatCardDelivery";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 import type { PartySessionService } from "../../src/services/partySessionService";
@@ -268,6 +269,113 @@ describe("group combat timeout scheduler", () => {
     await expect(tick).resolves.toBe(1);
     await expect(stop).resolves.toBeUndefined();
     expect(stopped).toBe(true);
+  });
+
+  it("queues an eligible scheduler retry behind the same session's deferred tail", async () => {
+    const session = pendingSession();
+    session.id = "pending-active-with-live-tail";
+    session.state.sessionId = session.id;
+    session.status = "active";
+    session.state.status = "active";
+    session.result = null;
+    session.completedAt = null;
+    session.state.enemies.forEach((enemy) => {
+      enemy.hp = enemy.hpMax;
+    });
+    let releaseTail!: () => void;
+    const tailGate = new Promise<void>((resolve) => {
+      releaseTail = resolve;
+    });
+    let markTailEntered!: () => void;
+    const tailEntered = new Promise<void>((resolve) => {
+      markTailEntered = resolve;
+    });
+    let markPendingScanned!: () => void;
+    const pendingScanned = new Promise<void>((resolve) => {
+      markPendingScanned = resolve;
+    });
+    let activePublications = 0;
+    let maximumActivePublications = 0;
+    let allyBlocked = false;
+    const editMessageText = vi.fn(async (chatId: number) => {
+      activePublications += 1;
+      maximumActivePublications = Math.max(
+        maximumActivePublications,
+        activePublications
+      );
+      try {
+        if (chatId === 1002 && !allyBlocked) {
+          allyBlocked = true;
+          markTailEntered();
+          await tailGate;
+        }
+        return true;
+      } finally {
+        activePublications -= 1;
+      }
+    });
+    const markParticipantCardDelivered = vi.fn((input: {
+      telegramUserId: bigint;
+      expectedDeliveryRevision: number;
+    }) => {
+      const participant = session.participants.find(
+        (candidate) => candidate.telegramUserId === input.telegramUserId
+      );
+      if (!participant) {
+        return Promise.resolve(false);
+      }
+      participant.deliveredRevision = input.expectedDeliveryRevision;
+      return Promise.resolve(true);
+    });
+    const finalizeDeliveryAttempt = vi.fn().mockResolvedValue(true);
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      repair: vi.fn().mockResolvedValue(0),
+      resolveDue: vi.fn().mockResolvedValue([]),
+      listPendingDelivery: vi.fn().mockImplementation(() => {
+        markPendingScanned();
+        return Promise.resolve([session]);
+      }),
+      findById: vi.fn().mockResolvedValue(session),
+      markParticipantCardDelivered,
+      finalizeDeliveryAttempt
+    } as unknown as GroupCombatService;
+    const api = {
+      editMessageText,
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    };
+
+    await expect(deliverGroupCombatCards(api as unknown as Api, service, session, {
+      priorityCharacterId: session.participants[0]!.characterId,
+      deferRemaining: true
+    })).resolves.toBe(1);
+    await tailEntered;
+    const scheduler = createGroupCombatTimeoutScheduler(service, {
+      api
+    } as unknown as Bot);
+    const tick = scheduler.tick();
+    await pendingScanned;
+    await Promise.resolve();
+
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(maximumActivePublications).toBe(1);
+    expect(finalizeDeliveryAttempt).not.toHaveBeenCalled();
+
+    releaseTail();
+    await expect(tick).resolves.toBe(1);
+    expect(maximumActivePublications).toBe(1);
+    expect(finalizeDeliveryAttempt).toHaveBeenNthCalledWith(
+      1,
+      session.id,
+      session.deliveryRevision
+    );
+    expect(finalizeDeliveryAttempt).toHaveBeenNthCalledWith(
+      2,
+      session.id,
+      session.deliveryRevision
+    );
   });
 
   it("repairs a committed legacy terminal revision without a redundant completion message", async () => {

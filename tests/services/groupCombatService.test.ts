@@ -102,6 +102,26 @@ describe("GroupCombatService", () => {
     });
   });
 
+  it("does not rescan a recently attempted card delivery before the retry window", async () => {
+    const {
+      repository,
+      listPendingDeliverySessionIds
+    } = repositoryFixture();
+    const now = new Date("2026-08-04T19:23:00.000Z");
+    listPendingDeliverySessionIds.mockResolvedValue([]);
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => now
+    );
+
+    await expect(service.listPendingDelivery(13)).resolves.toEqual([]);
+    expect(listPendingDeliverySessionIds).toHaveBeenCalledWith(
+      13,
+      new Date(now.getTime() - 13_000)
+    );
+  });
+
   it("settles participants without an achievement projector", async () => {
     const { repository, settleParticipant } = repositoryFixture();
     const receipt = leftPassageReceipt();
@@ -281,6 +301,8 @@ function repositoryFixture() {
   const findById = vi.fn<GroupCombatRepository["findById"]>();
   const listPendingSettlementParticipants =
     vi.fn<GroupCombatRepository["listPendingSettlementParticipants"]>();
+  const listPendingDeliverySessionIds =
+    vi.fn<GroupCombatRepository["listPendingDeliverySessionIds"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -295,7 +317,7 @@ function repositoryFixture() {
     findActiveByTelegramUserId: vi.fn(),
     inspectOperatorRepair: vi.fn(),
     listDueSessionIds: vi.fn(),
-    listPendingDeliverySessionIds: vi.fn(),
+    listPendingDeliverySessionIds,
     listPendingSettlementParticipants,
     repairInvalidOrOrphaned: vi.fn(),
     settleParticipant,
@@ -316,6 +338,7 @@ function repositoryFixture() {
     resolveTimedOutSession,
     settleParticipant,
     findById,
+    listPendingDeliverySessionIds,
     listPendingSettlementParticipants
   };
 }

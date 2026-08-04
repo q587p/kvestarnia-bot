@@ -655,7 +655,14 @@ export async function handlePartySessionCallback(
             ? "Усі готові. Ватага рушає в атаку."
             : "Бій уже почався."
         });
-        await deliverGroupCombatCards(ctx.api, groupCombat, started.session);
+        const actor = started.session.participants.find(
+          (participant) => participant.telegramUserId === telegramUserId
+        );
+        await deliverGroupCombatCards(ctx.api, groupCombat, started.session, {
+          ...(actor
+            ? { priorityCharacterId: actor.characterId, deferRemaining: true }
+            : {})
+        });
         return;
       }
     }

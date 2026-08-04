@@ -10,8 +10,10 @@ not every feature must be enabled.
 
 ## Current repository baseline (repository evidence, 12026-08-04)
 
-The current branch prepares package `0.4.4`. Merge, deployment and target
-availability remain separate evidence; PR merges prove repository state only.
+The repository package is `0.4.4`. Merged head
+`67bd02cdd1e9c73e9f8fbe8ebdcffb7ac279af4c` was observed on the production
+runtime; the unnumbered GroupCombat SQLite delivery hotfix remains a separate
+candidate until its own merge, deployment and exact-head QA are recorded.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -30,7 +32,8 @@ availability remain separate evidence; PR merges prove repository state only.
 | 0.4.2 left-passage party attack | yes; merged PR `#187` | target deployment unknown; repository includes additive migration `20260724233000_left_passage_party_attack` | no target evidence; repository default off | yes; merge checks passed | manual three-account Telegram QA not recorded on merged head | `LEFT_PASSAGE_PARTY_ATTACK_ENABLED`; release operator unassigned | deferred |
 | 0.4.3 consumable manatka uses | yes; merged PR `#188` | no migration required | no target evidence; all 20 exact mappings have no catalog-specific rollout flag, while existing combat-surface entry flags retain their scope | yes; merge checks passed | final-head Telegram matrix not recorded | deploy rollback; release operator unassigned | deferred |
 | Local isolated-runtime supervision/log retention | yes; merged PR `#189` | no production migration | local tooling only | yes; merge checks passed | local crash/restart observation not recorded here | managed runtime stop/refresh; owner unassigned | deferred |
-| 0.4.4 bugfix & polish | no; implementation branch | no migration required | no new flag; existing GroupCombat/left-passage entry flags retain scope | yes on implementation head: `npm run check`, Prisma validation, combat simulation, docs check and diff check | GroupCombat picker, left-link relocation/invite and equipment-lock matrix pending | deploy rollback; release operator unassigned | deferred |
+| 0.4.4 bugfix & polish | yes; merged PR `#191` at `67bd02cd` | no migration required | production feedback proves the GroupCombat/left-passage path was reachable; exact hosted values remain unrecorded | yes; merge checks passed | formal final-head matrix not recorded; production feedback exposed stale cards under SQLite contention | deploy rollback; release operator unassigned | hotfix required |
+| GroupCombat SQLite delivery hotfix | no; PR `#192` | no migration required | no new flag | focused actor-first/session-serialized-tail, exact-revision CAS, scheduler-overlap, restart recovery, completed-result deep-link replay, partial-`P1008`, retry-window and repository integration tests pass | head `a2ab838c` manual run exposed silent completed-link replay; full three-account rerun pending on replacement head | deploy rollback; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

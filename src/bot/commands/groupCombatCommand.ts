@@ -65,7 +65,14 @@ export function registerGroupCombatDevCommand(bot: Bot, service: GroupCombatServ
       service.startProof(telegramUserId, token)
     );
     if ("session" in result) {
-      await deliverGroupCombatCards(ctx.api, service, result.session);
+      const actor = result.session.participants.find(
+        (participant) => participant.telegramUserId === telegramUserId
+      );
+      await deliverGroupCombatCards(ctx.api, service, result.session, {
+        ...(actor
+          ? { priorityCharacterId: actor.characterId, deferRemaining: true }
+          : {})
+      });
       return;
     }
     await ctx.reply(presentGroupCombatStartFailure(result, "dev-proof"));
@@ -306,7 +313,14 @@ export async function handleGroupCombatCallback(
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Доказову сутичку запущено." });
-    await deliverGroupCombatCards(ctx.api, service, result.session);
+    const actor = result.session.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    await deliverGroupCombatCards(ctx.api, service, result.session, {
+      ...(actor
+        ? { priorityCharacterId: actor.characterId, deferRemaining: true }
+        : {})
+    });
     return;
   }
   if (callback.type === "start-left") {
@@ -321,7 +335,14 @@ export async function handleGroupCombatCallback(
       return;
     }
     await safeAnswerCallbackQuery(ctx, { text: "Ватага рушила в атаку." });
-    await deliverGroupCombatCards(ctx.api, service, result.session);
+    const actor = result.session.participants.find(
+      (participant) => participant.telegramUserId === telegramUserId
+    );
+    await deliverGroupCombatCards(ctx.api, service, result.session, {
+      ...(actor
+        ? { priorityCharacterId: actor.characterId, deferRemaining: true }
+        : {})
+    });
     return;
   }
   let session = await service.findByToken(callback.token);
@@ -585,7 +606,10 @@ export async function handleGroupCombatCallback(
         service,
         session,
         session.status === "active"
-          ? { forceReplacementCharacterId: viewer.characterId }
+          ? {
+              forceReplacementCharacterId: viewer.characterId,
+              deferRemaining: true
+            }
           : {}
       );
     } else {
@@ -815,7 +839,10 @@ async function submitGroupCombatReplyAction(
       service,
       session,
       session.status === "active"
-        ? { forceReplacementCharacterId: viewerCharacterId }
+        ? {
+            forceReplacementCharacterId: viewerCharacterId,
+            deferRemaining: true
+          }
         : {}
     );
   }

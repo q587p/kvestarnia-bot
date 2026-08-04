@@ -215,7 +215,7 @@ export interface GroupCombatRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
   inspectOperatorRepair(sessionId: string): Promise<GroupCombatOperatorRepairRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
-  listPendingDeliverySessionIds(limit: number): Promise<string[]>;
+  listPendingDeliverySessionIds(limit: number, retryBefore?: Date): Promise<string[]>;
   listPendingSettlementParticipants(limit: number): Promise<Array<{
     sessionId: string;
     telegramUserId: bigint;
@@ -242,6 +242,19 @@ export interface GroupCombatRepository {
     chatId: bigint;
     messageId: number;
     publishedKeyboardFingerprint?: string | null;
+  }): Promise<boolean>;
+
+  replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
   }): Promise<boolean>;
 
   releaseParticipantCard(input: {
