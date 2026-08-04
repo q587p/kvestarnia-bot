@@ -124,8 +124,9 @@ simulations if a shared primitive changes its balance.
 Enemy focus mirrors Big Barrel presentation without importing raid state: the
 initial living target is the party leader, then the highest actual participant
 damage from the previous resolved turn wins, with roster order as the stable
-tie-breaker. Active participant cards mark that focus and recaps announce a
-change. A single canonical action target commits directly; explicit target
+tie-breaker. Active participant cards and each newly stored journal turn mark
+that focus, while recap actions announce a change; legacy journal snapshots
+without focus evidence remain unmarked. A single canonical action target commits directly; explicit target
 selection is reserved for two or more valid targets.
 
 The next GroupCombat-owning task must audit every class ability already enabled

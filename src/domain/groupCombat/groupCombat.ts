@@ -581,6 +581,7 @@ export interface GroupCombatTimedStatus {
 }
 
 export interface GroupCombatRecapSnapshot {
+  enemyFocusCharacterId?: string;
   participants: Array<{
     hp: number;
     mana: number;
@@ -603,6 +604,7 @@ export interface GroupCombatRecapSnapshot {
 }
 
 export interface GroupCombatCompactRecapSnapshot {
+  f?: number;
   p: Array<[
     hp: number,
     mana: number,
@@ -644,7 +646,11 @@ export function expandGroupCombatRecapSnapshot(
   if ("participants" in snapshot) {
     return snapshot;
   }
+  const enemyFocusCharacterId = snapshot.f === undefined
+    ? undefined
+    : state?.participants[snapshot.f]?.characterId;
   return {
+    ...(enemyFocusCharacterId === undefined ? {} : { enemyFocusCharacterId }),
     participants: snapshot.p.map(([
       hp,
       mana,
@@ -1308,7 +1314,14 @@ export function resolveGroupCombatTurn(
   applyBleedStatuses(state, lines);
   appendNewlyDefeatedEnemyLines(state, defeatedEnemyIds, lines);
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, [], monsterBarkIds);
+    return terminalize(
+      state,
+      "won",
+      lines,
+      [],
+      monsterBarkIds,
+      currentEnemyFocusCharacterId
+    );
   }
   const respondingEnemyIds = state.enemies
     .filter((enemy) => enemy.hp > 0)
@@ -1445,7 +1458,14 @@ export function resolveGroupCombatTurn(
   // Match persistent PvE: defeating the final enemy is a win even when the
   // same landed hit triggers a lethal counter, reflect or shield-break reaction.
   if (state.enemies.every((enemy) => enemy.hp <= 0)) {
-    return terminalize(state, "won", lines, committedConsumables, monsterBarkIds);
+    return terminalize(
+      state,
+      "won",
+      lines,
+      committedConsumables,
+      monsterBarkIds,
+      currentEnemyFocusCharacterId
+    );
   }
   state.statuses = state.statuses
     .map((status) =>
@@ -1466,7 +1486,14 @@ export function resolveGroupCombatTurn(
       state.turn >= GROUP_COMBAT_TURN_LIMIT
     )
   ) {
-    return terminalize(state, "lost", lines, committedConsumables, monsterBarkIds);
+    return terminalize(
+      state,
+      "lost",
+      lines,
+      committedConsumables,
+      monsterBarkIds,
+      currentEnemyFocusCharacterId
+    );
   }
 
   const nextEnemyFocus = getGroupCombatEnemyFocusTarget(state);
@@ -1478,7 +1505,7 @@ export function resolveGroupCombatTurn(
     lines.push(`🎯 На наступний хід увага ворогів переходить на ${nextEnemyFocus.name}.`);
   }
 
-  state.recap = appendRecap(state, lines, monsterBarkIds);
+  state.recap = appendRecap(state, lines, monsterBarkIds, currentEnemyFocusCharacterId);
   state.turn += 1;
   assertGroupCombatStateBudget(state);
   return { state, result: null, settlementPlan: null, committedConsumables };
@@ -4834,9 +4861,10 @@ function terminalize(
   outcome: "won" | "lost",
   lines: string[],
   committedConsumables: GroupCombatCommittedConsumable[],
-  monsterBarkIds: string[] = []
+  monsterBarkIds: string[] = [],
+  enemyFocusCharacterId: string | null = null
 ): GroupCombatResolution {
-  state.recap = appendRecap(state, lines, monsterBarkIds);
+  state.recap = appendRecap(state, lines, monsterBarkIds, enemyFocusCharacterId);
   state.status = outcome;
   assertGroupCombatStateBudget(state);
   return {
@@ -5397,15 +5425,22 @@ export function getLeftPassageTierTwoDiscoveryMinutes(
 function appendRecap(
   state: GroupCombatState,
   lines: string[],
-  monsterBarkIds: string[] = []
+  monsterBarkIds: string[] = [],
+  enemyFocusCharacterId: string | null = null
 ): GroupCombatRecapEntry[] {
   const effects = listGroupCombatVisibleEffects(state);
   const compactEffects = compactGroupCombatVisibleEffects(state, effects);
+  const enemyFocusIndex = enemyFocusCharacterId === null
+    ? -1
+    : state.participants.findIndex(
+        (participant) => participant.characterId === enemyFocusCharacterId
+      );
   const entry: GroupCombatRecapEntry = {
     turn: state.turn,
     lines: lines.slice(0, 13),
     ...(monsterBarkIds.length > 0 ? { monsterBarkIds: monsterBarkIds.slice(0, 6) } : {}),
     snapshot: {
+      ...(enemyFocusIndex < 0 ? {} : { f: enemyFocusIndex }),
       p: state.participants.map((participant) => {
         const cooldowns = getActiveGroupCombatCooldowns(participant);
         const itemCooldowns = Object.values(participant.combatItems?.cooldowns ?? {})

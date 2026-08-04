@@ -3339,6 +3339,10 @@ describe("group combat proof reducer", () => {
     expect(first.state.recap.at(-1)?.lines).toContain(
       `🎯 На наступний хід увага ворогів переходить на ${striker.name}.`
     );
+    expect(
+      expandGroupCombatRecapSnapshot(first.state.recap.at(-1)?.snapshot, first.state)
+        ?.enemyFocusCharacterId
+    ).toBe(leader.characterId);
 
     const damageTakenBefore = first.state.contributions[1]!.damageTaken;
     const second = resolveGroupCombatTurn(first.state, [
@@ -3346,6 +3350,10 @@ describe("group combat proof reducer", () => {
       action(first.state, 1, "guard", "self", striker.characterId)
     ]);
     expect(second.state.contributions[1]!.damageTaken).toBeGreaterThan(damageTakenBefore);
+    expect(
+      expandGroupCombatRecapSnapshot(second.state.recap.at(-1)?.snapshot, second.state)
+        ?.enemyFocusCharacterId
+    ).toBe(striker.characterId);
   });
 
   it("wins at the turn cap when a counter kills the final enemy", () => {
@@ -3796,6 +3804,46 @@ describe("group combat proof reducer", () => {
       remainingTurns
     ]) => ({ kind, targetKind, targetId, remainingTurns })))))
       .toThrow(GroupCombatStateValidationError);
+  });
+
+  it("accepts only roster-bounded historical enemy focus in recap snapshots", () => {
+    const base = leftPassageState(1);
+    const resolved = resolveGroupCombatTurn(base, [
+      action(base, 0, "guard", "self", base.participants[0]!.characterId)
+    ]).state;
+    const snapshot = resolved.recap.at(-1)!.snapshot;
+    if (!snapshot || !("p" in snapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+
+    expect(snapshot.f).toBe(0);
+    expect(parseGroupCombatStateStrict(resolved)).toEqual(resolved);
+
+    const invalidCompact = structuredClone(resolved);
+    const compactSnapshot = invalidCompact.recap.at(-1)!.snapshot;
+    if (!compactSnapshot || !("p" in compactSnapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+    compactSnapshot.f = 1;
+    expect(() => parseGroupCombatStateStrict(invalidCompact)).toThrow(
+      "Recap enemy focus is not canonical."
+    );
+
+    const invalidVerbose = structuredClone(resolved);
+    const verboseSnapshot = expandGroupCombatRecapSnapshot(
+      invalidVerbose.recap.at(-1)!.snapshot,
+      invalidVerbose
+    );
+    if (!verboseSnapshot) {
+      throw new Error("Expected verbose recap snapshot");
+    }
+    invalidVerbose.recap.at(-1)!.snapshot = {
+      ...verboseSnapshot,
+      enemyFocusCharacterId: "not-in-the-frozen-roster"
+    };
+    expect(() => parseGroupCombatStateStrict(invalidVerbose)).toThrow(
+      "Recap enemy focus is not canonical."
+    );
   });
 
   it.each([

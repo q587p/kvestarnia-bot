@@ -201,6 +201,45 @@ describe("group combat presenter", () => {
     expect(shifted).not.toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
   });
 
+  it("marks the stored enemy focus on compact journal snapshots without inferring legacy focus", () => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const striker = session.state.participants[1]!;
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.state.recap = [{
+      turn: 1,
+      lines: ["Вороги відповідають ватазі."],
+      snapshot: {
+        f: 1,
+        p: session.state.participants.map((participant) => [
+          participant.hp,
+          participant.mana,
+          null,
+          null,
+          null,
+          null
+        ]),
+        e: session.state.enemies.map((enemy) => [enemy.hp, null, null])
+      }
+    }];
+
+    const stored = presentGroupCombatJournal(session, 0);
+    expect(stored).toContain(
+      `❤️ ${striker.name} · рівень ${striker.level} — ${striker.hp}/${striker.hpMax} · 🔮 мана ${striker.mana}/${striker.manaMax} ← 🎯 ціль ворогів`
+    );
+    expect(stored).not.toContain(
+      `❤️ ${leader.name} · рівень ${leader.level} — ${leader.hp}/${leader.hpMax} · 🔮 мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`
+    );
+
+    const legacySnapshot = session.state.recap[0]!.snapshot;
+    if (!legacySnapshot || !("p" in legacySnapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+    delete legacySnapshot.f;
+    expect(presentGroupCombatJournal(session, 0)).not.toContain("🎯 ціль ворогів");
+  });
+
   it("packs multi-enemy guard and abilities into paired rows", () => {
     const session = createSession(2);
     const viewer = session.state.participants[0]!;
@@ -763,6 +802,7 @@ describe("group combat presenter", () => {
         lines: ["Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди."],
         monsterBarkIds: ["bark.deadline-spider.engage-party"],
         snapshot: {
+          enemyFocusCharacterId: session.state.participants[1]!.characterId,
           participants: session.state.participants.map((participant, index) => ({
             hp: participant.hp - index,
             mana: participant.mana,
@@ -807,6 +847,7 @@ describe("group combat presenter", () => {
     expect(text).toContain("Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди.");
     expect(text).toContain("❤️ життя");
     expect(text).toContain("🔮 мана");
+    expect(text).toContain("← 🎯 ціль ворогів");
     expect(text).not.toContain("🔷 мана");
     expect(text).toContain("🗣️ Монстр:");
     expect(text).toContain("Усім терміново? Чудово, всіх і заплутаю.");

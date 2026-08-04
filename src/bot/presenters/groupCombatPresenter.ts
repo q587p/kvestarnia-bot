@@ -419,7 +419,11 @@ function presentGroupCombatRecapSnapshot(
       continue;
     }
     actorRows.push(
-      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}`
+      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}${
+        snapshot.enemyFocusCharacterId === participant.characterId
+          ? " ← 🎯 ціль ворогів"
+          : ""
+      }`
     );
     for (const cooldown of row.cooldowns ?? []) {
       const skill = getCombatSkillDisplay(cooldown.id);
