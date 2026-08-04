@@ -189,11 +189,14 @@ Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
   production entry remains default-off.
 - `0.4.3`: bounded consumable-manatka uses behind an accepted exact-item
   allowlist; this task does not own GroupCombat.
-- `0.4.4`: independent guild membership shell.
-- `0.4.5`: guild weekly objective using the same party/group-combat runtime.
-- `0.4.6`–`0.4.11`: bounded Korchma/social-economy catch-up tasks may reuse the
-  proven status/item boundaries without becoming group-combat runtime owners.
-- `0.4.12`: cosmetic guild progression after observed weekly data.
+- `0.4.4`: Bugfix & Polish for explicit GroupCombat targeting, origin-bound
+  left-passage invitations and canonical equipment-requirement locks.
+- `0.4.5`: independent guild membership shell.
+- `0.4.6`: guild weekly objective using the same party/group-combat runtime.
+- `0.4.7`–`0.4.12`: Старий жертовник, nearby greeting, Shynok food,
+  take-away consumables, resale listings and Korchmar recycling remain bounded
+  catch-up tasks; none becomes a group-combat runtime owner.
+- `0.4.13`: cosmetic guild progression after observed weekly data.
 
 ## Explicit non-goals
 

@@ -18,6 +18,9 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Locked item detail remains reachable from ordinary, sorted and slot-filtered inventory paths, shows the canonical denial reasons and never offers Equip. Unknown evaluator state falls back to the neutral inspect marker.
+- Canonical requirement denial now wins over two-hand, attunement-start and attunement-interruption confirmations in both previews and committed equip attempts, including already-confirmed callbacks.
+- Routed every supported GroupCombat callback generation (`v1`–`v5`) through the social module and combat-lock safe path, so inline target pickers and `↩️ До дій` reach their read-only handlers exactly once.
+- Made left-passage invite creation and deferred raid-chat recruiting-card refresh/redaction use the origin-aware `nyz_left_attack_<token>` URL; Big Barrel and generic parties keep `party_<token>`.
 - Reopening a left-passage link as a current active/completed GroupCombat participant routes to the canonical combat card/result instead of attempting a second join.
 - Removed the obsolete trace-following instruction from left-passage runtime and active docs. Reconciled merged PR `#188` as repository evidence for `0.4.3` and PR `#189` as the shipped direct-supervision/bounded rotating-log replacement; deployment and manual-QA evidence remain separate.
 

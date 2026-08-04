@@ -1,7 +1,10 @@
 import type { Bot } from "grammy";
 import type { PartyRaidChatDeliveryRecord } from "../db/repositories/partyRaidChatRepository";
 import type { PartyBossService } from "../services/partyBossService";
-import { buildPartyInviteUrl, type PartySessionService } from "../services/partySessionService";
+import {
+  buildPartyInviteUrlForSession,
+  type PartySessionService
+} from "../services/partySessionService";
 import type { PartyRaidChatService } from "../services/partyRaidChatService";
 import { buildPartyRaidChatKeyboard, buildPartySessionKeyboard } from "./keyboards/partySessionKeyboard";
 import { isPermanentPartyCardEditError } from "./partySessionDeliveryCoordinator";
@@ -130,7 +133,7 @@ async function deliverOne(
       );
       return;
     }
-    const inviteUrl = buildPartyInviteUrl(options.botUsername, party.session.inviteToken);
+    const inviteUrl = buildPartyInviteUrlForSession(options.botUsername, party.session);
     const base = presentPartyView({ state: "ready", session: party.session }, {
       inviteUrl,
       viewerCharacterId: delivery.participantCharacterId
@@ -300,7 +303,7 @@ async function redact(
   if (delivery.surfaceMode === "recruiting_embed") {
     const party = await services.partySessions.getByToken(delivery.inviteToken);
     if (party.state === "ready") {
-      const inviteUrl = buildPartyInviteUrl(options.botUsername, party.session.inviteToken);
+      const inviteUrl = buildPartyInviteUrlForSession(options.botUsername, party.session);
       text = presentPartyView({ state: "ready", session: party.session }, {
         inviteUrl,
         viewerCharacterId: delivery.participantCharacterId

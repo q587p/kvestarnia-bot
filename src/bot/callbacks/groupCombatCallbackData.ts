@@ -31,6 +31,7 @@ export type GroupCombatCallback =
 
 type GroupCombatCallbackError = "invalid" | "too-long";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,24}$/;
+export const GROUP_COMBAT_CALLBACK_ROUTE_PATTERN = /^v[1-5]:gc:/;
 
 export function makeGroupCombatViewCallbackData(token: string): string {
   return `v1:gc:v:${token}`;

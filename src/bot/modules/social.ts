@@ -64,7 +64,7 @@ export function registerSocialBotModule(
     registerGroupCombatReplyKeyboard(bot, services.groupCombat);
     registerParsedCallbackRoute(
       bot,
-      /^v[123]:gc:/,
+      /^v[1-5]:gc:/,
       (data) => parseWhenAvailable(data, parseGroupCombatCallbackData, services.groupCombat),
       async (ctx, { callback, service }) => {
         await handleGroupCombatCallback(ctx, callback, service, {

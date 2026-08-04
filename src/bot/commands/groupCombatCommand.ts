@@ -30,7 +30,7 @@ import {
   presentGroupCombatStatistics
 } from "../presenters/groupCombatPresenter";
 import { formatRemainingWait, presentPartySession } from "../presenters/partySessionPresenter";
-import { buildPartyInviteUrl } from "../../services/partySessionService";
+import { buildPartyInviteUrlForSession } from "../../services/partySessionService";
 import type {
   GroupCombatSettlementNotice,
   GroupCombatStartResult,
@@ -249,7 +249,7 @@ export async function handleGroupCombatCallback(
     const viewer = result.session.participants.find(
       (participant) => participant.character.telegramUserId === telegramUserId
     );
-    const inviteUrl = buildPartyInviteUrl(ctx.me.username, result.session.inviteToken);
+    const inviteUrl = buildPartyInviteUrlForSession(ctx.me.username, result.session);
     await safeAnswerCallbackQuery(ctx, {
       text: result.state === "created" ? "Заклик розіслано. Слід за вами ніхто не пересував." : "Показую вже відкритий збір."
     });

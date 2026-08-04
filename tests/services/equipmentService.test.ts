@@ -281,6 +281,50 @@ describe("EquipmentService", () => {
     });
   });
 
+  it("keeps canonical requirements ahead of twohand confirmation in list, preview, and commit", async () => {
+    const itemId = "item.mantok.coverage.class.ranger.twohand-bow";
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [buildEquipment({ slot: "offhand", itemId: "item.stamp-of-minor-authority" })]
+    });
+    const inventoryRows = [
+      buildItem({ itemId }),
+      buildItem({ id: "character-item-2", itemId: "item.stamp-of-minor-authority" })
+    ];
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      new FakeCharacterRepository(buildCharacter({ classId: "class.mage" }))
+    );
+    const projection = await service.getInventoryEquipmentProjectionForTelegramUser(
+      telegramUserId,
+      inventoryRows.map((row) => ({
+        ...row,
+        content: items.find((item) => item.id === row.itemId)!
+      }))
+    );
+
+    expect(projection.requirementLockedItemIds).toContain(itemId);
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, itemId)
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["class"],
+      requirements: { classes: ["Єгер"] }
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, itemId, "weapon", {
+        confirmTwohand: true
+      })
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["class"]
+    });
+    expect(equipment.rows).toEqual([
+      expect.objectContaining({ slot: "offhand", itemId: "item.stamp-of-minor-authority" })
+    ]);
+  });
+
   it("enforces authored race requirements in preview and equip", async () => {
     const blocked = createService({
       inventoryRows: [buildItem({ itemId: "item.mantok.coverage.race.dwarf-stone-buckler" })],
@@ -313,6 +357,64 @@ describe("EquipmentService", () => {
       state: "equipped",
       slot: "offhand"
     });
+  });
+
+  it("keeps canonical requirements ahead of attunement interruption in list, preview, and commit", async () => {
+    const itemId = "item.mantok.coverage.race.dwarf-stone-buckler";
+    const tuning = {
+      state: "tuning" as const,
+      strength: "strong" as const,
+      startedAt: new Date("2026-07-08T08:00:00.000Z"),
+      readyAt: new Date("2026-07-08T08:42:00.000Z")
+    };
+    const equipment = new FakeEquipmentRepository({
+      characterId,
+      equipment: [buildEquipment({
+        slot: "offhand",
+        itemId: "item.set.red-line.margin-dagger",
+        attunement: tuning
+      })]
+    });
+    const inventoryRows = [
+      buildItem({ itemId }),
+      buildItem({ id: "character-item-2", itemId: "item.set.red-line.margin-dagger" })
+    ];
+    const service = new EquipmentService(
+      equipment,
+      new FakeInventoryRepository(inventoryRows),
+      new FakeCharacterRepository(buildCharacter({ raceId: "race.human-ish" }))
+    );
+    const projection = await service.getInventoryEquipmentProjectionForTelegramUser(
+      telegramUserId,
+      inventoryRows.map((row) => ({
+        ...row,
+        content: items.find((item) => item.id === row.itemId)!
+      }))
+    );
+
+    expect(projection.requirementLockedItemIds).toContain(itemId);
+    await expect(
+      service.previewItemEquipForTelegramUser(telegramUserId, itemId)
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["race"],
+      requirements: { races: ["Гном"] }
+    });
+    await expect(
+      service.equipItemForTelegramUser(telegramUserId, itemId, "offhand", {
+        confirmAttunementInterrupt: true
+      })
+    ).resolves.toMatchObject({
+      state: "requirements-not-met",
+      reasons: ["race"]
+    });
+    expect(equipment.rows).toEqual([
+      expect.objectContaining({
+        slot: "offhand",
+        itemId: "item.set.red-line.margin-dagger",
+        attunement: tuning
+      })
+    ]);
   });
 
   it("enforces authored title requirements in preview and equip", async () => {

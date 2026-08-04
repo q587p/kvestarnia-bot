@@ -13,6 +13,7 @@ import {
   rememberLatestMessageForChat
 } from "../../src/bot/messageFreshness";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
+import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotServices } from "../../src/bot/botServices";
@@ -288,6 +289,83 @@ describe("group combat bot flow", () => {
       targetKind: "enemy",
       targetId: "enemy-1"
     });
+  });
+
+  it("routes inline v5 target-menu and Back through combat lock and social exactly once without mutation", async () => {
+    const bot = testBot();
+    const session = makeSession();
+    const original = structuredClone(session);
+    const submitAction = vi.fn();
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      findByToken: vi.fn().mockResolvedValue(session),
+      findById: vi.fn().mockResolvedValue(session),
+      submitAction
+    } as unknown as GroupCombatService;
+    const services = { groupCombat: service } as unknown as BotServices;
+    const edits: Record<string, unknown>[] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") {
+        edits.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: true });
+    });
+    registerCombatLockMiddleware(bot, services);
+    registerSocialBotModule(bot, { services, options: {} });
+
+    const targetMenu = inlineKeyboardCallbacks(buildGroupCombatKeyboard(session, "character-1"))
+      .find((data) => data.startsWith("v5:gc:q:"));
+    expect(targetMenu).toBeDefined();
+    const targetUpdate = callbackUpdate(targetMenu ?? "");
+    targetUpdate.callback_query.message.message_id = 21;
+    await bot.handleUpdate(targetUpdate);
+
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.["text"]).toContain("Оберіть ціль для атаки");
+    const back = inlineKeyboardCallbacks(edits[0]?.["reply_markup"])
+      .find((data) => data.startsWith("v5:gc:b:"));
+    expect(back).toBeDefined();
+
+    const backUpdate = callbackUpdate(back ?? "");
+    backUpdate.update_id = 3;
+    backUpdate.callback_query.id = "callback-3";
+    backUpdate.callback_query.message.message_id = 21;
+    await bot.handleUpdate(backUpdate);
+
+    expect(edits).toHaveLength(2);
+    expect(edits[1]?.["reply_markup"]).toEqual(buildGroupCombatKeyboard(session, "character-1"));
+    expect(submitAction).not.toHaveBeenCalled();
+    expect(session).toEqual(original);
+  });
+
+  it("renders a newly created left-passage party with its origin-aware deep link", async () => {
+    const bot = testBot();
+    const session = makeLeftPassagePartySession();
+    const createLeftPassageParty = vi.fn().mockResolvedValue({ state: "created", session });
+    const service = {
+      isEnabled: () => true,
+      areDevHelpersEnabled: () => false,
+      createLeftPassageParty
+    } as unknown as GroupCombatService;
+    const services = { groupCombat: service } as unknown as BotServices;
+    const edits: Record<string, unknown>[] = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") {
+        edits.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: true });
+    });
+    registerCombatLockMiddleware(bot, services);
+    registerSocialBotModule(bot, { services, options: {} });
+
+    const update = callbackUpdate("v3:gc:i:left-preview-13");
+    update.callback_query.message.message_id = 21;
+    await bot.handleUpdate(update);
+
+    expect(createLeftPassageParty).toHaveBeenCalledOnce();
+    expect(JSON.stringify(edits)).toContain("nyz_left_attack_leftToken13");
+    expect(JSON.stringify(edits)).not.toContain("start=party_leftToken13");
   });
 
   it("opens a target-only reply picker even when one enemy remains", async () => {
@@ -1361,6 +1439,64 @@ function makeSession(
   };
 }
 
+function makeLeftPassagePartySession(): PartySessionRecord {
+  const now = new Date("2026-07-24T10:00:00.000Z");
+  const leader: PartySessionRecord["leader"] = {
+    id: "character-1",
+    userId: "user-1",
+    telegramUserId: 1001n,
+    currentLocationId: "location.korchma.deep.level1.left",
+    name: "Лідерка",
+    pronoun: "they",
+    path: "path.boundary",
+    raceId: "race.human-ish",
+    classId: "class.warrior",
+    level: 3,
+    xp: 42,
+    gold: 13,
+    hpCurrent: 25,
+    hpMax: 25,
+    manaCurrent: 10,
+    manaMax: 10,
+    hpRegenAt: null,
+    manaRegenAt: null,
+    activeCosmeticTitleGrantId: null,
+    statsJson: {},
+    remortCount: 0
+  };
+  return {
+    id: "left-party-1",
+    inviteToken: "leftToken13",
+    status: "recruiting",
+    leaderCharacterId: leader.id,
+    periodId: null,
+    originLocationId: "location.korchma.deep.level1.left",
+    originKind: "nyz-left-passage-party.v1",
+    participantCap: 3,
+    minimumParticipants: 1,
+    joinUntilAt: new Date(now.getTime() + 180_000),
+    expiresAt: new Date(now.getTime() + 180_000),
+    version: 1,
+    activeLeaderKey: "party-leader:character-1",
+    createdAt: now,
+    updatedAt: now,
+    leader,
+    participants: [{
+      id: "left-participant-1",
+      sessionId: "left-party-1",
+      characterId: leader.id,
+      remortCount: 0,
+      status: "joined",
+      joinSource: "leader",
+      joinedAt: now,
+      leftAt: null,
+      chatId: 1001n,
+      messageId: 21,
+      character: leader
+    }]
+  };
+}
+
 function participantRecord(
   characterId: string,
   telegramUserId: bigint,
@@ -1530,6 +1666,25 @@ function inlineKeyboardLabels(value: unknown): string[] {
       }
       const label = (button as Record<string, unknown>)["text"];
       return typeof label === "string" ? [label] : [];
+    })
+    : []);
+}
+
+function inlineKeyboardCallbacks(value: unknown): string[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const keyboard = (value as Record<string, unknown>)["inline_keyboard"];
+  if (!Array.isArray(keyboard)) {
+    return [];
+  }
+  return keyboard.flatMap((row) => Array.isArray(row)
+    ? row.flatMap((button) => {
+      if (!button || typeof button !== "object") {
+        return [];
+      }
+      const data = (button as Record<string, unknown>)["callback_data"];
+      return typeof data === "string" ? [data] : [];
     })
     : []);
 }

@@ -33,8 +33,8 @@
   proof/presenter maxima are `20,306` state, `1,523` terminal-card fixture and `46` GroupCombat action callback; across 42 deterministic reachable 3×6 rosters, the rolling production journal worst case measured `64,658` with 10 active plus 6 retained expired effects and `878` bytes of headroom after adding the compact timed-effect projection, while initial 3×6 state/card measured `15,777`/`536`. The 24-case
   simulator completes every requested 2×2/3×3 13/25-turn case, derives zero
   rewards from terminal plans and proves each support cooldown becomes reusable.
-  Generated eight-segment v2 card and v3 reply-menu action callbacks route through combat-lock/social
-  once and performance timing labels v1/v2/v3 GroupCombat as `callback.group-combat`; seven-segment actions fail closed and retained v1
+  Generated v2/v3 action, v4 item-menu and v5 target-picker callbacks route through combat-lock/social
+  once and performance timing labels v1–v5 GroupCombat as `callback.group-combat`; seven-segment actions fail closed and retained v1
   start/view/journal/back remain compatible. Production availability,
   deployment and manual Telegram QA remain unproven. Proof `/dev_party` is a capped
   2–3 participant, three-minute auto-start whose system-owned transaction reloads the current leader/roster; invalid closure is version-guarded, and only the current leader may start early.

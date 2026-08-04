@@ -355,17 +355,6 @@ export class EquipmentService {
 
     const currentRow = findRowForSlot(snapshot.equipment, slot);
     const currentItem = currentRow ? toEquipmentItemSummary(currentRow) : null;
-    const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
-
-    if (twohandPrompt) {
-      return {
-        state: "twohand-confirm-required",
-        item,
-        slot,
-        currentItem,
-        clearedHandItem: twohandPrompt.clearedItem
-      };
-    }
 
     if (!hasAvailableCopyForSlot(inventoryRows, snapshot.equipment, itemId, slot)) {
       return {
@@ -397,13 +386,17 @@ export class EquipmentService {
           currentItem
         };
       }
+    }
 
+    const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
+
+    if (twohandPrompt) {
       return {
-        state: "can-equip",
+        state: "twohand-confirm-required",
         item,
         slot,
-        requirements,
-        currentItem
+        currentItem,
+        clearedHandItem: twohandPrompt.clearedItem
       };
     }
 
@@ -513,17 +506,6 @@ export class EquipmentService {
 
     const replacedRow = findRowForSlot(snapshot.equipment, slot);
     const replacedItem = replacedRow ? toEquipmentItemSummary(replacedRow) : null;
-    const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
-
-    if (twohandPrompt && options.confirmTwohand !== true) {
-      return {
-        state: "twohand-confirm-required",
-        item,
-        slot,
-        currentItem: replacedItem,
-        clearedHandItem: twohandPrompt.clearedItem
-      };
-    }
 
     if (!hasAvailableCopyForSlot(inventoryRows, snapshot.equipment, itemId, slot)) {
       return {
@@ -531,19 +513,6 @@ export class EquipmentService {
         item,
         slot,
         reason: "not-enough-copies"
-      };
-    }
-
-    if (
-      replacedRow?.attunement?.state === "tuning" &&
-      replacedRow.itemId !== itemId &&
-      options.confirmAttunementInterrupt !== true
-    ) {
-      return {
-        state: "attunement-interrupt-confirm-required",
-        item,
-        slot,
-        currentItem: toEquipmentItemSummary(replacedRow)
       };
     }
 
@@ -566,6 +535,31 @@ export class EquipmentService {
           item
         };
       }
+    }
+
+    const twohandPrompt = getTwohandConfirmPrompt(content, slot, snapshot.equipment);
+
+    if (twohandPrompt && options.confirmTwohand !== true) {
+      return {
+        state: "twohand-confirm-required",
+        item,
+        slot,
+        currentItem: replacedItem,
+        clearedHandItem: twohandPrompt.clearedItem
+      };
+    }
+
+    if (
+      replacedRow?.attunement?.state === "tuning" &&
+      replacedRow.itemId !== itemId &&
+      options.confirmAttunementInterrupt !== true
+    ) {
+      return {
+        state: "attunement-interrupt-confirm-required",
+        item,
+        slot,
+        currentItem: toEquipmentItemSummary(replacedRow)
+      };
     }
 
     const strength = getEquipmentMagicStrength(itemId);
