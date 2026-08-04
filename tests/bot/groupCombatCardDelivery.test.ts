@@ -115,6 +115,99 @@ describe("group-combat canonical participant delivery", () => {
     }
   });
 
+  it("delivers the last-ready actor first and never fans participant claims out in parallel", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.participants.push(participantRecord("character-3", 1003n, "Остання готова", 2));
+    session.state.participants.push(actor("character-3", "1003", "Остання готова", 2));
+    session.state.contributions.push({
+      characterId: "character-3",
+      damage: 0,
+      healing: 0,
+      guardedTurns: 0
+    });
+    const firstClaimEntered = deferred<void>();
+    const releaseFirstClaim = deferred<void>();
+    const claimOrder: bigint[] = [];
+    const claimParticipantUiPublication = vi.fn(async (input: { telegramUserId: bigint }) => {
+      claimOrder.push(input.telegramUserId);
+      if (claimOrder.length === 1) {
+        firstClaimEntered.resolve(undefined);
+        await releaseFirstClaim.promise;
+      }
+      return {
+        state: "claimed" as const,
+        publishReplyKeyboard: true,
+        keyboardGeneration: 0
+      };
+    });
+    const canonicalEdits: number[] = [];
+    const api = {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      editMessageText: vi.fn((chatId: number, _messageId: number, text: string) => {
+        if (text.includes("<b>Бій</b>: 1 хід")) {
+          canonicalEdits.push(chatId);
+        }
+        return Promise.resolve(true);
+      }),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
+    const service = {
+      ...claimedUiService(session),
+      claimParticipantUiPublication,
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    const delivery = deliverGroupCombatCards(api, service, session, {
+      priorityCharacterId: "character-3"
+    });
+    await firstClaimEntered.promise;
+    await Promise.resolve();
+
+    expect(claimOrder).toEqual([1003n]);
+    releaseFirstClaim.resolve(undefined);
+    await expect(delivery).resolves.toBe(3);
+    expect(claimOrder).toEqual([1003n, 1001n, 1002n]);
+    expect(canonicalEdits).toEqual([1003, 1001, 1002]);
+  });
+
+  it("continues serial delivery after one participant hits a database timeout", async () => {
+    const session = makeSession();
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    const claimOrder: bigint[] = [];
+    const claimParticipantUiPublication = vi.fn((input: { telegramUserId: bigint }) => {
+      claimOrder.push(input.telegramUserId);
+      if (input.telegramUserId === 1001n) {
+        throw new Error("P1008: database failed to respond within the configured timeout");
+      }
+      return Promise.resolve({
+        state: "claimed" as const,
+        publishReplyKeyboard: true,
+        keyboardGeneration: 0
+      });
+    });
+    const finalizeDeliveryAttempt = vi.fn().mockResolvedValue(true);
+    const service = {
+      ...claimedUiService(session),
+      claimParticipantUiPublication,
+      finalizeDeliveryAttempt
+    } as unknown as GroupCombatService;
+
+    await expect(deliverGroupCombatCards({
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, service, session)).resolves.toBe(1);
+
+    expect(claimOrder).toEqual([1001n, 1002n]);
+    expect(finalizeDeliveryAttempt).toHaveBeenCalledWith(
+      session.id,
+      session.deliveryRevision
+    );
+  });
+
   it("keeps an active battle keyboard on the intro when the first canonical-card send fails", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";
@@ -557,7 +650,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(String(sendMessage.mock.calls[0]?.[1])).toContain("Ви відступили з бою");
     expect(session.participants[0]!.exitDeliveryState).toBe("none");
-    expect(session.participants[0]!.messageId).toBe(92);
+    expect(session.participants[0]!.messageId).toBe(91);
   });
 
   it("retries a failed flee menu after several later party turns", async () => {

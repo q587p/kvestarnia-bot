@@ -1548,9 +1548,20 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return rows.map((row) => row.id);
   }
 
-  async listPendingDeliverySessionIds(limit: number): Promise<string[]> {
+  async listPendingDeliverySessionIds(limit: number, retryBefore?: Date): Promise<string[]> {
     const rows = await this.prisma.groupCombatSession.findMany({
-      where: { deliveryPending: true, repairState: null },
+      where: {
+        deliveryPending: true,
+        repairState: null,
+        ...(retryBefore
+          ? {
+              OR: [
+                { deliveryAttemptedAt: null },
+                { deliveryAttemptedAt: { lte: retryBefore } }
+              ]
+            }
+          : {})
+      },
       orderBy: [
         { deliveryAttemptedAt: "asc" },
         { updatedAt: "asc" },

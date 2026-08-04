@@ -764,14 +764,27 @@ describe("group combat bot flow", () => {
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Ватага рушила в атаку." });
     expect(sendMessage).toHaveBeenCalledTimes(4);
-    expect(sendMessage.mock.calls.slice(0, 2).every((call) =>
-      String(call[1]).includes("Бій починається. Корчма відкриває журнал ходів") &&
-      Boolean((call[2] as { reply_markup?: { keyboard?: unknown } })?.reply_markup?.keyboard)
-    )).toBe(true);
-    expect(sendMessage.mock.calls.slice(2).every((call) =>
-      String(call[1]).includes("<b>Бій</b>:") &&
-      inlineKeyboardLabels((call[2] as { reply_markup?: unknown })?.reply_markup).length > 0
-    )).toBe(true);
+    expect(sendMessage.mock.calls.map((call) => Number(call[0]))).toEqual([
+      1001,
+      1001,
+      1002,
+      1002
+    ]);
+    for (const chatId of [1001, 1002]) {
+      const participantCalls = sendMessage.mock.calls.filter((call) => call[0] === chatId);
+      expect(participantCalls).toHaveLength(2);
+      expect(String(participantCalls[0]?.[1])).toContain(
+        "Бій починається. Корчма відкриває журнал ходів"
+      );
+      expect(Boolean(
+        (participantCalls[0]?.[2] as { reply_markup?: { keyboard?: unknown } })
+          ?.reply_markup?.keyboard
+      )).toBe(true);
+      expect(String(participantCalls[1]?.[1])).toContain("<b>Бій</b>:");
+      expect(inlineKeyboardLabels(
+        (participantCalls[1]?.[2] as { reply_markup?: unknown })?.reply_markup
+      ).length).toBeGreaterThan(0);
+    }
     expect(editMessageText).toHaveBeenCalledTimes(4);
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);

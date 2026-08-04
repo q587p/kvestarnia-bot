@@ -66,80 +66,98 @@ export async function deliverGroupCombatCards(
   session: GroupCombatSessionRecord,
   options: {
     forceReplacementCharacterId?: string;
+    priorityCharacterId?: string;
   } = {}
 ): Promise<number> {
   const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
   const transport = apiTransport(api);
-  const results = await Promise.allSettled(authoritative.participants.map(async (participant) => {
-    const actor = authoritative.state.participants.find(
-      (candidate) => candidate.characterId === participant.characterId
-    );
-    const participantFledThisTurn = Boolean(
-      actor?.fledAtTurn !== undefined &&
-      (
-        (authoritative.status === "active" &&
-          authoritative.state.turn === actor.fledAtTurn + 1) ||
-        (authoritative.status !== "active" &&
-          authoritative.state.turn === actor.fledAtTurn)
-      )
-    );
-    if (exitDeliveryStateOf(participant) !== "none") {
-      return deliverParticipantExitNavigation({
-        api,
-        service,
-        sessionId: authoritative.id,
-        participantCharacterId: participant.characterId,
-        transport
-      });
-    } else if (
-      authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      authoritative.status !== "active" &&
-      participant.settlementStatus !== "completed"
-    ) {
-      return false;
-    }
-    if (
-      authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      participantFledThisTurn &&
-      participant.deliveredRevision < authoritative.deliveryRevision
-    ) {
-      await api.sendMessage(
-        Number(participant.telegramUserId),
-        "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
-        {
-          reply_markup: buildMainMenuKeyboard({
-            ...(authoritative.state.production?.locationId
-              ? { locationId: authoritative.state.production.locationId }
-              : {})
-          })
-        }
+  const priorityCharacterId =
+    options.priorityCharacterId ?? options.forceReplacementCharacterId;
+  const participants = priorityCharacterId
+    ? [
+        ...authoritative.participants.filter(
+          (participant) => participant.characterId === priorityCharacterId
+        ),
+        ...authoritative.participants.filter(
+          (participant) => participant.characterId !== priorityCharacterId
+        )
+      ]
+    : authoritative.participants;
+  let delivered = 0;
+  for (const participant of participants) {
+    try {
+      const actor = authoritative.state.participants.find(
+        (candidate) => candidate.characterId === participant.characterId
       );
+      const participantFledThisTurn = Boolean(
+        actor?.fledAtTurn !== undefined &&
+        (
+          (authoritative.status === "active" &&
+            authoritative.state.turn === actor.fledAtTurn + 1) ||
+          (authoritative.status !== "active" &&
+            authoritative.state.turn === actor.fledAtTurn)
+        )
+      );
+      let result: boolean | GroupCombatParticipantDeliveryResult;
+      if (exitDeliveryStateOf(participant) !== "none") {
+        result = await deliverParticipantExitNavigation({
+          api,
+          service,
+          sessionId: authoritative.id,
+          participantCharacterId: participant.characterId,
+          transport
+        });
+      } else if (
+        authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+        authoritative.status !== "active" &&
+        participant.settlementStatus !== "completed"
+      ) {
+        result = false;
+      } else {
+        if (
+          authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+          participantFledThisTurn &&
+          participant.deliveredRevision < authoritative.deliveryRevision
+        ) {
+          await api.sendMessage(
+            Number(participant.telegramUserId),
+            "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
+            {
+              reply_markup: buildMainMenuKeyboard({
+                ...(authoritative.state.production?.locationId
+                  ? { locationId: authoritative.state.production.locationId }
+                  : {})
+              })
+            }
+          );
+        }
+        result = await deliverCanonicalGroupCombatParticipantCard({
+          service,
+          sessionId: authoritative.id,
+          participantCharacterId: participant.characterId,
+          transport,
+          now: () => serviceTime(service),
+          ...(options.forceReplacementCharacterId === participant.characterId ||
+            (authoritative.status === "active" && participantFledThisTurn) ||
+            (authoritative.status !== "active" &&
+              participant.deliveredRevision < authoritative.deliveryRevision)
+            ? { forceReplacement: true }
+            : {}),
+          ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
+        });
+      }
+      if (typeof result === "boolean" ? result : isDelivered(result)) {
+        delivered += 1;
+      }
+    } catch {
+      continue;
     }
-    return deliverCanonicalGroupCombatParticipantCard({
-      service,
-      sessionId: authoritative.id,
-      participantCharacterId: participant.characterId,
-      transport,
-      now: () => serviceTime(service),
-      ...(options.forceReplacementCharacterId === participant.characterId ||
-        (authoritative.status === "active" && participantFledThisTurn) ||
-        (authoritative.status !== "active" &&
-          participant.deliveredRevision < authoritative.deliveryRevision)
-        ? { forceReplacement: true }
-        : {}),
-      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
-    });
-  }));
+  }
   const latest = await loadAuthoritativeSession(service, authoritative.id);
   if (latest) {
     await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
   }
-  return results.filter((result) =>
-    result.status === "fulfilled" &&
-    (typeof result.value === "boolean"
-      ? result.value
-      : isDelivered(result.value))
-  ).length;
+  return delivered;
 }
 
 export function deliverGroupCombatParticipantExitNavigation(

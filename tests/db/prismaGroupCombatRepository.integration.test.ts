@@ -1296,6 +1296,14 @@ describe("PrismaGroupCombatRepository integration", () => {
       attemptedAt: new Date(claimedAt.getTime() + 2)
     })).resolves.toBe(true);
     expect(await repository.listPendingDeliverySessionIds(93)).toContain(session.id);
+    expect(await repository.listPendingDeliverySessionIds(
+      93,
+      new Date(claimedAt.getTime() + 1)
+    )).not.toContain(session.id);
+    expect(await repository.listPendingDeliverySessionIds(
+      93,
+      new Date(claimedAt.getTime() + 2)
+    )).toContain(session.id);
     await expect(repository.claimParticipantUiPublication({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,

@@ -146,6 +146,13 @@ in-memory requirement projection; detail remains available and never offers
 Equip while locked. No migration, ґільдія runtime or new rollout flag is
 included.
 
+PR `#191` merged this repository release and production reported SQLite
+contention while GroupCombat published several canonical cards concurrently.
+The unnumbered follow-up serializes participant delivery with the initiating
+player first and paces failed-delivery recovery; it does not change combat
+rules, rewards, schema or the `0.4.5` scope. Formal final-hotfix Telegram QA
+remains pending.
+
 ### 0.4.5 — Guild foundation
 
 Малий соціяльний shell, який не чекає готового guild boss: унікальна

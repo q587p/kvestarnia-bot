@@ -21,6 +21,7 @@ export { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
+export const GROUP_COMBAT_DELIVERY_RETRY_MS = 13_000;
 export interface GroupCombatResolvedDelivery {
   session: GroupCombatSessionRecord;
   settlementNotices: GroupCombatSettlementNotice[];
@@ -367,7 +368,10 @@ export class GroupCombatService {
     if (!this.options.enabled) {
       return [];
     }
-    const ids = await this.repository.listPendingDeliverySessionIds(limit);
+    const ids = await this.repository.listPendingDeliverySessionIds(
+      limit,
+      new Date(this.now().getTime() - GROUP_COMBAT_DELIVERY_RETRY_MS)
+    );
     const sessions: GroupCombatSessionRecord[] = [];
     for (const id of ids) {
       try {

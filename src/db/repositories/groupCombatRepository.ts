@@ -215,7 +215,7 @@ export interface GroupCombatRepository {
   findActiveByTelegramUserId(telegramUserId: bigint): Promise<GroupCombatSessionRecord | null>;
   inspectOperatorRepair(sessionId: string): Promise<GroupCombatOperatorRepairRecord | null>;
   listDueSessionIds(now: Date, limit: number): Promise<string[]>;
-  listPendingDeliverySessionIds(limit: number): Promise<string[]>;
+  listPendingDeliverySessionIds(limit: number, retryBefore?: Date): Promise<string[]>;
   listPendingSettlementParticipants(limit: number): Promise<Array<{
     sessionId: string;
     telegramUserId: bigint;
