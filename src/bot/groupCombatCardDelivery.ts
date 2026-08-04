@@ -31,7 +31,7 @@ const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const LOSING_CANDIDATE_DELETE_ATTEMPTS = 3;
 const SUPERSEDED_CANDIDATE_TEXT = "♻️ Цю бойову картку замінено актуальною нижче.";
 const deliveryTails = new Map<string, Promise<void>>();
-const deferredSessionDeliveryTails = new Map<string, Promise<void>>();
+const sessionDeliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
 type MessageOptions = NonNullable<Parameters<Api["editMessageText"]>[3]>;
@@ -71,56 +71,103 @@ export async function deliverGroupCombatCards(
     deferRemaining?: boolean;
   } = {}
 ): Promise<number> {
-  const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
-  const transport = apiTransport(api);
   const priorityCharacterId =
     options.priorityCharacterId ?? options.forceReplacementCharacterId;
-  const participants = priorityCharacterId
-    ? [
-        ...authoritative.participants.filter(
-          (participant) => participant.characterId === priorityCharacterId
-        ),
-        ...authoritative.participants.filter(
-          (participant) => participant.characterId !== priorityCharacterId
-        )
-      ]
-    : authoritative.participants;
-  if (
-    options.deferRemaining === true &&
-    priorityCharacterId !== undefined &&
-    participants[0]?.characterId === priorityCharacterId &&
-    participants.length > 1
-  ) {
+  if (options.deferRemaining === true && priorityCharacterId !== undefined) {
+    const actorDelivery = deferredResult<number>();
+    void serializeGroupCombatSessionDelivery(session.id, async () => {
+      try {
+        const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
+        const ownedDeliveryRevision = authoritative.deliveryRevision;
+        const participants = orderedParticipants(authoritative, priorityCharacterId);
+        if (
+          participants[0]?.characterId !== priorityCharacterId ||
+          participants.length <= 1
+        ) {
+          const delivered = await deliverGroupCombatParticipants({
+            api,
+            service,
+            authoritative,
+            participants,
+            transport: apiTransport(api),
+            ...(options.forceReplacementCharacterId !== undefined
+              ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+              : {})
+          });
+          await finalizeGroupCombatDelivery(
+            service,
+            authoritative.id,
+            ownedDeliveryRevision
+          );
+          actorDelivery.resolve(delivered);
+          return;
+        }
+        const delivered = await deliverGroupCombatParticipants({
+          api,
+          service,
+          authoritative,
+          participants: participants.slice(0, 1),
+          transport: apiTransport(api),
+          ...(options.forceReplacementCharacterId !== undefined
+            ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+            : {})
+        });
+        actorDelivery.resolve(delivered);
+        await deliverGroupCombatParticipants({
+          api,
+          service,
+          authoritative,
+          participants: participants.slice(1),
+          transport: apiTransport(api)
+        });
+        await finalizeGroupCombatDelivery(
+          service,
+          authoritative.id,
+          ownedDeliveryRevision
+        );
+      } catch (error) {
+        actorDelivery.reject(error);
+        throw error;
+      }
+    }).catch(() => undefined);
+    return actorDelivery.promise;
+  }
+  return serializeGroupCombatSessionDelivery(session.id, async () => {
+    const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
+    const ownedDeliveryRevision = authoritative.deliveryRevision;
     const delivered = await deliverGroupCombatParticipants({
       api,
       service,
       authoritative,
-      participants: participants.slice(0, 1),
-      transport,
+      participants: orderedParticipants(authoritative, priorityCharacterId),
+      transport: apiTransport(api),
       ...(options.forceReplacementCharacterId !== undefined
         ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
         : {})
     });
-    queueDeferredGroupCombatParticipants({
-      api,
+    await finalizeGroupCombatDelivery(
       service,
-      fallback: authoritative,
-      priorityCharacterId
-    });
+      authoritative.id,
+      ownedDeliveryRevision
+    );
     return delivered;
-  }
-  const delivered = await deliverGroupCombatParticipants({
-    api,
-    service,
-    authoritative,
-    participants,
-    transport,
-    ...(options.forceReplacementCharacterId !== undefined
-      ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
-      : {})
   });
-  await finalizeGroupCombatDelivery(service, authoritative.id);
-  return delivered;
+}
+
+function orderedParticipants(
+  session: GroupCombatSessionRecord,
+  priorityCharacterId: string | undefined
+): GroupCombatParticipantRecord[] {
+  return priorityCharacterId
+    ? [
+        ...session.participants.filter(
+          (participant) => participant.characterId === priorityCharacterId
+        ),
+        ...session.participants.filter(
+          (participant) => participant.characterId !== priorityCharacterId
+        )
+      ]
+    : session.participants;
 }
 
 async function deliverGroupCombatParticipants(input: {
@@ -204,46 +251,45 @@ async function deliverGroupCombatParticipants(input: {
   return delivered;
 }
 
-function queueDeferredGroupCombatParticipants(input: {
-  api: Api;
-  service: GroupCombatService;
-  fallback: GroupCombatSessionRecord;
-  priorityCharacterId: string;
-}): void {
-  const previous = deferredSessionDeliveryTails.get(input.fallback.id) ?? Promise.resolve();
-  const operation = previous
-    .catch(() => undefined)
-    .then(async () => {
-      const authoritative =
-        await loadAuthoritativeSession(input.service, input.fallback.id) ?? input.fallback;
-      await deliverGroupCombatParticipants({
-        api: input.api,
-        service: input.service,
-        authoritative,
-        participants: authoritative.participants.filter(
-          (participant) => participant.characterId !== input.priorityCharacterId
-        ),
-        transport: apiTransport(input.api)
-      });
-      await finalizeGroupCombatDelivery(input.service, authoritative.id);
-    })
-    .catch(() => undefined);
-  deferredSessionDeliveryTails.set(input.fallback.id, operation);
-  void operation.finally(() => {
-    if (deferredSessionDeliveryTails.get(input.fallback.id) === operation) {
-      deferredSessionDeliveryTails.delete(input.fallback.id);
-    }
-  });
-}
-
 async function finalizeGroupCombatDelivery(
   service: GroupCombatService,
-  sessionId: string
+  sessionId: string,
+  deliveryRevision: number
 ): Promise<void> {
-  const latest = await loadAuthoritativeSession(service, sessionId);
-  if (latest) {
-    await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
-  }
+  await service.finalizeDeliveryAttempt(sessionId, deliveryRevision).catch(() => false);
+}
+
+function serializeGroupCombatSessionDelivery<T>(
+  sessionId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const previous = sessionDeliveryTails.get(sessionId) ?? Promise.resolve();
+  const result = previous.then(operation);
+  const tail = result.then(
+    () => undefined,
+    () => undefined
+  );
+  sessionDeliveryTails.set(sessionId, tail);
+  void tail.finally(() => {
+    if (sessionDeliveryTails.get(sessionId) === tail) {
+      sessionDeliveryTails.delete(sessionId);
+    }
+  });
+  return result;
+}
+
+function deferredResult<T>(): {
+  promise: Promise<T>;
+  resolve(value: T | PromiseLike<T>): void;
+  reject(reason?: unknown): void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }
 
 export function deliverGroupCombatParticipantExitNavigation(
@@ -252,13 +298,15 @@ export function deliverGroupCombatParticipantExitNavigation(
   sessionId: string,
   participantCharacterId: string
 ): Promise<boolean> {
-  return deliverParticipantExitNavigation({
-    api,
-    service,
-    sessionId,
-    participantCharacterId,
-    transport: apiTransport(api)
-  });
+  return serializeGroupCombatSessionDelivery(sessionId, () =>
+    deliverParticipantExitNavigation({
+      api,
+      service,
+      sessionId,
+      participantCharacterId,
+      transport: apiTransport(api)
+    })
+  );
 }
 
 async function deliverParticipantExitNavigation(input: {
@@ -594,18 +642,20 @@ export function deliverGroupCombatParticipantCard(
     publishReplyKeyboard?: boolean;
   } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
-  return deliverCanonicalGroupCombatParticipantCard({
-    service,
-    sessionId,
-    participantCharacterId,
-    transport: apiTransport(api),
-    now: () => serviceTime(service),
-    ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
-    ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
-    ...(options.publishReplyKeyboard === undefined
-      ? {}
-      : { publishReplyKeyboard: options.publishReplyKeyboard })
-  });
+  return serializeGroupCombatSessionDelivery(sessionId, () =>
+    deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId,
+      participantCharacterId,
+      transport: apiTransport(api),
+      now: () => serviceTime(service),
+      ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
+      ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
+      ...(options.publishReplyKeyboard === undefined
+        ? {}
+        : { publishReplyKeyboard: options.publishReplyKeyboard })
+    })
+  );
 }
 
 export async function deliverCanonicalGroupCombatParticipantCard(input: {

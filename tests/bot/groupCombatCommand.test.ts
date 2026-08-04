@@ -1353,6 +1353,9 @@ describe("group combat bot flow", () => {
 
     expect(startProof).toHaveBeenCalledWith(1001n, "proof-token-13");
     await waitForCondition(() => apiCalls.filter((call) => call.method === "sendMessage").length === 2);
+    await waitForCondition(() => apiCalls.filter(
+      (call) => call.method === "editMessageText"
+    ).length === 2);
     expect(apiCalls).not.toContainEqual(expect.objectContaining({ chatId: -100587 }));
     expect(apiCalls.filter((call) => call.method === "sendMessage").map((call) => call.chatId))
       .toEqual([1001, 1002]);

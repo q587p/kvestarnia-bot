@@ -6495,6 +6495,63 @@ describe("PrismaGroupCombatRepository integration", () => {
     }
   });
 
+  it("keeps a newer revision discoverable after an interrupted tail and stale finalization", async () => {
+    const oldRevision = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-delivery-revision-recovery",
+      [11960n]
+    );
+    const participant = oldRevision.participants[0]!;
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: participant.telegramUserId,
+      partyInviteToken: oldRevision.partyInviteToken,
+      turn: oldRevision.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: participant.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_001)
+    });
+    if (!("session" in resolved) || resolved.session.status !== "active") {
+      throw new Error("Expected a newer active delivery revision.");
+    }
+    const newer = resolved.session;
+    expect(newer.deliveryRevision).toBe(oldRevision.deliveryRevision + 1);
+
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: newer.id,
+      expectedDeliveryRevision: oldRevision.deliveryRevision,
+      attemptedAt: new Date(NOW.getTime() + 13_001)
+    })).resolves.toBe(false);
+    await expect(prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: newer.id },
+      select: { deliveryPending: true, deliveryAttemptedAt: true }
+    })).resolves.toEqual({
+      deliveryPending: true,
+      deliveryAttemptedAt: null
+    });
+
+    const restartedService = new GroupCombatService(
+      new PrismaGroupCombatRepository(prisma),
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(NOW.getTime() + 13_002)
+    );
+    const pendingDelivery = await restartedService.listPendingDelivery(93);
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: newer.id,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      attemptedAt: new Date(NOW.getTime() + 13_003)
+    })).resolves.toBe(true);
+    expect(pendingDelivery).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: newer.id,
+        deliveryRevision: newer.deliveryRevision,
+        deliveryPending: true
+      })
+    ]));
+  });
+
   it("reports observed query-event counts against stable budgets", () => {
     console.info(
       "Group combat observed query-event counts (concurrent resolve depends on the winning interleaving)",

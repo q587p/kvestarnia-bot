@@ -233,6 +233,188 @@ describe("group-combat canonical participant delivery", () => {
     );
   });
 
+  it("serializes queued turns and finalizes only each operation's owned revision", async () => {
+    const session = makeSession({ deliveryRevision: 1 });
+    session.id = "group-session-revision-queue";
+    session.state.sessionId = session.id;
+    session.participants.push(participantRecord("character-3", 1003n, "Третя", 2));
+    session.state.participants.push(actor("character-3", "1003", "Третя", 2));
+    session.state.contributions.push({
+      characterId: "character-3",
+      damage: 0,
+      healing: 0,
+      guardedTurns: 0
+    });
+    const firstTailEntered = deferred<void>();
+    const releaseFirstTail = deferred<void>();
+    const secondTailEntered = deferred<void>();
+    const releaseSecondTail = deferred<void>();
+    const secondRevisionFinalized = deferred<void>();
+    let activeEdits = 0;
+    let maximumActiveEdits = 0;
+    let firstTailBlocked = false;
+    let secondTailBlocked = false;
+    const editMessageText = vi.fn(async (chatId: number, _messageId: number, text: string) => {
+      activeEdits += 1;
+      maximumActiveEdits = Math.max(maximumActiveEdits, activeEdits);
+      try {
+        if (chatId === 1001 && text.includes("<b>Бій</b>: 1 хід") && !firstTailBlocked) {
+          firstTailBlocked = true;
+          firstTailEntered.resolve(undefined);
+          await releaseFirstTail.promise;
+          throw new Error("simulated revision-one participant timeout");
+        }
+        if (chatId === 1001 && text.includes("<b>Бій</b>: 2 хід") && !secondTailBlocked) {
+          secondTailBlocked = true;
+          secondTailEntered.resolve(undefined);
+          await releaseSecondTail.promise;
+        }
+        return true;
+      } finally {
+        activeEdits -= 1;
+      }
+    });
+    const finalizedRevisions: number[] = [];
+    const service = {
+      findById: vi.fn().mockImplementation(() => Promise.resolve(session)),
+      markParticipantCardDelivered: vi.fn().mockImplementation((input: {
+        telegramUserId: bigint;
+        expectedDeliveryRevision: number;
+      }) => {
+        if (input.expectedDeliveryRevision !== session.deliveryRevision) {
+          return Promise.resolve(false);
+        }
+        const participant = session.participants.find(
+          (candidate) => candidate.telegramUserId === input.telegramUserId
+        );
+        if (!participant) {
+          return Promise.resolve(false);
+        }
+        participant.deliveredRevision = input.expectedDeliveryRevision;
+        return Promise.resolve(true);
+      }),
+      finalizeDeliveryAttempt: vi.fn().mockImplementation((
+        _sessionId: string,
+        expectedDeliveryRevision: number
+      ) => {
+        finalizedRevisions.push(expectedDeliveryRevision);
+        if (expectedDeliveryRevision !== session.deliveryRevision) {
+          return Promise.resolve(false);
+        }
+        if (session.participants.every(
+          (participant) => participant.deliveredRevision >= expectedDeliveryRevision
+        )) {
+          session.deliveryPending = false;
+        }
+        if (expectedDeliveryRevision === 2) {
+          secondRevisionFinalized.resolve(undefined);
+        }
+        return Promise.resolve(true);
+      })
+    } as unknown as GroupCombatService;
+    const api = {
+      editMessageText,
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
+
+    const revisionOneActor = deliverGroupCombatCards(api, service, session, {
+      priorityCharacterId: "character-3",
+      deferRemaining: true
+    });
+    await firstTailEntered.promise;
+    await expect(revisionOneActor).resolves.toBe(1);
+
+    session.deliveryRevision = 2;
+    session.deliveryPending = true;
+    session.turn = 2;
+    session.state.turn = 2;
+    const revisionTwoActor = deliverGroupCombatCards(api, service, session, {
+      priorityCharacterId: "character-2",
+      deferRemaining: true
+    });
+    await Promise.resolve();
+    expect(secondTailBlocked).toBe(false);
+
+    releaseFirstTail.resolve(undefined);
+    await secondTailEntered.promise;
+    await expect(revisionTwoActor).resolves.toBe(1);
+    expect(finalizedRevisions).toEqual([1]);
+    expect(session.deliveryPending).toBe(true);
+    expect(maximumActiveEdits).toBe(1);
+
+    releaseSecondTail.resolve(undefined);
+    await secondRevisionFinalized.promise;
+    expect(finalizedRevisions).toEqual([1, 2]);
+    expect(session.deliveryPending).toBe(false);
+  });
+
+  it("does not globally serialize delivery tails for different sessions", async () => {
+    const first = makeSession();
+    first.id = "group-session-independent-a";
+    first.state.sessionId = first.id;
+    const second = makeSession();
+    second.id = "group-session-independent-b";
+    second.state.sessionId = second.id;
+    second.participants = second.participants.map((participant, index) => ({
+      ...participant,
+      characterId: `independent-character-${index + 1}`,
+      telegramUserId: 2001n + BigInt(index),
+      chatId: 2001n + BigInt(index)
+    }));
+    second.state.participants = second.state.participants.map((participant, index) => ({
+      ...participant,
+      characterId: `independent-character-${index + 1}`,
+      telegramUserId: String(2001 + index)
+    }));
+    second.state.contributions = second.state.contributions.map((contribution, index) => ({
+      ...contribution,
+      characterId: `independent-character-${index + 1}`
+    }));
+    const firstTailEntered = deferred<void>();
+    const releaseFirstTail = deferred<void>();
+    const firstFinalized = deferred<void>();
+    const firstApi = {
+      editMessageText: vi.fn(async (chatId: number) => {
+        if (chatId === 1002) {
+          firstTailEntered.resolve(undefined);
+          await releaseFirstTail.promise;
+        }
+        return true;
+      }),
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 93 }),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api;
+    const finalizeFirstDelivery = vi.fn().mockImplementation(() => {
+      firstFinalized.resolve(undefined);
+      return Promise.resolve(true);
+    });
+    const firstService = {
+      ...mutableCardService(first),
+      finalizeDeliveryAttempt: finalizeFirstDelivery
+    } as unknown as GroupCombatService;
+    const secondService = {
+      ...mutableCardService(second),
+      finalizeDeliveryAttempt: vi.fn().mockResolvedValue(true)
+    } as unknown as GroupCombatService;
+
+    await expect(deliverGroupCombatCards(firstApi, firstService, first, {
+      priorityCharacterId: "character-1",
+      deferRemaining: true
+    })).resolves.toBe(1);
+    await firstTailEntered.promise;
+
+    await expect(deliverGroupCombatCards({
+      editMessageText: vi.fn().mockResolvedValue(true),
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 94 }),
+      deleteMessage: vi.fn().mockResolvedValue(true)
+    } as unknown as Api, secondService, second)).resolves.toBe(2);
+    expect(finalizeFirstDelivery).not.toHaveBeenCalled();
+
+    releaseFirstTail.resolve(undefined);
+    await firstFinalized.promise;
+  });
+
   it("continues serial delivery after one participant hits a database timeout", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";

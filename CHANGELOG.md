@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.4] - 12026-08-04 - Group Targeting, Left Invitations and Equipment Locks
+## [0.4.4] - 12026-08-05 - Group Targeting, Left Invitations and Equipment Locks
 
 ### Changed
 - Replaced repeated GroupCombat target/action buttons with one Attack, Defend and one button per available class/race/gear ability. Attacks and explicit single-enemy or ally/self abilities now commit directly when exactly one canonical target remains and open a collision-safe target-only picker for two or more; auto-target abilities still commit directly. Inline and temporary reply-menu pickers share `↩️ До дій`, while only final target taps use the canonical action mutation path.
