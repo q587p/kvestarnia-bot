@@ -51,7 +51,7 @@
 - **Дошка корчми** (`location.korchma.news_corner`) — Корчма Квестарні.
 - **Єгерський куток** (`location.korchma.ranger_corner`) — Корчма Квестарні.
 - **Бійцівський куток** (`location.korchma.fighting_corner`) — Корчма Квестарні.
-- **Низ** (`location.korchma.deep`) — Корчма Квестарні.
+- **Низ** (`location.korchma.deep`) — Корчма Квестарні; `🪺 Гніздо ґільдій` є бічною каморою при Спуску й навмисно ділить цей presence-id.
 - **Сутерени Корчми** (`location.korchma.deep.level1`) — Низ.
 - **Лівий прохід** (`location.korchma.deep.level1.left`) — Сутерени Корчми.
 - **Прямий прохід** (`location.korchma.deep.level1.straight`) — Сутерени Корчми.

@@ -1,4 +1,4 @@
-# Guild Foundation Balance — 0.4.4
+# Guild Foundation Balance — 0.4.5
 
 Status: accepted durable social-shell constants. This file contains no future
 reward, weekly-goal or guild-economy promise.

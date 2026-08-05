@@ -165,8 +165,10 @@ leader/officer/member, leader-only crest/description edit і приватний 
 Активний склад має hard cap 8; joining безкоштовний. Історична назва лишається,
 а окрема reservation звільняється після bounded expiry/disband hold.
 
-Repository release `0.4.4` реалізує цей shell за default-off
-`GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
+PR `#190` готує repository release `0.4.5` із цим shell та окремим
+`🪺 Гніздом ґільдій` при Спуску. Active-only public directory ділить
+`PRESENCE_LOCATION_KORCHMA_DEEP`, а приватне відновлення працює звідусіль.
+Усе це лишається за default-off `GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
 remort, а party/combat лишаються current-life контрактами без Guild foreign key.
 `/guild_party` лише показує members для вже чинного real-gameplay recruiting
 `PartySession` і перевикористовує ordinary invite/join/canonical-card flow;

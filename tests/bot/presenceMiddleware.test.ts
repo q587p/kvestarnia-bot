@@ -1207,6 +1207,46 @@ describe("presence middleware", () => {
 
     expect(presence.marks).toEqual([]);
   });
+
+  it("does not write presence for a stale guild callback while the rollout is off", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      guilds: {
+        isEnabled: () => false,
+        areDevHelpersEnabled: () => false,
+        getPublicDirectoryForTelegramUser: () => Promise.resolve({ state: "disabled" })
+      } as unknown as BotServices["guilds"]
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:g:dl:0"));
+
+    expect(presence.marks).toEqual([]);
+  });
+
+  it("renews neutral Spusk activity for enabled guild browsing without moving location", async () => {
+    const presence = new CapturingPresenceService();
+    const bot = createTestBot(presence, {
+      guilds: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getPublicDirectoryForTelegramUser: () => Promise.resolve({
+          state: "ready",
+          guilds: [],
+          page: 0,
+          hasPreviousPage: false,
+          hasNextPage: false
+        })
+      } as unknown as BotServices["guilds"]
+    });
+    await bot.init();
+
+    await bot.handleUpdate(callbackUpdate("v1:g:dl:0"));
+
+    expect(presence.marks).toEqual([{
+      user: { telegramUserId: 42n, displayName: "Тест" }
+    }]);
+  });
 });
 
 class CapturingPresenceService {

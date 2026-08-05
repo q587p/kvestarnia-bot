@@ -18,7 +18,7 @@ import {
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
-import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuButtons, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { editPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import { presentFightStart, presentPersistentFight } from "../presenters/fightPresenter";
@@ -174,7 +174,7 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       }
 
       if (
-        (ctx.callbackQuery || isDuelRoute(ctx)) &&
+        (ctx.callbackQuery || isDuelRoute(ctx) || isGuildTextRoute(ctx)) &&
         !isPendingRaidSafeCallback(callbackData) &&
         typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
         (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
@@ -359,8 +359,13 @@ function isRestartOrRemortRoute(ctx: Context): boolean {
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     isMainMenuLocationButtonText(text) ||
-    (text !== undefined && mainMenuQuestButtonTexts.includes(text))
+    (text !== undefined && (mainMenuQuestButtonTexts.includes(text) || text === mainMenuButtons.guild))
   );
+}
+
+function isGuildTextRoute(ctx: Context): boolean {
+  const text = ctx.message?.text?.trim();
+  return text === mainMenuButtons.guild || /^\/guild(?:@\w+)?(?:\s|$)/i.test(text ?? "");
 }
 
 async function redirectCombatLockIfNeeded(

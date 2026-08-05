@@ -34,7 +34,9 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   installUpdatePerformanceTracing(bot);
   registerRaidChatBotModule(bot, { services, options });
   registerCombatLockMiddleware(bot, services);
-  registerPresenceMiddleware(bot, services.presence);
+  registerPresenceMiddleware(bot, services.presence, {
+    guildFoundationEnabled: services.guilds?.isEnabled() === true
+  });
   registerUpdateRouteBoundary(bot);
 
   registerCoreBotModule(bot, { services, options });

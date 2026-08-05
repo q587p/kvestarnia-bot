@@ -127,7 +127,8 @@ export function registerCombatBotModule(
   registerFightCommand(bot, services.fight, {
     presence: services.presence,
     tavernRaid: services.tavern,
-    passageSearch: services.passageSearch
+    passageSearch: services.passageSearch,
+    guildFoundationEnabled: services.guilds?.isEnabled() === true
   });
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
@@ -463,6 +464,7 @@ async function handleFightCallback(
         presence: services.presence,
         tavernRaid: services.tavern,
         passageSearch: services.passageSearch,
+        guildFoundationEnabled: services.guilds?.isEnabled() === true,
         requireKorchmaInterior: false
       });
       return;
@@ -524,6 +526,7 @@ async function handleFightCallback(
         presence: services.presence,
         tavernRaid: services.tavern,
         passageSearch: services.passageSearch,
+        guildFoundationEnabled: services.guilds?.isEnabled() === true,
         requireKorchmaInterior: false
       });
       return;
@@ -543,6 +546,7 @@ async function handleFightCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true,
       requireKorchmaInterior: false,
       suppressStartIntro: Boolean(result.state === "persistent-active" && result.started)
     });

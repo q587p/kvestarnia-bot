@@ -7,6 +7,50 @@ import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
 
 describe("group-combat lock middleware", () => {
+  it("routes the persistent guild button through the canonical combat lock", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const findLease = vi.fn().mockResolvedValue({
+      characterId: "character-1",
+      kind: "future-combat",
+      referenceId: "future-guild-lock"
+    });
+    registerCombatLockMiddleware(bot, {
+      combatLeases: { findActiveForTelegramUser: findLease },
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" }) }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate("🏰 Ґільдії"));
+
+    expect(findLease).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+  });
+
+  it.each(["/guild", "🏰 Ґільдії"])("keeps %s behind the pending-raid lock", async (text) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue({
+      state: "pending",
+      character: { name: "Лідерка" },
+      availableAt: new Date("2026-08-05T12:13:00.000Z"),
+      now: new Date("2026-08-05T12:00:00.000Z")
+    });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate(text));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+  });
+
   it.each([
     ["turn-based-duel", "duel"],
     ["party-boss", "partyBoss"],
@@ -427,6 +471,19 @@ function commandUpdate(type: "private" | "supergroup") {
       from: { id: 1001, is_bot: false, first_name: "Лідерка" },
       text: "/adventure",
       entities: [{ type: "bot_command" as const, offset: 0, length: 10 }]
+    }
+  };
+}
+
+function textUpdate(text: string) {
+  return {
+    update_id: 587,
+    message: {
+      message_id: 587,
+      date: 1,
+      chat: { id: 1001, type: "private" as const },
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      text
     }
   };
 }

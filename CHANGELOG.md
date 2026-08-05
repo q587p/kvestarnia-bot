@@ -10,6 +10,8 @@ This project follows a simple pre-1.0 versioning policy:
 ## [0.4.5] - 12026-08-05 - Guild Foundation
 
 ### Added
+- Added `🪺 Гніздо ґільдій` as a dedicated side chamber off `Спуск до Низу`, with a compact landing, separate rules card, viewer-aware actions and an explicit return route while deliberately sharing the canonical Spusk presence location.
+- Added a separate active-only public guild directory and compact public profiles with stable five-row alphabetical pagination, current `n/8` counts, escaped UGC and no roster, leader, role, identity, token, audit, timestamp, exact-location, ranking or direct-application data.
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
 - Added one replaceable 13-minute preview, an exact-once non-refundable 587-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
 - Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
@@ -18,6 +20,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
 
 ### Changed
+- The Nest is now the canonical public discovery route; `/guild`, the persistent `🏰 Ґільдії` button, hero shortcuts and private deep-link recovery remain usable from anywhere under their existing rules. Forming founders now receive the hero-card shortcut too.
+- Guild browsing renews neutral Spusk activity without moving presence. The persistent guild reply button now shares the canonical combat/pending-raid lock with `/guild` and guild callbacks.
+- Invite opt-in tokens can now be minted only by nonmembers; current membership is checked transactionally and stale opt-in state is cleared when a membership is created.
 - Guild membership and leadership now survive real remort and safe Character recreation while live party/combat blockers and frozen-life contracts remain authoritative.
 - `/guild_party` now opens only a paginated member picker for an already-existing eligible gameplay `PartySession`. It reuses the ordinary invitation, `joinSource=guild` attribution and canonical party-card sender; it never creates an unattached guild lobby, and nonmembers retain ordinary routes.
 - Disabled mode preserves rows, safe reads, nonleader leave, accepted transfer and sole disband while blocking formation, invitation acceptance/new sends, roles, profile edits and guild-party writes.

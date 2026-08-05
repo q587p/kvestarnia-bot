@@ -1436,7 +1436,8 @@ async function handlePlaceCallback(
       return;
     }
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
-      passageSearch: services.passageSearch
+      passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1467,6 +1468,7 @@ async function handlePlaceCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

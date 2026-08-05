@@ -3,6 +3,9 @@ import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
 export type GuildCallback =
   | { type: "open"; page: number }
+  | { type: "nest-open" | "nest-rules" }
+  | { type: "directory-open"; page: number }
+  | { type: "directory-profile"; guildId: string; page: number }
   | { type: "create-open" | "invite-code" | "invite-start" }
   | { type: "create-crest"; crestIndex: number }
   | { type: "profile-open"; version: number }
@@ -23,9 +26,15 @@ export type GuildCallbackError = "invalid-prefix" | "invalid-action" | "invalid-
 const PREFIX = "v1:g";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
 const MEMBER_PATTERN = /^[A-Za-z0-9-]{8,40}$/;
+const GUILD_PATTERN = /^[A-Za-z0-9-]{8,40}$/;
 const VERSION_PATTERN = /^[0-9a-z]{1,6}$/;
 
 export const makeGuildOpenCallbackData = (page = 0): string => page === 0 ? `${PREFIX}:o` : `${PREFIX}:o:${page.toString(36)}`;
+export const makeGuildNestOpenCallbackData = (): string => `${PREFIX}:no`;
+export const makeGuildNestRulesCallbackData = (): string => `${PREFIX}:nr`;
+export const makeGuildDirectoryOpenCallbackData = (page = 0): string => `${PREFIX}:dl:${page.toString(36)}`;
+export const makeGuildDirectoryProfileCallbackData = (guildId: string, page = 0): string =>
+  `${PREFIX}:dp:${guildId}:${page.toString(36)}`;
 export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
 export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => `${PREFIX}:r:${crestIndex.toString(36)}`;
 export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
@@ -72,6 +81,15 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "o" && second === undefined) {
     const page = first === undefined ? 0 : VERSION_PATTERN.test(first) ? Number.parseInt(first, 36) : null;
     return page === null ? err("invalid-version") : ok({ type: "open", page });
+  }
+  if ((action === "no" || action === "nr") && first === undefined && second === undefined) {
+    return ok({ type: action === "no" ? "nest-open" : "nest-rules" });
+  }
+  if (action === "dl" && first && second === undefined && VERSION_PATTERN.test(first)) {
+    return ok({ type: "directory-open", page: Number.parseInt(first, 36) });
+  }
+  if (action === "dp" && first && GUILD_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
+    return ok({ type: "directory-profile", guildId: first, page: Number.parseInt(second, 36) });
   }
   if ((action === "n" || action === "i" || action === "is") && first === undefined && second === undefined) {
     return ok({ type: action === "n" ? "create-open" : action === "i" ? "invite-code" : "invite-start" });

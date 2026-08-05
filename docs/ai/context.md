@@ -43,7 +43,6 @@
 - Player-facing copy, lore and news are Ukrainian. Workflow/task/PR text is English when practical.
 - Use `«»`, visible Holocene dates such as `12026-07-16`, `міт*` with `т`, `соціяльн*` with `я`, and `ґільдія` with `ґ`.
 - Keep Telegram messages compact. Never expose secrets, private ids, hidden odds or exact future rewards before commitment.
-
 - Current `0.4.2` follow-up invariant: a same-life single-enemy terminal survivor may be reserved with its regenerated HP frozen relationally and in v3 state; cancellation restores the consumed solo-recovery trail. In every private playable state at least one authoritative control surface remains visible. GroupCombat start publishes the separate intro with persistent main navigation, then a canonical card with non-empty current inline actions; every active redraw keeps inline controls (or observer `🔎 Оновити`) and no retry, restart, scheduler or refresh path may publish an inert newest live card.
 
 ## Workflow
@@ -86,7 +85,7 @@
 - `0.4.2` is the first production-capable GroupCombat consumer, but its entry
   remains default-off. Operator-required v3 rows are invisible and immutable to
   ordinary reads/mutations; only explicit inspection exposes their raw evidence.
-  `0.4.3` activates the exhaustive twenty-id typed immediate consumable catalog through `item-use-v5` without a catalog-specific rollout flag. GroupCombat item menus page five useful rows at a time. Turn duels remain item-free and take-away purchases stay in `0.4.9`.
+  `0.4.3` activates the exhaustive twenty-id typed immediate consumable catalog through `item-use-v5` without a catalog-specific rollout flag. GroupCombat item menus page five useful rows at a time. Turn duels remain item-free and take-away purchases stay in `0.4.10`.
   `0.4.4` is the merged Group Targeting, Left Invitations and Equipment Locks release. `0.4.5` adds independent User-level guild identity and the same-presence Nest directory behind `GUILD_FOUNDATION_ENABLED`; it uses ordinary `PartySession`, does not own party/combat state and implies no bank/trade/war/weekly-goal scope. Manual three-account Telegram QA, merge, migration deployment and target enablement remain unproven; an audited abandoned-leader operator runbook is a production-enable blocker. A dedicated combat reply keyboard remains deferred in `docs/backlog/dedicated-combat-reply-keyboard.md`.
 
 ## Shipped class support

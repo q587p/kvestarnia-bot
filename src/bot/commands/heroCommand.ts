@@ -126,7 +126,7 @@ export async function sendHero(
       restoreCallbackData: result.restoreToFullItemId
         ? makeItemUseRestoreToFullCallbackData(result.restoreToFullItemId)
         : null,
-      showActiveGuild: guildHub?.state === "ready" && guildHub.guild.status === "active"
+      showActiveGuild: guildHub?.state === "ready"
     });
 
     // Telegram accepts one reply_markup per message; this card uses inline hero actions,

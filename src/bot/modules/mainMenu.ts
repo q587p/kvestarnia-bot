@@ -622,7 +622,8 @@ async function sendCurrentPresenceLocation(
   }
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP) {
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
-      passageSearch: services.passageSearch
+      passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true
     });
     return;
   }
@@ -631,6 +632,7 @@ async function sendCurrentPresenceLocation(
       presence: services.presence,
       tavernRaid: services.tavern,
       passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

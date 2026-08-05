@@ -1217,6 +1217,159 @@ describe("PrismaGuildRepository integration", () => {
       await rm(rollbackDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
     }
   }, 60_000);
+
+  it("keeps the Nest location-bound and exposes only the active public directory contract", async () => {
+    await prisma.guild.updateMany({
+      where: { status: { in: ["forming", "active"] } },
+      data: { status: "disbanded", disbandedAt: NOW, reservationKey: null, updatedAt: NOW }
+    });
+    await seedCharacter(prisma, "directory-viewer", 60_001n, "Читачка", 0, { level: 5 });
+    await prisma.user.update({
+      where: { id: "directory-viewer" },
+      data: { lastSeenLocationId: "location.korchma.deep", lastActionAt: NOW }
+    });
+
+    const rows = [
+      ["directory-guild-f", "жовта", "Жовта Варениця", "🟡"],
+      ["directory-guild-a2", "абетка", "Абетка Друга", "🦉"],
+      ["directory-guild-d", "дуб", "Дубова Лава", "🌳"],
+      ["directory-guild-a1", "абетка", "Абетка Перша", "🛡️"],
+      ["directory-guild-c", "вишня", "Вишнева Пошта", "🍒"],
+      ["directory-guild-b", "бочка", "Бочкова Рада", "🥨"]
+    ] as const;
+    for (const [guildId, normalizedName, displayName, crest] of rows) {
+      const userId = `${guildId}-founder`;
+      await seedCharacter(prisma, userId, BigInt(60_100 + rows.findIndex((row) => row[0] === guildId)), displayName, 0);
+      await prisma.guild.create({
+        data: {
+          id: guildId,
+          normalizedName,
+          reservationKey: guildId,
+          displayName,
+          crest,
+          description: `<b>${displayName}</b>`,
+          founderUserId: userId,
+          leaderUserId: userId,
+          status: "active",
+          version: 2,
+          charterExpiresAt: new Date(NOW.getTime() + DAY),
+          activatedAt: NOW,
+          createdAt: NOW,
+          updatedAt: NOW,
+          members: {
+            create: {
+              id: `${guildId}-member`,
+              userId,
+              activeUserKey: userId,
+              role: "leader",
+              joinedAt: NOW,
+              createdAt: NOW,
+              updatedAt: NOW
+            }
+          }
+        }
+      });
+    }
+    await seedCharacter(prisma, "directory-extra", 60_200n, "Чинна Учасниця", 0);
+    await seedCharacter(prisma, "directory-history", 60_201n, "Колишня Учасниця", 0);
+    await prisma.guildMember.createMany({
+      data: [
+        {
+          id: "directory-extra-member",
+          guildId: "directory-guild-a1",
+          userId: "directory-extra",
+          activeUserKey: "directory-extra",
+          role: "member",
+          joinedAt: NOW,
+          createdAt: NOW,
+          updatedAt: NOW
+        },
+        {
+          id: "directory-history-member",
+          guildId: "directory-guild-a1",
+          userId: "directory-history",
+          activeUserKey: null,
+          role: "member",
+          joinedAt: new Date(NOW.getTime() - DAY),
+          leftAt: NOW,
+          createdAt: new Date(NOW.getTime() - DAY),
+          updatedAt: NOW
+        }
+      ]
+    });
+    await seedCharacter(prisma, "directory-forming", 60_202n, "Формувальник", 1_000, { level: 5 });
+    await createAndConfirm(repository, 60_202n, "directoryForming93", "Ще Не Чинна");
+
+    const first = await repository.getPublicDirectoryForTelegramUser(
+      60_001n,
+      "location.korchma.deep",
+      NOW,
+      0
+    );
+    expect(first).toMatchObject({ state: "ready", page: 0, hasPreviousPage: false, hasNextPage: true });
+    expect(first.state === "ready" ? first.guilds.map((guild) => guild.id) : []).toEqual([
+      "directory-guild-a1",
+      "directory-guild-a2",
+      "directory-guild-b",
+      "directory-guild-c",
+      "directory-guild-d"
+    ]);
+    expect(first.state === "ready" ? first.guilds[0]?.memberCount : null).toBe(2);
+    expect(Object.keys(first.state === "ready" ? first.guilds[0]! : {})).toEqual([
+      "id",
+      "displayName",
+      "crest",
+      "memberCount"
+    ]);
+    await expect(repository.getPublicDirectoryForTelegramUser(
+      60_001n,
+      "location.korchma.deep",
+      NOW,
+      99
+    )).resolves.toMatchObject({
+      state: "ready",
+      page: 1,
+      hasPreviousPage: true,
+      hasNextPage: false,
+      guilds: [{ id: "directory-guild-f", memberCount: 1 }]
+    });
+
+    const profile = await repository.getPublicGuildForTelegramUser(
+      60_001n,
+      "directory-guild-a1",
+      "location.korchma.deep",
+      NOW
+    );
+    expect(profile).toMatchObject({ state: "ready", guild: { memberCount: 2 } });
+    await prisma.guild.update({ where: { id: "directory-guild-a1" }, data: { status: "disbanded", disbandedAt: NOW } });
+    await expect(repository.getPublicGuildForTelegramUser(
+      60_001n,
+      "directory-guild-a1",
+      "location.korchma.deep",
+      NOW
+    )).resolves.toEqual({ state: "unavailable" });
+
+    await prisma.user.update({ where: { id: "directory-viewer" }, data: { lastSeenLocationId: "location.korchma.hall" } });
+    await expect(repository.getNestForTelegramUser(
+      60_001n,
+      "location.korchma.deep",
+      NOW
+    )).resolves.toEqual({ state: "wrong-location" });
+    await expect(repository.getPublicDirectoryForTelegramUser(
+      60_001n,
+      "location.korchma.deep",
+      NOW
+    )).resolves.toEqual({ state: "wrong-location" });
+  });
+
+  it("does not mint invite opt-in state for a member and clears stale state on membership creation", async () => {
+    await seedCharacter(prisma, "optin-member", 60_300n, "Учасниця", 1_000, { level: 5 });
+    await expect(createOptIn(repository, 60_300n, "memberOptInToken93")).resolves.toMatchObject({ state: "ready" });
+    await createAndConfirm(repository, 60_300n, "memberGuildToken93", "Печатка Учасниці");
+    await expect(prisma.guildInviteOptIn.findUnique({ where: { userId: "optin-member" } })).resolves.toBeNull();
+    await expect(createOptIn(repository, 60_300n, "forbiddenMemberToken93")).resolves.toEqual({ state: "already-member" });
+    await expect(prisma.guildInviteOptIn.findUnique({ where: { userId: "optin-member" } })).resolves.toBeNull();
+  });
 });
 
 async function createIntent(

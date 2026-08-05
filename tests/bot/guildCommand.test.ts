@@ -582,6 +582,105 @@ describe("guild command routes", () => {
     );
     expect(replay.sendMessage).not.toHaveBeenCalled();
   });
+
+  it("renders the location-bound Nest and viewer-aware private recovery actions", async () => {
+    const nonmember = callbackContext();
+    await handleGuildCallback(
+      nonmember.ctx,
+      { type: "nest-open" },
+      guildService({
+        getNestForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          viewerState: "not-member",
+          hasIncomingInvites: true
+        })
+      })
+    );
+    const nonmemberSettings = nonmember.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data?: string }>> };
+    };
+    const nonmemberButtons = nonmemberSettings.reply_markup.inline_keyboard.flat();
+    expect(nonmemberButtons.map((button) => button.text)).toEqual([
+      "📚 Чинні ґільдії",
+      "❔ Умови й ролі",
+      "✉️ Мої запрошення",
+      "🔗 Мій код запрошення",
+      "📜 Заснувати свою",
+      "↩️ До Спуску"
+    ]);
+
+    const member = callbackContext();
+    await handleGuildCallback(
+      member.ctx,
+      { type: "nest-open" },
+      guildService({
+        getNestForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          viewerState: "forming",
+          hasIncomingInvites: false
+        })
+      })
+    );
+    const memberMarkup = member.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string }>> };
+    };
+    expect(memberMarkup.reply_markup.inline_keyboard.flat().map((button) => button.text)).toContain("📜 Мій статут");
+    expect(JSON.stringify(memberMarkup)).not.toContain("Мій код запрошення");
+
+    const rules = callbackContext();
+    await handleGuildCallback(
+      rules.ctx,
+      { type: "nest-rules" },
+      guildService({
+        getNestForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          viewerState: "not-member",
+          hasIncomingInvites: false
+        })
+      })
+    );
+    const rulesText = String(rules.editMessageText.mock.calls[0]?.[0]);
+    expect(rulesText).toContain("Один обліковий запис — одна ґільдія");
+    expect(rulesText).toContain("ціна — <b>587 золота</b>");
+    expect(rulesText).not.toContain("User");
+  });
+
+  it("keeps stale public callbacks inert and escapes the minimal public profile", async () => {
+    const disabledDirectory = vi.fn().mockResolvedValue({ state: "disabled" });
+    const disabled = callbackContext();
+    await handleGuildCallback(
+      disabled.ctx,
+      { type: "directory-open", page: 0 },
+      guildService({ getPublicDirectoryForTelegramUser: disabledDirectory })
+    );
+    expect(disabledDirectory).toHaveBeenCalledWith(42n, 0);
+    expect(String(disabled.editMessageText.mock.calls[0]?.[0])).toContain("Поверніться до Спуску");
+    expect(JSON.stringify(disabled.editMessageText.mock.calls[0]?.[1])).toContain("v1:place:deep");
+
+    const profile = callbackContext();
+    await handleGuildCallback(
+      profile.ctx,
+      { type: "directory-profile", guildId: "12345678-1234-4234-9234-123456789012", page: 1 },
+      guildService({
+        getPublicGuildForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          guild: {
+            id: "12345678-1234-4234-9234-123456789012",
+            crest: "<🦉>",
+            displayName: "<b>Чужий HTML</b>",
+            description: "Лише <script>опис</script>",
+            memberCount: 3
+          }
+        })
+      })
+    );
+    const text = String(profile.editMessageText.mock.calls[0]?.[0]);
+    expect(text).toContain("&lt;b&gt;Чужий HTML&lt;/b&gt;");
+    expect(text).toContain("Лише &lt;script&gt;опис&lt;/script&gt;");
+    expect(text).not.toContain("leader");
+    expect(text).not.toContain("12345678");
+    expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:dl:1");
+  });
 });
 
 function guildService(overrides: Partial<GuildService>): GuildService {

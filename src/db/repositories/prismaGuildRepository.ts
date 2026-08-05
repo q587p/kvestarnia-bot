@@ -20,6 +20,9 @@ import type {
   GuildMemberMutationRepositoryResult,
   GuildPartyPickerRepositoryResult,
   GuildPartyRecipientRepositoryResult,
+  GuildNestRepositoryResult,
+  GuildPublicDirectoryRepositoryResult,
+  GuildPublicProfileRepositoryResult,
   GuildRepository,
   GuildViewRecord
 } from "./guildRepository";
@@ -302,6 +305,7 @@ export class PrismaGuildRepository implements GuildRepository {
           data: { status: "completed", activeUserKey: null, guildId: guild.id, completedAt: now, updatedAt: now }
         });
         await terminalizeIncomingInvites(tx, actor.id, now);
+        await tx.guildInviteOptIn.deleteMany({ where: { userId: actor.id } });
         await appendAudit(tx, {
           guildId: guild.id,
           eventType: "charter.confirmed",
@@ -392,14 +396,127 @@ export class PrismaGuildRepository implements GuildRepository {
     });
   }
 
+  async getNestForTelegramUser(
+    telegramUserId: bigint,
+    expectedLocationId: string,
+    now: Date
+  ): Promise<GuildNestRepositoryResult> {
+    return this.serializable(async (tx) => {
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      if (actor.lastSeenLocationId !== expectedLocationId) {
+        return { state: "wrong-location" };
+      }
+      const membership = await currentLiveMembership(tx, actor, now);
+      await expireInvitesForUser(tx, actor.id, now);
+      const incoming = await tx.guildInvite.count({
+        where: { targetUserId: actor.id, status: "pending", expiresAt: { gt: now } }
+      });
+      return {
+        state: "ready",
+        viewerState: membership
+          ? membership.guild.status === "forming" ? "forming" : "active"
+          : "not-member",
+        hasIncomingInvites: incoming > 0
+      };
+    });
+  }
+
+  async getPublicDirectoryForTelegramUser(
+    telegramUserId: bigint,
+    expectedLocationId: string,
+    _now: Date,
+    page = 0
+  ): Promise<GuildPublicDirectoryRepositoryResult> {
+    const actor = await findPublicViewer(this.prisma, telegramUserId);
+    if (!actor?.character) {
+      return { state: "no-character" };
+    }
+    if (actor.lastSeenLocationId !== expectedLocationId) {
+      return { state: "wrong-location" };
+    }
+    const total = await this.prisma.guild.count({ where: { status: "active", disbandedAt: null } });
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const currentPage = Math.min(Math.max(0, page), totalPages - 1);
+    const guilds = await this.prisma.guild.findMany({
+      where: { status: "active", disbandedAt: null },
+      orderBy: [{ normalizedName: "asc" }, { id: "asc" }],
+      skip: currentPage * PAGE_SIZE,
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        displayName: true,
+        crest: true,
+        _count: { select: { members: { where: { activeUserKey: { not: null } } } } }
+      }
+    });
+    return {
+      state: "ready",
+      guilds: guilds.map((guild) => ({
+        id: guild.id,
+        displayName: guild.displayName,
+        crest: guild.crest,
+        memberCount: guild._count.members
+      })),
+      page: currentPage,
+      hasPreviousPage: currentPage > 0,
+      hasNextPage: currentPage < totalPages - 1
+    };
+  }
+
+  async getPublicGuildForTelegramUser(
+    telegramUserId: bigint,
+    guildId: string,
+    expectedLocationId: string,
+    now: Date
+  ): Promise<GuildPublicProfileRepositoryResult> {
+    void now;
+    const actor = await findPublicViewer(this.prisma, telegramUserId);
+    if (!actor?.character) {
+      return { state: "no-character" };
+    }
+    if (actor.lastSeenLocationId !== expectedLocationId) {
+      return { state: "wrong-location" };
+    }
+    const guild = await this.prisma.guild.findFirst({
+      where: { id: guildId, status: "active", disbandedAt: null },
+      select: {
+        id: true,
+        displayName: true,
+        crest: true,
+        description: true,
+        _count: { select: { members: { where: { activeUserKey: { not: null } } } } }
+      }
+    });
+    return guild
+      ? {
+          state: "ready",
+          guild: {
+            id: guild.id,
+            displayName: guild.displayName,
+            crest: guild.crest,
+            description: guild.description,
+            memberCount: guild._count.members
+          }
+        }
+      : { state: "unavailable" };
+  }
+
   async createInviteOptInForTelegramUser(
     telegramUserId: bigint,
     input: { token: string; now: Date; expiresAt: Date }
   ): Promise<GuildInviteOptInRepositoryResult> {
     return this.serializable(async (tx) => {
+      await maintainGuildState(tx, input.now);
       const actor = await findActor(tx, telegramUserId);
       if (!actor?.character) {
         return { state: "no-character" };
+      }
+      if (await currentLiveMembership(tx, actor, input.now)) {
+        await tx.guildInviteOptIn.deleteMany({ where: { userId: actor.id } });
+        return { state: "already-member" };
       }
       const row = await tx.guildInviteOptIn.upsert({
         where: { userId: actor.id },
@@ -1086,6 +1203,7 @@ export class PrismaGuildRepository implements GuildRepository {
           data: { status: "accepted", activeKey: null, respondedAt: now, updatedAt: now }
         });
         await terminalizeIncomingInvites(tx, actor.id, now, invite.id);
+        await tx.guildInviteOptIn.deleteMany({ where: { userId: actor.id } });
         await appendAudit(tx, {
           guildId: invite.guildId,
           eventType: "invite.accepted",
@@ -1247,6 +1365,16 @@ export class PrismaGuildRepository implements GuildRepository {
 
 async function findActor(client: TxClient | PrismaClient, telegramUserId: bigint): Promise<ActorRow | null> {
   return client.user.findUnique({ where: { telegramUserId }, include: actorInclude });
+}
+
+async function findPublicViewer(client: PrismaClient, telegramUserId: bigint) {
+  return client.user.findUnique({
+    where: { telegramUserId },
+    select: {
+      lastSeenLocationId: true,
+      character: { select: { id: true } }
+    }
+  });
 }
 
 function activeMembership(actor: ActorRow | null | undefined): ActiveMembership | null {

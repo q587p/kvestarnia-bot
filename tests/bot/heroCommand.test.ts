@@ -143,7 +143,7 @@ describe("hero command", () => {
 
     expect(flatInlineButtonTexts(activeReplies[0]?.options)).toContain("🏰 Ґільдія");
     expect(flatInlineButtonCallbacks(activeReplies[0]?.options)).toContain("v1:g:o");
-    expect(flatInlineButtonTexts(formingReplies[0]?.options)).not.toContain("🏰 Ґільдія");
+    expect(flatInlineButtonTexts(formingReplies[0]?.options)).toContain("🏰 Ґільдія");
   });
 
   it("renders the authoritative full-HP recovery notice once in an edited hero card", async () => {

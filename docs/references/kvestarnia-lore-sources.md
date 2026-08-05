@@ -6,7 +6,7 @@
 - `src/content/classes.ts` — поточні class ids, назви, descriptions, primaryStat і allowedRaces.
 - `src/content/monsters.ts` — поточний runtime monster roster до 23 рівня.
 - `src/content/items.ts`, `src/content/monsterLootItems.ts`, `src/content/lootExpansionV1.ts` — манатки, trophy ids і item flavor.
-- `src/services/presenceService.ts` — visible presence locations: Перед корчмою, Зала, Стіл зі справами, Шинок, Льох, Бочка, Дошка корчми, Єгерський куток, Бійцівський куток, Низ, Сутерени.
+- `src/services/presenceService.ts` — visible presence locations: Перед корчмою, Зала, Стіл зі справами, Шинок, Льох, Бочка, Дошка корчми, Єгерський куток, Бійцівський куток, Низ, Сутерени. `🪺 Гніздо ґільдій` is a lore/UI sublocation sharing the Spusk `location.korchma.deep` presence id.
 - `src/bot/presenters/newsPresenter.ts` — поточна поверхня новин і return button до `news-corner`.
 - `src/bot/callbacks/placeCallbackData.ts` — versioned place callback style.
 

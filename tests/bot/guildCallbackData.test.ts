@@ -3,6 +3,8 @@ import {
   makeGuildCreateOpenCallbackData,
   makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
+  makeGuildDirectoryOpenCallbackData,
+  makeGuildDirectoryProfileCallbackData,
   makeGuildInviteCodeCallbackData,
   makeGuildInviteStartCallbackData,
   makeGuildMemberManageCallbackData,
@@ -10,6 +12,8 @@ import {
   makeGuildMemberSelectCallbackData,
   makeGuildMembersOpenCallbackData,
   makeGuildOpenCallbackData,
+  makeGuildNestOpenCallbackData,
+  makeGuildNestRulesCallbackData,
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
   makeGuildProfileCrestCallbackData,
@@ -60,6 +64,10 @@ describe("guild callback data", () => {
   it("round-trips bounded pagination, party and accepted-transfer callbacks", () => {
     const values = [
       makeGuildOpenCallbackData(23),
+      makeGuildNestOpenCallbackData(),
+      makeGuildNestRulesCallbackData(),
+      makeGuildDirectoryOpenCallbackData(23),
+      makeGuildDirectoryProfileCallbackData("12345678-1234-4234-9234-123456789012", 23),
       makeGuildCreateOpenCallbackData(),
       makeGuildCreateCrestCallbackData(12),
       makeGuildInviteCodeCallbackData(),
@@ -74,23 +82,30 @@ describe("guild callback data", () => {
     ];
     expect(values.every((value) => Buffer.byteLength(value, "utf8") <= 64)).toBe(true);
     expect(parseGuildCallbackData(values[0])).toEqual({ ok: true, value: { type: "open", page: 23 } });
-    expect(parseGuildCallbackData(values[1])).toEqual({ ok: true, value: { type: "create-open" } });
-    expect(parseGuildCallbackData(values[2])).toEqual({ ok: true, value: { type: "create-crest", crestIndex: 12 } });
-    expect(parseGuildCallbackData(values[3])).toEqual({ ok: true, value: { type: "invite-code" } });
-    expect(parseGuildCallbackData(values[4])).toEqual({ ok: true, value: { type: "invite-start" } });
-    expect(parseGuildCallbackData(values[5])).toEqual({ ok: true, value: { type: "profile-open", version: 587 } });
-    expect(parseGuildCallbackData(values[6])).toEqual({ ok: true, value: { type: "profile-crest", crestIndex: 12, version: 587 } });
-    expect(parseGuildCallbackData(values[7])).toEqual({ ok: true, value: { type: "members-open", version: 587, page: 1 } });
-    expect(parseGuildCallbackData(values[8])).toEqual({
+    expect(parseGuildCallbackData(values[1])).toEqual({ ok: true, value: { type: "nest-open" } });
+    expect(parseGuildCallbackData(values[2])).toEqual({ ok: true, value: { type: "nest-rules" } });
+    expect(parseGuildCallbackData(values[3])).toEqual({ ok: true, value: { type: "directory-open", page: 23 } });
+    expect(parseGuildCallbackData(values[4])).toEqual({
+      ok: true,
+      value: { type: "directory-profile", guildId: "12345678-1234-4234-9234-123456789012", page: 23 }
+    });
+    expect(parseGuildCallbackData(values[5])).toEqual({ ok: true, value: { type: "create-open" } });
+    expect(parseGuildCallbackData(values[6])).toEqual({ ok: true, value: { type: "create-crest", crestIndex: 12 } });
+    expect(parseGuildCallbackData(values[7])).toEqual({ ok: true, value: { type: "invite-code" } });
+    expect(parseGuildCallbackData(values[8])).toEqual({ ok: true, value: { type: "invite-start" } });
+    expect(parseGuildCallbackData(values[9])).toEqual({ ok: true, value: { type: "profile-open", version: 587 } });
+    expect(parseGuildCallbackData(values[10])).toEqual({ ok: true, value: { type: "profile-crest", crestIndex: 12, version: 587 } });
+    expect(parseGuildCallbackData(values[11])).toEqual({ ok: true, value: { type: "members-open", version: 587, page: 1 } });
+    expect(parseGuildCallbackData(values[12])).toEqual({
       ok: true,
       value: { type: "member-manage", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
-    expect(parseGuildCallbackData(values[9])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
-    expect(parseGuildCallbackData(values[10])).toEqual({
+    expect(parseGuildCallbackData(values[13])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
+    expect(parseGuildCallbackData(values[14])).toEqual({
       ok: true,
       value: { type: "party-invite", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
-    expect(parseGuildCallbackData(values[11])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
+    expect(parseGuildCallbackData(values[15])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
   });
 
   it("rejects oversized, malformed and token-bearing lookalike callbacks", () => {

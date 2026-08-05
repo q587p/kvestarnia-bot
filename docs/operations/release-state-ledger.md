@@ -16,7 +16,9 @@ Merged head
 runtime; the unnumbered GroupCombat SQLite delivery hotfix is merged at
 `2afe359a914a92385623590c506c49abb9653034`, while its deployment and exact-head
 QA remain separate evidence. Guild Foundation merge, migration deployment,
-target availability and manual QA also remain separate evidence.
+target availability and manual QA also remain separate evidence. The branch
+adds the same-presence `🪺 Гніздо ґільдій` and active-only public directory; no
+new migration is required beyond the unchanged foundation migration.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -37,7 +39,7 @@ target availability and manual QA also remain separate evidence.
 | Local isolated-runtime supervision/log retention | yes; merged PR `#189` | no production migration | local tooling only | yes; merge checks passed | local crash/restart observation not recorded here | managed runtime stop/refresh; owner unassigned | deferred |
 | 0.4.4 bugfix & polish | yes; merged PR `#191` at `67bd02cd` | no migration required | production feedback proves the GroupCombat/left-passage path was reachable; exact hosted values remain unrecorded | yes; merge checks passed | formal final-head matrix not recorded; production feedback exposed stale cards under SQLite contention | deploy rollback; release operator unassigned | hotfix required |
 | GroupCombat SQLite delivery hotfix | yes; merged PR `#192` at `2afe359a` | no migration required | no new flag | merge checks passed with actor-first/session-serialized-tail, exact-revision CAS, scheduler-overlap, restart recovery, completed-result deep-link replay, partial-`P1008`, retry-window and repository integration coverage | full three-account rerun not recorded on merged head | deploy rollback; release operator unassigned | deferred |
-| 0.4.5 guild foundation | no; PR `#190` implementation branch | target deployment unknown; repository includes additive `20260802230000_guild_foundation` and a tested narrow rollback | no target evidence; repository default off | previous head passed static + 4,450 unit + 730 integration tests; replacement merge/Nest checks pending | exact-head three-account Nest/directory/create/invite/roles/remort/restart/party/privacy matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
+| 0.4.5 guild foundation and Guild Nest | no; PR `#190` implementation branch | target deployment unknown; repository includes additive `20260802230000_guild_foundation` and a tested narrow rollback; Nest/directory need no schema change | no target evidence; repository default off | current-main integration, focused Nest/directory checks and repository-wide local gates pass; replacement CI pending | exact-head three-account Nest/directory/create/invite/roles/remort/restart/party/privacy matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

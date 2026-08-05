@@ -12,6 +12,9 @@ import type {
   GuildMemberTargetsRepositoryResult,
   GuildPartyPickerRepositoryResult,
   GuildPartyRecipientRepositoryResult,
+  GuildNestRepositoryResult,
+  GuildPublicDirectoryRepositoryResult,
+  GuildPublicProfileRepositoryResult,
   GuildRepository
 } from "../db/repositories/guildRepository";
 import {
@@ -25,6 +28,7 @@ import {
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { PartySessionService } from "./partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP } from "./presenceService";
 
 export const GUILD_CREATION_PREVIEW_TTL_MS = 13 * 60 * 1000;
 export const GUILD_INVITE_TTL_MS = 93 * 60 * 60 * 1000;
@@ -77,6 +81,8 @@ export type GuildPartyRecipientResult =
   | { state: "disabled" }
   | GuildPartyRecipientRepositoryResult;
 
+export type GuildPublicReadResult<T> = { state: "disabled" } | T;
+
 export class GuildService {
   constructor(
     private readonly guilds: GuildRepository,
@@ -96,6 +102,40 @@ export class GuildService {
 
   getHubForTelegramUser(telegramUserId: bigint, page = 0): Promise<GuildHubRepositoryResult> {
     return this.guilds.getHubForTelegramUser(telegramUserId, this.clock(), page);
+  }
+
+  getNestForTelegramUser(telegramUserId: bigint): Promise<GuildPublicReadResult<GuildNestRepositoryResult>> {
+    return this.isEnabled()
+      ? this.guilds.getNestForTelegramUser(telegramUserId, PRESENCE_LOCATION_KORCHMA_DEEP, this.clock())
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  getPublicDirectoryForTelegramUser(
+    telegramUserId: bigint,
+    page = 0
+  ): Promise<GuildPublicReadResult<GuildPublicDirectoryRepositoryResult>> {
+    return this.isEnabled()
+      ? this.guilds.getPublicDirectoryForTelegramUser(
+          telegramUserId,
+          PRESENCE_LOCATION_KORCHMA_DEEP,
+          this.clock(),
+          page
+        )
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  getPublicGuildForTelegramUser(
+    telegramUserId: bigint,
+    guildId: string
+  ): Promise<GuildPublicReadResult<GuildPublicProfileRepositoryResult>> {
+    return this.isEnabled()
+      ? this.guilds.getPublicGuildForTelegramUser(
+          telegramUserId,
+          guildId,
+          PRESENCE_LOCATION_KORCHMA_DEEP,
+          this.clock()
+        )
+      : Promise.resolve({ state: "disabled" });
   }
 
   async previewCreationForTelegramUser(

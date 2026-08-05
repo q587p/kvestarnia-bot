@@ -1413,6 +1413,13 @@ describe("main menu and scene keyboards", () => {
       "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
+    expect(inlineButtonRows(buildKorchmaDeepKeyboard({ guildFoundationEnabled: true }))).toEqual([
+      ["⬆️ Повернутися до зали"],
+      ["🔎 Пошукати"],
+      ["🪺 Гніздо ґільдій"],
+      ["⬇️ Спуститися"]
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ guildFoundationEnabled: true }))).toContain("v1:g:no");
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "⬆️ Повернутися до зали",
       "🎒 Манчкін-скупник",

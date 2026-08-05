@@ -7,7 +7,10 @@ import type {
   GuildInviteRespondRepositoryResult,
   GuildInviteResponseNotification,
   GuildMemberMutationRepositoryResult,
-  GuildViewRecord
+  GuildViewRecord,
+  GuildNestRepositoryResult,
+  GuildPublicDirectoryRepositoryResult,
+  GuildPublicProfileRepositoryResult
 } from "../../db/repositories/guildRepository";
 import type { GuildRole } from "../../domain/guild";
 import type { GuildCreationPreviewResult, GuildPartyPickerResult, GuildProfileUpdateResult } from "../../services/guildService";
@@ -41,6 +44,65 @@ export function presentGuildHub(
     ].join("\n");
   }
   return [...recovery, presentGuildView(result.guild, result.incomingInvites, now)].join("\n");
+}
+
+export function presentGuildNest(result: GuildNestRepositoryResult | { state: "disabled" }): string {
+  if (result.state !== "ready") {
+    return result.state === "no-character"
+      ? "Спершу створіть пригодника через /start."
+      : "🪺 Гніздо зараз не відчиняється звідси. Поверніться до Спуску й зайдіть через чинну стежку.";
+  }
+  return [
+    "🪺 <b>Гніздо ґільдій</b>",
+    "",
+    "Від Спуску вбік відходить низький прохід. За ним — кругла камора з лавами, гербами й поштовими щілинами. Писар називає її канцелярією; пригодники — Гніздом.",
+    "",
+    "Тут читають правила статутів, роздивляються чинні ґільдії, повертаються до приватних запрошень і засновують власні."
+  ].join("\n");
+}
+
+export function presentGuildNestRules(): string {
+  return [
+    "❔ <b>Умови й ролі</b>",
+    "",
+    "• Один обліковий запис — одна ґільдія; членство переживає реморт і звичайну заміну персонажа.",
+    "• Вступ безплатний і не має вимоги до рівня чи реморту.",
+    "• Заснування: 5+ рівень або 3+ після першого реморту; ціна — <b>587 золота</b>.",
+    "• Статут формується сім днів і оживає, коли долучиться другий окремий гравець.",
+    "• Межа — 8 учасників: один голова і щонайбільше двоє старшин.",
+    "• Запрошення приватні й адресні: публічного вступу з переліку немає."
+  ].join("\n");
+}
+
+export function presentGuildPublicDirectory(
+  result: GuildPublicDirectoryRepositoryResult | { state: "disabled" }
+): string {
+  if (result.state !== "ready") {
+    return presentGuildNest(result);
+  }
+  return result.guilds.length === 0
+    ? "📚 <b>Чинні ґільдії</b>\n\nПоки що тут самі чисті лави. Писар уже приготував чорнило й удає, що так і планував."
+    : "📚 <b>Чинні ґільдії</b>\n\nОберіть герб, щоб прочитати відкритий запис. Склад, ролі й запрошення лишаються приватними.";
+}
+
+export function presentGuildPublicProfile(
+  result: GuildPublicProfileRepositoryResult | { state: "disabled" }
+): string {
+  if (result.state === "ready") {
+    return [
+      `${escapeHtml(result.guild.crest)} <b>${escapeHtml(result.guild.displayName)}</b>`,
+      result.guild.description ? escapeHtml(result.guild.description) : "Короткого опису немає — герб працює за двох.",
+      "",
+      `Учасників: <b>${result.guild.memberCount}/8</b>.`,
+      "Вступ відбувається лише через приватне адресне запрошення."
+    ].join("\n");
+  }
+  if (result.state === "unavailable") {
+    return "📚 Цей відкритий запис уже недоступний. Можливо, статут змінив стан, поки ви йшли між лавами.";
+  }
+  return result.state === "no-character"
+    ? "Спершу створіть пригодника через /start."
+    : "🪺 Гніздо зараз не відчиняється звідси. Поверніться до Спуску й зайдіть через чинну стежку.";
 }
 
 export function presentGuildView(
@@ -229,6 +291,9 @@ export function presentGuildInviteOptIn(
   }
   if (result.state === "no-character") {
     return "Спершу створіть пригодника через /start.";
+  }
+  if (result.state === "already-member") {
+    return "Ви вже належите до ґільдії. Особистий код для отримання нового запрошення вам не потрібен.";
   }
   return [
     "✉️ <b>Особисте запрошення</b>",

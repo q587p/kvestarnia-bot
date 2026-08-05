@@ -168,7 +168,10 @@
     {
       "id": "location.korchma.deep",
       "name": "Низ",
-      "region": "Корчма Квестарні"
+      "region": "Корчма Квестарні",
+      "sublocations": [
+        "Гніздо ґільдій"
+      ]
     },
     {
       "id": "location.korchma.deep.level1",

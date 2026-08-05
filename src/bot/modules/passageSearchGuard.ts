@@ -93,6 +93,7 @@ export async function sendPassageSearchMonsterAttackFight(
     presence: services.presence,
     tavernRaid: services.tavern,
     passageSearch: services.passageSearch,
+    guildFoundationEnabled: services.guilds?.isEnabled() === true,
     requireKorchmaInterior: false,
     suppressStartIntro: shouldSendStartIntro
   });

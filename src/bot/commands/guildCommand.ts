@@ -19,7 +19,12 @@ import {
   buildGuildMemberTargetKeyboard,
   buildGuildMemberActionsKeyboard,
   buildGuildMemberManagementKeyboard,
+  buildGuildNestKeyboard,
+  buildGuildNestRulesKeyboard,
+  buildGuildNestUnavailableKeyboard,
   buildGuildPartyPickerKeyboard,
+  buildGuildDirectoryKeyboard,
+  buildGuildPublicProfileKeyboard,
   buildGuildProfileCrestKeyboard,
   GUILD_MEMBER_MANAGEMENT_PAGE_SIZE
 } from "../keyboards/guildKeyboard";
@@ -43,7 +48,11 @@ import {
   presentGuildMemberActions,
   presentGuildMemberManagement,
   presentGuildMemberMutation,
+  presentGuildNest,
+  presentGuildNestRules,
   presentGuildPartyPicker,
+  presentGuildPublicDirectory,
+  presentGuildPublicProfile,
   presentGuildProfileUpdate,
   presentGuildProfileDescriptionPrompt,
   presentGuildProfileStart,
@@ -69,7 +78,7 @@ interface GuildCommandOptions {
   partySessions?: PartySessionService | undefined;
   partyBoss?: PartyBossService | undefined;
   partyRaidChat?: PartyRaidChatService | undefined;
-  groupCombat?: Pick<GroupCombatService, "areDevHelpersEnabled" | "findByToken"> | undefined;
+  groupCombat?: GroupCombatService | undefined;
 }
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
@@ -191,6 +200,40 @@ export async function handleGuildCallback(
   const actor = telegramUserIdFromContext(ctx.from);
   if (!actor) {
     await safeAnswerCallbackQuery(ctx, { text: "Квестарня не впізнала пригодника.", show_alert: true });
+    return;
+  }
+  if (callback.type === "nest-open") {
+    await safeAnswerCallbackQuery(ctx);
+    await sendGuildNest(ctx, service, actor);
+    return;
+  }
+  if (callback.type === "nest-rules") {
+    const nest = await service.getNestForTelegramUser(actor);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, nest.state === "ready" ? presentGuildNestRules() : presentGuildNest(nest), {
+      ...HTML_OPTIONS,
+      reply_markup: nest.state === "ready" ? buildGuildNestRulesKeyboard() : buildGuildNestUnavailableKeyboard()
+    });
+    return;
+  }
+  if (callback.type === "directory-open") {
+    const result = await service.getPublicDirectoryForTelegramUser(actor, callback.page);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildPublicDirectory(result), {
+      ...HTML_OPTIONS,
+      reply_markup: result.state === "ready" ? buildGuildDirectoryKeyboard(result) : buildGuildNestUnavailableKeyboard()
+    });
+    return;
+  }
+  if (callback.type === "directory-profile") {
+    const result = await service.getPublicGuildForTelegramUser(actor, callback.guildId);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildPublicProfile(result), {
+      ...HTML_OPTIONS,
+      reply_markup: result.state === "wrong-location" || result.state === "disabled" || result.state === "no-character"
+        ? buildGuildNestUnavailableKeyboard()
+        : buildGuildPublicProfileKeyboard(callback.page)
+    });
     return;
   }
   if (callback.type === "open") {
@@ -437,6 +480,14 @@ export async function handleGuildCallback(
   await safeEditMessageText(ctx, presentGuildMemberMutation(result), {
     ...HTML_OPTIONS,
     reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+  });
+}
+
+async function sendGuildNest(ctx: Context, service: GuildService, actor: bigint): Promise<void> {
+  const result = await service.getNestForTelegramUser(actor);
+  await safeEditMessageText(ctx, presentGuildNest(result), {
+    ...HTML_OPTIONS,
+    reply_markup: result.state === "ready" ? buildGuildNestKeyboard(result) : buildGuildNestUnavailableKeyboard()
   });
 }
 

@@ -72,7 +72,42 @@ export type GuildCreationConfirmRepositoryResult =
 
 export type GuildInviteOptInRepositoryResult =
   | { state: "no-character" }
+  | { state: "already-member" }
   | { state: "ready"; token: string; expiresAt: Date };
+
+export type GuildNestViewerState = "not-member" | "forming" | "active";
+
+export type GuildNestRepositoryResult =
+  | { state: "no-character" }
+  | { state: "wrong-location" }
+  | { state: "ready"; viewerState: GuildNestViewerState; hasIncomingInvites: boolean };
+
+export interface GuildPublicDirectoryEntry {
+  id: string;
+  displayName: string;
+  crest: string;
+  memberCount: number;
+}
+
+export type GuildPublicDirectoryRepositoryResult =
+  | { state: "no-character" }
+  | { state: "wrong-location" }
+  | {
+      state: "ready";
+      guilds: GuildPublicDirectoryEntry[];
+      page: number;
+      hasPreviousPage: boolean;
+      hasNextPage: boolean;
+    };
+
+export type GuildPublicProfileRepositoryResult =
+  | { state: "no-character" }
+  | { state: "wrong-location" }
+  | { state: "unavailable" }
+  | {
+      state: "ready";
+      guild: GuildPublicDirectoryEntry & { description: string };
+    };
 
 export type GuildInviteCreateRepositoryResult =
   | { state: "no-character" | "not-member" | "forbidden" | "target-unavailable" | "guild-full" }
@@ -180,6 +215,9 @@ export interface GuildRepository {
   confirmCreateForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildCreationConfirmRepositoryResult>;
   getHubForTelegramUser(telegramUserId: bigint, now: Date, page?: number): Promise<GuildHubRepositoryResult>;
   getMemberTargetsForTelegramUser(telegramUserId: bigint, now: Date): Promise<GuildMemberTargetsRepositoryResult>;
+  getNestForTelegramUser(telegramUserId: bigint, expectedLocationId: string, now: Date): Promise<GuildNestRepositoryResult>;
+  getPublicDirectoryForTelegramUser(telegramUserId: bigint, expectedLocationId: string, now: Date, page?: number): Promise<GuildPublicDirectoryRepositoryResult>;
+  getPublicGuildForTelegramUser(telegramUserId: bigint, guildId: string, expectedLocationId: string, now: Date): Promise<GuildPublicProfileRepositoryResult>;
   createInviteOptInForTelegramUser(telegramUserId: bigint, input: { token: string; now: Date; expiresAt: Date }): Promise<GuildInviteOptInRepositoryResult>;
   createInviteForTelegramUser(telegramUserId: bigint, input: {
     token: string;

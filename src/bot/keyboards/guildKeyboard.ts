@@ -1,10 +1,17 @@
 import { InlineKeyboard } from "grammy";
-import type { GuildHubRepositoryResult, GuildMemberRecord } from "../../db/repositories/guildRepository";
+import type {
+  GuildHubRepositoryResult,
+  GuildMemberRecord,
+  GuildNestRepositoryResult,
+  GuildPublicDirectoryRepositoryResult
+} from "../../db/repositories/guildRepository";
 import {
   makeGuildCreateOpenCallbackData,
   makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
   makeGuildDeleteCallbackData,
+  makeGuildDirectoryOpenCallbackData,
+  makeGuildDirectoryProfileCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
@@ -15,6 +22,8 @@ import {
   makeGuildMemberManageCallbackData,
   makeGuildMemberSelectCallbackData,
   makeGuildMembersOpenCallbackData,
+  makeGuildNestOpenCallbackData,
+  makeGuildNestRulesCallbackData,
   makeGuildOpenCallbackData,
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
@@ -22,6 +31,7 @@ import {
   makeGuildProfileOpenCallbackData,
   makeGuildTransferAcceptCallbackData
 } from "../callbacks/guildCallbackData";
+import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
 import { GUILD_CREST_CATALOG } from "../../domain/guild";
 
@@ -45,7 +55,6 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
   }
   if (result.state === "ready") {
     if (writesEnabled) {
-      keyboard.text("🔗 Мій код запрошення", makeGuildInviteCodeCallbackData()).row();
       keyboard.text("✉️ Запросити з ґільдії", makeGuildPartyOpenCallbackData()).row();
       if (result.guild.viewerRole === "leader" || result.guild.viewerRole === "officer") {
         keyboard.text("📨 Запросити за кодом", makeGuildInviteStartCallbackData()).row();
@@ -82,6 +91,65 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
     keyboard.text("➡️", makeGuildOpenCallbackData(page + 1));
   }
   return keyboard;
+}
+
+export function buildGuildNestKeyboard(
+  result: Extract<GuildNestRepositoryResult, { state: "ready" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text("📚 Чинні ґільдії", makeGuildDirectoryOpenCallbackData())
+    .row()
+    .text("❔ Умови й ролі", makeGuildNestRulesCallbackData())
+    .row();
+  if (result.viewerState === "not-member") {
+    if (result.hasIncomingInvites) {
+      keyboard.text("✉️ Мої запрошення", makeGuildOpenCallbackData()).row();
+    }
+    keyboard.text("🔗 Мій код запрошення", makeGuildInviteCodeCallbackData()).row();
+    keyboard.text("📜 Заснувати свою", makeGuildCreateOpenCallbackData()).row();
+  } else if (result.viewerState === "forming") {
+    keyboard.text("📜 Мій статут", makeGuildOpenCallbackData()).row();
+  } else {
+    keyboard.text("🏰 Моя ґільдія", makeGuildOpenCallbackData()).row();
+  }
+  return keyboard.text("↩️ До Спуску", makePlaceCallbackData("deep"));
+}
+
+export function buildGuildNestUnavailableKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("↩️ До Спуску", makePlaceCallbackData("deep"));
+}
+
+export function buildGuildNestRulesKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🪺 До Гнізда", makeGuildNestOpenCallbackData())
+    .row()
+    .text("↩️ До Спуску", makePlaceCallbackData("deep"));
+}
+
+export function buildGuildDirectoryKeyboard(
+  result: Extract<GuildPublicDirectoryRepositoryResult, { state: "ready" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const guild of result.guilds) {
+    keyboard
+      .text(`${guild.crest} ${guild.displayName} · ${guild.memberCount}/8`, makeGuildDirectoryProfileCallbackData(guild.id, result.page))
+      .row();
+  }
+  if (result.hasPreviousPage) {
+    keyboard.text("⬅️", makeGuildDirectoryOpenCallbackData(result.page - 1));
+  }
+  keyboard.text("🔎 Оновити", makeGuildDirectoryOpenCallbackData(result.page));
+  if (result.hasNextPage) {
+    keyboard.text("➡️", makeGuildDirectoryOpenCallbackData(result.page + 1));
+  }
+  return keyboard.row().text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
+}
+
+export function buildGuildPublicProfileKeyboard(page: number): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📚 До переліку", makeGuildDirectoryOpenCallbackData(page))
+    .row()
+    .text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
 }
 
 export function buildGuildPartyPickerKeyboard(

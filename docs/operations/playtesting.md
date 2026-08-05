@@ -366,7 +366,10 @@ hard-оказію: мають бути і сольна атака, і збір �
 унікальність, 587-gold exact-once debit, forming activation, decline/reinvite/
 competing accept, leader-only profile edit, nominee-accepted transfer, remort,
 restart, flag off/on, privacy та leave/kick/delete під час окремих active
-PartySession/GroupCombatSession. Спершу відкрий real gameplay recruiting party;
+PartySession/GroupCombatSession. Окремо пройди `Спуск до Низу` → `🪺 Гніздо
+ґільдій` → directory/profile → назад, звір same-Spusk presence, п'ятирядкові
+сторінки, active-only counts, empty/disband race і відсутність приватних полів.
+Спершу відкрий real gameplay recruiting party;
 `/guild_party` має лише показати paginated picker і ordinary invite, не створити
 generic lobby. `/dev_guild_gold` готує лише creation gold і не має існувати у
 production.

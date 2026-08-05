@@ -12,6 +12,9 @@ describe("GuildService rollout isolation", () => {
     const createInviteOptInForTelegramUser = vi.fn();
     const resolvePartyRecipientForTelegramUser = vi.fn();
     const recordPartyInvite = vi.fn();
+    const getNestForTelegramUser = vi.fn();
+    const getPublicDirectoryForTelegramUser = vi.fn();
+    const getPublicGuildForTelegramUser = vi.fn();
     const service = new GuildService(
       {
         setMemberRoleForTelegramUser,
@@ -19,7 +22,10 @@ describe("GuildService rollout isolation", () => {
         ensureCreationGoldForTelegramUser,
         createInviteOptInForTelegramUser,
         resolvePartyRecipientForTelegramUser,
-        recordPartyInvite
+        recordPartyInvite,
+        getNestForTelegramUser,
+        getPublicDirectoryForTelegramUser,
+        getPublicGuildForTelegramUser
       } as unknown as GuildRepository,
       {} as PartySessionService,
       { enabled: false, devHelpersEnabled: true }
@@ -37,12 +43,18 @@ describe("GuildService rollout isolation", () => {
       guildVersion: 1
     })).resolves.toEqual({ state: "disabled" });
     await expect(service.recordPartyInvite("guild-id", 42n, "party-id", "target-id")).resolves.toBeUndefined();
+    await expect(service.getNestForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.getPublicDirectoryForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.getPublicGuildForTelegramUser(42n, "guild-id")).resolves.toEqual({ state: "disabled" });
     expect(setMemberRoleForTelegramUser).not.toHaveBeenCalled();
     expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
     expect(ensureCreationGoldForTelegramUser).not.toHaveBeenCalled();
     expect(createInviteOptInForTelegramUser).not.toHaveBeenCalled();
     expect(resolvePartyRecipientForTelegramUser).not.toHaveBeenCalled();
     expect(recordPartyInvite).not.toHaveBeenCalled();
+    expect(getNestForTelegramUser).not.toHaveBeenCalled();
+    expect(getPublicDirectoryForTelegramUser).not.toHaveBeenCalled();
+    expect(getPublicGuildForTelegramUser).not.toHaveBeenCalled();
   });
 
   it("does not expose the dev helper when production wiring leaves it off", async () => {

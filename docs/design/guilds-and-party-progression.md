@@ -1,6 +1,6 @@
 # Ґільдії та гуртова прогресія
 
-Статус: accepted product boundary for repository release `0.4.4`; runtime
+Статус: accepted product boundary for repository release `0.4.5`; runtime
 surface is default-off behind `GUILD_FOUNDATION_ENABLED`.
 
 ## Product boundary
@@ -14,6 +14,27 @@ active-member cap of 8. It stores one normalized/display name, one crest from a
 13-emoji catalog, a 0–93-grapheme description, active membership and private
 audit history. Names are retained historically while a separate reservation is
 released after the accepted expiry/disband hold.
+
+## Guild Nest and discovery
+
+`🪺 Гніздо ґільдій` is a low side chamber off `Спуск до Низу`, before the first
+combat layer. It is the canonical public discovery route, not a fourth passage,
+per-guild hall or free-floating notice board. It shares
+`PRESENCE_LOCATION_KORCHMA_DEEP`, so browsing renews neutral activity without
+splitting nearby, movement, daily-scene or combat-lock semantics.
+
+Public Nest and directory callbacks require the viewer's current Spusk
+location. Private `/guild`, the persistent `🏰 Ґільдії` recovery button,
+target-bound deep links, invite responses and character-card shortcuts remain
+available from anywhere under their existing rules. The default-off flag hides
+the entrance and makes stale public callbacks inert before repository access.
+
+The public directory is an active-only five-row projection ordered by
+normalized name and stable id. It exposes escaped crest/name, optional escaped
+description and current `n/8` count only. It has no roster, leader, role,
+membership id, Telegram identity, token, audit, timestamp, exact location,
+ranking, recommendation or application action. Guild UGC keeps canonical
+validation; broader moderation/reporting waits for a repository-wide facility.
 
 ## Creation lifecycle
 
@@ -108,7 +129,7 @@ formation, invite/accept, role/profile and guild-party writes. The default stays
 off until exact-head three-account QA and an abandoned-leader operator policy
 are approved.
 
-## Outside 0.4.4
+## Outside 0.4.5
 
 No guild bank, shared economy/items, trade, XP, levels, weekly goal, buffs,
 bosses, chat, alliances, war, territory, leaderboard, matchmaking or PvP. Any

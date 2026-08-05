@@ -251,14 +251,38 @@ describe("lore board content", () => {
 
   it("explains the shipped guild shell without promising shared party or economy ownership", () => {
     const guild = loreEntries.find((entry) => entry.id === "custom-guild-charter");
+    const nest = loreEntries.find((entry) => entry.id === "place-guild-nest");
 
     expect(guild).toMatchObject({ categoryId: "customs", title: "Ґільдійний статут" });
+    expect(nest).toMatchObject({
+      categoryId: "places",
+      title: "Гніздо ґільдій",
+      canonicalRefs: [{ type: "location", id: "location.korchma.deep" }]
+    });
     expect(guild?.body).toContain("587 золота");
+    expect(guild?.body).toContain("🪺 Гнізді ґільдій");
     expect(guild?.body).toContain("🏰 Ґільдії");
     expect(guild?.body).toContain("приватним посиланням");
     expect(guild?.body).toContain("прийняття запрошення");
     expect(guild?.body).toContain("між ремортами");
     expect(guild?.body).toContain("не спільний гаманець чи власна ватага");
+
+    const seed = JSON.parse(readFileSync(
+      join(process.cwd(), "docs", "content", "kvestarnia-lore-seed.json"),
+      "utf8"
+    )) as { entries: Array<{ id: string; canonicalRefs?: string[] }> };
+    expect(seed.entries.find((entry) => entry.id === "place-guild-nest"))
+      .toMatchObject({ canonicalRefs: ["location.korchma.deep"] });
+    const snapshot = JSON.parse(readFileSync(
+      join(process.cwd(), "docs", "content", "kvestarnia-lore-canon-snapshot.json"),
+      "utf8"
+    )) as { places: Array<{ id: string; sublocations?: string[] }> };
+    expect(snapshot.places.find((location) => location.id === "location.korchma.deep")?.sublocations)
+      .toContain("Гніздо ґільдій");
+    expect(readFileSync(
+      join(process.cwd(), "docs", "content", "kvestarnia-lore-current-canon.md"),
+      "utf8"
+    )).toContain("Гніздо ґільдій");
   });
 
   it("detects broken lore records", () => {

@@ -9,6 +9,7 @@ import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
 import { makeLatestEventsListCallbackData } from "../callbacks/latestEventsCallbackData";
 import { makeNewsListCallbackData } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
+import { makeGuildNestOpenCallbackData } from "../callbacks/guildCallbackData";
 import { makeDescentSearchStartCallbackData } from "../callbacks/passageSearchCallbackData";
 import { makeQuestCallbackData } from "../callbacks/questCallbackData";
 import { makeRemortOpenCallbackData } from "../callbacks/remortCallbackData";
@@ -448,7 +449,7 @@ export function buildBackToKorchmaHallKeyboard(
 }
 
 export function buildKorchmaDeepKeyboard(
-  options: { munchkinLocation?: MunchkinLocation; searchAvailable?: boolean } = {}
+  options: { munchkinLocation?: MunchkinLocation; searchAvailable?: boolean; guildFoundationEnabled?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("⬆️ Повернутися до зали", makePlaceCallbackData("hall"))
@@ -460,6 +461,10 @@ export function buildKorchmaDeepKeyboard(
 
   if (options.searchAvailable !== false) {
     keyboard.text("🔎 Пошукати", makeDescentSearchStartCallbackData()).row();
+  }
+
+  if (options.guildFoundationEnabled) {
+    keyboard.text("🪺 Гніздо ґільдій", makeGuildNestOpenCallbackData()).row();
   }
 
   return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
