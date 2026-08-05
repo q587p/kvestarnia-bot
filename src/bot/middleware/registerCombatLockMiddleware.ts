@@ -54,6 +54,7 @@ import {
   TURN_BASED_DUEL_LEASE_KIND
 } from "../../domain/combat/combatLeaseRegistry";
 import { GROUP_COMBAT_CALLBACK_ROUTE_PATTERN } from "../callbacks/groupCombatCallbackData";
+import { isGuildRoute } from "../guildRoute";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -174,7 +175,7 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       }
 
       if (
-        (ctx.callbackQuery || isDuelRoute(ctx) || isGuildTextRoute(ctx)) &&
+        (ctx.callbackQuery || isDuelRoute(ctx) || isGuildRoute(ctx)) &&
         !isPendingRaidSafeCallback(callbackData) &&
         typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
         (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
@@ -361,11 +362,6 @@ function isLockedMainMenuText(text: string | undefined): boolean {
     isMainMenuLocationButtonText(text) ||
     (text !== undefined && (mainMenuQuestButtonTexts.includes(text) || text === mainMenuButtons.guild))
   );
-}
-
-function isGuildTextRoute(ctx: Context): boolean {
-  const text = ctx.message?.text?.trim();
-  return text === mainMenuButtons.guild || /^\/guild(?:@\w+)?(?:\s|$)/i.test(text ?? "");
 }
 
 async function redirectCombatLockIfNeeded(

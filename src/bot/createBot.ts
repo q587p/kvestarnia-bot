@@ -14,6 +14,7 @@ import { registerQuestBotModule } from "./modules/quest";
 import { registerRaidChatBotModule } from "./modules/raidChat";
 import { registerSocialBotModule } from "./modules/social";
 import { registerTavernBotModule } from "./modules/tavern";
+import { registerGuildPassageSearchGuard } from "./modules/passageSearchGuard";
 import {
   installUpdatePerformanceTracing,
   registerUpdateRouteBoundary
@@ -34,6 +35,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
   installUpdatePerformanceTracing(bot);
   registerRaidChatBotModule(bot, { services, options });
   registerCombatLockMiddleware(bot, services);
+  registerGuildPassageSearchGuard(bot, services);
   registerPresenceMiddleware(bot, services.presence, {
     guildFoundationEnabled: services.guilds?.isEnabled() === true
   });

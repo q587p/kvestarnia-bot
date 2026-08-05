@@ -72,6 +72,7 @@ import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { GroupCombatService } from "../../services/groupCombatService";
 import { sendCanonicalPartyPreparationCard } from "./partySessionCommand";
 import { GUILD_CREST_CATALOG, validateGuildIdentity } from "../../domain/guild";
+import { GUILD_INVITE_PROMPT_HEADING } from "../guildRoute";
 
 interface GuildCommandOptions {
   botUsername?: string | undefined;
@@ -86,7 +87,6 @@ const NAME_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: 
 const DESCRIPTION_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Короткий опис або «Без опису»" };
 const INVITE_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Особистий код адресата" };
 const PROFILE_DESCRIPTION_FORCE_REPLY = { force_reply: true as const, input_field_placeholder: "Короткий опис або «Без опису»" };
-const INVITE_PROMPT_HEADING = "📨 Запрошення до ґільдії · крок 1 із 2";
 
 export function registerGuildCommands(
   bot: Bot,
@@ -779,7 +779,7 @@ function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
       });
       return;
     }
-    if (replyText.split("\n", 1)[0] === INVITE_PROMPT_HEADING) {
+    if (replyText.split("\n", 1)[0] === GUILD_INVITE_PROMPT_HEADING) {
       await sendGuildInviteFromTargetCode(ctx, service, actor, ctx.message.text.trim());
       return;
     }

@@ -29,7 +29,22 @@ describe("group-combat lock middleware", () => {
     expect(calls.sends).toHaveLength(1);
   });
 
-  it.each(["/guild", "🏰 Ґільдії"])("keeps %s behind the pending-raid lock", async (text) => {
+  it.each([
+    "/guild",
+    "/guild_create",
+    "/guild_invite_code",
+    "/guild_invite inviteABC12",
+    "/guild_party",
+    "/guild_edit",
+    "/guild_leave",
+    "/guild_delete",
+    "/guild_transfer Учасник",
+    "/guild_promote Учасник",
+    "/guild_demote Учасник",
+    "/guild_kick Учасник",
+    "/start guild_inviteABC12",
+    "🏰 Ґільдії"
+  ])("keeps %s behind the pending-raid lock", async (text) => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     const downstream = vi.fn();
@@ -49,6 +64,50 @@ describe("group-combat lock middleware", () => {
     expect(pending).toHaveBeenCalledWith(1001n);
     expect(downstream).not.toHaveBeenCalled();
     expect(calls.sends).toHaveLength(1);
+  });
+
+  it.each(["/guildhall", "/start guildish_inviteABC12"])(
+    "does not classify the unrelated route %s as guild activity",
+    async (text) => {
+      const calls = apiCalls();
+      const bot = testBot(calls.middleware);
+      const downstream = vi.fn();
+      const pending = vi.fn().mockResolvedValue({
+        state: "pending",
+        character: { name: "Лідерка" },
+        availableAt: new Date("2026-08-05T12:13:00.000Z"),
+        now: new Date("2026-08-05T12:00:00.000Z")
+      });
+      registerCombatLockMiddleware(bot, {
+        tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+        fight: { getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({ state: "no-character" }) }
+      } as unknown as BotServices);
+      bot.on("message", downstream);
+
+      await bot.handleUpdate(textUpdate(text));
+
+      expect(pending).not.toHaveBeenCalled();
+      expect(downstream).toHaveBeenCalledOnce();
+      expect(calls.sends).toHaveLength(0);
+    }
+  );
+
+  it("keeps ordinary guild routing reachable when no raid is pending", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue({ state: "none" });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+      fight: { getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({ state: "no-character" }) }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate("/guild_create"));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(0);
   });
 
   it.each([

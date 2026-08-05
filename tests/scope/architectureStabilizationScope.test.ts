@@ -151,7 +151,10 @@ describe("0.2.2 architecture stabilization scope", () => {
 
     expect(source).toContain("installMessageFreshnessTracking(bot)");
     expect(source).toContain("registerCombatLockMiddleware(bot, services)");
+    expect(source).toContain("registerGuildPassageSearchGuard(bot, services)");
     expect(source).toContain("registerPresenceMiddleware(bot, services.presence, {");
+    expect(source.indexOf("registerGuildPassageSearchGuard(bot, services)"))
+      .toBeLessThan(source.indexOf("registerPresenceMiddleware(bot, services.presence, {"));
     expect(source).toContain("guildFoundationEnabled: services.guilds?.isEnabled() === true");
     expect(source).not.toMatch(/\.\/(?:callbacks|commands|keyboards|presenters)\//);
 

@@ -39,6 +39,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Invitation creation now validates and terminalizes the target User's specific expired forming membership independently of cleanup backlog; normalized-name confirmation likewise releases its exact due reservation owner behind multiple batches without weakening live holds or race-safe gold/cooldown claims.
 - Member hubs expire all guild-owned due invitations before rendering and expose cancellation controls only where the current leader or officer still has authority; all pending rows remain visible in the combined stable pagination stream.
 - Guild controls no longer require players to compose role/profile commands: leaders select a stable member row and then a permitted action, while duplicate names remain independently targetable and active members can return from the character card.
+- Every guild entry now passes through the canonical active-search and pending-Friday-raid routing guards before guild or presence work: the persistent button, exact fallback commands, guided replies, callbacks and private start links cannot mutate or disclose guild state while a search or raid claim owns the route, while completed-search and monster-attack handoff remain intact.
+
 ## [0.4.4] - 12026-08-05 - Group Targeting, Left Invitations and Equipment Locks
 
 ### Changed
