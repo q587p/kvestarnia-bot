@@ -492,6 +492,33 @@ describe("party session keyboard", () => {
     expect(inlineButtonRows(keyboard)[0]).toEqual(["✅ Готово", "🔎 Оновити"]);
     expect(inlineButtonTexts(keyboard)).toContain("⚔️ Почати атаку");
     expect(keyboardText(keyboard)).toContain("v3:gc:s:partyABC12");
+
+    const shareKeyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=nyz_left_attack_partyABC12",
+      isPrivateDestination: true
+    });
+    expect(inlineButtonTexts(shareKeyboard)).toContain("🔗 Покликати до атаки");
+    expect(inlineButtonRows(shareKeyboard).filter((row) => row.length > 0).at(-1))
+      .toEqual(["⚔️ Почати атаку"]);
+    expect(keyboardText(shareKeyboard)).toContain("v1:party:sh:partyABC12");
+  });
+
+  it("does not expose left-passage controls for the matching kind at another location", () => {
+    const session = {
+      ...makeSession(),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: "korchma.board"
+    };
+
+    const keyboard = buildPartySessionKeyboard(session, {
+      viewerCharacterId: session.leaderCharacterId,
+      inviteUrl: "https://t.me/kvestarnia_test_bot?start=party_partyABC12",
+      isPrivateDestination: true
+    });
+
+    expect(keyboardText(keyboard)).not.toContain("v3:gc:s:partyABC12");
+    expect(keyboardText(keyboard)).not.toContain("v1:party:sh:partyABC12");
   });
 
   it("rotates Big Barrel Brother invite-card text", () => {

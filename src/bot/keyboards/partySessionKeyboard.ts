@@ -51,6 +51,7 @@ import {
   type CombatActionKeyboardButton
 } from "./combatActionKeyboardLayout";
 import { addPaginationControls } from "./pagination";
+import { isLeftPassagePartySession } from "../../services/partySessionService";
 
 const MAX_BUTTON_NAME_LENGTH = 32;
 
@@ -72,6 +73,7 @@ export function buildPartySessionKeyboard(
 
   if (session.status === "recruiting") {
     const isBigBarrel = session.originLocationId === "barrel.big-brother";
+    const isLeftPassage = isLeftPassagePartySession(session);
     const joinedParticipantCount = session.participants.filter((participant) => participant.status === "joined").length;
     const viewer = options.viewerCharacterId
       ? session.participants.find(
@@ -122,22 +124,17 @@ export function buildPartySessionKeyboard(
     ) {
       keyboard.text("⚔️ Dev: гуртова сутичка", makeGroupCombatStartCallbackData(token)).row();
     }
-    if (
-      session.originKind === "nyz-left-passage-party.v1" &&
-      options.isPrivateDestination &&
-      options.viewerCharacterId === session.leaderCharacterId
-    ) {
-      keyboard.text("⚔️ Почати атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
-    }
-
     if (viewer && options.includeRaidChat) {
       keyboard.text("💬 Написати в рейд-чат", makePartyRaidChatComposeCallbackData(token)).row();
     }
 
-    if (isBigBarrel && options.inviteUrl) {
+    if ((isBigBarrel || isLeftPassage) && options.inviteUrl) {
       keyboard
         .text("📣 Картка запрошення", makePartySessionShareCallbackData(token))
-        .url("🔗 Запросити на рейд", buildTelegramShareUrl(options.inviteUrl))
+        .url(
+          isLeftPassage ? "🔗 Покликати до атаки" : "🔗 Запросити на рейд",
+          buildTelegramShareUrl(options.inviteUrl, isLeftPassage ? "left-passage" : "big-barrel")
+        )
         .row();
     }
 
@@ -147,6 +144,14 @@ export function buildPartySessionKeyboard(
 
     if (options.includeBossStart && options.viewerCharacterId === session.leaderCharacterId) {
       keyboard.text("🛢️ Почати рейд", makePartyBossStartCallbackData(token)).row();
+    }
+
+    if (
+      isLeftPassage &&
+      options.isPrivateDestination &&
+      options.viewerCharacterId === session.leaderCharacterId
+    ) {
+      keyboard.text("⚔️ Почати атаку", makeLeftPassageGroupCombatStartCallbackData(token)).row();
     }
   }
 
@@ -460,8 +465,13 @@ function clampPage(page: number, total: number): number {
   return Math.min(Math.max(0, Math.floor(page)), Math.max(0, total - 1));
 }
 
-function buildTelegramShareUrl(inviteUrl: string): string {
-  const text = "Квестарня кличе у рейд до Старшого Брата Бочки.";
+function buildTelegramShareUrl(
+  inviteUrl: string,
+  kind: "big-barrel" | "left-passage"
+): string {
+  const text = kind === "left-passage"
+    ? "Квестарня кличе до справжньої атаки в лівому проході Низу."
+    : "Квестарня кличе у рейд до Старшого Брата Бочки.";
 
   return `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(text)}`;
 }

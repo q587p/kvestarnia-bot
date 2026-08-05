@@ -4,7 +4,7 @@ import type {
 } from "../../db/repositories/partySessionRepository";
 import {
   BIG_BARREL_PARTY_ORIGIN_LOCATION_ID,
-  LEFT_PASSAGE_PARTY_ORIGIN_KIND
+  isLeftPassagePartySession
 } from "../../services/partySessionService";
 
 export function supportsPartyReadiness(session: Pick<
@@ -12,7 +12,7 @@ export function supportsPartyReadiness(session: Pick<
   "originKind" | "originLocationId"
 >): boolean {
   return session.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
-    session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+    isLeftPassagePartySession(session);
 }
 
 export function presentPartyReadinessButton(
@@ -29,7 +29,7 @@ export function presentPartyReadinessMarker(
 
 export function presentRecruitingPartyHeader(session: PartySessionRecord): string {
   const joined = session.participants.filter((participant) => participant.status === "joined").length;
-  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+  return isLeftPassagePartySession(session)
     ? `🤝 У зборі до атаки в лівому проході: ${joined}/${session.participantCap}`
     : `🛢️ У зборі на груповий рейд «Старший Брат Бочки»: ${joined}/${session.participantCap}`;
 }
@@ -49,7 +49,7 @@ export function presentRecruitingPartyActionButton(
     return `🤝 Відкрити збір: ${leader}`;
   }
 
-  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+  return isLeftPassagePartySession(session)
     ? `🤝 До атаки: ${leader}`
     : `🤝 До рейду: ${leader}`;
 }

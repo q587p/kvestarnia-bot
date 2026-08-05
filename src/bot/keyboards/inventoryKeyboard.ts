@@ -103,7 +103,11 @@ export function buildInventoryKeyboardFromViewModel(model: InventoryViewModel): 
   for (const [index, item] of pageItems.entries()) {
     const isEquipped =
       options.equippedItemIds?.has(item.itemId) || options.currentSlotItem?.itemId === item.itemId;
-    const itemIcon = isEquipped ? "✅" : "🔎";
+    const itemIcon = isEquipped
+      ? "✅"
+      : isEquippableItem(item.content) && options.requirementLockedItemIds?.has(item.itemId)
+        ? "🔎 🔒"
+        : "🔎";
 
     keyboard
       .text(
@@ -177,7 +181,8 @@ export function buildItemDetailKeyboard(
     if (equippedSlot && (!targetSlot || equippedSlot === targetSlot)) {
       keyboard.text("Зняти", makeUnequipSlotCallbackData(equippedSlot)).row();
     } else {
-      const canEquipTarget =
+      const requirementsMet = options.equipPreview?.state !== "requirements-not-met";
+      const canEquipTarget = requirementsMet && (
         !targetSlot ||
         options.equipPreview === undefined ||
         (
@@ -186,7 +191,8 @@ export function buildItemDetailKeyboard(
             options.equipPreview?.state === "attunement-confirm-required" ||
             options.equipPreview?.state === "attunement-interrupt-confirm-required") &&
           options.equipPreview.slot === targetSlot
-        );
+        )
+      );
 
       if (canEquipTarget) {
         const targetLabel = targetSlot === "offhand" ? " в другу руку" : "";

@@ -358,7 +358,7 @@ hard-оказію: мають бути і сольна атака, і збір �
 ## Ґільдійна основа
 
 Повний триакаунтовий пакет:
-[`0.4.4-guild-foundation-qa.md`](../qa/0.4.4-guild-foundation-qa.md).
+[`0.4.5-guild-foundation-qa.md`](../qa/0.4.5-guild-foundation-qa.md).
 Ручний результат на фінальній голові pending. У checkout `.env` постав
 `NODE_ENV=development` і `GUILD_FOUNDATION_ENABLED=true`, потім виконай
 `refresh-local-bot.cmd` та `status-local-bot.cmd` і звір точний candidate SHA та
@@ -429,7 +429,7 @@ production.
   усі двадцять exact-id mappings активні без catalog-specific прапорця, ручний
   результат pending.
 - guild foundation перевіряється за
-  [`0.4.4` focused QA](../qa/0.4.4-guild-foundation-qa.md);
+  [`0.4.5` focused QA](../qa/0.4.5-guild-foundation-qa.md);
   production entry default-off, ручний триакаунтовий результат pending.
 
 Індекс поточних feature-specific пакетів:

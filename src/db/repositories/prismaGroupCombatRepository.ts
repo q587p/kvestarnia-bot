@@ -14,6 +14,7 @@ import {
   buildLeftPassageEncounterRewardBudget,
   createGroupCombatProofState,
   deriveLeftPassageEnemyCount,
+  GROUP_COMBAT_ENEMY_FOCUS_VERSION,
   GROUP_COMBAT_REPAIR_PARTICIPANT_LIMIT,
   GROUP_COMBAT_PROOF_ENCOUNTER_KEY,
   GROUP_COMBAT_LEFT_PASSAGE_ENCOUNTER_KEY,
@@ -1547,9 +1548,20 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     return rows.map((row) => row.id);
   }
 
-  async listPendingDeliverySessionIds(limit: number): Promise<string[]> {
+  async listPendingDeliverySessionIds(limit: number, retryBefore?: Date): Promise<string[]> {
     const rows = await this.prisma.groupCombatSession.findMany({
-      where: { deliveryPending: true, repairState: null },
+      where: {
+        deliveryPending: true,
+        repairState: null,
+        ...(retryBefore
+          ? {
+              OR: [
+                { deliveryAttemptedAt: null },
+                { deliveryAttemptedAt: { lte: retryBefore } }
+              ]
+            }
+          : {})
+      },
       orderBy: [
         { deliveryAttemptedAt: "asc" },
         { updatedAt: "asc" },
@@ -2025,6 +2037,46 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       }
       return updated.count === 1;
     });
+  }
+
+  async replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
+  }): Promise<boolean> {
+    if (input.terminalCard.chatId !== input.telegramUserId) {
+      return false;
+    }
+    const updated = await this.prisma.groupCombatParticipant.updateMany({
+      where: {
+        sessionId: input.sessionId,
+        settlementStatus: "completed",
+        exitDeliveryState: "completed",
+        referenceVersion: input.expectedReferenceVersion,
+        chatId: input.previousChatId,
+        messageId: input.previousMessageId,
+        session: {
+          status: { not: "active" },
+          deliveryRevision: input.expectedDeliveryRevision,
+          repairState: null
+        },
+        character: { user: { telegramUserId: input.telegramUserId } }
+      },
+      data: {
+        chatId: input.terminalCard.chatId,
+        messageId: input.terminalCard.messageId,
+        referenceVersion: { increment: 1 },
+        deliveredRevision: input.expectedDeliveryRevision
+      }
+    });
+    return updated.count === 1;
   }
 
   async releaseParticipantCard(input: {
@@ -3587,6 +3639,7 @@ function buildInvalidFallbackState(
   });
   return {
     rulesVersion: GROUP_COMBAT_RULES_VERSION,
+    enemyFocusVersion: GROUP_COMBAT_ENEMY_FOCUS_VERSION,
     sessionId: row.id,
     partySessionId: row.partySessionId,
     encounterKey: GROUP_COMBAT_PROOF_ENCOUNTER_KEY,

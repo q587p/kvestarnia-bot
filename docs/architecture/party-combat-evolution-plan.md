@@ -121,6 +121,24 @@ Matrix tests must include Priest, Bard, Varenyk-mancer, Dwarf, Domovyk and
 Molfar support behavior before a reward-bearing encounter. Re-run Big Barrel
 simulations if a shared primitive changes its balance.
 
+Enemy focus mirrors Big Barrel presentation without importing raid state: the
+initial living target is the party leader, then the highest actual participant
+damage from the previous resolved turn wins, with roster order as the stable
+tie-breaker. Active participant cards and each newly stored journal turn mark
+that focus, while recap actions announce a change; legacy journal snapshots
+without focus evidence remain unmarked. Additive `enemyFocusVersion: 1` state
+evidence distinguishes previous-turn damage from legacy cumulative threat; an
+active unmarked v2/v3 state uses the living leader for one transition turn and
+then persists exact resolved-turn damage. A single canonical action target
+commits directly; explicit target selection is reserved for two or more valid
+targets.
+
+The next GroupCombat-owning task must audit every class ability already enabled
+in PartyBoss/Big Barrel. Each ability needs equivalent typed GroupCombat
+semantics and regressions or an explicit raid-only reason with a separately
+scheduled owner; label-level similarity is not parity evidence. `0.4.6` owns
+the next audit rather than widening this polish release.
+
 ## Lifecycle and repair
 
 Before introducing `group-combat`, centralize a typed lease-owner registry used
@@ -189,11 +207,16 @@ Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
   production entry remains default-off.
 - `0.4.3`: bounded consumable-manatka uses behind an accepted exact-item
   allowlist; this task does not own GroupCombat.
-- `0.4.4`: independent guild membership shell.
-- `0.4.5`: guild weekly objective using the same party/group-combat runtime.
-- `0.4.6`–`0.4.11`: bounded Korchma/social-economy catch-up tasks may reuse the
-  proven status/item boundaries without becoming group-combat runtime owners.
-- `0.4.12`: cosmetic guild progression after observed weekly data.
+- `0.4.4`: Bugfix & Polish for explicit GroupCombat targeting, origin-bound
+  left-passage invitations and canonical equipment-requirement locks.
+- `0.4.5`: independent guild membership shell.
+- `0.4.6`: guild weekly objective using the same party/group-combat runtime,
+  including the next explicit PartyBoss-to-GroupCombat class-ability parity
+  audit.
+- `0.4.7`–`0.4.12`: Старий жертовник, nearby greeting, Shynok food,
+  take-away consumables, resale listings and Korchmar recycling remain bounded
+  catch-up tasks; none becomes a group-combat runtime owner.
+- `0.4.13`: cosmetic guild progression after observed weekly data.
 
 ## Explicit non-goals
 

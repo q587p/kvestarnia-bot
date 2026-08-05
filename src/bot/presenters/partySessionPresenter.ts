@@ -5,7 +5,7 @@ import {
 } from "../../content/characterFlavor";
 import {
   GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID,
-  LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+  isLeftPassagePartySession,
   type PartyCancelResult,
   type PartyCreateResult,
   type PartyJoinResult,
@@ -186,9 +186,9 @@ function presentPartyJoinIneligible(
 ): string {
   const reason = result.reason;
 
-  if (result.session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
+  if (isLeftPassagePartySession(result.session)) {
     if (reason === "wrong-location") {
-      return "Щоби відгукнутися на поклик, стійте біля того самого сліду в лівому проході Низу.";
+      return "Цей поклик належить лівому проходу Низу. Відкрийте чинне запрошення або поверніться до проходу.";
     }
     if (reason === "stale-life") {
       return "Цей поклик пам’ятає попереднє життя пригодника. Попросіть ватажка зібрати ватагу знову.";
@@ -201,6 +201,12 @@ function presentPartyJoinIneligible(
     }
     if (reason === "active-combat") {
       return "Ви вже в активному бою. Завершіть його, тоді відповідайте на поклик із лівого проходу.";
+    }
+    if (reason === "active-adventure") {
+      return "Спершу завершіть поточну пригоду. Поклик не перериває чужі оказії й не забирає їхні сліди.";
+    }
+    if (reason === "active-raid") {
+      return "Спершу завершіть поточний рейд. Один пригодник не може тримати дві ватаги за один рукав.";
     }
     if (reason === "active-search") {
       return [
@@ -264,6 +270,11 @@ function presentPendingSoloRaidConflict(
 export function formatRemainingWait(availableAt: Date, now: Date): string {
   const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
   return `${minutes} ${formatUkrainianMinutes(minutes)}`;
+}
+
+function formatRemainingWaitNominative(availableAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((availableAt.getTime() - now.getTime()) / 60_000));
+  return `${minutes} ${pluralizeUk(minutes, "хвилина", "хвилини", "хвилин")}`;
 }
 
 function formatUkrainianMinutes(value: number): string {
@@ -1249,7 +1260,7 @@ export function presentPartySession(
     : null;
   const big = session.originLocationId === "barrel.big-brother";
   const groupCombat = session.originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID;
-  const leftPassage = session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+  const leftPassage = isLeftPassagePartySession(session);
   const lines = [
     big
       ? "🛢️ <b>Збір до Старшого Брата Бочки</b>"
@@ -1288,7 +1299,7 @@ export function presentPartySession(
     })}`));
   }
 
-  if (session.status === "recruiting" && options.inviteUrl && !big) {
+  if (session.status === "recruiting" && options.inviteUrl && !big && !leftPassage) {
     lines.push("", presentPartyInviteLine(session, options.inviteUrl));
   }
 
@@ -1456,7 +1467,7 @@ function isBigBarrelParty(session: PartySessionRecord): boolean {
 }
 
 function isLeftPassageParty(session: PartySessionRecord): boolean {
-  return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+  return isLeftPassagePartySession(session);
 }
 
 function presentPartyFullNotice(session: PartySessionRecord): string {
@@ -1516,7 +1527,7 @@ function getStatusLine(session: PartySessionRecord): string {
   }
 
   if (session.status === "expired") {
-    return session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    return isLeftPassagePartySession(session)
       ? "Стан: збір завершено без атаки"
       : "Стан: строк збору минув";
   }
@@ -1543,11 +1554,11 @@ function getStatusLine(session: PartySessionRecord): string {
     ].join("\n");
   }
 
-    if (session.originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND) {
-      return [
-        `Стан: атака почнеться, щойно всі будуть готові, або автоматично о ${formatTime(session.expiresAt)}.`,
-        "Лідер може рушити раніше."
-      ].join("\n");
+  if (isLeftPassagePartySession(session)) {
+    return [
+      `Стан: атака почнеться, щойно всі будуть готові, або автоматично о ${formatTime(session.expiresAt)}.`,
+      "Лідер може рушити раніше."
+    ].join("\n");
   }
 
   return `Стан: збір відкрито до ${formatTime(session.expiresAt)}`;
@@ -2125,6 +2136,8 @@ function formatBossResponses(responses: number): string {
 function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string): string {
   const flavor = isBigBarrelParty(session)
     ? BIG_BARREL_INVITE_TEMPLATES[pickInviteTemplateIndex(session.inviteToken)]?.body[0] ?? BIG_BARREL_INVITE_TEMPLATES[0]?.body[0]
+    : isLeftPassageParty(session)
+      ? LEFT_PASSAGE_INVITE_TEMPLATES[getInitialPartyInviteTemplateIndex(session)]?.body[0] ?? LEFT_PASSAGE_INVITE_TEMPLATES[0]?.body[0]
     : "Передайте це посилання тому, хто має прийти у ватагу:";
 
   return `${flavor}\nЗапрошення: <a href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a>`;
@@ -2133,18 +2146,22 @@ function presentPartyInviteLine(session: PartySessionRecord, inviteUrl: string):
 export function presentPartyInviteShare(
   session: PartySessionRecord,
   inviteUrl: string,
-  options: { templateIndex: number }
+  options: { templateIndex: number; now?: Date }
 ): string {
-  const template = BIG_BARREL_INVITE_TEMPLATES[normalizeBigBarrelInviteTemplateIndex(options.templateIndex)] ??
-    BIG_BARREL_INVITE_TEMPLATES[0];
+  const templates = getPartyInviteTemplates(session);
+  const template = templates[normalizePartyInviteTemplateIndex(options.templateIndex, templates.length)] ?? templates[0];
 
   if (!template) {
-    throw new Error("Big Barrel invite templates must not be empty.");
+    throw new Error("Party invite templates must not be empty.");
   }
 
   const leaderName = presentCharacterDisplayName(session.leader);
   const participantCount = session.participants.filter((participant) => participant.status === "joined").length;
 
+  const leftPassage = isLeftPassageParty(session);
+  const readyCount = session.participants.filter(
+    (participant) => participant.status === "joined" && participant.readiness === "ready"
+  ).length;
   return [
     `<b>${template.header}</b>`,
     "",
@@ -2152,7 +2169,15 @@ export function presentPartyInviteShare(
     "",
     `Ватажок: ${leaderName}`,
     `Учасників: <b>${participantCount}/${session.participantCap}</b>`,
-    "Формат: гуртовий рейд проти Старшого Брата Бочки.",
+    leftPassage
+      ? "Формат: справжня гуртова атака в лівому проході Низу."
+      : "Формат: гуртовий рейд проти Старшого Брата Бочки.",
+    ...(leftPassage
+      ? [
+          `Готові: <b>${readyCount}/${participantCount}</b>.`,
+          `До автозапуску: <b>${formatRemainingWaitNominative(session.joinUntilAt, options.now ?? new Date())}</b>.`
+        ]
+      : []),
     "",
     escapeHtml(inviteUrl)
   ].join("\n");
@@ -2203,6 +2228,23 @@ export function normalizeBigBarrelApproachTemplateIndex(value: number): number {
 
 export function getInitialBigBarrelInviteTemplateIndex(token: string): number {
   return stableIndex(token, BIG_BARREL_INVITE_TEMPLATES.length);
+}
+
+export function getInitialPartyInviteTemplateIndex(session: PartySessionRecord): number {
+  return stableIndex(session.inviteToken, getPartyInviteTemplates(session).length);
+}
+
+export function getNextPartyInviteTemplateIndex(
+  session: PartySessionRecord,
+  currentIndex: number
+): number {
+  const templates = getPartyInviteTemplates(session);
+  const current = normalizePartyInviteTemplateIndex(currentIndex, templates.length);
+  if (templates.length <= 1) {
+    return current;
+  }
+  const offset = stableIndex(`${session.inviteToken}:step`, templates.length - 1) + 1;
+  return (current + offset) % templates.length;
 }
 
 export function getNextBigBarrelInviteTemplateIndex(token: string, currentIndex: number): number {
@@ -2331,6 +2373,45 @@ export const BIG_BARREL_INVITE_TEMPLATES = [
     ]
   }
 ] as const;
+
+export const LEFT_PASSAGE_INVITE_TEMPLATES = [
+  {
+    id: "left-ledger",
+    header: "📣 Поклик із лівого проходу",
+    body: [
+      "У Низі знайшлася оказія, яка вже вміє рахувати до трьох.",
+      "Переходьте за посиланням: Квестарня доправить до лівого проходу й перевірить, чи можна долучитися."
+    ]
+  },
+  {
+    id: "left-boots",
+    header: "🥾 Ватага шукає ще одну пару чобіт",
+    body: [
+      "Лівий прохід готує справжню атаку, а список пригодників іще має місце.",
+      "Посилання веде просто до збору; винагорода можлива, але Корчма нічого не гарантує наперед."
+    ]
+  },
+  {
+    id: "left-corridor",
+    header: "🕯️ Коридор просить свідків",
+    body: [
+      "Ватажок уже відкрив збір до лівого проходу Низу.",
+      "Долучайтеся до завершення строку: готова ватага рушить раніше, решту піджене автозапуск."
+    ]
+  }
+] as const;
+
+function getPartyInviteTemplates(session: PartySessionRecord): ReadonlyArray<{
+  id: string;
+  header: string;
+  body: readonly string[];
+}> {
+  return isLeftPassageParty(session) ? LEFT_PASSAGE_INVITE_TEMPLATES : BIG_BARREL_INVITE_TEMPLATES;
+}
+
+function normalizePartyInviteTemplateIndex(value: number, length: number): number {
+  return Number.isInteger(value) && value >= 0 && value < length ? value : 0;
+}
 
 export const BIG_BARREL_APPROACH_TEMPLATES = [
   {

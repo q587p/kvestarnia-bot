@@ -24,6 +24,8 @@ import {
   buildGroupCombatProductionV1Evidence,
   buildGroupCombatTimeoutAction,
   buildLeftPassageEncounterRewardBudget,
+  expandGroupCombatRecapSnapshot,
+  getGroupCombatEnemyFocusTarget,
   getLeftPassageTierTwoDiscoveryMinutes,
   GROUP_COMBAT_STATE_BYTE_LIMIT,
   GROUP_COMBAT_SUPPORTED_MONSTER_ABILITY_IDS,
@@ -312,7 +314,14 @@ describe("PrismaGroupCombatRepository integration", () => {
         hpCurrent: 28,
         hpMax: 20,
         manaCurrent: 14,
-        manaMax: 10
+        manaMax: 10,
+        statsJson: {
+          strength: 42,
+          dexterity: 6,
+          intelligence: 7,
+          charisma: 7,
+          luck: 5
+        }
       }
     });
     const leaderCharacterId = `${token}-user-0-character`;
@@ -1284,6 +1293,14 @@ describe("PrismaGroupCombatRepository integration", () => {
       attemptedAt: new Date(claimedAt.getTime() + 2)
     })).resolves.toBe(true);
     expect(await repository.listPendingDeliverySessionIds(93)).toContain(session.id);
+    expect(await repository.listPendingDeliverySessionIds(
+      93,
+      new Date(claimedAt.getTime() + 1)
+    )).not.toContain(session.id);
+    expect(await repository.listPendingDeliverySessionIds(
+      93,
+      new Date(claimedAt.getTime() + 2)
+    )).toContain(session.id);
     await expect(repository.claimParticipantUiPublication({
       sessionId: session.id,
       telegramUserId: participant.telegramUserId,
@@ -3415,7 +3432,7 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toEqual({ repairState: null, repairReason: null });
   });
 
-  it("atomically adopts the newest terminal result card while completing exit delivery", async () => {
+  it("atomically adopts and reopens the newest completed terminal result card", async () => {
     const session = await startLeftPassageProduction(
       prisma,
       repository,
@@ -3491,6 +3508,31 @@ describe("PrismaGroupCombatRepository integration", () => {
       retainReference: true
     })).resolves.toBe(true);
 
+    await expect(repository.replaceCompletedParticipantTerminalCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion + 2,
+      previousChatId: participant.telegramUserId,
+      previousMessageId: 93,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 94
+      }
+    })).resolves.toBe(true);
+    await expect(repository.replaceCompletedParticipantTerminalCard({
+      sessionId: session.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: session.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion + 2,
+      previousChatId: participant.telegramUserId,
+      previousMessageId: 93,
+      terminalCard: {
+        chatId: participant.telegramUserId,
+        messageId: 95
+      }
+    })).resolves.toBe(false);
+
     await expect(prisma.groupCombatParticipant.findFirstOrThrow({
       where: {
         sessionId: session.id,
@@ -3506,8 +3548,8 @@ describe("PrismaGroupCombatRepository integration", () => {
     })).resolves.toEqual({
       exitDeliveryState: "completed",
       chatId: participant.telegramUserId,
-      messageId: 93,
-      referenceVersion: participant.referenceVersion + 2,
+      messageId: 94,
+      referenceVersion: participant.referenceVersion + 3,
       deliveredRevision: session.deliveryRevision
     });
   });
@@ -4179,6 +4221,101 @@ describe("PrismaGroupCombatRepository integration", () => {
     expect(await prisma.groupCombatAction.count({ where: { sessionId: session.id, turn: 1 } })).toBe(2);
   });
 
+  it.each([
+    ["proof", 73_201n],
+    ["production", 73_211n]
+  ] as const)("transitions persisted active %s cumulative focus through the leader", async (
+    kind,
+    firstTelegramId
+  ) => {
+    const token = `group-focus-transition-${kind}`;
+    const telegramIds = [firstTelegramId, firstTelegramId + 1n];
+    const session = kind === "proof"
+      ? await startProof(prisma, repository, token, telegramIds)
+      : await startLeftPassageProduction(prisma, repository, token, telegramIds);
+    expect(session.state.enemyFocusVersion).toBe(1);
+    const legacy = structuredClone(session.state);
+    const leader = legacy.participants[0]!;
+    const legacyTopThreat = legacy.participants[1]!;
+    delete legacy.enemyFocusVersion;
+    leader.threat = 7;
+    legacyTopThreat.threat = 93;
+    for (const enemy of legacy.enemies) {
+      const frozenEnemy = legacy.production?.canonicalV1.enemies.find(
+        (candidate) => candidate.enemyId === enemy.id
+      );
+      enemy.abilityCooldowns = Object.fromEntries((enemy.abilityIds ?? []).map((abilityId) => [
+        abilityId,
+        {
+          id: abilityId,
+          remainingTurns: Math.max(
+            1,
+            frozenEnemy?.abilities.find((ability) => ability.id === abilityId)
+              ?.cooldownOwnActions ?? 1
+          )
+        }
+      ]));
+    }
+    await prisma.groupCombatSession.update({
+      where: { id: session.id },
+      data: { stateJson: legacy as unknown as Prisma.InputJsonValue }
+    });
+
+    const restarted = new PrismaGroupCombatRepository(prisma);
+    const loaded = await restarted.findById(session.id);
+    expect(loaded).not.toBeNull();
+    expect(presentGroupCombat(loaded!, leader.characterId, NOW)).toContain(
+      `${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`
+    );
+    const leaderParticipant = loaded!.participants.find(
+      (participant) => participant.characterId === leader.characterId
+    )!;
+    const secondParticipant = loaded!.participants.find(
+      (participant) => participant.characterId === legacyTopThreat.characterId
+    )!;
+    await expect(restarted.submitActionForTelegramUser({
+      telegramUserId: leaderParticipant.telegramUserId,
+      partyInviteToken: token,
+      turn: loaded!.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: leader.characterId,
+      now: NOW,
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    })).resolves.toMatchObject({ state: "queued" });
+    const resolved = await restarted.submitActionForTelegramUser({
+      telegramUserId: secondParticipant.telegramUserId,
+      partyInviteToken: token,
+      turn: loaded!.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: legacyTopThreat.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_000)
+    });
+    expect(resolved).toMatchObject({ state: "resolved", session: { turn: 2 } });
+    if (!("session" in resolved)) {
+      throw new Error("Expected transitioned GroupCombat session.");
+    }
+    const transitioned = resolved.session.state;
+    const responseLines = transitioned.recap.at(-1)!.lines.filter((line) =>
+      line.includes("відповідає")
+    );
+    expect(responseLines.length).toBeGreaterThan(0);
+    expect(responseLines.every((line) => line.includes(leader.name))).toBe(true);
+    expect(transitioned.enemyFocusVersion).toBe(1);
+    expect(transitioned.participants.map((participant) => participant.threat)).toEqual([0, 0]);
+    expect(
+      expandGroupCombatRecapSnapshot(transitioned.recap.at(-1)?.snapshot, transitioned)
+        ?.enemyFocusCharacterId
+    ).toBe(leader.characterId);
+    expect(getGroupCombatEnemyFocusTarget(transitioned)?.characterId).toBe(leader.characterId);
+
+    const reparsed = await new PrismaGroupCombatRepository(prisma).findById(session.id);
+    expect(reparsed?.state).toEqual(transitioned);
+    expect(getGroupCombatEnemyFocusTarget(reparsed!.state)?.characterId).toBe(leader.characterId);
+  });
+
   it("uses a lean due scan and a resource-free timeout fallback", async () => {
     const before = await resourceSnapshot(prisma, [1101n, 1102n]);
     await prisma.groupCombatSession.updateMany({
@@ -4357,8 +4494,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       })
     ]);
 
-    expect([replacement.state, finalAction.state]).toContain("resolved");
-    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    expect([replacement.state, finalAction.state].filter((state) => state === "resolved")).toHaveLength(1);
+    expect(["replaced", "resolved", "stale", "terminal"]).toContain(replacement.state);
     await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
@@ -4404,8 +4541,8 @@ describe("PrismaGroupCombatRepository integration", () => {
       })
     ]);
 
-    expect([replacement.state, timeout.state]).toContain("resolved");
-    expect(["replaced", "stale", "terminal"]).toContain(replacement.state);
+    expect([replacement.state, timeout.state].filter((state) => state === "resolved")).toHaveLength(1);
+    expect(["replaced", "resolved", "stale", "terminal"]).toContain(replacement.state);
     await expectStoredTurnActionMatchesRecap(prisma, repository, session, actor.characterId);
   });
 
@@ -5217,7 +5354,11 @@ describe("PrismaGroupCombatRepository integration", () => {
       include: { participants: { orderBy: { rosterOrder: "asc" } } }
     });
     expect(stored.terminalIntegrityCheckedAt).toEqual(new Date(NOW.getTime() + 3));
-    const invalidState = stored.stateJson as { contributions: unknown[] };
+    const invalidState = stored.stateJson as {
+      enemyFocusVersion?: number;
+      contributions: unknown[];
+    };
+    expect(invalidState.enemyFocusVersion).toBe(1);
     expect(stored.participants.map((participant) => participant.contributionJson))
       .toEqual(invalidState.contributions);
     expect(stored.participants).toEqual(expect.arrayContaining([
@@ -6374,6 +6515,63 @@ describe("PrismaGroupCombatRepository integration", () => {
       await repairPrisma.$disconnect();
       await rm(repairDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
     }
+  });
+
+  it("keeps a newer revision discoverable after an interrupted tail and stale finalization", async () => {
+    const oldRevision = await startLeftPassageProduction(
+      prisma,
+      repository,
+      "left-delivery-revision-recovery",
+      [11960n]
+    );
+    const participant = oldRevision.participants[0]!;
+    const resolved = await repository.submitActionForTelegramUser({
+      telegramUserId: participant.telegramUserId,
+      partyInviteToken: oldRevision.partyInviteToken,
+      turn: oldRevision.turn,
+      action: "guard",
+      targetKind: "self",
+      targetId: participant.characterId,
+      now: new Date(NOW.getTime() + 1),
+      nextTurnExpiresAt: new Date(NOW.getTime() + 23_001)
+    });
+    if (!("session" in resolved) || resolved.session.status !== "active") {
+      throw new Error("Expected a newer active delivery revision.");
+    }
+    const newer = resolved.session;
+    expect(newer.deliveryRevision).toBe(oldRevision.deliveryRevision + 1);
+
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: newer.id,
+      expectedDeliveryRevision: oldRevision.deliveryRevision,
+      attemptedAt: new Date(NOW.getTime() + 13_001)
+    })).resolves.toBe(false);
+    await expect(prisma.groupCombatSession.findUniqueOrThrow({
+      where: { id: newer.id },
+      select: { deliveryPending: true, deliveryAttemptedAt: true }
+    })).resolves.toEqual({
+      deliveryPending: true,
+      deliveryAttemptedAt: null
+    });
+
+    const restartedService = new GroupCombatService(
+      new PrismaGroupCombatRepository(prisma),
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(NOW.getTime() + 13_002)
+    );
+    const pendingDelivery = await restartedService.listPendingDelivery(93);
+    await expect(repository.finalizeDeliveryAttempt({
+      sessionId: newer.id,
+      expectedDeliveryRevision: newer.deliveryRevision,
+      attemptedAt: new Date(NOW.getTime() + 13_003)
+    })).resolves.toBe(true);
+    expect(pendingDelivery).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: newer.id,
+        deliveryRevision: newer.deliveryRevision,
+        deliveryPending: true
+      })
+    ]));
   });
 
   it("reports observed query-event counts against stable budgets", () => {

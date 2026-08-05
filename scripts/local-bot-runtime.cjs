@@ -8,12 +8,19 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { spawn, spawnSync } = require("node:child_process");
 
-const MANAGER_VERSION = 1;
+const MANAGER_VERSION = 2;
+const MAX_CONSECUTIVE_RESTARTS = 3;
+const STABLE_RUNTIME_MILLISECONDS = 60_000;
+const RESTART_DELAYS_MILLISECONDS = [1_000, 3_000, 5_000];
+const MAX_RUNTIME_LOG_BYTES = 5 * 1024 * 1024;
 const ACTIONS = new Set(["run", "refresh", "stop", "status", "path"]);
 const EXCLUDED_TOP_LEVEL_ENTRIES = new Set([
   ".git",
   ".agents",
+  ".cache",
   ".codex",
+  ".codex-remote-attachments",
+  ".codex_tmp",
   ".github",
   ".idea",
   ".vscode",
@@ -142,6 +149,8 @@ function getPaths(sourceRoot) {
     sourceRoot,
     runtimeRoot,
     metadataPath: path.join(runtimeRoot, ".kvestarnia-runtime.json"),
+    lastRunPath: path.join(runtimeRoot, ".kvestarnia-last-run.json"),
+    logPath: path.join(runtimeRoot, ".kvestarnia-runtime.log"),
     manifestPath: path.join(runtimeRoot, ".kvestarnia-source-manifest.json"),
     dependencyHashPath: path.join(runtimeRoot, ".kvestarnia-dependencies.sha256"),
   };
@@ -554,6 +563,77 @@ async function preparePrisma(paths) {
   }
 }
 
+function prepareApplication(paths) {
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  log("Building the isolated runtime application...");
+  if (!runCommand(npm, ["run", "build:ts"], paths.runtimeRoot)) {
+    fail("Building the isolated runtime application failed.");
+  }
+
+  const entryPath = path.join(paths.runtimeRoot, "dist", "bot.js");
+  if (!fs.existsSync(entryPath)) {
+    fail(`The isolated runtime entry point was not created: ${entryPath}`);
+  }
+  return entryPath;
+}
+
+function rotateRuntimeLog(paths) {
+  if (!fs.existsSync(paths.logPath) || fs.statSync(paths.logPath).size < MAX_RUNTIME_LOG_BYTES) {
+    return;
+  }
+
+  const previousPath = `${paths.logPath}.previous`;
+  removeFileIfPresent(previousPath);
+  fs.renameSync(paths.logPath, previousPath);
+}
+
+function pipeChildOutput(child, logStream) {
+  child.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    logStream.write(chunk);
+  });
+  child.stderr.on("data", (chunk) => {
+    process.stderr.write(chunk);
+    logStream.write(chunk);
+  });
+}
+
+function waitForChild(child) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
+
+    child.once("error", (error) => settle({ code: 1, signal: null, error }));
+    child.once("exit", (code, signal) => settle({ code, signal, error: null }));
+  });
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function getRestartDelay(restartNumber) {
+  const index = Math.max(0, Math.min(restartNumber - 1, RESTART_DELAYS_MILLISECONDS.length - 1));
+  return RESTART_DELAYS_MILLISECONDS[index];
+}
+
+function writeLastRun(paths, values) {
+  writeJsonAtomic(paths.lastRunPath, {
+    managerVersion: MANAGER_VERSION,
+    sourceRoot: paths.sourceRoot,
+    runtimeRoot: paths.runtimeRoot,
+    logPath: paths.logPath,
+    ...values,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 
 function sleepSync(milliseconds) {
   const signal = new Int32Array(new SharedArrayBuffer(4));
@@ -753,6 +833,8 @@ function writeHostMetadata(paths, values) {
     packageVersion: values.packageVersion,
     sourceRevision: values.sourceRevision,
     snapshotHash: values.snapshotHash,
+    restartCount: values.restartCount || 0,
+    logPath: paths.logPath,
     startedAt: values.startedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
@@ -771,6 +853,7 @@ async function runRuntime(paths) {
   const sourceRevision = getGitDescription(paths.sourceRoot);
   const packageVersion = readPackageVersion(paths.sourceRoot);
   let child = null;
+  let logStream = null;
   let shuttingDown = false;
 
   const stopChild = () => {
@@ -810,9 +893,9 @@ async function runRuntime(paths) {
     syncSnapshot(paths, snapshot);
     prepareDependencies(paths);
     await preparePrisma(paths);
-
-    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-    const command = commandFor(npm, ["run", "dev"]);
+    const entryPath = prepareApplication(paths);
+    rotateRuntimeLog(paths);
+    logStream = fs.createWriteStream(paths.logPath, { flags: "a" });
 
     log("");
     log(`Source:  ${paths.sourceRoot}`);
@@ -824,109 +907,197 @@ async function runRuntime(paths) {
     log("The bot now runs from an isolated snapshot.");
     log("Codex may edit/test the source repository without locking this Prisma Client.");
     log("Run refresh-local-bot.cmd only when you want to promote the latest source snapshot.");
+    log(`Runtime log: ${paths.logPath}`);
     log("");
+    const runtimeStartedAt = new Date().toISOString();
+    let restartCount = 0;
+    let finalExitResult = { code: 1, signal: null, error: null };
 
-    child = spawn(command.executable, command.args, {
-      cwd: paths.runtimeRoot,
-      env: {
-        ...process.env,
-        KVESTARNIA_ISOLATED_RUNTIME: "1",
-        KVESTARNIA_SOURCE_ROOT: paths.sourceRoot,
-      },
-      stdio: "inherit",
-      windowsHide: false,
-      detached: process.platform !== "win32",
-    });
+    while (true) {
+      const attemptStartedAt = new Date();
+      logStream.write(
+        `\n[local-bot] ${attemptStartedAt.toISOString()} starting bot process` +
+        `${restartCount > 0 ? ` after restart ${restartCount}` : ""}\n`,
+      );
+      child = spawn(process.execPath, [entryPath], {
+        cwd: paths.runtimeRoot,
+        env: {
+          ...process.env,
+          KVESTARNIA_ISOLATED_RUNTIME: "1",
+          KVESTARNIA_SOURCE_ROOT: paths.sourceRoot,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: false,
+        detached: process.platform !== "win32",
+      });
+      pipeChildOutput(child, logStream);
 
-    writeHostMetadata(paths, {
-      state: "running",
-      botPid: child.pid,
+      writeHostMetadata(paths, {
+        state: "running",
+        botPid: child.pid,
+        packageVersion,
+        sourceRevision,
+        snapshotHash: snapshot.snapshotHash,
+        restartCount,
+        startedAt: runtimeStartedAt,
+      });
+
+      const exitResult = await waitForChild(child);
+      finalExitResult = exitResult;
+      const finalMetadata = readMetadata(paths);
+      const requestedStop =
+        finalMetadata &&
+        Number(finalMetadata.hostPid) === process.pid &&
+        finalMetadata.state === "stopping";
+      const uptimeMilliseconds = Date.now() - attemptStartedAt.getTime();
+      child = null;
+
+      writeLastRun(paths, {
+        packageVersion,
+        sourceRevision,
+        snapshotHash: snapshot.snapshotHash,
+        startedAt: attemptStartedAt.toISOString(),
+        exitedAt: new Date().toISOString(),
+        uptimeMilliseconds,
+        exitCode: Number.isInteger(exitResult.code) ? exitResult.code : null,
+        signal: exitResult.signal || null,
+        errorMessage: exitResult.error ? exitResult.error.message : null,
+        restartCount,
+        restartsExhausted: false,
+      });
+
+      if (requestedStop) {
+        shuttingDown = true;
+        clearOwnMetadata(paths);
+        logStream.end();
+        log("Bot stopped by the local runtime manager.");
+        return 0;
+      }
+
+      if (exitResult.error) {
+        warn(`Could not start the bot: ${exitResult.error.message}`);
+      } else if (exitResult.signal) {
+        warn(`Bot stopped unexpectedly by signal ${exitResult.signal}.`);
+      } else {
+        const exitCode = Number.isInteger(exitResult.code) ? exitResult.code : 1;
+        warn(`Bot stopped unexpectedly with exit code ${exitCode}.`);
+      }
+
+      if (uptimeMilliseconds >= STABLE_RUNTIME_MILLISECONDS) {
+        restartCount = 0;
+      }
+      if (restartCount >= MAX_CONSECUTIVE_RESTARTS) {
+        break;
+      }
+
+      restartCount += 1;
+      const restartDelay = getRestartDelay(restartCount);
+      writeHostMetadata(paths, {
+        state: "restarting",
+        botPid: null,
+        packageVersion,
+        sourceRevision,
+        snapshotHash: snapshot.snapshotHash,
+        restartCount,
+        startedAt: runtimeStartedAt,
+      });
+      log(`Restarting the bot in ${restartDelay / 1_000}s (${restartCount}/${MAX_CONSECUTIVE_RESTARTS})...`);
+      await wait(restartDelay);
+    }
+
+    shuttingDown = true;
+    writeLastRun(paths, {
       packageVersion,
       sourceRevision,
       snapshotHash: snapshot.snapshotHash,
+      startedAt: runtimeStartedAt,
+      exitedAt: new Date().toISOString(),
+      exitCode: Number.isInteger(finalExitResult.code) ? finalExitResult.code : null,
+      signal: finalExitResult.signal || null,
+      errorMessage: finalExitResult.error ? finalExitResult.error.message : null,
+      restartCount,
+      restartsExhausted: true,
     });
-
-    const exitResult = await new Promise((resolve) => {
-      let settled = false;
-      const settle = (value) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        resolve(value);
-      };
-
-      child.once("error", (error) => settle({ code: 1, signal: null, error }));
-      child.once("exit", (code, signal) => settle({ code, signal, error: null }));
-    });
-
-    const finalMetadata = readMetadata(paths);
-    const requestedStop =
-      finalMetadata &&
-      Number(finalMetadata.hostPid) === process.pid &&
-      finalMetadata.state === "stopping";
-
-    shuttingDown = true;
-    if (exitResult.error) {
-      warn(`Could not start the bot: ${exitResult.error.message}`);
-    }
     clearOwnMetadata(paths);
-
-    if (requestedStop) {
-      log("Bot stopped by the local runtime manager.");
-      return 0;
-    }
-
-    if (exitResult.signal) {
-      log(`Bot stopped by signal ${exitResult.signal}.`);
-      return 1;
-    }
-
-    const exitCode = Number.isInteger(exitResult.code) ? exitResult.code : 1;
-    log(`Bot stopped with exit code ${exitCode}.`);
-    return exitCode;
+    logStream.end();
+    warn(`The bot stopped after ${MAX_CONSECUTIVE_RESTARTS} consecutive restart attempts.`);
+    return Number.isInteger(finalExitResult.code) && finalExitResult.code !== 0
+      ? finalExitResult.code
+      : 1;
   } catch (error) {
     shuttingDown = true;
+    if (logStream) {
+      logStream.end();
+    }
     clearOwnMetadata(paths);
     throw error;
   }
 }
 
+function resolveRuntimeStatus(metadata, processAlive = isProcessAlive) {
+  if (!metadata) {
+    return "not running";
+  }
+  if (metadata.state === "running" && Number(metadata.managerVersion) < MANAGER_VERSION) {
+    return "legacy supervision (bot liveness is unverified; refresh required)";
+  }
+  if (metadata.state === "running" && !processAlive(Number(metadata.botPid))) {
+    return "degraded (bot process is missing)";
+  }
+  return metadata.state || "running";
+}
+
 function printStatus(paths) {
   const metadata = getActiveMetadata(paths);
   const manifest = readJson(paths.manifestPath);
-  let currentSnapshot = null;
+  const lastRun = readJson(paths.lastRunPath);
+  log(`Source:  ${paths.sourceRoot}`);
+  log(`Runtime: ${paths.runtimeRoot}`);
+  log(`Runtime log: ${paths.logPath}`);
+  log(`Status: ${resolveRuntimeStatus(metadata)}`);
 
+  if (!metadata) {
+    if (lastRun) {
+      if (lastRun.exitedAt) {
+        log(`Last exit: ${lastRun.exitedAt}`);
+      }
+      if (lastRun.exitCode !== null && lastRun.exitCode !== undefined) {
+        log(`Last exit code: ${lastRun.exitCode}`);
+      } else if (lastRun.signal) {
+        log(`Last exit signal: ${lastRun.signal}`);
+      }
+      if (lastRun.restartsExhausted) {
+        log(`Automatic restarts exhausted: yes (${lastRun.restartCount || 0})`);
+      }
+    }
+  } else {
+    log(`Host PID: ${metadata.hostPid}`);
+    if (metadata.botPid) {
+      log(`Bot PID: ${metadata.botPid}`);
+    }
+    if (metadata.restartCount) {
+      log(`Consecutive restarts: ${metadata.restartCount}/${MAX_CONSECUTIVE_RESTARTS}`);
+    }
+    log(`Version: ${metadata.packageVersion || "unknown"}`);
+    if (metadata.sourceRevision) {
+      log(`Started from: ${metadata.sourceRevision}`);
+    }
+  }
+
+  let currentSnapshot = null;
   try {
     currentSnapshot = collectSourceSnapshot(paths, { createEnvironment: false });
   } catch (error) {
     warn(`Could not compare the source snapshot: ${error.message}`);
   }
 
-  log(`Source:  ${paths.sourceRoot}`);
-  log(`Runtime: ${paths.runtimeRoot}`);
-
-  if (!metadata) {
-    log("Status: not running");
-    if (manifest && currentSnapshot) {
-      log(
-        `Prepared snapshot: ${manifest.snapshotHash === currentSnapshot.snapshotHash ? "current" : "outdated"}`,
-      );
+  if (manifest && currentSnapshot) {
+    const snapshotLabel = manifest.snapshotHash === currentSnapshot.snapshotHash ? "current" : "outdated";
+    if (metadata?.snapshotHash) {
+      log(`Source changes since start: ${metadata.snapshotHash === currentSnapshot.snapshotHash ? "no" : "yes"}`);
+    } else {
+      log(`Prepared snapshot: ${snapshotLabel}`);
     }
-    return;
-  }
-
-  log(`Status: ${metadata.state || "running"}`);
-  log(`Host PID: ${metadata.hostPid}`);
-  if (metadata.botPid) {
-    log(`Bot PID: ${metadata.botPid}`);
-  }
-  log(`Version: ${metadata.packageVersion || "unknown"}`);
-  if (metadata.sourceRevision) {
-    log(`Started from: ${metadata.sourceRevision}`);
-  }
-  if (currentSnapshot && metadata.snapshotHash) {
-    log(`Source changes since start: ${metadata.snapshotHash === currentSnapshot.snapshotHash ? "no" : "yes"}`);
   }
 }
 
@@ -982,6 +1153,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  getRestartDelay,
   managedPathIdentity,
   pathsReferToSameLocation,
+  resolveRuntimeStatus,
+  shouldSkipSourceEntry,
 };

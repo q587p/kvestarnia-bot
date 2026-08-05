@@ -14,6 +14,7 @@ import {
   expandGroupCombatRecapSnapshot,
   getEffectiveGroupCombatAbilityManaCost,
   getGroupCombatActionProfile,
+  getGroupCombatEnemyFocusTarget,
   getGroupCombatPresentedEffectTargetSides,
   getLeftPassageEnemyLootDropChanceMultiplier,
   getLeftPassageTierTwoDiscoveryMinutes,
@@ -2133,9 +2134,14 @@ describe("group combat proof reducer", () => {
       buildGroupCombatTimeoutAction(shieldState, shieldState.participants[0]!.characterId)
     ]).state;
     expect(shielded.enemies[0]!.shield?.points).toBeGreaterThan(0);
+    const shieldPoints = shielded.enemies[0]!.shield!.points;
+    const preventedBeforeShieldHit = shielded.enemyContributions![0]!.guardPrevented;
     const broken = resolveGroupCombatTurn(shielded, [
       action(shielded, 0, "attack", "enemy", shielded.enemies[0]!.id)
     ]);
+    expect(
+      broken.state.enemyContributions![0]!.guardPrevented - preventedBeforeShieldHit
+    ).toBe(shieldPoints);
     expect(broken.state.recap.at(-1)!.lines.join("\n"))
       .toContain(`💥 ${shielded.enemies[0]!.name}: щит розбито, ${shielded.participants[0]!.name} отримує 4 шкоди.`);
   });
@@ -3310,6 +3316,147 @@ describe("group combat proof reducer", () => {
     expect(defended.state.contributions.slice(1).some((row) => row.damageTaken > 0)).toBe(true);
   });
 
+  it("focuses the leader first and then the living top damage dealer from the previous turn", () => {
+    const state = proofState(2);
+    const leader = state.participants[0]!;
+    const striker = state.participants[1]!;
+    striker.attack = 30;
+    striker.stats.dexterity = 30;
+    state.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+      enemy.defense = 0;
+      enemy.dexterity = 0;
+      enemy.attack = 3;
+    });
+
+    expect(getGroupCombatEnemyFocusTarget(state)?.characterId).toBe(leader.characterId);
+
+    const first = resolveGroupCombatTurn(state, [
+      action(state, 0, "guard", "self", leader.characterId),
+      action(state, 1, "attack", "enemy", state.enemies[0]!.id)
+    ]);
+
+    expect(first.state.status).toBe("active");
+    expect(first.state.participants[0]!.threat).toBe(0);
+    expect(first.state.participants[1]!.threat).toBeGreaterThan(0);
+    expect(getGroupCombatEnemyFocusTarget(first.state)?.characterId).toBe(striker.characterId);
+    expect(first.state.recap.at(-1)?.lines).toContain(
+      `🎯 На наступний хід увага ворогів переходить на ${striker.name}.`
+    );
+    expect(
+      expandGroupCombatRecapSnapshot(first.state.recap.at(-1)?.snapshot, first.state)
+        ?.enemyFocusCharacterId
+    ).toBe(leader.characterId);
+
+    const damageTakenBefore = first.state.contributions[1]!.damageTaken;
+    const second = resolveGroupCombatTurn(first.state, [
+      action(first.state, 0, "guard", "self", leader.characterId),
+      action(first.state, 1, "guard", "self", striker.characterId)
+    ]);
+    expect(second.state.contributions[1]!.damageTaken).toBeGreaterThan(damageTakenBefore);
+    expect(
+      expandGroupCombatRecapSnapshot(second.state.recap.at(-1)?.snapshot, second.state)
+        ?.enemyFocusCharacterId
+    ).toBe(striker.characterId);
+  });
+
+  it.each([
+    ["proof", () => proofState(2, {
+      hp: 587,
+      hpMax: 587,
+      defense: 0,
+      combatItemQuantities: { "item.loot-v1-c008": 1 }
+    })],
+    ["production", () => leftPassageState(2, false, {
+      hp: 587,
+      hpMax: 587,
+      defense: 0,
+      combatItemQuantities: { "item.loot-v1-c008": 1 }
+    })]
+  ] as const)("transitions legacy cumulative %s focus through the living leader", (_, createState) => {
+    const state = createState();
+    const leader = state.participants[0]!;
+    const striker = state.participants[1]!;
+    expect(state.enemyFocusVersion).toBe(1);
+    delete state.enemyFocusVersion;
+    leader.threat = 7;
+    striker.threat = 93;
+    for (const enemy of state.enemies) {
+      const frozenEnemy = state.production?.canonicalV1.enemies.find(
+        (candidate) => candidate.enemyId === enemy.id
+      );
+      enemy.abilityCooldowns = Object.fromEntries((enemy.abilityIds ?? []).map((abilityId) => [
+        abilityId,
+        {
+          id: abilityId,
+          remainingTurns: Math.max(
+            1,
+            frozenEnemy?.abilities.find((ability) => ability.id === abilityId)
+              ?.cooldownOwnActions ?? 1
+          )
+        }
+      ]));
+    }
+
+    const legacy = parseGroupCombatStateStrict(JSON.parse(JSON.stringify(state)));
+    expect(getGroupCombatEnemyFocusTarget(legacy)?.characterId).toBe(leader.characterId);
+    const actions: GroupCombatAction[] = [
+      action(legacy, leader.rosterOrder, "guard", "self", leader.characterId),
+      {
+        ...action(legacy, striker.rosterOrder, "item", "self", striker.characterId),
+        payloadKey: "item.loot-v1-c008"
+      }
+    ];
+    const resolved = resolveGroupCombatTurn(legacy, actions);
+    const replayed = resolveGroupCombatTurn(structuredClone(legacy), actions);
+
+    expect(resolved.state).toEqual(replayed.state);
+    expect(resolved.state.enemyFocusVersion).toBe(1);
+    expect(resolved.state.contributions[0]!.damageTaken).toBeGreaterThan(0);
+    expect(resolved.state.contributions[1]!.damageTaken).toBe(0);
+    expect(resolved.state.participants[0]!.threat).toBe(0);
+    expect(resolved.state.participants[1]!.threat).toBe(13);
+    expect(
+      expandGroupCombatRecapSnapshot(resolved.state.recap.at(-1)?.snapshot, resolved.state)
+        ?.enemyFocusCharacterId
+    ).toBe(leader.characterId);
+    expect(getGroupCombatEnemyFocusTarget(resolved.state)?.characterId)
+      .toBe(striker.characterId);
+
+    const restarted = parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved.state)));
+    expect(getGroupCombatEnemyFocusTarget(restarted)?.characterId).toBe(striker.characterId);
+  });
+
+  it.each([
+    ["proof", () => proofState(2, { hp: 587, hpMax: 587 })],
+    ["production", () => leftPassageState(2, false, { hp: 587, hpMax: 587 })]
+  ] as const)("falls back by roster order after no-damage and tied-damage %s turns", (_, createState) => {
+    const noDamage = createState();
+    const noDamageResolved = resolveGroupCombatTurn(noDamage, noDamage.participants.map((actor) =>
+      action(noDamage, actor.rosterOrder, "guard", "self", actor.characterId)
+    ));
+    expect(noDamageResolved.state.participants.map((actor) => actor.threat)).toEqual([0, 0]);
+    expect(getGroupCombatEnemyFocusTarget(noDamageResolved.state)?.characterId)
+      .toBe(noDamageResolved.state.participants[0]!.characterId);
+
+    const tiedDamage = createState();
+    tiedDamage.participants.forEach((participant) => {
+      participant.combatItemQuantities["item.loot-v1-c008"] = 1;
+    });
+    tiedDamage.enemies.forEach((enemy) => {
+      enemy.hp = 93;
+      enemy.hpMax = 93;
+    });
+    const tiedResolved = resolveGroupCombatTurn(tiedDamage, tiedDamage.participants.map((actor) => ({
+      ...action(tiedDamage, actor.rosterOrder, "item", "self", actor.characterId),
+      payloadKey: "item.loot-v1-c008"
+    })));
+    expect(tiedResolved.state.participants.map((actor) => actor.threat)).toEqual([13, 13]);
+    expect(getGroupCombatEnemyFocusTarget(tiedResolved.state)?.characterId)
+      .toBe(tiedResolved.state.participants[0]!.characterId);
+  });
+
   it("wins at the turn cap when a counter kills the final enemy", () => {
     const state = proofState(2);
     state.turn = 25;
@@ -3423,6 +3570,15 @@ describe("group combat proof reducer", () => {
       state.participants[1]!.hp = 5;
       state.participants[1]!.defense = 100;
       state.participants[1]!.threat = 1_000;
+      state.enemies[0]!.name = "Троль останнього коментаря";
+      state.enemies[0]!.hp = 9;
+      state.enemies[0]!.hpMax = 30;
+      state.enemies[1]!.name = "Медузка звітности";
+      state.enemies[1]!.hp = 1;
+      state.enemies[1]!.hpMax = 30;
+      state.enemies[2]!.name = "Крамарик без здачі";
+      state.enemies[2]!.hp = 28;
+      state.enemies[2]!.hpMax = 30;
       const initialEnemyHp = state.enemies.map((enemy) => enemy.hp);
       const submitted = [
         {
@@ -3450,9 +3606,12 @@ describe("group combat proof reducer", () => {
       expect(resolved.state.enemies[0]!.hp).toBeLessThan(initialEnemyHp[0]!);
       expect(resolved.state.enemies[1]!.hp).toBe(initialEnemyHp[1]);
       expect(resolved.state.enemies[2]!.hp).toBe(initialEnemyHp[2]);
-      expect(recap).toMatch(new RegExp(`${abilityId === "skill.strict-blessing"
+      expect(recap).toContain(
+        `${state.enemies[0]!.name}: ${initialEnemyHp[0]! - resolved.state.enemies[0]!.hp} шкоди`
+      );
+      expect(recap).not.toMatch(new RegExp(`${abilityId === "skill.strict-blessing"
         ? "Суворе благословення"
-        : "Інструкція Асклепія"}.*\\d+ шкоди`));
+        : "Інструкція Асклепія"}: \\d+ шкоди;`));
       expect(actor.mana).toBe(10 - manaCost);
       expect(actionKey === "class"
         ? actor.cooldowns?.skill?.id
@@ -3758,6 +3917,58 @@ describe("group combat proof reducer", () => {
       remainingTurns
     ]) => ({ kind, targetKind, targetId, remainingTurns })))))
       .toThrow(GroupCombatStateValidationError);
+  });
+
+  it("accepts only roster-bounded historical enemy focus in recap snapshots", () => {
+    const base = leftPassageState(1);
+    const resolved = resolveGroupCombatTurn(base, [
+      action(base, 0, "guard", "self", base.participants[0]!.characterId)
+    ]).state;
+    const snapshot = resolved.recap.at(-1)!.snapshot;
+    if (!snapshot || !("p" in snapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+
+    expect(snapshot.f).toBe(0);
+    expect(parseGroupCombatStateStrict(resolved)).toEqual(resolved);
+
+    const invalidCompact = structuredClone(resolved);
+    const compactSnapshot = invalidCompact.recap.at(-1)!.snapshot;
+    if (!compactSnapshot || !("p" in compactSnapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+    compactSnapshot.f = 1;
+    expect(() => parseGroupCombatStateStrict(invalidCompact)).toThrow(
+      "Recap enemy focus is not canonical."
+    );
+
+    const invalidVerbose = structuredClone(resolved);
+    const verboseSnapshot = expandGroupCombatRecapSnapshot(
+      invalidVerbose.recap.at(-1)!.snapshot,
+      invalidVerbose
+    );
+    if (!verboseSnapshot) {
+      throw new Error("Expected verbose recap snapshot");
+    }
+    invalidVerbose.recap.at(-1)!.snapshot = {
+      ...verboseSnapshot,
+      enemyFocusCharacterId: "not-in-the-frozen-roster"
+    };
+    expect(() => parseGroupCombatStateStrict(invalidVerbose)).toThrow(
+      "Recap enemy focus is not canonical."
+    );
+  });
+
+  it("accepts legacy states without a focus marker and rejects unknown focus semantics", () => {
+    const legacy = proofState(2);
+    delete legacy.enemyFocusVersion;
+    legacy.participants[0]!.threat = 7;
+    legacy.participants[1]!.threat = 93;
+    expect(parseGroupCombatStateStrict(legacy)).toEqual(legacy);
+
+    const unknown = proofState(2);
+    (unknown as unknown as { enemyFocusVersion: number }).enemyFocusVersion = 2;
+    expect(() => parseGroupCombatStateStrict(unknown)).toThrow(GroupCombatStateValidationError);
   });
 
   it.each([

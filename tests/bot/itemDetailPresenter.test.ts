@@ -349,7 +349,7 @@ describe("item detail presenter", () => {
     expect(text).not.toContain("вдягнено — Тулуб");
   });
 
-  it("shows concrete blocked equipment requirements in item details", () => {
+  it("shows canonical requirement reasons without exposing a competing equip confirmation", () => {
     const text = presentOwnedItemDetail(
       itemSummary({
         itemId: "item.loot-v1-x022-plus-2",

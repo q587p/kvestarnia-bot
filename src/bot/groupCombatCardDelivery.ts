@@ -31,6 +31,7 @@ const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const LOSING_CANDIDATE_DELETE_ATTEMPTS = 3;
 const SUPERSEDED_CANDIDATE_TEXT = "♻️ Цю бойову картку замінено актуальною нижче.";
 const deliveryTails = new Map<string, Promise<void>>();
+const sessionDeliveryTails = new Map<string, Promise<void>>();
 
 type GroupCombatMessageReference = { chatId: bigint; messageId: number };
 type MessageOptions = NonNullable<Parameters<Api["editMessageText"]>[3]>;
@@ -66,80 +67,229 @@ export async function deliverGroupCombatCards(
   session: GroupCombatSessionRecord,
   options: {
     forceReplacementCharacterId?: string;
+    priorityCharacterId?: string;
+    deferRemaining?: boolean;
   } = {}
 ): Promise<number> {
-  const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
-  const transport = apiTransport(api);
-  const results = await Promise.allSettled(authoritative.participants.map(async (participant) => {
-    const actor = authoritative.state.participants.find(
-      (candidate) => candidate.characterId === participant.characterId
-    );
-    const participantFledThisTurn = Boolean(
-      actor?.fledAtTurn !== undefined &&
-      (
-        (authoritative.status === "active" &&
-          authoritative.state.turn === actor.fledAtTurn + 1) ||
-        (authoritative.status !== "active" &&
-          authoritative.state.turn === actor.fledAtTurn)
-      )
-    );
-    if (exitDeliveryStateOf(participant) !== "none") {
-      return deliverParticipantExitNavigation({
-        api,
-        service,
-        sessionId: authoritative.id,
-        participantCharacterId: participant.characterId,
-        transport
-      });
-    } else if (
-      authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      authoritative.status !== "active" &&
-      participant.settlementStatus !== "completed"
-    ) {
-      return false;
-    }
-    if (
-      authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
-      participantFledThisTurn &&
-      participant.deliveredRevision < authoritative.deliveryRevision
-    ) {
-      await api.sendMessage(
-        Number(participant.telegramUserId),
-        "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
-        {
-          reply_markup: buildMainMenuKeyboard({
-            ...(authoritative.state.production?.locationId
-              ? { locationId: authoritative.state.production.locationId }
+  const priorityCharacterId =
+    options.priorityCharacterId ?? options.forceReplacementCharacterId;
+  if (options.deferRemaining === true && priorityCharacterId !== undefined) {
+    const actorDelivery = deferredResult<number>();
+    void serializeGroupCombatSessionDelivery(session.id, async () => {
+      try {
+        const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
+        const ownedDeliveryRevision = authoritative.deliveryRevision;
+        const participants = orderedParticipants(authoritative, priorityCharacterId);
+        if (
+          participants[0]?.characterId !== priorityCharacterId ||
+          participants.length <= 1
+        ) {
+          const delivered = await deliverGroupCombatParticipants({
+            api,
+            service,
+            authoritative,
+            participants,
+            transport: apiTransport(api),
+            ...(options.forceReplacementCharacterId !== undefined
+              ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
               : {})
-          })
+          });
+          await finalizeGroupCombatDelivery(
+            service,
+            authoritative.id,
+            ownedDeliveryRevision
+          );
+          actorDelivery.resolve(delivered);
+          return;
         }
-      );
-    }
-    return deliverCanonicalGroupCombatParticipantCard({
-      service,
-      sessionId: authoritative.id,
-      participantCharacterId: participant.characterId,
-      transport,
-      now: () => serviceTime(service),
-      ...(options.forceReplacementCharacterId === participant.characterId ||
-        (authoritative.status === "active" && participantFledThisTurn) ||
-        (authoritative.status !== "active" &&
-          participant.deliveredRevision < authoritative.deliveryRevision)
-        ? { forceReplacement: true }
-        : {}),
-      ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
-    });
-  }));
-  const latest = await loadAuthoritativeSession(service, authoritative.id);
-  if (latest) {
-    await service.finalizeDeliveryAttempt(latest.id, latest.deliveryRevision).catch(() => false);
+        const delivered = await deliverGroupCombatParticipants({
+          api,
+          service,
+          authoritative,
+          participants: participants.slice(0, 1),
+          transport: apiTransport(api),
+          ...(options.forceReplacementCharacterId !== undefined
+            ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+            : {})
+        });
+        actorDelivery.resolve(delivered);
+        await deliverGroupCombatParticipants({
+          api,
+          service,
+          authoritative,
+          participants: participants.slice(1),
+          transport: apiTransport(api)
+        });
+        await finalizeGroupCombatDelivery(
+          service,
+          authoritative.id,
+          ownedDeliveryRevision
+        );
+      } catch (error) {
+        actorDelivery.reject(error);
+        throw error;
+      }
+    }).catch(() => undefined);
+    return actorDelivery.promise;
   }
-  return results.filter((result) =>
-    result.status === "fulfilled" &&
-    (typeof result.value === "boolean"
-      ? result.value
-      : isDelivered(result.value))
-  ).length;
+  return serializeGroupCombatSessionDelivery(session.id, async () => {
+    const authoritative = await loadAuthoritativeSession(service, session.id) ?? session;
+    const ownedDeliveryRevision = authoritative.deliveryRevision;
+    const delivered = await deliverGroupCombatParticipants({
+      api,
+      service,
+      authoritative,
+      participants: orderedParticipants(authoritative, priorityCharacterId),
+      transport: apiTransport(api),
+      ...(options.forceReplacementCharacterId !== undefined
+        ? { forceReplacementCharacterId: options.forceReplacementCharacterId }
+        : {})
+    });
+    await finalizeGroupCombatDelivery(
+      service,
+      authoritative.id,
+      ownedDeliveryRevision
+    );
+    return delivered;
+  });
+}
+
+function orderedParticipants(
+  session: GroupCombatSessionRecord,
+  priorityCharacterId: string | undefined
+): GroupCombatParticipantRecord[] {
+  return priorityCharacterId
+    ? [
+        ...session.participants.filter(
+          (participant) => participant.characterId === priorityCharacterId
+        ),
+        ...session.participants.filter(
+          (participant) => participant.characterId !== priorityCharacterId
+        )
+      ]
+    : session.participants;
+}
+
+async function deliverGroupCombatParticipants(input: {
+  api: Api;
+  service: GroupCombatService;
+  authoritative: GroupCombatSessionRecord;
+  participants: GroupCombatParticipantRecord[];
+  transport: GroupCombatDeliveryTransport;
+  forceReplacementCharacterId?: string;
+}): Promise<number> {
+  let delivered = 0;
+  for (const participant of input.participants) {
+    try {
+      const actor = input.authoritative.state.participants.find(
+        (candidate) => candidate.characterId === participant.characterId
+      );
+      const participantFledThisTurn = Boolean(
+        actor?.fledAtTurn !== undefined &&
+        (
+          (input.authoritative.status === "active" &&
+            input.authoritative.state.turn === actor.fledAtTurn + 1) ||
+          (input.authoritative.status !== "active" &&
+            input.authoritative.state.turn === actor.fledAtTurn)
+        )
+      );
+      let result: boolean | GroupCombatParticipantDeliveryResult;
+      if (exitDeliveryStateOf(participant) !== "none") {
+        result = await deliverParticipantExitNavigation({
+          api: input.api,
+          service: input.service,
+          sessionId: input.authoritative.id,
+          participantCharacterId: participant.characterId,
+          transport: input.transport
+        });
+      } else if (
+        input.authoritative.state.rulesVersion === GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+        input.authoritative.status !== "active" &&
+        participant.settlementStatus !== "completed"
+      ) {
+        result = false;
+      } else {
+        if (
+          input.authoritative.state.rulesVersion !== GROUP_COMBAT_PRODUCTION_RULES_VERSION &&
+          participantFledThisTurn &&
+          participant.deliveredRevision < input.authoritative.deliveryRevision
+        ) {
+          await input.api.sendMessage(
+            Number(participant.telegramUserId),
+            "🏃 Ви відступили з бою. Ватага продовжує бій без вас.",
+            {
+              reply_markup: buildMainMenuKeyboard({
+                ...(input.authoritative.state.production?.locationId
+                  ? { locationId: input.authoritative.state.production.locationId }
+                  : {})
+              })
+            }
+          );
+        }
+        result = await deliverCanonicalGroupCombatParticipantCard({
+          service: input.service,
+          sessionId: input.authoritative.id,
+          participantCharacterId: participant.characterId,
+          transport: input.transport,
+          now: () => serviceTime(input.service),
+          ...(input.forceReplacementCharacterId === participant.characterId ||
+            (input.authoritative.status === "active" && participantFledThisTurn) ||
+            (input.authoritative.status !== "active" &&
+              participant.deliveredRevision < input.authoritative.deliveryRevision)
+            ? { forceReplacement: true }
+            : {}),
+          ...(participantFledThisTurn ? { publishReplyKeyboard: false } : {})
+        });
+      }
+      if (typeof result === "boolean" ? result : isDelivered(result)) {
+        delivered += 1;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return delivered;
+}
+
+async function finalizeGroupCombatDelivery(
+  service: GroupCombatService,
+  sessionId: string,
+  deliveryRevision: number
+): Promise<void> {
+  await service.finalizeDeliveryAttempt(sessionId, deliveryRevision).catch(() => false);
+}
+
+function serializeGroupCombatSessionDelivery<T>(
+  sessionId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const previous = sessionDeliveryTails.get(sessionId) ?? Promise.resolve();
+  const result = previous.then(operation);
+  const tail = result.then(
+    () => undefined,
+    () => undefined
+  );
+  sessionDeliveryTails.set(sessionId, tail);
+  void tail.finally(() => {
+    if (sessionDeliveryTails.get(sessionId) === tail) {
+      sessionDeliveryTails.delete(sessionId);
+    }
+  });
+  return result;
+}
+
+function deferredResult<T>(): {
+  promise: Promise<T>;
+  resolve(value: T | PromiseLike<T>): void;
+  reject(reason?: unknown): void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 }
 
 export function deliverGroupCombatParticipantExitNavigation(
@@ -148,13 +298,15 @@ export function deliverGroupCombatParticipantExitNavigation(
   sessionId: string,
   participantCharacterId: string
 ): Promise<boolean> {
-  return deliverParticipantExitNavigation({
-    api,
-    service,
-    sessionId,
-    participantCharacterId,
-    transport: apiTransport(api)
-  });
+  return serializeGroupCombatSessionDelivery(sessionId, () =>
+    deliverParticipantExitNavigation({
+      api,
+      service,
+      sessionId,
+      participantCharacterId,
+      transport: apiTransport(api)
+    })
+  );
 }
 
 async function deliverParticipantExitNavigation(input: {
@@ -490,18 +642,20 @@ export function deliverGroupCombatParticipantCard(
     publishReplyKeyboard?: boolean;
   } = {}
 ): Promise<GroupCombatParticipantDeliveryResult> {
-  return deliverCanonicalGroupCombatParticipantCard({
-    service,
-    sessionId,
-    participantCharacterId,
-    transport: apiTransport(api),
-    now: () => serviceTime(service),
-    ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
-    ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
-    ...(options.publishReplyKeyboard === undefined
-      ? {}
-      : { publishReplyKeyboard: options.publishReplyKeyboard })
-  });
+  return serializeGroupCombatSessionDelivery(sessionId, () =>
+    deliverCanonicalGroupCombatParticipantCard({
+      service,
+      sessionId,
+      participantCharacterId,
+      transport: apiTransport(api),
+      now: () => serviceTime(service),
+      ...(options.forceRefresh === undefined ? {} : { forceRefresh: options.forceRefresh }),
+      ...(options.forceReplacement === undefined ? {} : { forceReplacement: options.forceReplacement }),
+      ...(options.publishReplyKeyboard === undefined
+        ? {}
+        : { publishReplyKeyboard: options.publishReplyKeyboard })
+    })
+  );
 }
 
 export async function deliverCanonicalGroupCombatParticipantCard(input: {
@@ -582,6 +736,15 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   for (let attempt = 0; attempt < MAX_CONVERGENCE_EDITS; attempt += 1) {
     const current = await loadAuthoritativeSession(input.service, input.sessionId);
     const participant = findParticipant(current, input.participantCharacterId);
+    if (
+      current &&
+      participant &&
+      current.status !== "active" &&
+      participant.exitDeliveryState === "completed" &&
+      input.forceReplacement === true
+    ) {
+      return replaceCompletedParticipantTerminalCard(input, current, participant);
+    }
     if (
       !current ||
       !participant ||
@@ -703,6 +866,84 @@ async function deliverCanonicalGroupCombatParticipantStateLocked(input: {
   return { state: "retryable-edit-failure", reference: null };
 }
 
+async function replaceCompletedParticipantTerminalCard(
+  input: {
+    service: GroupCombatService;
+    sessionId: string;
+    participantCharacterId: string;
+    transport: GroupCombatDeliveryTransport;
+    now?: () => Date;
+  },
+  current: GroupCombatSessionRecord,
+  participant: GroupCombatParticipantRecord
+): Promise<GroupCombatParticipantDeliveryResult> {
+  const previousReference = privateReference(participant);
+  const card = buildCard(current, participant.characterId, input.now?.() ?? new Date());
+  const messageId = await input.transport.sendInertMessage(
+    participant.telegramUserId,
+    card.text,
+    card.options
+  );
+  if (!messageId) {
+    return { state: "send-failed", reference: null };
+  }
+  const candidate = { chatId: participant.telegramUserId, messageId };
+  let replaced: boolean;
+  try {
+    replaced = await input.service.replaceCompletedParticipantTerminalCard({
+      sessionId: current.id,
+      telegramUserId: participant.telegramUserId,
+      expectedDeliveryRevision: current.deliveryRevision,
+      expectedReferenceVersion: participant.referenceVersion,
+      previousChatId: previousReference?.chatId ?? null,
+      previousMessageId: previousReference?.messageId ?? null,
+      terminalCard: candidate
+    });
+  } catch (error) {
+    const afterFailure = await loadAuthoritativeSession(input.service, input.sessionId);
+    const afterFailureParticipant = findParticipant(
+      afterFailure,
+      input.participantCharacterId
+    );
+    const afterFailureReference = afterFailureParticipant
+      ? privateReference(afterFailureParticipant)
+      : null;
+    if (afterFailureReference && sameReference(afterFailureReference, candidate)) {
+      replaced = true;
+    } else {
+      await retireLosingCandidate(input.transport, candidate);
+      throw error;
+    }
+  }
+  if (!replaced) {
+    await retireLosingCandidate(input.transport, candidate);
+    const winner = await loadAuthoritativeSession(input.service, input.sessionId);
+    const winnerParticipant = findParticipant(winner, input.participantCharacterId);
+    return {
+      state: "candidate-lost",
+      reference: winnerParticipant ? privateReference(winnerParticipant) : null
+    };
+  }
+
+  const fresh = await loadAuthoritativeSession(input.service, input.sessionId);
+  const freshParticipant = findParticipant(fresh, input.participantCharacterId);
+  const freshReference = freshParticipant ? privateReference(freshParticipant) : null;
+  if (!freshReference || !sameReference(freshReference, candidate)) {
+    await retireLosingCandidate(input.transport, candidate);
+    return { state: "candidate-lost", reference: freshReference };
+  }
+  if (previousReference && !sameReference(previousReference, candidate)) {
+    const previousState = await makePreviousReferenceInert(
+      input.transport,
+      previousReference
+    );
+    if (previousState === "inert") {
+      await input.transport.deleteMessage(previousReference).catch(() => undefined);
+    }
+  }
+  return { state: "activated", reference: candidate };
+}
+
 async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
   service: GroupCombatService;
   sessionId: string;
@@ -716,6 +957,15 @@ async function deliverCanonicalGroupCombatParticipantCardLocked(input: {
 }): Promise<GroupCombatParticipantDeliveryResult> {
   let current = await loadAuthoritativeSession(input.service, input.sessionId);
   let participant = findParticipant(current, input.participantCharacterId);
+  if (
+    current &&
+    participant &&
+    current.status !== "active" &&
+    participant.exitDeliveryState === "completed" &&
+    input.forceReplacement === true
+  ) {
+    return replaceCompletedParticipantTerminalCard(input, current, participant);
+  }
   if (
     !current ||
     !participant ||

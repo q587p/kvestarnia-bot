@@ -15,10 +15,13 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "./presenceService";
 import type { DailyActionRepository } from "../db/repositories/dailyActionRepository";
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
+import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
+
+export { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
 
 export const GROUP_COMBAT_TURN_MS = 23_000;
 export const LEFT_PASSAGE_RECRUITING_MS = 3 * 60_000;
-export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+export const GROUP_COMBAT_DELIVERY_RETRY_MS = 13_000;
 export interface GroupCombatResolvedDelivery {
   session: GroupCombatSessionRecord;
   settlementNotices: GroupCombatSettlementNotice[];
@@ -365,7 +368,10 @@ export class GroupCombatService {
     if (!this.options.enabled) {
       return [];
     }
-    const ids = await this.repository.listPendingDeliverySessionIds(limit);
+    const ids = await this.repository.listPendingDeliverySessionIds(
+      limit,
+      new Date(this.now().getTime() - GROUP_COMBAT_DELIVERY_RETRY_MS)
+    );
     const sessions: GroupCombatSessionRecord[] = [];
     for (const id of ids) {
       try {
@@ -389,6 +395,21 @@ export class GroupCombatService {
     publishedKeyboardFingerprint?: string | null;
   }): Promise<boolean> {
     return this.repository.compareAndSetParticipantCard(input);
+  }
+
+  replaceCompletedParticipantTerminalCard(input: {
+    sessionId: string;
+    telegramUserId: bigint;
+    expectedDeliveryRevision: number;
+    expectedReferenceVersion: number;
+    previousChatId: bigint | null;
+    previousMessageId: number | null;
+    terminalCard: {
+      chatId: bigint;
+      messageId: number;
+    };
+  }): Promise<boolean> {
+    return this.repository.replaceCompletedParticipantTerminalCard(input);
   }
 
   releaseParticipantCard(input: {

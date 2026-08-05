@@ -295,6 +295,16 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "not-found" };
       }
 
+      if (
+        (input.expectedOriginKind !== undefined && session.originKind !== input.expectedOriginKind) ||
+        (
+          input.expectedOriginLocationId !== undefined &&
+          session.originLocationId !== input.expectedOriginLocationId
+        )
+      ) {
+        return { state: "not-found" };
+      }
+
       const terminalState = getTerminalReplayState(session);
       if (terminalState) {
         return { state: terminalState, session: mapSession(session) };
@@ -325,7 +335,21 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         return { state: "no-character" };
       }
 
-      const ineligible = await getLeftPassageJoinIneligibleReason(tx, session, character, input.now)
+      const existing = session.participants.find((row) => row.characterId === character.id);
+      if (
+        existing?.status === "joined" &&
+        existing.remortCount === character._count.remorts
+      ) {
+        return { state: "already-joined", session: mapSession(session) };
+      }
+
+      const ineligible = await getLeftPassageJoinIneligibleReason(
+        tx,
+        session,
+        character,
+        input.now,
+        input.relocateToExpectedOrigin === true
+      )
         ?? await getBigBarrelJoinIneligibleReason(tx, session, character, input.now);
       if (ineligible) {
         return ineligible.reason === "loss-cooldown" ||
@@ -340,11 +364,6 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
               session: mapSession(session)
             }
           : { state: "ineligible", reason: ineligible.reason, session: mapSession(session) };
-      }
-
-      const existing = session.participants.find((row) => row.characterId === character.id);
-      if (existing?.status === "joined") {
-        return { state: "already-joined", session: mapSession(session) };
       }
 
       const joinedCount = await tx.partyParticipant.count({
@@ -382,6 +401,32 @@ export class PrismaPartySessionRepository implements PartySessionRepository {
         await terminalizeSessionTx(tx, liveMembership.id, "cancelled", input.now, this.raidChat);
         const cancelled = await findSessionById(tx, liveMembership.id);
         cancelledSoloSession = cancelled ? mapSession(cancelled) : null;
+      }
+
+      if (
+        input.relocateToExpectedOrigin === true &&
+        input.expectedOriginLocationId !== undefined &&
+        character.user.lastSeenLocationId !== input.expectedOriginLocationId
+      ) {
+        const relocated = await tx.user.updateMany({
+          where: {
+            telegramUserId,
+            lastSeenLocationId: character.user.lastSeenLocationId,
+            currentAdventureId: character.user.currentAdventureId,
+            currentRaidId: character.user.currentRaidId
+          },
+          data: {
+            lastSeenLocationId: input.expectedOriginLocationId,
+            lastActionAt: input.now
+          }
+        });
+        if (relocated.count !== 1) {
+          throw new PartyPreparationParticipantChangedError(
+            session.id,
+            character.id,
+            character._count.remorts
+          );
+        }
       }
 
       if (existing) {
@@ -2012,7 +2057,8 @@ async function getLeftPassageJoinIneligibleReason(
   tx: TxClient,
   session: PartySessionRow,
   character: CharacterRow,
-  now: Date
+  now: Date,
+  allowPhysicalRelocation = false
 ): Promise<
   | {
       reason: Exclude<
@@ -2030,14 +2076,21 @@ async function getLeftPassageJoinIneligibleReason(
   if (session.expiresAt <= now) {
     return { reason: "expired-invitation" };
   }
+  if (!session.originLocationId) {
+    return { reason: "wrong-location" };
+  }
   if (
-    !session.originLocationId ||
-    character.user.lastSeenLocationId !== session.originLocationId ||
-    (
-      character.user.currentAdventureId !== null &&
-      character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
-    ) ||
-    character.user.currentRaidId !== null
+    character.user.currentAdventureId !== null &&
+    character.user.currentAdventureId !== PRESENCE_ADVENTURE_SOLO_FIGHT
+  ) {
+    return { reason: "active-adventure" };
+  }
+  if (character.user.currentRaidId !== null) {
+    return { reason: "active-raid" };
+  }
+  if (
+    character.user.lastSeenLocationId !== session.originLocationId &&
+    !allowPhysicalRelocation
   ) {
     return { reason: "wrong-location" };
   }

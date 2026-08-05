@@ -2390,6 +2390,209 @@ describe("handlePartySessionCallback", () => {
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).not.toContain("Приєднатися");
   });
 
+  it("routes left-passage payloads through the origin-bound relocation join and canonical URL", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const joinLeftPassageByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "already-joined",
+      session
+    });
+    const { ctx, reply } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, { joinLeftPassageByTokenForTelegramUser }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      chatId: 93n
+    });
+    expect(String(reply.mock.calls[0]?.[0])).not.toContain("Щоби відгукнутися");
+    expect(JSON.stringify(reply.mock.calls[0]?.[1]))
+      .toContain(`nyz_left_attack_${session.inviteToken}`);
+  });
+
+  it("reopens a completed left-passage result after terminal exit delivery finished", async () => {
+    const session = {
+      ...makeSession("completed"),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
+    };
+    const groupSession = makeTerminalGroupCombatSession();
+    const viewer = groupSession.participants.find(
+      (participant) => participant.telegramUserId === 93n
+    )!;
+    viewer.exitDeliveryState = "completed";
+    viewer.settlementStatus = "completed";
+    viewer.referenceVersion = 3;
+    const findByToken = vi.fn().mockResolvedValue(groupSession);
+    const findById = vi.fn().mockResolvedValue(groupSession);
+    const replaceCompletedParticipantTerminalCard = vi.fn().mockImplementation((input: {
+      terminalCard: { chatId: bigint; messageId: number };
+    }) => {
+      viewer.chatId = input.terminalCard.chatId;
+      viewer.messageId = input.terminalCard.messageId;
+      viewer.referenceVersion += 1;
+      return Promise.resolve(true);
+    });
+    const joinLeftPassageByTokenForTelegramUser = vi.fn();
+    const { ctx, reply, sendMessage } = createCallbackContext(93);
+    sendMessage.mockResolvedValue({ message_id: 95 });
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, { joinLeftPassageByTokenForTelegramUser }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true,
+        groupCombat: {
+          areDevHelpersEnabled: () => false,
+          findByToken,
+          findById,
+          replaceCompletedParticipantTerminalCard
+        } as unknown as GroupCombatService
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(joinLeftPassageByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      93,
+      expect.stringContaining("Доказову сутичку виграно"),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(replaceCompletedParticipantTerminalCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: groupSession.id,
+        telegramUserId: 93n,
+        expectedDeliveryRevision: groupSession.deliveryRevision,
+        expectedReferenceVersion: 3,
+        previousChatId: 93n,
+        terminalCard: { chatId: 93n, messageId: 95 }
+      })
+    );
+    expect(viewer).toMatchObject({
+      exitDeliveryState: "completed",
+      settlementStatus: "completed",
+      messageId: 95,
+      referenceVersion: 4
+    });
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it.each(["active", "terminal"] as const)(
+    "rejects a left-passage payload at a noncanonical location before %s GroupCombat replay lookup",
+    async (groupState) => {
+      const session = {
+        ...makeSession("recruiting"),
+        originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+        originLocationId: "korchma.board"
+      };
+      const groupSession = groupState === "active"
+        ? makeActiveGroupCombatSession()
+        : makeTerminalGroupCombatSession();
+      const findByToken = vi.fn().mockResolvedValue(groupSession);
+      const joinLeftPassageByTokenForTelegramUser = vi.fn();
+      const joinByTokenForTelegramUser = vi.fn();
+      const { ctx, reply, apiEditMessageText, sendMessage } = createCallbackContext(93);
+
+      const handled = await sendPartyJoinFromStartPayload(
+        ctx,
+        serviceWithCanonicalSession(session, {
+          joinLeftPassageByTokenForTelegramUser,
+          joinByTokenForTelegramUser
+        }),
+        session.inviteToken,
+        {
+          botUsername: "kvestarnia_test_bot",
+          requireLeftPassage: true,
+          groupCombat: {
+            areDevHelpersEnabled: () => false,
+            findByToken
+          } as unknown as GroupCombatService
+        }
+      );
+
+      expect(handled).toBe(true);
+      expect(findByToken).not.toHaveBeenCalled();
+      expect(joinLeftPassageByTokenForTelegramUser).not.toHaveBeenCalled();
+      expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+      expect(reply).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(reply.mock.calls)).not.toContain(session.inviteToken);
+      expect(JSON.stringify(reply.mock.calls)).not.toContain(groupSession.id);
+      expect(apiEditMessageText).not.toHaveBeenCalled();
+      expect(sendMessage).not.toHaveBeenCalled();
+    }
+  );
+
+  it("delivers one active combat card when combat starts after a left-passage deep-link join", async () => {
+    const session = {
+      ...makeSession("recruiting"),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      participantCap: 3,
+      minimumParticipants: 1
+    };
+    const groupSession = makeActiveGroupCombatSession();
+    const joinLeftPassageByTokenForTelegramUser = vi.fn().mockResolvedValue({
+      state: "joined",
+      session
+    });
+    const joinByTokenForTelegramUser = vi.fn();
+    const findByToken = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(groupSession);
+    const findById = vi.fn().mockResolvedValue(groupSession);
+    const { ctx, reply, apiEditMessageText, sendMessage } = createCallbackContext(93);
+
+    const handled = await sendPartyJoinFromStartPayload(
+      ctx,
+      serviceWithCanonicalSession(session, {
+        joinLeftPassageByTokenForTelegramUser,
+        joinByTokenForTelegramUser
+      }),
+      session.inviteToken,
+      {
+        botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true,
+        groupCombat: {
+          areDevHelpersEnabled: () => false,
+          findByToken,
+          findById
+        } as unknown as GroupCombatService
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(findByToken).toHaveBeenCalledTimes(2);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      chatId: 93n
+    });
+    expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(apiEditMessageText).toHaveBeenCalledTimes(1);
+    expect(apiEditMessageText).toHaveBeenCalledWith(
+      93,
+      24,
+      expect.any(String),
+      expect.objectContaining({ parse_mode: "HTML" })
+    );
+    expect(reply).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("persists a deep-link join card and refreshes it with the leader card after protocol filing", async () => {
     const joinedSession = makeBigBarrelSessionWithMember();
     let storedSession = joinedSession;
@@ -3202,6 +3405,19 @@ function makeTerminalGroupCombatSession(): GroupCombatSessionRecord {
     })),
     queuedActions: []
   };
+}
+
+function makeActiveGroupCombatSession(): GroupCombatSessionRecord {
+  const session = makeTerminalGroupCombatSession();
+  session.status = "active";
+  session.state.status = "active";
+  session.state.enemies.forEach((enemy) => {
+    enemy.hp = enemy.hpMax;
+  });
+  session.result = null;
+  session.completedAt = null;
+  session.turnExpiresAt = new Date("2026-07-24T10:03:23.000Z");
+  return session;
 }
 
 function makeBossParticipant(characterId: string, name: string): PartyBossSessionRecord["state"]["participants"][number] {

@@ -3,6 +3,7 @@ import {
   createGroupCombatProofState,
   GROUP_COMBAT_COMPACT_EFFECT_KIND_BY_KIND
 } from "../../src/domain/groupCombat/groupCombat";
+import { parseGroupCombatCallbackData } from "../../src/bot/callbacks/groupCombatCallbackData";
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import {
   buildGroupCombatAbilityTargetKeyboard,
@@ -133,16 +134,13 @@ describe("group combat presenter", () => {
     ).flat();
 
     expect(rows.flat().map((button) => button.text)).toEqual([
-      "🗡️ Комірний 1",
-      "🗡️ Комірний 2",
-      "🗡️ Комірний 3",
+      "🗡️ Вдарити",
       "🛡 Захищатися",
       "🏃 Відступити",
       "🔎 Оновити"
     ]);
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
-      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
-      ["🗡️ Комірний 3", "🛡 Захищатися"],
+      ["🗡️ Вдарити", "🛡 Захищатися"],
       ["🏃 Відступити", "🔎 Оновити"]
     ]);
     expect(replyLabels).toEqual([
@@ -174,6 +172,97 @@ describe("group combat presenter", () => {
     expect(replyKeyboardTexts(
       buildGroupCombatReplyKeyboard(session, viewer.characterId).keyboard
     ).at(-1)).toEqual(["🏃 Відступити", "🔎 Оновити"]);
+
+    const actionButtons = buildGroupCombatKeyboard(session, viewer.characterId)
+      .inline_keyboard.flat()
+      .map((button) => ({
+        text: button.text,
+        callbackData: "callback_data" in button ? button.callback_data : undefined
+      }));
+    expect(parseGroupCombatCallbackData(
+      actionButtons.find((button) => button.text === "🗡️ Вдарити")?.callbackData
+    )).toMatchObject({ ok: true, value: { type: "action", action: "attack", targetIndex: 0 } });
+    expect(parseGroupCombatCallbackData(
+      actionButtons.find((button) => button.text === "🪓 Силовий замах")?.callbackData
+    )).toMatchObject({ ok: true, value: { type: "action", action: "class", targetIndex: 0 } });
+  });
+
+  it("marks the current enemy focus on participant rows like the raid card", () => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const striker = session.state.participants[1]!;
+
+    expect(presentGroupCombat(session, leader.characterId, NOW))
+      .toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
+
+    striker.threat = 13;
+    const shifted = presentGroupCombat(session, leader.characterId, NOW);
+    expect(shifted).toContain(`${striker.name}: ${striker.hp}/${striker.hpMax} · мана ${striker.mana}/${striker.manaMax} ← 🎯 ціль ворогів`);
+    expect(shifted).not.toContain(`${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`);
+  });
+
+  it.each([
+    ["group-combat.v2", "group-combat.proof.v1"],
+    ["group-combat.v3", "nyz-left-passage-party.v1"]
+  ] as const)("marks the living leader for persisted %s cards without focus semantics", (
+    rulesVersion,
+    encounterKey
+  ) => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const legacyTopThreat = session.state.participants[1]!;
+    session.state.rulesVersion = rulesVersion;
+    session.state.encounterKey = encounterKey;
+    delete session.state.enemyFocusVersion;
+    leader.threat = 7;
+    legacyTopThreat.threat = 93;
+
+    const text = presentGroupCombat(session, leader.characterId, NOW);
+    expect(text).toContain(
+      `${leader.name}: ${leader.hp}/${leader.hpMax} · мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`
+    );
+    expect(text).not.toContain(
+      `${legacyTopThreat.name}: ${legacyTopThreat.hp}/${legacyTopThreat.hpMax} · мана ${legacyTopThreat.mana}/${legacyTopThreat.manaMax} ← 🎯 ціль ворогів`
+    );
+  });
+
+  it("marks the stored enemy focus on compact journal snapshots without inferring legacy focus", () => {
+    const session = createSession(2);
+    const leader = session.state.participants[0]!;
+    const striker = session.state.participants[1]!;
+    session.state.rulesVersion = "group-combat.v3";
+    session.state.encounterKey = "nyz-left-passage-party.v1";
+    session.state.recap = [{
+      turn: 1,
+      lines: ["Вороги відповідають ватазі."],
+      snapshot: {
+        f: 1,
+        p: session.state.participants.map((participant) => [
+          participant.hp,
+          participant.mana,
+          null,
+          null,
+          null,
+          null
+        ]),
+        e: session.state.enemies.map((enemy) => [enemy.hp, null, null])
+      }
+    }];
+
+    const stored = presentGroupCombatJournal(session, 0);
+    expect(stored).toContain(
+      `❤️ ${striker.name} · рівень ${striker.level} — ${striker.hp}/${striker.hpMax} · 🔮 мана ${striker.mana}/${striker.manaMax} ← 🎯 ціль ворогів`
+    );
+    expect(stored).not.toContain(
+      `❤️ ${leader.name} · рівень ${leader.level} — ${leader.hp}/${leader.hpMax} · 🔮 мана ${leader.mana}/${leader.manaMax} ← 🎯 ціль ворогів`
+    );
+
+    const legacySnapshot = session.state.recap[0]!.snapshot;
+    if (!legacySnapshot || !("p" in legacySnapshot)) {
+      throw new Error("Expected compact recap snapshot");
+    }
+    delete legacySnapshot.f;
+    expect(presentGroupCombatJournal(session, 0)).not.toContain("🎯 ціль ворогів");
   });
 
   it("packs multi-enemy guard and abilities into paired rows", () => {
@@ -184,9 +273,8 @@ describe("group combat presenter", () => {
 
     expect(buildGroupCombatKeyboard(session, viewer.characterId).inline_keyboard
       .map((row) => row.map((button) => button.text))).toEqual([
-      ["🗡️ Комірний 1", "🗡️ Комірний 2"],
-      ["🛡 Захищатися", "🔥 Гаряче закляття"],
-      ["🎯 Ображена точність → Комірний 1", "🎯 Ображена точність → Комірний 2"],
+      ["🗡️ Вдарити", "🛡 Захищатися"],
+      ["🔥 Гаряче закляття", "🎯 Ображена точність"],
       ["🏃 Відступити", "🔎 Оновити"]
     ]);
   });
@@ -209,7 +297,7 @@ describe("group combat presenter", () => {
       viewerCharacterId,
       { action: "class", label: "🪓 Силовий замах", optionIndex: 0 }
     ).inline_keyboard.flat().map((button) => button.text);
-    expect(targetLabels.filter((label) => label.startsWith("🪓 Силовий замах"))).toHaveLength(2);
+    expect(targetLabels).toEqual(["Комірний 1", "Комірний 2", "↩️ До дій"]);
     expect(targetLabels.some((label) => label.includes("Низький центр ваги"))).toBe(false);
   });
 
@@ -286,7 +374,7 @@ describe("group combat presenter", () => {
     expect(text).not.toContain("Потім Корчма поставить вас у захист");
   });
 
-  it("uses one plain attack button when only one monster remains", () => {
+  it("still asks for the explicit attack target when only one monster remains", () => {
     const session = createSession(2);
     session.state.enemies[1]!.hp = 0;
 
@@ -296,8 +384,7 @@ describe("group combat presenter", () => {
       "attack"
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("🗡️ Вдарити");
-    expect(labels).not.toContain(`🗡️ ${session.state.enemies[0]!.name}`);
+    expect(labels).toEqual(["Комірний", "↩️ До дій"]);
   });
 
   it("uses distinct ordinary-fight short monster names on the live card and target buttons", () => {
@@ -324,9 +411,9 @@ describe("group combat presenter", () => {
     expect(text).toContain("Архівний відповідає Пригодник 1: 3 шкоди.");
     expect(text).toContain("Капустяний відповідає Пригодник 1: 3 шкоди.");
     expect(labels).toEqual([
-      "🗡️ Архівний",
-      "🗡️ Капустяний",
-      "↩️ До бою"
+      "Архівний",
+      "Капустяний",
+      "↩️ До дій"
     ]);
   });
 
@@ -345,7 +432,7 @@ describe("group combat presenter", () => {
     expect(labels).not.toContain("📊 Статистика");
   });
 
-  it("offers authored class support without restoring generic ally support", () => {
+  it("keeps an authored ally/self picker target-only and marks self unambiguously", () => {
     const session = createSession(2);
     session.state.participants[0]!.classId = "class.priest";
     session.state.participants[1]!.hp -= 1;
@@ -355,9 +442,32 @@ describe("group combat presenter", () => {
       "abilities"
     ).inline_keyboard.flat().map((button) => button.text);
 
-    expect(labels).toContain("✨ Суворе благословення");
+    expect(labels).toContain("Пригодник 1 (ви)");
+    expect(labels).not.toContain("✨ Суворе благословення");
     expect(labels).not.toContain("🫶 Пригодник 2");
-    expect(labels).toContain("↩️ До бою");
+    expect(labels).toContain("↩️ До дій");
+  });
+
+  it("keeps duplicate ally names distinct in a target-only gear picker", () => {
+    const session = createSession(3);
+    const viewer = session.state.participants[0]!;
+    viewer.level = 12;
+    viewer.gearAbilityIds = ["gear.siege-filling"];
+    for (const participant of session.state.participants) {
+      participant.name = "Тезка";
+      participant.hp -= 1;
+    }
+
+    const labels = buildGroupCombatAbilityTargetKeyboard(session, viewer.characterId, {
+      action: "gear",
+      label: "🥟 Облога начинки",
+      optionIndex: 0
+    }).inline_keyboard.flat().map((button) => button.text);
+
+    expect(labels).toContain("Тезка (ви)");
+    expect(labels).toContain("Тезка · 2");
+    expect(labels).toContain("Тезка · 3");
+    expect(new Set(labels).size).toBe(labels.length);
   });
 
   it("retains the frozen cosmetic title in the combat presentation", () => {
@@ -717,6 +827,7 @@ describe("group combat presenter", () => {
         lines: ["Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди."],
         monsterBarkIds: ["bark.deadline-spider.engage-party"],
         snapshot: {
+          enemyFocusCharacterId: session.state.participants[1]!.characterId,
           participants: session.state.participants.map((participant, index) => ({
             hp: participant.hp - index,
             mana: participant.mana,
@@ -761,6 +872,7 @@ describe("group combat presenter", () => {
     expect(text).toContain("Пригодник 2 атакує «Комірний Шурхіт 1»: 3 шкоди.");
     expect(text).toContain("❤️ життя");
     expect(text).toContain("🔮 мана");
+    expect(text).toContain("← 🎯 ціль ворогів");
     expect(text).not.toContain("🔷 мана");
     expect(text).toContain("🗣️ Монстр:");
     expect(text).toContain("Усім терміново? Чудово, всіх і заплутаю.");
@@ -806,6 +918,7 @@ describe("group combat presenter", () => {
       guardedTurns: 1,
       specialActions: 2
     };
+    session.state.enemyContributions![0]!.guardPrevented = 4;
     const result = presentGroupCombat(session, session.participants[0]!.characterId, NOW);
     const statistics = presentGroupCombatStatistics(session);
     const labels = buildGroupCombatStatisticsKeyboard(session)
@@ -821,7 +934,7 @@ describe("group combat presenter", () => {
     expect(statistics).toContain("<b>Пригодники:</b>");
     expect(statistics).toContain("⚔️ 13, ❤️ 7, 🛡️ 5, 🌀 3, 💥 11, ✅ 4, ✨ 2, 🧱 1");
     expect(statistics).toContain("<b>Монстри:</b>");
-    expect(statistics).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 0, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
+    expect(statistics).toContain("Комірний Шурхіт 1: ⚔️ 0, ❤️ 0, 🛡️ 4, 🌀 0, 💥 0, ✅ 0, ✨ 0, 🧱 0");
     expect(labels).toEqual(["↩️ До результатів"]);
     expect(Buffer.byteLength(statistics, "utf8")).toBeLessThanOrEqual(4_096);
   });

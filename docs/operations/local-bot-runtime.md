@@ -42,7 +42,11 @@ After this one-time switch, ordinary Codex work no longer needs to stop the manu
 run-local-bot.cmd
 ```
 
-This synchronizes the current source once, prepares the isolated dependencies and database, then runs `npm run dev` inside the runtime snapshot.
+This synchronizes the current source once, prepares the isolated dependencies and database, builds the snapshot, then runs the compiled bot as the directly supervised child process. The manager restarts an unexpected exit up to three consecutive times with bounded backoff.
+
+This direct-supervision and rotating-log contract shipped in PR `#189`. It
+supersedes the old wrapper-watchdog/debug-log backlog; combat-state diagnostic
+instrumentation remains deliberately deferred and must preserve privacy.
 
 ### Promote current repository changes and restart
 
@@ -58,7 +62,7 @@ Use this at a deliberate testing checkpoint. It stops only the managed isolated 
 status-local-bot.cmd
 ```
 
-The status reports the runtime path, managed PID, package version, and whether source files changed after the bot started.
+The status prints the runtime state before the source comparison, then reports the manager PID, the actual bot PID, package version, restart count, retained log path, and whether source files changed after the bot started. It reports `degraded` instead of `running` if the manager exists but the bot child is missing. After a terminal failure it also reports the last exit and whether automatic restarts were exhausted.
 
 On Windows, source-root ownership is case-insensitive: `D:\repo` and `d:\repo` identify the same managed runtime. `run`/`refresh` must therefore refuse a duplicate manager even when separate shells spell the drive letter differently.
 
@@ -90,13 +94,21 @@ A restart is still required to test a new snapshot. Isolation makes that restart
 
 The manager copies the repository snapshot broadly enough to include future runtime assets, while excluding development-only or unsafe trees such as:
 
-- `.git/`, `.agents/`, `.codex/`, `.github/`;
+- `.git/`, `.agents/`, `.cache/`, `.codex/`, `.codex_tmp/`, `.codex-remote-attachments/`, `.github/`;
 - `docs/`, `tests/`;
 - `node_modules/`, `dist/`, `build/`, `coverage/`;
 - Prisma runtime databases and backups;
 - `.env*` files other than `.env.example`.
 
 It then writes a sanitized runtime copy of `.env`. Deleted source files are also removed from the next snapshot. Runtime-only files such as dependencies, generated Prisma output, database files, backups, deployment markers, and manager metadata are preserved.
+
+## Failure diagnostics and recovery
+
+The active manager records the real compiled bot PID instead of an `npm` or `ts-node-dev` wrapper PID. Fatal database readiness or Telegram polling failures close the runtime so the manager can observe the exit and restart it. Rapid repeated failures stop after three restart attempts instead of looping forever.
+
+`status-local-bot.cmd` always prints the retained log location. The default file is `.kvestarnia-runtime.log` inside the external runtime root; when it reaches 5 MiB, the next launch rotates it to `.kvestarnia-runtime.log.previous`. Runtime metadata never contains the bot token or database contents.
+
+If Telegram stops responding, run `status-local-bot.cmd` first. A `restarting` state is self-healing; `not running` plus `Automatic restarts exhausted: yes` requires inspecting the retained log before a deliberate `refresh-local-bot.cmd`.
 
 ## Database behavior
 

@@ -24,6 +24,7 @@ Do:
 8. For substantial player-facing Ukrainian copy, use `$ukrainian-rpg-content` instead of pasting style rules.
 9. Add or update tests for runtime behavior.
 9a. When adding an environment variable, update `.env.example` and the existing untracked local `.env` together without overwriting secrets or staging `.env`. Keep the example deploy-safe; set the local value needed for the requested manual QA flow.
+9b. When the user asks to prepare local/manual QA, write every required non-secret value into the existing untracked root `.env`, including existing feature flags. Preserve secrets and unrelated values, never stage `.env`, leave deploy-safe defaults unchanged, and explicitly say whether the isolated runtime still needs `refresh-local-bot.cmd`.
 10. Run targeted tests while editing, then wait until relevant source, tests, schema, config, package and lockfile bytes are stable before the final broad gate.
 11. Give named final phases at least a 600-second command budget, or run them in one yielded session and poll that same session until its real exit code is known. Never start a duplicate full gate because output was compacted while the original process is still alive.
 12. Treat a confirmed exit code `0` as valid until a relevant source, test, schema, config, package or lockfile changes. An output-channel `EPIPE`, killed process, timeout, missing final status or malformed result is unproven, never a pass; do not globally raise test-level timeouts to work around command transport.
