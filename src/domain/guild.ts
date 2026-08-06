@@ -7,6 +7,12 @@ export const GUILD_DESCRIPTION_MAX_GRAPHEMES = 93;
 export const GUILD_CREST_CATALOG = [
   "🛡️", "⚔️", "🏰", "🐉", "🦉", "🦊", "🐺", "🐸", "🦄", "🔥", "🌙", "🍄", "🥨"
 ] as const;
+export const GUILD_CUSTOM_CREST_MARKER = "🖼️";
+export const GUILD_CREST_MIN_DIMENSION = 64;
+export const GUILD_CREST_MAX_DIMENSION = 2048;
+export const GUILD_CREST_MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+export type GuildCrestKind = "catalog" | "custom";
 
 export type GuildRole = "leader" | "officer" | "member";
 
@@ -98,6 +104,48 @@ export function validateGuildProfile(input: { crest: string; description: string
     return { ok: false, reason: "description-unsafe" };
   }
   return { ok: true, crest, description };
+}
+
+export function isValidGuildCrestMediaMetadata(input: {
+  fileId: string;
+  fileUniqueId: string;
+  width: number;
+  height: number;
+  fileSize: number | null;
+}): boolean {
+  return input.fileId.length > 0 && input.fileUniqueId.length > 0 &&
+    Number.isInteger(input.width) && Number.isInteger(input.height) &&
+    input.width >= GUILD_CREST_MIN_DIMENSION && input.height >= GUILD_CREST_MIN_DIMENSION &&
+    input.width <= GUILD_CREST_MAX_DIMENSION && input.height <= GUILD_CREST_MAX_DIMENSION &&
+    (input.fileSize === null || (
+      Number.isInteger(input.fileSize) && input.fileSize >= 0 && input.fileSize <= GUILD_CREST_MAX_FILE_SIZE
+    ));
+}
+
+export function validateGuildDescription(descriptionInput: string):
+  | { ok: true; description: string }
+  | { ok: false; reason: "description-length" | "description-unsafe" } {
+  const description = collapseWhitespace(descriptionInput.normalize("NFKC"));
+  if (graphemeLength(description) > GUILD_DESCRIPTION_MAX_GRAPHEMES) {
+    return { ok: false, reason: "description-length" };
+  }
+  if (forbiddenText.test(description)) {
+    return { ok: false, reason: "description-unsafe" };
+  }
+  return { ok: true, description };
+}
+
+export function validateGuildName(displayNameInput: string):
+  | { ok: true; displayName: string; normalizedName: string }
+  | { ok: false; reason: "name-length" | "name-reserved" | "name-unsafe" } {
+  const result = validateGuildIdentity({ displayName: displayNameInput, crest: GUILD_CREST_CATALOG[0], description: "" });
+  if (result.ok) {
+    return { ok: true, displayName: result.displayName, normalizedName: result.normalizedName };
+  }
+  if (result.reason === "name-length" || result.reason === "name-reserved" || result.reason === "name-unsafe") {
+    return { ok: false, reason: result.reason };
+  }
+  return { ok: false, reason: "name-unsafe" };
 }
 
 export function normalizeGuildMemberLookup(value: string): string {

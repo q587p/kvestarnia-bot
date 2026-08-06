@@ -1,4 +1,4 @@
-import type { GuildRole } from "../../domain/guild";
+import type { GuildCrestKind, GuildRole } from "../../domain/guild";
 
 export type GuildStatus = "forming" | "active";
 
@@ -24,6 +24,8 @@ export interface GuildViewRecord {
   displayName: string;
   normalizedName: string;
   crest: string;
+  crestKind?: GuildCrestKind;
+  hasCustomCrest?: boolean;
   description: string;
   status: GuildStatus;
   charterExpiresAt: Date;
@@ -53,6 +55,8 @@ export interface GuildCreationIntentRecord {
   displayName: string;
   normalizedName: string;
   crest: string;
+  crestKind?: GuildCrestKind;
+  hasCustomCrest?: boolean;
   description: string;
   goldCost: number;
   availableGold: number;
@@ -60,12 +64,12 @@ export interface GuildCreationIntentRecord {
 }
 
 export type GuildCreationPreviewRepositoryResult =
-  | { state: "no-character" | "already-member" | "ineligible" }
+  | { state: "no-character" | "already-member" | "ineligible" | "upload-unavailable" }
   | { state: "founder-cooldown"; availableAt: Date; now: Date }
   | { state: "ready"; intent: GuildCreationIntentRecord };
 
 export type GuildCreationConfirmRepositoryResult =
-  | { state: "no-character" | "not-found" | "expired" | "stale-life" | "name-taken" | "already-member" | "ineligible" }
+  | { state: "no-character" | "not-found" | "expired" | "stale-life" | "name-taken" | "crest-taken" | "already-member" | "ineligible" }
   | { state: "founder-cooldown"; availableAt: Date; now: Date }
   | { state: "insufficient-gold"; required: number; available: number }
   | { state: "created" | "replayed"; guild: GuildViewRecord; characterId: string };
@@ -86,6 +90,7 @@ export interface GuildPublicDirectoryEntry {
   id: string;
   displayName: string;
   crest: string;
+  hasCustomCrest?: boolean;
   memberCount: number;
 }
 
@@ -153,7 +158,8 @@ export type GuildMemberMutationRepositoryResult =
         | "invalid-target"
         | "officer-cap"
         | "leader-needs-successor"
-        | "guild-not-sole";
+        | "guild-not-sole"
+        | "crest-taken";
     }
   | { state: "updated" | "transfer-offered"; guild: GuildViewRecord }
   | { state: "left" | "deleted"; guildName: string };
@@ -201,12 +207,62 @@ export interface GuildFunnelCounters {
   partyInvites: number;
 }
 
+export interface GuildCrestMediaInput {
+  fileId: string;
+  fileUniqueId: string;
+  width: number;
+  height: number;
+  fileSize: number | null;
+}
+
+export type GuildCrestMediaRecord = GuildCrestMediaInput;
+
+export type GuildCrestPickerRepositoryResult =
+  | { state: "no-character" | "already-member" | "ineligible" | "not-member" | "forbidden" | "stale" }
+  | { state: "founder-cooldown"; availableAt: Date; now: Date }
+  | {
+      state: "ready";
+      availableCrests: string[];
+      currentCrest: string | null;
+      currentHasCustomCrest: boolean;
+      guildVersion: number | null;
+    };
+
+export type GuildCrestUploadPurpose = "creation" | "profile";
+
+export type GuildCrestUploadDraftRepositoryResult =
+  | { state: "no-character" | "already-member" | "ineligible" | "not-member" | "forbidden" | "stale" | "not-found" | "expired" | "invalid-media" }
+  | { state: "founder-cooldown"; availableAt: Date; now: Date }
+  | {
+      state: "ready" | "replayed";
+      token: string;
+      purpose: GuildCrestUploadPurpose;
+      intentToken?: string;
+      expectedGuildVersion?: number;
+    };
+
+export type GuildCrestMediaRepositoryResult =
+  | { state: "no-character" | "not-found" | "wrong-location" | "unavailable" | "forbidden" }
+  | { state: "ready"; media: GuildCrestMediaRecord };
+
 export interface GuildRepository {
   createIntentForTelegramUser(telegramUserId: bigint, input: {
     token: string;
     displayName: string;
     normalizedName: string;
     crest: string;
+    crestKind?: GuildCrestKind;
+    crestMedia?: GuildCrestMediaInput;
+    description: string;
+    goldCost: number;
+    now: Date;
+    expiresAt: Date;
+  }): Promise<GuildCreationPreviewRepositoryResult>;
+  createCustomIntentForTelegramUser(telegramUserId: bigint, input: {
+    token: string;
+    uploadToken: string;
+    displayName: string;
+    normalizedName: string;
     description: string;
     goldCost: number;
     now: Date;
@@ -229,6 +285,27 @@ export interface GuildRepository {
   declineInviteForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildInviteRespondRepositoryResult>;
   cancelInviteForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildInviteRespondRepositoryResult>;
   updateProfileForTelegramUser(telegramUserId: bigint, input: { crest: string; description: string; expectedVersion: number; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
+  updateCustomProfileForTelegramUser(telegramUserId: bigint, input: { uploadToken: string; description: string; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
+  getCrestPickerForTelegramUser(telegramUserId: bigint, purpose: GuildCrestUploadPurpose, now: Date): Promise<GuildCrestPickerRepositoryResult>;
+  beginCrestUploadForTelegramUser(telegramUserId: bigint, input: {
+    token: string;
+    purpose: GuildCrestUploadPurpose;
+    expectedGuildVersion?: number;
+    now: Date;
+    expiresAt: Date;
+  }): Promise<GuildCrestUploadDraftRepositoryResult>;
+  storeCrestUploadForTelegramUser(telegramUserId: bigint, input: {
+    token: string;
+    media: GuildCrestMediaInput;
+    now: Date;
+  }): Promise<GuildCrestUploadDraftRepositoryResult>;
+  getCreationCrestMediaForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildCrestMediaRepositoryResult>;
+  getGuildCrestMediaForTelegramUser(telegramUserId: bigint, input: {
+    guildId: string;
+    publicAccess: boolean;
+    expectedLocationId?: string;
+    now: Date;
+  }): Promise<GuildCrestMediaRepositoryResult>;
   setMemberRoleForTelegramUser(telegramUserId: bigint, memberId: string, role: Exclude<GuildRole, "leader">, expectedVersion: number, now: Date): Promise<GuildMemberMutationRepositoryResult>;
   offerLeadershipForTelegramUser(telegramUserId: bigint, memberId: string, expectedVersion: number, now: Date): Promise<GuildMemberMutationRepositoryResult>;
   acceptLeadershipForTelegramUser(telegramUserId: bigint, expectedVersion: number, now: Date): Promise<GuildMemberMutationRepositoryResult>;

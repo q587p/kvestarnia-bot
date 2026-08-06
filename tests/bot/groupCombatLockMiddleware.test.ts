@@ -9,6 +9,7 @@ import { GUILD_INVITE_PROMPT_HEADING } from "../../src/bot/guildRoute";
 import {
   GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
   GUILD_CREATION_NAME_PROMPT_HEADING,
+  GUILD_CREST_UPLOAD_PROMPT_HEADING,
   GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING
 } from "../../src/bot/presenters/guildPresenter";
 
@@ -16,6 +17,7 @@ const GUILD_FORCE_REPLY_PROMPTS = [
   ["creation name", `${GUILD_CREATION_NAME_PROMPT_HEADING} · 🐈`],
   ["creation description", `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🐈`],
   ["profile description", `${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · 🐈`],
+  ["custom crest photo", `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`],
   ["invitation target code", GUILD_INVITE_PROMPT_HEADING]
 ] as const;
 
@@ -294,6 +296,52 @@ describe("group-combat lock middleware", () => {
 
     expect(downstream).toHaveBeenCalledOnce();
     expect(calls.sends).toHaveLength(0);
+  });
+
+  it("blocks an exact custom-crest photo reply before pending-raid or combat-side mutations", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue(pendingRaidResult());
+    const findLease = vi.fn();
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+      combatLeases: { findActiveForTelegramUser: findLease }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyPhotoUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`
+    ));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(findLease).not.toHaveBeenCalled();
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends[0]?.text).toContain("🍺 Ви зараз у рейді.");
+  });
+
+  it("classifies a custom-crest photo reply as guild work when combat became active after prompt publication", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const findLease = vi.fn().mockResolvedValue({
+      characterId: "character-1",
+      kind: "future-combat",
+      referenceId: "custom-crest-lock"
+    });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" }) },
+      combatLeases: { findActiveForTelegramUser: findLease }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyPhotoUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · p · customUploadToken13`
+    ));
+
+    expect(findLease).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends[0]?.text).toContain("не збігається");
   });
 
   it.each([
@@ -776,6 +824,18 @@ function forceReplyUpdate(prompt: string, text = "Відповідь", promptMes
         from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
         text: `${prompt}\n\nОпублікована раніше підказка.`
       }
+    }
+  };
+}
+
+function forceReplyPhotoUpdate(prompt: string, promptMessageId = 586) {
+  const update = forceReplyUpdate(prompt, "", promptMessageId);
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      text: undefined,
+      photo: [{ file_id: "secret-file", file_unique_id: "secret-unique", width: 512, height: 512 }]
     }
   };
 }

@@ -15,7 +15,8 @@ describe("guild passage-search routing guard", () => {
     ["Nest read", callbackUpdate("v1:g:no"), "edit"],
     ["invite mutation", callbackUpdate("v1:g:a:inviteABC12"), "edit"],
     ["private deep link", textUpdate("/start guild_inviteABC12"), "reply"],
-    ["guided invite reply", promptReplyUpdate(), "reply"]
+    ["guided invite reply", promptReplyUpdate(), "reply"],
+    ["custom crest photo reply", crestPhotoPromptReplyUpdate(), "reply"]
   ] as const)("blocks the %s before every guild and presence side effect", async (_name, update, mode) => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
@@ -263,6 +264,25 @@ function promptReplyUpdate() {
         chat: { id: 1001, type: "private" as const },
         from: { id: 123, is_bot: true, first_name: "Квестарня" },
         text: "📨 Запрошення до ґільдії · крок 1 із 2\n\nВставте код."
+      }
+    }
+  };
+}
+
+function crestPhotoPromptReplyUpdate() {
+  const update = textUpdate("");
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      text: undefined,
+      photo: [{ file_id: "secret-file", file_unique_id: "secret-unique", width: 512, height: 512 }],
+      reply_to_message: {
+        message_id: 12,
+        date: 1,
+        chat: { id: 1001, type: "private" as const },
+        from: { id: 123, is_bot: true, first_name: "Квестарня" },
+        text: "🖼️ Герб ґільдії · c · customUploadToken13\n\nНадішліть фото."
       }
     }
   };

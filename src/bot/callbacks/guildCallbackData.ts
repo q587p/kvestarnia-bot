@@ -6,13 +6,16 @@ export type GuildCallback =
   | { type: "nest-open" | "nest-rules" }
   | { type: "directory-open"; page: number }
   | { type: "directory-profile"; guildId: string; page: number }
-  | { type: "create-open" | "invite-code" | "invite-start" }
+  | { type: "create-open" | "create-upload" | "invite-code" | "invite-start" }
   | { type: "create-crest"; crestIndex: number }
   | { type: "profile-open"; version: number }
+  | { type: "profile-upload"; version: number }
   | { type: "profile-crest"; crestIndex: number; version: number }
   | { type: "members-open"; version: number; page: number }
   | { type: "member-manage"; memberId: string; version: number }
   | { type: "create-confirm"; token: string }
+  | { type: "crest-view-intent"; token: string }
+  | { type: "crest-view-guild"; guildId: string; publicAccess: boolean; page: number }
   | { type: "invite-accept" | "invite-decline" | "invite-cancel"; token: string }
   | { type: "party-open"; page: number }
   | { type: "party-invite"; memberId: string; version: number }
@@ -36,10 +39,12 @@ export const makeGuildDirectoryOpenCallbackData = (page = 0): string => `${PREFI
 export const makeGuildDirectoryProfileCallbackData = (guildId: string, page = 0): string =>
   `${PREFIX}:dp:${guildId}:${page.toString(36)}`;
 export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
+export const makeGuildCreateUploadCallbackData = (): string => `${PREFIX}:nu`;
 export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => `${PREFIX}:r:${crestIndex.toString(36)}`;
 export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
 export const makeGuildInviteStartCallbackData = (): string => `${PREFIX}:is`;
 export const makeGuildProfileOpenCallbackData = (version: number): string => `${PREFIX}:e:${version.toString(36)}`;
+export const makeGuildProfileUploadCallbackData = (version: number): string => `${PREFIX}:eu:${version.toString(36)}`;
 export const makeGuildProfileCrestCallbackData = (crestIndex: number, version: number): string =>
   `${PREFIX}:er:${crestIndex.toString(36)}:${version.toString(36)}`;
 export const makeGuildMembersOpenCallbackData = (version: number, page = 0): string =>
@@ -47,6 +52,10 @@ export const makeGuildMembersOpenCallbackData = (version: number, page = 0): str
 export const makeGuildMemberManageCallbackData = (memberId: string, version: number): string =>
   `${PREFIX}:mm:${memberId}:${version.toString(36)}`;
 export const makeGuildCreateConfirmCallbackData = (token: string): string => `${PREFIX}:c:${token}`;
+export const makeGuildCreationCrestViewCallbackData = (token: string): string => `${PREFIX}:vi:${token}`;
+export const makeGuildPrivateCrestViewCallbackData = (guildId: string): string => `${PREFIX}:vh:${guildId}`;
+export const makeGuildPublicCrestViewCallbackData = (guildId: string, page = 0): string =>
+  `${PREFIX}:vp:${guildId}:${page.toString(36)}`;
 export const makeGuildInviteAcceptCallbackData = (token: string): string => `${PREFIX}:a:${token}`;
 export const makeGuildInviteDeclineCallbackData = (token: string): string => `${PREFIX}:d:${token}`;
 export const makeGuildInviteCancelCallbackData = (token: string): string => `${PREFIX}:x:${token}`;
@@ -91,8 +100,8 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "dp" && first && GUILD_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
     return ok({ type: "directory-profile", guildId: first, page: Number.parseInt(second, 36) });
   }
-  if ((action === "n" || action === "i" || action === "is") && first === undefined && second === undefined) {
-    return ok({ type: action === "n" ? "create-open" : action === "i" ? "invite-code" : "invite-start" });
+  if ((action === "n" || action === "nu" || action === "i" || action === "is") && first === undefined && second === undefined) {
+    return ok({ type: action === "n" ? "create-open" : action === "nu" ? "create-upload" : action === "i" ? "invite-code" : "invite-start" });
   }
   if (action === "r" && first && second === undefined && VERSION_PATTERN.test(first)) {
     const crestIndex = Number.parseInt(first, 36);
@@ -101,6 +110,10 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "e") {
     const version = parseVersion(first, second);
     return version === null ? err("invalid-version") : ok({ type: "profile-open", version });
+  }
+  if (action === "eu") {
+    const version = parseVersion(first, second);
+    return version === null ? err("invalid-version") : ok({ type: "profile-upload", version });
   }
   if (action === "er" && first && VERSION_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
     const crestIndex = Number.parseInt(first, 36);
@@ -136,6 +149,21 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
       type: action === "c" ? "create-confirm" : action === "a" ? "invite-accept" : action === "d" ? "invite-decline" : "invite-cancel",
       token: first
     });
+  }
+  if (action === "vi") {
+    return first && second === undefined && TOKEN_PATTERN.test(first)
+      ? ok({ type: "crest-view-intent", token: first })
+      : err("invalid-token");
+  }
+  if (action === "vh") {
+    return first && second === undefined && GUILD_PATTERN.test(first)
+      ? ok({ type: "crest-view-guild", guildId: first, publicAccess: false, page: 0 })
+      : err("invalid-token");
+  }
+  if (action === "vp") {
+    return first && GUILD_PATTERN.test(first) && second && VERSION_PATTERN.test(second)
+      ? ok({ type: "crest-view-guild", guildId: first, publicAccess: true, page: Number.parseInt(second, 36) })
+      : err("invalid-token");
   }
   if (action === "l" || action === "z") {
     const version = parseVersion(first, second);

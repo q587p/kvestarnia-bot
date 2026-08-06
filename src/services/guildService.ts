@@ -2,6 +2,11 @@ import { randomBytes } from "node:crypto";
 import type {
   GuildCreationConfirmRepositoryResult,
   GuildCreationPreviewRepositoryResult,
+  GuildCrestMediaInput,
+  GuildCrestMediaRepositoryResult,
+  GuildCrestPickerRepositoryResult,
+  GuildCrestUploadDraftRepositoryResult,
+  GuildCrestUploadPurpose,
   GuildFunnelCounters,
   GuildHubRepositoryResult,
   GuildInviteCreateRepositoryResult,
@@ -20,6 +25,8 @@ import type {
 import {
   GUILD_CREATION_GOLD,
   normalizeGuildMemberLookup,
+  validateGuildDescription,
+  validateGuildName,
   validateGuildProfile,
   validateGuildIdentity,
   type GuildIdentityValidation,
@@ -33,6 +40,7 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP } from "./presenceService";
 export const GUILD_CREATION_PREVIEW_TTL_MS = 13 * 60 * 1000;
 export const GUILD_INVITE_TTL_MS = 93 * 60 * 60 * 1000;
 export const GUILD_INVITE_OPT_IN_TTL_MS = 93 * 60 * 60 * 1000;
+export const GUILD_CREST_UPLOAD_TTL_MS = 23 * 60 * 1000;
 
 export interface GuildServiceOptions {
   enabled: boolean;
@@ -82,6 +90,9 @@ export type GuildPartyRecipientResult =
   | GuildPartyRecipientRepositoryResult;
 
 export type GuildPublicReadResult<T> = { state: "disabled" } | T;
+export type GuildCrestPickerResult = { state: "disabled" } | GuildCrestPickerRepositoryResult;
+export type GuildCrestUploadResult = { state: "disabled" } | GuildCrestUploadDraftRepositoryResult;
+export type GuildCrestMediaResult = { state: "disabled" } | GuildCrestMediaRepositoryResult;
 
 export class GuildService {
   constructor(
@@ -157,6 +168,108 @@ export class GuildService {
       now,
       expiresAt: new Date(now.getTime() + GUILD_CREATION_PREVIEW_TTL_MS)
     });
+  }
+
+  async previewCustomCreationForTelegramUser(
+    telegramUserId: bigint,
+    input: { uploadToken: string; displayName: string; description: string }
+  ): Promise<GuildCreationPreviewResult> {
+    if (!this.isEnabled()) {
+      return { state: "disabled" };
+    }
+    const name = validateGuildName(input.displayName);
+    if (!name.ok) {
+      return { state: "invalid", reason: name.reason };
+    }
+    const description = validateGuildDescription(input.description);
+    if (!description.ok) {
+      return { state: "invalid", reason: description.reason };
+    }
+    const now = this.clock();
+    return this.guilds.createCustomIntentForTelegramUser(telegramUserId, {
+      token: createToken(),
+      uploadToken: input.uploadToken,
+      ...name,
+      description: description.description,
+      goldCost: GUILD_CREATION_GOLD,
+      now,
+      expiresAt: new Date(now.getTime() + GUILD_CREATION_PREVIEW_TTL_MS)
+    });
+  }
+
+  getCrestPickerForTelegramUser(
+    telegramUserId: bigint,
+    purpose: GuildCrestUploadPurpose
+  ): Promise<GuildCrestPickerResult> {
+    return this.isEnabled()
+      ? this.guilds.getCrestPickerForTelegramUser(telegramUserId, purpose, this.clock())
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  beginCrestUploadForTelegramUser(
+    telegramUserId: bigint,
+    purpose: GuildCrestUploadPurpose,
+    expectedGuildVersion?: number
+  ): Promise<GuildCrestUploadResult> {
+    if (!this.isEnabled()) {
+      return Promise.resolve({ state: "disabled" });
+    }
+    const now = this.clock();
+    return this.guilds.beginCrestUploadForTelegramUser(telegramUserId, {
+      token: createToken(),
+      purpose,
+      ...(expectedGuildVersion === undefined ? {} : { expectedGuildVersion }),
+      now,
+      expiresAt: new Date(now.getTime() + GUILD_CREST_UPLOAD_TTL_MS)
+    });
+  }
+
+  storeCrestUploadForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    media: GuildCrestMediaInput
+  ): Promise<GuildCrestUploadResult> {
+    return this.isEnabled()
+      ? this.guilds.storeCrestUploadForTelegramUser(telegramUserId, { token, media, now: this.clock() })
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  updateCustomProfileForTelegramUser(
+    telegramUserId: bigint,
+    input: { uploadToken: string; description: string }
+  ): Promise<GuildProfileUpdateResult> {
+    if (!this.isEnabled()) {
+      return Promise.resolve({ state: "disabled" });
+    }
+    const description = validateGuildDescription(input.description);
+    return description.ok
+      ? this.guilds.updateCustomProfileForTelegramUser(telegramUserId, {
+          uploadToken: input.uploadToken,
+          description: description.description,
+          now: this.clock()
+        })
+      : Promise.resolve({ state: "invalid", reason: description.reason });
+  }
+
+  getCreationCrestMediaForTelegramUser(telegramUserId: bigint, token: string): Promise<GuildCrestMediaResult> {
+    return this.isEnabled()
+      ? this.guilds.getCreationCrestMediaForTelegramUser(telegramUserId, token, this.clock())
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  getGuildCrestMediaForTelegramUser(
+    telegramUserId: bigint,
+    guildId: string,
+    publicAccess: boolean
+  ): Promise<GuildCrestMediaResult> {
+    return this.isEnabled() || !publicAccess
+      ? this.guilds.getGuildCrestMediaForTelegramUser(telegramUserId, {
+          guildId,
+          publicAccess,
+          ...(publicAccess ? { expectedLocationId: PRESENCE_LOCATION_KORCHMA_DEEP } : {}),
+          now: this.clock()
+        })
+      : Promise.resolve({ state: "disabled" });
   }
 
   confirmCreationForTelegramUser(

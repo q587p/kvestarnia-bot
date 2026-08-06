@@ -1,15 +1,24 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  GUILD_CREST_CATALOG,
+  GUILD_CUSTOM_CREST_MARKER,
   GUILD_MAX_MEMBERS,
   GUILD_MAX_OFFICERS,
   isEligibleGuildFounder,
+  isValidGuildCrestMediaMetadata,
   validateGuildProfile,
   type GuildRole
 } from "../../domain/guild";
 import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "../../services/partySessionService";
 import type {
   GuildCreationConfirmRepositoryResult,
+  GuildCreationIntentRecord,
   GuildCreationPreviewRepositoryResult,
+  GuildCrestMediaInput,
+  GuildCrestMediaRepositoryResult,
+  GuildCrestPickerRepositoryResult,
+  GuildCrestUploadDraftRepositoryResult,
+  GuildCrestUploadPurpose,
   GuildFunnelCounters,
   GuildHubRepositoryResult,
   GuildInviteCreateRepositoryResult,
@@ -40,6 +49,7 @@ const FORMING_NAME_HOLD_MS = 23 * 60 * 60 * 1000;
 const DISBANDED_NAME_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
 const INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_BATCH = 23;
+const UPLOAD_DRAFT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
 
 const guildViewInclude = {
@@ -115,6 +125,8 @@ export class PrismaGuildRepository implements GuildRepository {
       displayName: string;
       normalizedName: string;
       crest: string;
+      crestKind?: "catalog" | "custom";
+      crestMedia?: GuildCrestMediaInput;
       description: string;
       goldCost: number;
       now: Date;
@@ -124,6 +136,7 @@ export class PrismaGuildRepository implements GuildRepository {
     return this.serializable(async (tx) => {
       await maintainGuildState(tx, input.now);
       await maintainCreationIntents(tx, input.now);
+      await maintainCrestUploadDrafts(tx, input.now);
       const actor = await findActor(tx, telegramUserId);
       if (!actor?.character) {
         return { state: "no-character" };
@@ -149,7 +162,13 @@ export class PrismaGuildRepository implements GuildRepository {
               remortCount: actor.character._count.remorts,
               normalizedName: input.normalizedName,
               displayName: input.displayName,
-              crest: input.crest,
+              crest: input.crestKind === "custom" ? GUILD_CUSTOM_CREST_MARKER : input.crest,
+              crestKind: input.crestKind ?? "catalog",
+              crestFileId: input.crestMedia?.fileId ?? null,
+              crestFileUniqueId: input.crestMedia?.fileUniqueId ?? null,
+              crestWidth: input.crestMedia?.width ?? null,
+              crestHeight: input.crestMedia?.height ?? null,
+              crestFileSize: input.crestMedia?.fileSize ?? null,
               description: input.description,
               goldCost: input.goldCost,
               status: "pending",
@@ -167,7 +186,13 @@ export class PrismaGuildRepository implements GuildRepository {
               remortCount: actor.character._count.remorts,
               normalizedName: input.normalizedName,
               displayName: input.displayName,
-              crest: input.crest,
+              crest: input.crestKind === "custom" ? GUILD_CUSTOM_CREST_MARKER : input.crest,
+              crestKind: input.crestKind ?? "catalog",
+              crestFileId: input.crestMedia?.fileId ?? null,
+              crestFileUniqueId: input.crestMedia?.fileUniqueId ?? null,
+              crestWidth: input.crestMedia?.width ?? null,
+              crestHeight: input.crestMedia?.height ?? null,
+              crestFileSize: input.crestMedia?.fileSize ?? null,
               description: input.description,
               goldCost: input.goldCost,
               status: "pending",
@@ -185,12 +210,108 @@ export class PrismaGuildRepository implements GuildRepository {
           displayName: intent.displayName,
           normalizedName: intent.normalizedName,
           crest: intent.crest,
+          crestKind: crestKind(intent.crestKind),
+          hasCustomCrest: intent.crestKind === "custom",
           description: intent.description,
           goldCost: intent.goldCost,
           availableGold: actor.character.gold,
           expiresAt: intent.expiresAt
         }
       };
+    });
+  }
+
+  async createCustomIntentForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      uploadToken: string;
+      displayName: string;
+      normalizedName: string;
+      description: string;
+      goldCost: number;
+      now: Date;
+      expiresAt: Date;
+    }
+  ): Promise<GuildCreationPreviewRepositoryResult> {
+    return this.serializable(async (tx) => {
+      await maintainGuildState(tx, input.now);
+      await maintainCreationIntents(tx, input.now);
+      await maintainCrestUploadDrafts(tx, input.now);
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      if (await currentLiveMembership(tx, actor, input.now)) {
+        return { state: "already-member" };
+      }
+      if (!isEligibleGuildFounder(actor.character.level, actor.character._count.remorts)) {
+        return { state: "ineligible" };
+      }
+      const cooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
+      if (cooldown?.availableAt && cooldown.availableAt > input.now) {
+        return { state: "founder-cooldown", availableAt: cooldown.availableAt, now: input.now };
+      }
+      const draft = await tx.guildCrestUploadDraft.findUnique({
+        where: { token: input.uploadToken },
+        include: { intent: true }
+      });
+      if (!draft || draft.userId !== actor.id || draft.purpose !== "creation") {
+        return { state: "upload-unavailable" };
+      }
+      if (draft.status === "consumed" && draft.intent) {
+        return { state: "ready", intent: mapCreationIntent(draft.intent, actor.character.gold) };
+      }
+      if (
+        draft.status !== "uploaded" ||
+        draft.expiresAt <= input.now ||
+        !draft.fileId || !draft.fileUniqueId || !draft.width || !draft.height
+      ) {
+        return { state: "upload-unavailable" };
+      }
+      const existing = await tx.guildCreationIntent.findUnique({ where: { activeUserKey: actor.id } });
+      const data = {
+        token: input.token,
+        characterId: actor.character.id,
+        remortCount: actor.character._count.remorts,
+        normalizedName: input.normalizedName,
+        displayName: input.displayName,
+        crest: GUILD_CUSTOM_CREST_MARKER,
+        crestKind: "custom",
+        crestFileId: draft.fileId,
+        crestFileUniqueId: draft.fileUniqueId,
+        crestWidth: draft.width,
+        crestHeight: draft.height,
+        crestFileSize: draft.fileSize,
+        description: input.description,
+        goldCost: input.goldCost,
+        status: "pending",
+        expiresAt: input.expiresAt,
+        completedAt: null,
+        guildId: null,
+        updatedAt: input.now
+      } as const;
+      const intent = existing
+        ? await tx.guildCreationIntent.update({ where: { id: existing.id }, data })
+        : await tx.guildCreationIntent.create({
+            data: {
+              ...data,
+              userId: actor.id,
+              activeUserKey: actor.id,
+              createdAt: input.now
+            }
+          });
+      await tx.guildCrestUploadDraft.update({
+        where: { id: draft.id },
+        data: {
+          status: "consumed",
+          activeUserKey: null,
+          intentId: intent.id,
+          consumedAt: input.now,
+          updatedAt: input.now
+        }
+      });
+      return { state: "ready", intent: mapCreationIntent(intent, actor.character.gold) };
     });
   }
 
@@ -237,6 +358,16 @@ export class PrismaGuildRepository implements GuildRepository {
           });
           return { state: "name-taken" };
         }
+        if (
+          intent.crestKind === "catalog" &&
+          !await releaseSpecificCrestReservationIfDue(tx, intent.crest, now)
+        ) {
+          await tx.guildCreationIntent.updateMany({
+            where: { id: intent.id, status: "pending" },
+            data: { status: "conflict", activeUserKey: null, updatedAt: now }
+          });
+          return { state: "crest-taken" };
+        }
         const currentCooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
         if (currentCooldown?.availableAt && currentCooldown.availableAt > now) {
           return { state: "founder-cooldown", availableAt: currentCooldown.availableAt, now };
@@ -279,6 +410,13 @@ export class PrismaGuildRepository implements GuildRepository {
             reservationKey: intent.normalizedName,
             displayName: intent.displayName,
             crest: intent.crest,
+            crestKind: intent.crestKind,
+            crestReservationKey: intent.crestKind === "catalog" ? intent.crest : null,
+            crestFileId: intent.crestFileId,
+            crestFileUniqueId: intent.crestFileUniqueId,
+            crestWidth: intent.crestWidth,
+            crestHeight: intent.crestHeight,
+            crestFileSize: intent.crestFileSize,
             description: intent.description,
             founderUserId: actor.id,
             leaderUserId: actor.id,
@@ -449,6 +587,7 @@ export class PrismaGuildRepository implements GuildRepository {
         id: true,
         displayName: true,
         crest: true,
+        crestKind: true,
         _count: { select: { members: { where: { activeUserKey: { not: null } } } } }
       }
     });
@@ -458,6 +597,7 @@ export class PrismaGuildRepository implements GuildRepository {
         id: guild.id,
         displayName: guild.displayName,
         crest: guild.crest,
+        hasCustomCrest: guild.crestKind === "custom",
         memberCount: guild._count.members
       })),
       page: currentPage,
@@ -486,6 +626,7 @@ export class PrismaGuildRepository implements GuildRepository {
         id: true,
         displayName: true,
         crest: true,
+        crestKind: true,
         description: true,
         _count: { select: { members: { where: { activeUserKey: { not: null } } } } }
       }
@@ -497,11 +638,261 @@ export class PrismaGuildRepository implements GuildRepository {
             id: guild.id,
             displayName: guild.displayName,
             crest: guild.crest,
+            hasCustomCrest: guild.crestKind === "custom",
             description: guild.description,
             memberCount: guild._count.members
           }
         }
       : { state: "unavailable" };
+  }
+
+  async getCrestPickerForTelegramUser(
+    telegramUserId: bigint,
+    purpose: GuildCrestUploadPurpose,
+    now: Date
+  ): Promise<GuildCrestPickerRepositoryResult> {
+    return this.serializable(async (tx) => {
+      await maintainGuildState(tx, now);
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const membership = await currentLiveMembership(tx, actor, now);
+      if (purpose === "creation") {
+        if (membership) {
+          return { state: "already-member" };
+        }
+        if (!isEligibleGuildFounder(actor.character.level, actor.character._count.remorts)) {
+          return { state: "ineligible" };
+        }
+        const cooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
+        if (cooldown?.availableAt && cooldown.availableAt > now) {
+          return { state: "founder-cooldown", availableAt: cooldown.availableAt, now };
+        }
+      } else {
+        if (!membership) {
+          return { state: "not-member" };
+        }
+        if (membership.role !== "leader") {
+          return { state: "forbidden" };
+        }
+      }
+      const currentGuildId = purpose === "profile" ? membership?.guildId ?? null : null;
+      const availableCrests = await availableCatalogCrests(tx, now, currentGuildId);
+      return {
+        state: "ready",
+        availableCrests,
+        currentCrest: purpose === "profile" && membership?.guild.crestKind === "catalog"
+          ? membership.guild.crest
+          : null,
+        currentHasCustomCrest: purpose === "profile" && membership?.guild.crestKind === "custom",
+        guildVersion: purpose === "profile" ? membership?.guild.version ?? null : null
+      };
+    });
+  }
+
+  async beginCrestUploadForTelegramUser(
+    telegramUserId: bigint,
+    input: {
+      token: string;
+      purpose: GuildCrestUploadPurpose;
+      expectedGuildVersion?: number;
+      now: Date;
+      expiresAt: Date;
+    }
+  ): Promise<GuildCrestUploadDraftRepositoryResult> {
+    return this.serializable(async (tx) => {
+      await maintainGuildState(tx, input.now);
+      await maintainCrestUploadDrafts(tx, input.now);
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const membership = await currentLiveMembership(tx, actor, input.now);
+      let guildId: string | null = null;
+      if (input.purpose === "creation") {
+        if (membership) {
+          return { state: "already-member" };
+        }
+        if (!isEligibleGuildFounder(actor.character.level, actor.character._count.remorts)) {
+          return { state: "ineligible" };
+        }
+        const cooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
+        if (cooldown?.availableAt && cooldown.availableAt > input.now) {
+          return { state: "founder-cooldown", availableAt: cooldown.availableAt, now: input.now };
+        }
+      } else {
+        if (!membership) {
+          return { state: "not-member" };
+        }
+        if (membership.role !== "leader") {
+          return { state: "forbidden" };
+        }
+        if (membership.guild.version !== input.expectedGuildVersion) {
+          return { state: "stale" };
+        }
+        guildId = membership.guildId;
+      }
+      const existing = await tx.guildCrestUploadDraft.findUnique({ where: { activeUserKey: actor.id } });
+      const data = {
+        token: input.token,
+        purpose: input.purpose,
+        guildId,
+        expectedGuildVersion: input.purpose === "profile" ? input.expectedGuildVersion ?? null : null,
+        status: "pending",
+        fileId: null,
+        fileUniqueId: null,
+        width: null,
+        height: null,
+        fileSize: null,
+        intentId: null,
+        expiresAt: input.expiresAt,
+        consumedAt: null,
+        updatedAt: input.now
+      } as const;
+      const draft = existing
+        ? await tx.guildCrestUploadDraft.update({ where: { id: existing.id }, data })
+        : await tx.guildCrestUploadDraft.create({
+            data: { ...data, userId: actor.id, activeUserKey: actor.id, createdAt: input.now }
+          });
+      return {
+        state: "ready",
+        token: draft.token,
+        purpose: input.purpose,
+        ...(draft.expectedGuildVersion === null ? {} : { expectedGuildVersion: draft.expectedGuildVersion })
+      };
+    });
+  }
+
+  async storeCrestUploadForTelegramUser(
+    telegramUserId: bigint,
+    input: { token: string; media: GuildCrestMediaInput; now: Date }
+  ): Promise<GuildCrestUploadDraftRepositoryResult> {
+    if (!isValidGuildCrestMediaMetadata(input.media)) {
+      return { state: "invalid-media" };
+    }
+    return this.serializable(async (tx) => {
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const draft = await tx.guildCrestUploadDraft.findUnique({
+        where: { token: input.token },
+        include: { intent: { select: { token: true } } }
+      });
+      if (!draft || draft.userId !== actor.id) {
+        return { state: "not-found" };
+      }
+      if (draft.status === "consumed") {
+        return {
+          state: "replayed",
+          token: draft.token,
+          purpose: draft.purpose === "profile" ? "profile" : "creation",
+          ...(draft.intent?.token ? { intentToken: draft.intent.token } : {}),
+          ...(draft.expectedGuildVersion === null ? {} : { expectedGuildVersion: draft.expectedGuildVersion })
+        };
+      }
+      if (draft.expiresAt <= input.now) {
+        await tx.guildCrestUploadDraft.updateMany({
+          where: { id: draft.id, status: { in: ["pending", "uploaded"] } },
+          data: { status: "expired", activeUserKey: null, updatedAt: input.now }
+        });
+        return { state: "expired" };
+      }
+      const membership = await currentLiveMembership(tx, actor, input.now);
+      if (draft.purpose === "creation") {
+        if (membership) {
+          return { state: "already-member" };
+        }
+        if (!isEligibleGuildFounder(actor.character.level, actor.character._count.remorts)) {
+          return { state: "ineligible" };
+        }
+      } else {
+        if (!membership || membership.guildId !== draft.guildId) {
+          return { state: "not-member" };
+        }
+        if (membership.role !== "leader") {
+          return { state: "forbidden" };
+        }
+        if (membership.guild.version !== draft.expectedGuildVersion) {
+          return { state: "stale" };
+        }
+      }
+      if (draft.status === "uploaded" && draft.fileUniqueId === input.media.fileUniqueId) {
+        return {
+          state: "replayed",
+          token: draft.token,
+          purpose: draft.purpose === "profile" ? "profile" : "creation",
+          ...(draft.expectedGuildVersion === null ? {} : { expectedGuildVersion: draft.expectedGuildVersion })
+        };
+      }
+      await tx.guildCrestUploadDraft.update({
+        where: { id: draft.id },
+        data: {
+          status: "uploaded",
+          fileId: input.media.fileId,
+          fileUniqueId: input.media.fileUniqueId,
+          width: input.media.width,
+          height: input.media.height,
+          fileSize: input.media.fileSize,
+          updatedAt: input.now
+        }
+      });
+      return {
+        state: "ready",
+        token: draft.token,
+        purpose: draft.purpose === "profile" ? "profile" : "creation",
+        ...(draft.expectedGuildVersion === null ? {} : { expectedGuildVersion: draft.expectedGuildVersion })
+      };
+    });
+  }
+
+  async getCreationCrestMediaForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    now: Date
+  ): Promise<GuildCrestMediaRepositoryResult> {
+    const actor = await findActor(this.prisma, telegramUserId);
+    if (!actor?.character) {
+      return { state: "no-character" };
+    }
+    const intent = await this.prisma.guildCreationIntent.findUnique({ where: { token } });
+    if (!intent || intent.userId !== actor.id || intent.expiresAt <= now || intent.crestKind !== "custom") {
+      return { state: "not-found" };
+    }
+    const media = crestMedia(intent);
+    return media ? { state: "ready", media } : { state: "not-found" };
+  }
+
+  async getGuildCrestMediaForTelegramUser(
+    telegramUserId: bigint,
+    input: { guildId: string; publicAccess: boolean; expectedLocationId?: string; now: Date }
+  ): Promise<GuildCrestMediaRepositoryResult> {
+    return this.serializable(async (tx) => {
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      if (input.publicAccess) {
+        if (!input.expectedLocationId || actor.lastSeenLocationId !== input.expectedLocationId) {
+          return { state: "wrong-location" };
+        }
+      } else {
+        const membership = await currentLiveMembership(tx, actor, input.now);
+        if (!membership || membership.guildId !== input.guildId) {
+          return { state: "forbidden" };
+        }
+      }
+      const guild = await tx.guild.findUnique({ where: { id: input.guildId } });
+      if (!guild || guild.crestKind !== "custom" || (input.publicAccess && guild.status !== "active")) {
+        return { state: "unavailable" };
+      }
+      if (await terminalizeGuildIfDue(tx, guild, input.now)) {
+        return { state: "unavailable" };
+      }
+      const media = crestMedia(guild);
+      return media ? { state: "ready", media } : { state: "unavailable" };
+    });
   }
 
   async createInviteOptInForTelegramUser(
@@ -673,36 +1064,125 @@ export class PrismaGuildRepository implements GuildRepository {
     telegramUserId: bigint,
     input: { crest: string; description: string; expectedVersion: number; now: Date }
   ): Promise<GuildMemberMutationRepositoryResult> {
+    try {
+      return await this.serializable(async (tx) => {
+        const actor = await findActor(tx, telegramUserId);
+        if (!actor?.character) {
+          return { state: "no-character" };
+        }
+        const membership = await currentLiveMembership(tx, actor, input.now);
+        if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+          return { state: "not-member" };
+        }
+        if (membership.role !== "leader") {
+          return { state: "forbidden" };
+        }
+        const profile = validateGuildProfile(input);
+        if (!profile.ok) {
+          return { state: "invalid-target" };
+        }
+        if (!await releaseSpecificCrestReservationIfDue(tx, profile.crest, input.now, membership.guildId)) {
+          return { state: "crest-taken" };
+        }
+        if (!(await claimGuildVersion(tx, membership.guildId, input.expectedVersion, input.now))) {
+          return { state: "stale" };
+        }
+        const reverted = membership.guild.crestKind === "custom";
+        await tx.guild.update({
+          where: { id: membership.guildId },
+          data: {
+            crest: profile.crest,
+            crestKind: "catalog",
+            crestReservationKey: profile.crest,
+            crestFileId: null,
+            crestFileUniqueId: null,
+            crestWidth: null,
+            crestHeight: null,
+            crestFileSize: null,
+            description: profile.description,
+            updatedAt: input.now
+          }
+        });
+        await appendAudit(tx, {
+          guildId: membership.guildId,
+          eventType: "profile.updated",
+          actorUserId: actor.id,
+          subjectUserId: null,
+          dedupeKey: `guild:${membership.guildId}:profile:v${input.expectedVersion + 1}`,
+          payload: { crestChange: reverted ? "reverted" : "catalog" },
+          occurredAt: input.now
+        });
+        return updatedGuildResult(tx, membership.guildId, actor.id);
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) {
+        return { state: "crest-taken" };
+      }
+      throw error;
+    }
+  }
+
+  async updateCustomProfileForTelegramUser(
+    telegramUserId: bigint,
+    input: { uploadToken: string; description: string; now: Date }
+  ): Promise<GuildMemberMutationRepositoryResult> {
     return this.serializable(async (tx) => {
       const actor = await findActor(tx, telegramUserId);
       if (!actor?.character) {
         return { state: "no-character" };
       }
+      const draft = await tx.guildCrestUploadDraft.findUnique({ where: { token: input.uploadToken } });
+      if (!draft || draft.userId !== actor.id || draft.purpose !== "profile") {
+        return { state: "not-found" };
+      }
       const membership = await currentLiveMembership(tx, actor, input.now);
-      if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+      if (!membership || membership.guildId !== draft.guildId) {
         return { state: "not-member" };
       }
       if (membership.role !== "leader") {
         return { state: "forbidden" };
       }
-      const profile = validateGuildProfile(input);
-      if (!profile.ok) {
-        return { state: "invalid-target" };
+      if (draft.status === "consumed") {
+        return updatedGuildResult(tx, membership.guildId, actor.id);
       }
-      if (!(await claimGuildVersion(tx, membership.guildId, input.expectedVersion, input.now))) {
+      if (
+        draft.status !== "uploaded" || draft.expiresAt <= input.now ||
+        !draft.fileId || !draft.fileUniqueId || !draft.width || !draft.height
+      ) {
+        return { state: "not-found" };
+      }
+      if (draft.expectedGuildVersion === null || membership.guild.version !== draft.expectedGuildVersion) {
+        return { state: "stale" };
+      }
+      if (!(await claimGuildVersion(tx, membership.guildId, draft.expectedGuildVersion, input.now))) {
         return { state: "stale" };
       }
       await tx.guild.update({
         where: { id: membership.guildId },
-        data: { crest: profile.crest, description: profile.description, updatedAt: input.now }
+        data: {
+          crest: GUILD_CUSTOM_CREST_MARKER,
+          crestKind: "custom",
+          crestReservationKey: null,
+          crestFileId: draft.fileId,
+          crestFileUniqueId: draft.fileUniqueId,
+          crestWidth: draft.width,
+          crestHeight: draft.height,
+          crestFileSize: draft.fileSize,
+          description: input.description,
+          updatedAt: input.now
+        }
+      });
+      await tx.guildCrestUploadDraft.update({
+        where: { id: draft.id },
+        data: { status: "consumed", activeUserKey: null, consumedAt: input.now, updatedAt: input.now }
       });
       await appendAudit(tx, {
         guildId: membership.guildId,
         eventType: "profile.updated",
         actorUserId: actor.id,
         subjectUserId: null,
-        dedupeKey: `guild:${membership.guildId}:profile:v${input.expectedVersion + 1}`,
-        payload: { crest: profile.crest },
+        dedupeKey: `guild:${membership.guildId}:profile:v${draft.expectedGuildVersion + 1}`,
+        payload: { crestChange: "custom" },
         occurredAt: input.now
       });
       return updatedGuildResult(tx, membership.guildId, actor.id);
@@ -1280,6 +1760,16 @@ export class PrismaGuildRepository implements GuildRepository {
         });
         return { state: "name-taken" };
       }
+      if (intent.crestKind === "catalog") {
+        const crestOwner = await tx.guild.findUnique({ where: { crestReservationKey: intent.crest } });
+        if (crestOwner) {
+          await tx.guildCreationIntent.updateMany({
+            where: { id: intent.id, status: "pending" },
+            data: { status: "conflict", activeUserKey: null, updatedAt: now }
+          });
+          return { state: "crest-taken" };
+        }
+      }
       const cooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
       if (cooldown?.availableAt && cooldown.availableAt > now) {
         return { state: "founder-cooldown", availableAt: cooldown.availableAt, now };
@@ -1435,6 +1925,8 @@ function mapGuildView(row: GuildViewRow, viewerUserId: string, requestedPage: nu
     displayName: row.displayName,
     normalizedName: row.normalizedName,
     crest: row.crest,
+    crestKind: crestKind(row.crestKind),
+    hasCustomCrest: row.crestKind === "custom",
     description: row.description,
     status: row.status,
     charterExpiresAt: row.charterExpiresAt,
@@ -1523,6 +2015,113 @@ async function maintainGuildState(tx: TxClient, now: Date): Promise<void> {
     },
     data: { reservationKey: null, updatedAt: now }
   });
+  await tx.guild.updateMany({
+    where: { status: { in: ["expired", "disbanded"] }, crestReservationKey: { not: null } },
+    data: { crestReservationKey: null, updatedAt: now }
+  });
+}
+
+function mapCreationIntent(
+  intent: {
+    token: string;
+    displayName: string;
+    normalizedName: string;
+    crest: string;
+    crestKind: string;
+    description: string;
+    goldCost: number;
+    expiresAt: Date;
+  },
+  availableGold: number
+): GuildCreationIntentRecord {
+  return {
+    token: intent.token,
+    displayName: intent.displayName,
+    normalizedName: intent.normalizedName,
+    crest: intent.crest,
+    crestKind: crestKind(intent.crestKind),
+    hasCustomCrest: intent.crestKind === "custom",
+    description: intent.description,
+    goldCost: intent.goldCost,
+    availableGold,
+    expiresAt: intent.expiresAt
+  };
+}
+
+function crestMedia(row: {
+  crestFileId: string | null;
+  crestFileUniqueId: string | null;
+  crestWidth: number | null;
+  crestHeight: number | null;
+  crestFileSize: number | null;
+}): GuildCrestMediaInput | null {
+  return row.crestFileId && row.crestFileUniqueId && row.crestWidth && row.crestHeight
+    ? {
+        fileId: row.crestFileId,
+        fileUniqueId: row.crestFileUniqueId,
+        width: row.crestWidth,
+        height: row.crestHeight,
+        fileSize: row.crestFileSize
+      }
+    : null;
+}
+
+function crestKind(value: string): "catalog" | "custom" {
+  return value === "custom" ? "custom" : "catalog";
+}
+
+async function availableCatalogCrests(
+  tx: TxClient,
+  now: Date,
+  ownGuildId: string | null
+): Promise<string[]> {
+  const owners = await tx.guild.findMany({
+    where: { crestReservationKey: { in: [...GUILD_CREST_CATALOG] } },
+    select: {
+      id: true,
+      crestReservationKey: true,
+      status: true,
+      version: true,
+      charterExpiresAt: true,
+      founderUserId: true
+    }
+  });
+  for (const owner of owners) {
+    await terminalizeGuildIfDue(tx, owner, now);
+  }
+  const current = await tx.guild.findMany({
+    where: {
+      crestReservationKey: { in: [...GUILD_CREST_CATALOG] },
+      status: { in: ["forming", "active"] }
+    },
+    select: { id: true, crestReservationKey: true }
+  });
+  const reserved = new Set(current.filter((row) => row.id !== ownGuildId).map((row) => row.crestReservationKey));
+  return GUILD_CREST_CATALOG.filter((crest) => !reserved.has(crest));
+}
+
+async function releaseSpecificCrestReservationIfDue(
+  tx: TxClient,
+  crest: string,
+  now: Date,
+  ownGuildId: string | null = null
+): Promise<boolean> {
+  const owner = await tx.guild.findUnique({
+    where: { crestReservationKey: crest },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      charterExpiresAt: true,
+      founderUserId: true
+    }
+  });
+  if (!owner || owner.id === ownGuildId) {
+    return true;
+  }
+  await terminalizeGuildIfDue(tx, owner, now);
+  const current = await tx.guild.findUnique({ where: { id: owner.id }, select: { crestReservationKey: true } });
+  return current?.crestReservationKey !== crest;
 }
 
 async function releaseSpecificNameReservationIfDue(
@@ -1579,6 +2178,7 @@ async function terminalizeGuildIfDue(
       version: { increment: 1 },
       leadershipNomineeUserId: null,
       leadershipOfferedAt: null,
+      crestReservationKey: null,
       updatedAt: now
     }
   });
@@ -1621,6 +2221,23 @@ async function maintainCreationIntents(tx: TxClient, now: Date): Promise<void> {
   });
   if (oldRows.length > 0) {
     await tx.guildCreationIntent.deleteMany({ where: { id: { in: oldRows.map((row) => row.id) } } });
+  }
+}
+
+async function maintainCrestUploadDrafts(tx: TxClient, now: Date): Promise<void> {
+  await tx.guildCrestUploadDraft.updateMany({
+    where: { status: { in: ["pending", "uploaded"] }, expiresAt: { lte: now } },
+    data: { status: "expired", activeUserKey: null, updatedAt: now }
+  });
+  const cutoff = new Date(now.getTime() - UPLOAD_DRAFT_RETENTION_MS);
+  const oldRows = await tx.guildCrestUploadDraft.findMany({
+    where: { activeUserKey: null, status: { in: ["expired", "consumed"] }, updatedAt: { lt: cutoff } },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: CLEANUP_BATCH,
+    select: { id: true }
+  });
+  if (oldRows.length > 0) {
+    await tx.guildCrestUploadDraft.deleteMany({ where: { id: { in: oldRows.map((row) => row.id) } } });
   }
 }
 
@@ -1921,6 +2538,7 @@ async function softDisbandGuild(
     data: {
       status: "disbanded",
       disbandedAt: now,
+      crestReservationKey: null,
       nameReleaseAt: new Date(now.getTime() + DISBANDED_NAME_HOLD_MS),
       leadershipNomineeUserId: null,
       leadershipOfferedAt: null,

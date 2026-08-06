@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   GUILD_CREST_CATALOG,
+  GUILD_CREST_MAX_FILE_SIZE,
   GUILD_CREATION_GOLD,
   GUILD_DESCRIPTION_MAX_GRAPHEMES,
   isEligibleGuildFounder,
+  isValidGuildCrestMediaMetadata,
   validateGuildIdentity,
   validateGuildProfile
 } from "../../src/domain/guild";
@@ -40,6 +42,37 @@ describe("guild identity", () => {
     expect(isEligibleGuildFounder(3, 1)).toBe(true);
     expect(isEligibleGuildFounder(4, 0)).toBe(false);
     expect(isEligibleGuildFounder(2, 42)).toBe(false);
+  });
+
+  it("keeps custom crest metadata inside the documented authoritative limits", () => {
+    expect(isValidGuildCrestMediaMetadata({
+      fileId: "file",
+      fileUniqueId: "unique",
+      width: 64,
+      height: 2048,
+      fileSize: GUILD_CREST_MAX_FILE_SIZE
+    })).toBe(true);
+    expect(isValidGuildCrestMediaMetadata({
+      fileId: "file",
+      fileUniqueId: "unique",
+      width: 63,
+      height: 64,
+      fileSize: 1
+    })).toBe(false);
+    expect(isValidGuildCrestMediaMetadata({
+      fileId: "file",
+      fileUniqueId: "unique",
+      width: 64,
+      height: 64,
+      fileSize: GUILD_CREST_MAX_FILE_SIZE + 1
+    })).toBe(false);
+    expect(isValidGuildCrestMediaMetadata({
+      fileId: "",
+      fileUniqueId: "unique",
+      width: 64,
+      height: 64,
+      fileSize: null
+    })).toBe(false);
   });
 
   it("validates leader-editable crest and 93-grapheme description independently of names", () => {

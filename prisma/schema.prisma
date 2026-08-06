@@ -24,6 +24,7 @@ model User {
   guildsFounded      Guild[]              @relation("GuildFounder")
   guildLeadershipNominations Guild[]      @relation("GuildLeadershipNominee")
   guildCreationIntents GuildCreationIntent[]
+  guildCrestUploadDrafts GuildCrestUploadDraft[]
   guildInvitesSent   GuildInvite[]         @relation("GuildInviteInviter")
   guildInvitesReceived GuildInvite[]       @relation("GuildInviteTarget")
   guildInviteOptIn   GuildInviteOptIn?
@@ -56,6 +57,13 @@ model Guild {
   reservationKey String?  @unique @map("reservation_key")
   displayName    String   @map("display_name")
   crest          String
+  crestKind      String   @default("catalog") @map("crest_kind")
+  crestReservationKey String? @unique @map("crest_reservation_key")
+  crestFileId    String?  @map("crest_file_id")
+  crestFileUniqueId String? @map("crest_file_unique_id")
+  crestWidth     Int?     @map("crest_width")
+  crestHeight    Int?     @map("crest_height")
+  crestFileSize  Int?     @map("crest_file_size")
   description    String
   founderUserId  String   @map("founder_user_id")
   founderUser    User     @relation("GuildFounder", fields: [founderUserId], references: [id], onDelete: Restrict)
@@ -77,11 +85,13 @@ model Guild {
   creationIntents GuildCreationIntent[]
   invites        GuildInvite[]
   audits         GuildAudit[]
+  crestUploadDrafts GuildCrestUploadDraft[]
 
   @@index([leaderUserId])
   @@index([founderUserId])
   @@index([status, charterExpiresAt])
   @@index([reservationKey, nameReleaseAt])
+  @@index([crestReservationKey, status])
   @@map("guilds")
 }
 
@@ -113,12 +123,19 @@ model GuildCreationIntent {
   normalizedName String   @map("normalized_name")
   displayName    String   @map("display_name")
   crest          String
+  crestKind      String   @default("catalog") @map("crest_kind")
+  crestFileId    String?  @map("crest_file_id")
+  crestFileUniqueId String? @map("crest_file_unique_id")
+  crestWidth     Int?     @map("crest_width")
+  crestHeight    Int?     @map("crest_height")
+  crestFileSize  Int?     @map("crest_file_size")
   description    String
   goldCost       Int      @map("gold_cost")
   status         String   @default("pending")
   activeUserKey  String?  @unique @map("active_user_key")
   guildId        String?  @map("guild_id")
   guild          Guild?   @relation(fields: [guildId], references: [id], onDelete: SetNull)
+  crestUploadDraft GuildCrestUploadDraft?
   expiresAt      DateTime @map("expires_at")
   completedAt    DateTime? @map("completed_at")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -127,6 +144,34 @@ model GuildCreationIntent {
   @@index([userId, status, expiresAt])
   @@index([normalizedName, status])
   @@map("guild_creation_intents")
+}
+
+model GuildCrestUploadDraft {
+  id             String   @id @default(uuid())
+  token          String   @unique
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose        String
+  guildId        String?  @map("guild_id")
+  guild          Guild?   @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  expectedGuildVersion Int? @map("expected_guild_version")
+  status         String   @default("pending")
+  activeUserKey  String?  @unique @map("active_user_key")
+  fileId         String?  @map("file_id")
+  fileUniqueId   String?  @map("file_unique_id")
+  width          Int?
+  height         Int?
+  fileSize       Int?     @map("file_size")
+  intentId       String?  @unique @map("intent_id")
+  intent         GuildCreationIntent? @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  expiresAt      DateTime @map("expires_at")
+  consumedAt     DateTime? @map("consumed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status, expiresAt])
+  @@index([guildId, status, expiresAt])
+  @@map("guild_crest_upload_drafts")
 }
 
 model GuildInvite {

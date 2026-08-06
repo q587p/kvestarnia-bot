@@ -15,6 +15,12 @@ describe("GuildService rollout isolation", () => {
     const getNestForTelegramUser = vi.fn();
     const getPublicDirectoryForTelegramUser = vi.fn();
     const getPublicGuildForTelegramUser = vi.fn();
+    const getCrestPickerForTelegramUser = vi.fn();
+    const beginCrestUploadForTelegramUser = vi.fn();
+    const storeCrestUploadForTelegramUser = vi.fn();
+    const updateCustomProfileForTelegramUser = vi.fn();
+    const getCreationCrestMediaForTelegramUser = vi.fn();
+    const getGuildCrestMediaForTelegramUser = vi.fn();
     const service = new GuildService(
       {
         setMemberRoleForTelegramUser,
@@ -25,7 +31,13 @@ describe("GuildService rollout isolation", () => {
         recordPartyInvite,
         getNestForTelegramUser,
         getPublicDirectoryForTelegramUser,
-        getPublicGuildForTelegramUser
+        getPublicGuildForTelegramUser,
+        getCrestPickerForTelegramUser,
+        beginCrestUploadForTelegramUser,
+        storeCrestUploadForTelegramUser,
+        updateCustomProfileForTelegramUser,
+        getCreationCrestMediaForTelegramUser,
+        getGuildCrestMediaForTelegramUser
       } as unknown as GuildRepository,
       {} as PartySessionService,
       { enabled: false, devHelpersEnabled: true }
@@ -46,6 +58,18 @@ describe("GuildService rollout isolation", () => {
     await expect(service.getNestForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.getPublicDirectoryForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.getPublicGuildForTelegramUser(42n, "guild-id")).resolves.toEqual({ state: "disabled" });
+    await expect(service.getCrestPickerForTelegramUser(42n, "creation")).resolves.toEqual({ state: "disabled" });
+    await expect(service.beginCrestUploadForTelegramUser(42n, "creation")).resolves.toEqual({ state: "disabled" });
+    await expect(service.storeCrestUploadForTelegramUser(42n, "draft-token", {
+      fileId: "secret", fileUniqueId: "unique", width: 512, height: 512, fileSize: 93
+    })).resolves.toEqual({ state: "disabled" });
+    await expect(service.updateCustomProfileForTelegramUser(42n, {
+      uploadToken: "draft-token", description: "Опис"
+    })).resolves.toEqual({ state: "disabled" });
+    await expect(service.getCreationCrestMediaForTelegramUser(42n, "intent-token"))
+      .resolves.toEqual({ state: "disabled" });
+    await expect(service.getGuildCrestMediaForTelegramUser(42n, "guild-id", true))
+      .resolves.toEqual({ state: "disabled" });
     expect(setMemberRoleForTelegramUser).not.toHaveBeenCalled();
     expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
     expect(ensureCreationGoldForTelegramUser).not.toHaveBeenCalled();
@@ -55,6 +79,12 @@ describe("GuildService rollout isolation", () => {
     expect(getNestForTelegramUser).not.toHaveBeenCalled();
     expect(getPublicDirectoryForTelegramUser).not.toHaveBeenCalled();
     expect(getPublicGuildForTelegramUser).not.toHaveBeenCalled();
+    expect(getCrestPickerForTelegramUser).not.toHaveBeenCalled();
+    expect(beginCrestUploadForTelegramUser).not.toHaveBeenCalled();
+    expect(storeCrestUploadForTelegramUser).not.toHaveBeenCalled();
+    expect(updateCustomProfileForTelegramUser).not.toHaveBeenCalled();
+    expect(getCreationCrestMediaForTelegramUser).not.toHaveBeenCalled();
+    expect(getGuildCrestMediaForTelegramUser).not.toHaveBeenCalled();
   });
 
   it("does not expose the dev helper when production wiring leaves it off", async () => {

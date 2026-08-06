@@ -102,7 +102,7 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Гніздо ґільдій при Спуску");
+    expect(text).toContain("Гніздо ґільдій і власні герби");
     expect(text).toContain("У грі вже:");
     expect(text).toContain("Біля Спуску до Низу знайшлася бічна камора");
     expect(text).toContain("приватне посилання дозволяє запросити саме обраного пригодника");

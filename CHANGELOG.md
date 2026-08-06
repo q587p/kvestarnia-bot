@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.5] - 12026-08-05 - Guild Foundation
+## [0.4.5] - 12026-08-06 - Guild Foundation and Custom Crests
 
 ### Added
 - Added `🪺 Гніздо ґільдій` as a dedicated side chamber off `Спуск до Низу`, with a compact landing, separate rules card, viewer-aware actions and an explicit return route while deliberately sharing the canonical Spusk presence location.
@@ -18,6 +18,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Added button-first guild UI from the persistent main menu and active character card: requirements, crest, separate private name and description prompts, preview/confirm, private share deep links, target-side accept/decline, inviter response notices, profile editing and stable member-action menus. Commands remain fallback routes.
 - Added a `📖 Перекази` customs entry explaining the shipped guild charter, roles, first-member activation, remort continuity and the separate ordinary-vatanga/economy boundary; the existing rewardless create/join achievements remain authoritative.
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
+- Added exclusive transactional reservation for all 13 catalog crests plus a direct custom Telegram-photo alternative in creation and leader profile editing. Custom media uses a durable expiring User-bound draft, safe `🖼️` text fallback, inspect-photo controls and no binary/URL storage or raw media-id exposure.
+- Added additive `20260806120000_guild_custom_crests` migration/rollback for unique catalog reservation, custom media metadata and restart-safe upload drafts without changing the original guild-foundation migration.
 
 ### Changed
 - The Nest is now the canonical public discovery route; `/guild`, the persistent `🏰 Ґільдії` button, hero shortcuts and private deep-link recovery remain usable from anywhere under their existing rules. Forming founders now receive the hero-card shortcut too.
@@ -26,6 +28,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Guild membership and leadership now survive real remort and safe Character recreation while live party/combat blockers and frozen-life contracts remain authoritative.
 - `/guild_party` now opens only a paginated member picker for an already-existing eligible gameplay `PartySession`. It reuses the ordinary invitation, `joinSource=guild` attribution and canonical party-card sender; it never creates an unattached guild lobby, and nonmembers retain ordinary routes.
 - Disabled mode preserves rows, safe reads, nonleader leave, accepted transfer and sole disband while blocking formation, invitation acceptance/new sends, roles, profile edits and guild-party writes.
+- Catalog pickers now hide crests reserved by other forming/active guilds while keeping the current guild's own crest selectable; stored custom media remains available to safe recovery when new guild writes are disabled.
 
 ### Fixed
 - Concurrent equivalent/different-name confirms, founder cooldown claims, competing accepts, final roster slots, officer caps, duplicate confirms and stale callbacks converge transactionally without extra debit, double membership or leaderless guilds.
@@ -41,6 +44,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Guild controls no longer require players to compose role/profile commands: leaders select a stable member row and then a permitted action, while duplicate names remain independently targetable and active members can return from the character card.
 - Every guild entry now passes through the canonical active-search and pending-Friday-raid routing guards before guild or presence work: the persistent button, exact fallback commands, guided replies, callbacks and private start links cannot mutate or disclose guild state while a search or raid claim owns the route, while completed-search and monster-attack handoff remain intact.
 - Guided guild ForceReply continuations are now classified before the generic combat-lock text filter, so a prompt published before a pending Friday raid or live combat cannot bypass the canonical owner card or reach guild, invitation-delivery, audit, profile, creation-intent or presence mutations.
+- Catalog crest create/create, create/edit and edit/edit races now have one unique-key winner. The relevant overdue owner is terminalized independent of cleanup backlog, and a losing founder receives no gold debit, cooldown or charter side effect.
+- Custom-photo replies now require the exact User-bound bot prompt and pass active search, pending raid and combat ownership guards before draft/media/profile work. Invalid media, stale versions, duplicate delivery and invalidated Telegram references recover idempotently with usable controls and safe semantic-only audit data.
 
 ## [0.4.4] - 12026-08-05 - Group Targeting, Left Invitations and Equipment Locks
 

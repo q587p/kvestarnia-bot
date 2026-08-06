@@ -165,6 +165,12 @@ leader/officer/member, leader-only crest/description edit і приватний 
 Активний склад має hard cap 8; joining безкоштовний. Історична назва лишається,
 а окрема reservation звільняється після bounded expiry/disband hold.
 
+Тринадцять catalog crest є exclusive для forming/active статутів і
+звільняються terminal lifecycle. Засновник або голова може натомість прямо
+завантажити Telegram-фото; restart-safe draft зберігає тільки media references,
+а текстові поверхні показують `🖼️`. Transactional unique reservation вирішує
+create/edit races без gold чи cooldown для програвшого засновника.
+
 PR `#190` готує repository release `0.4.5` із цим shell та окремим
 `🪺 Гніздом ґільдій` при Спуску. Active-only public directory ділить
 `PRESENCE_LOCATION_KORCHMA_DEEP`, а приватне відновлення працює звідусіль.
@@ -223,11 +229,12 @@ player LUCK/achievements і без scheduler-а.
 
 ### 0.4.13 — Guild cosmetic progression
 
-Невеликий XP/level шар ґільдії, косметичні milestones і season-zero recap лише
+Невеликий XP/level шар ґільдії, earned cosmetic milestones/frames і season-zero recap лише
 після достатніх даних тижневої мети. Пізніший номер дає зібрати ці дані, поки
 виходять старі social/economy promises. XP іде один раз із canonical
 guild-period completion receipt, не множиться на participant receipts; жодного
-бойового pay-to-win бонусу.
+бойового pay-to-win бонусу. Власні uploaded герби вже належать identity surface
+`0.4.5`; `0.4.13` їх не дублює й не продає.
 
 ### Не входить у 0.4.x foundation
 

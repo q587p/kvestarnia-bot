@@ -7,6 +7,12 @@ import type { PartySessionService } from "../../src/services/partySessionService
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotModuleDependencies } from "../../src/bot/modules/types";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
+import { GUILD_CREST_CATALOG } from "../../src/domain/guild";
+import {
+  GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
+  GUILD_CREATION_NAME_PROMPT_HEADING,
+  GUILD_CREST_UPLOAD_PROMPT_HEADING
+} from "../../src/bot/presenters/guildPresenter";
 
 describe("guild command routes", () => {
   it.each([false, true])("registers the real /guild callback recovery route with rollout enabled=%s", async (enabled) => {
@@ -110,6 +116,10 @@ describe("guild command routes", () => {
     expect(creationMarkup.inline_keyboard.flat().filter((button) =>
       "callback_data" in button && String(button.callback_data).startsWith("v1:g:r:")
     )).toHaveLength(13);
+    expect(creationMarkup.inline_keyboard.flat()).toContainEqual(expect.objectContaining({
+      text: "🖼️ Завантажити свій герб",
+      callback_data: "v1:g:nu"
+    }));
     const codeMarkup = sent[2]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(codeMarkup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
       expect.objectContaining({ copy_text: { text: "privateInviteCode93" } }),
@@ -234,6 +244,211 @@ describe("guild command routes", () => {
       displayName: "Тиха Печатка",
       description: ""
     });
+  });
+
+  it("runs custom photo creation through the exact ForceReply upload, name, description and preview flow", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const beginCrestUploadForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready", token: "customUploadToken13", purpose: "creation"
+    });
+    const storeCrestUploadForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready", token: "customUploadToken13", purpose: "creation"
+    });
+    const previewCustomCreationForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      intent: {
+        token: "customIntentToken13",
+        displayName: "Мальована Рада",
+        normalizedName: "мальована рада",
+        crest: "🖼️",
+        crestKind: "custom",
+        hasCustomCrest: true,
+        description: "Герб малювали без лінійки.",
+        goldCost: 587,
+        availableGold: 600,
+        expiresAt: new Date("2026-08-06T20:23:00.000Z")
+      }
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve(method === "answerCallbackQuery"
+        ? { ok: true, result: true }
+        : { ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerSocialBotModule(bot, {
+      services: {
+        guilds: guildService({
+          beginCrestUploadForTelegramUser,
+          storeCrestUploadForTelegramUser,
+          previewCustomCreationForTelegramUser
+        })
+      },
+      options: {}
+    } as unknown as BotModuleDependencies);
+
+    await bot.handleUpdate(callbackUpdate("v1:g:nu"));
+    await bot.handleUpdate(photoReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`,
+      [
+        { file_id: "small-file", file_unique_id: "small-unique", width: 128, height: 128, file_size: 1_000 },
+        { file_id: "largest-file-secret", file_unique_id: "largest-unique-secret", width: 1024, height: 768, file_size: 93_000 }
+      ],
+      94
+    ));
+    await bot.handleUpdate(replyUpdate(
+      "Мальована Рада",
+      `${GUILD_CREATION_NAME_PROMPT_HEADING} · 🖼️ · customUploadToken13`,
+      95
+    ));
+    await bot.handleUpdate(replyUpdate(
+      "Герб малювали без лінійки.",
+      `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🖼️ · customUploadToken13\n\nНазва: Мальована Рада`,
+      96
+    ));
+
+    expect(beginCrestUploadForTelegramUser).toHaveBeenCalledWith(42n, "creation");
+    expect(storeCrestUploadForTelegramUser).toHaveBeenCalledWith(42n, "customUploadToken13", {
+      fileId: "largest-file-secret",
+      fileUniqueId: "largest-unique-secret",
+      width: 1024,
+      height: 768,
+      fileSize: 93_000
+    });
+    expect(previewCustomCreationForTelegramUser).toHaveBeenCalledWith(42n, {
+      uploadToken: "customUploadToken13",
+      displayName: "Мальована Рада",
+      description: "Герб малювали без лінійки."
+    });
+    expect(String(sent.at(-1)?.text)).toContain("власний герб");
+    expect(JSON.stringify(sent.at(-1)?.reply_markup)).toContain("v1:g:vi:customIntentToken13");
+    expect(JSON.stringify(sent)).not.toContain("largest-file-secret");
+    expect(JSON.stringify(sent)).not.toContain("largest-unique-secret");
+  });
+
+  it("rejects invalid custom media and leaves arbitrary photos outside guild routing", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const storeCrestUploadForTelegramUser = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({ storeCrestUploadForTelegramUser }));
+
+    await bot.handleUpdate(documentReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · invalidUploadToken13`,
+      101
+    ));
+    await bot.handleUpdate(photoReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · invalidUploadToken13`,
+      [{ file_id: "oversize", file_unique_id: "oversize-unique", width: 4096, height: 4096, file_size: 1_000 }],
+      102
+    ));
+    await bot.handleUpdate(arbitraryPhotoUpdate(103));
+
+    expect(storeCrestUploadForTelegramUser).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(2);
+    expect(String(sent[0]?.text)).toContain("саме фото");
+    expect(String(sent[1]?.text)).toContain("2048×2048");
+    expect((sent[0]?.reply_markup as { force_reply?: boolean }).force_reply).toBe(true);
+  });
+
+  it("accepts the documented photo boundaries and rejects a forged or stale upload prompt", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const storeCrestUploadForTelegramUser = vi.fn()
+      .mockResolvedValueOnce({ state: "ready", token: "boundaryUploadToken13", purpose: "creation" })
+      .mockResolvedValueOnce({ state: "ready", token: "boundaryUploadToken13", purpose: "creation" })
+      .mockResolvedValueOnce({ state: "not-found" });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({ storeCrestUploadForTelegramUser }));
+
+    await bot.handleUpdate(photoReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · boundaryUploadToken13`,
+      [{ file_id: "minimum-secret", file_unique_id: "minimum-unique-secret", width: 64, height: 64, file_size: 1 }],
+      104
+    ));
+    await bot.handleUpdate(photoReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · boundaryUploadToken13`,
+      [{
+        file_id: "maximum-secret",
+        file_unique_id: "maximum-unique-secret",
+        width: 2048,
+        height: 2048,
+        file_size: 5 * 1024 * 1024
+      }],
+      105
+    ));
+    await bot.handleUpdate(photoReplyUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · forgedUploadToken13`,
+      [{ file_id: "forged-secret", file_unique_id: "forged-unique-secret", width: 512, height: 512 }],
+      106
+    ));
+
+    expect(storeCrestUploadForTelegramUser).toHaveBeenNthCalledWith(1, 42n, "boundaryUploadToken13", expect.objectContaining({
+      width: 64,
+      height: 64,
+      fileSize: 1
+    }));
+    expect(storeCrestUploadForTelegramUser).toHaveBeenNthCalledWith(2, 42n, "boundaryUploadToken13", expect.objectContaining({
+      width: 2048,
+      height: 2048,
+      fileSize: 5 * 1024 * 1024
+    }));
+    expect(String(sent.at(-1)?.text)).toContain("бланк герба вже нечинний");
+    expect(JSON.stringify(sent)).not.toContain("minimum-secret");
+    expect(JSON.stringify(sent)).not.toContain("maximum-secret");
+    expect(JSON.stringify(sent)).not.toContain("forged-secret");
+  });
+
+  it("sends a stored custom crest with controls and recovers neutrally from sendPhoto failure", async () => {
+    const success = callbackContext();
+    const sendPhoto = vi.fn().mockResolvedValue({ message_id: 42 });
+    Object.assign(success.ctx.api, { sendPhoto });
+    const media = {
+      fileId: "private-file-id-secret",
+      fileUniqueId: "private-unique-id-secret",
+      width: 512,
+      height: 512,
+      fileSize: 42_000
+    };
+    await handleGuildCallback(
+      success.ctx,
+      { type: "crest-view-guild", guildId: "12345678-1234-4234-9234-123456789012", publicAccess: false, page: 0 },
+      guildService({ getGuildCrestMediaForTelegramUser: vi.fn().mockResolvedValue({ state: "ready", media }) })
+    );
+    expect(sendPhoto).toHaveBeenCalledWith(42, media.fileId, {
+      caption: "🖼️ Власний герб ґільдії.",
+      reply_markup: { inline_keyboard: [[{ text: "🏰 До ґільдії", callback_data: "v1:g:o" }]] }
+    });
+
+    const failed = callbackContext();
+    Object.assign(failed.ctx.api, { sendPhoto: vi.fn().mockRejectedValue(new Error("invalid file")) });
+    await handleGuildCallback(
+      failed.ctx,
+      { type: "crest-view-intent", token: "customIntentToken13" },
+      guildService({ getCreationCrestMediaForTelegramUser: vi.fn().mockResolvedValue({ state: "ready", media }) })
+    );
+    expect(String(failed.reply.mock.calls[0]?.[0])).toContain("Telegram не зміг відкрити");
+    expect(JSON.stringify(failed.reply.mock.calls[0])).toContain("v1:g:c:customIntentToken13");
+    expect(JSON.stringify(failed.reply.mock.calls[0])).not.toContain(media.fileId);
+    expect(JSON.stringify(failed.reply.mock.calls[0])).not.toContain(media.fileUniqueId);
   });
 
   it("keeps a durable membership invite recoverable through /guild when Telegram blocks delivery", async () => {
@@ -495,6 +710,7 @@ describe("guild command routes", () => {
     );
     expect(String(profile.editMessageText.mock.calls[0]?.[0])).toContain("Профіль ґільдії · крок 1 із 2");
     expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:er:0:7");
+    expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:eu:7");
 
     const crest = callbackContext();
     await handleGuildCallback(
@@ -687,6 +903,13 @@ function guildService(overrides: Partial<GuildService>): GuildService {
   return {
     isEnabled: () => true,
     areDevHelpersEnabled: () => false,
+    getCrestPickerForTelegramUser: vi.fn().mockImplementation((_actor, purpose) => Promise.resolve({
+      state: "ready",
+      availableCrests: [...GUILD_CREST_CATALOG],
+      currentCrest: purpose === "profile" ? "🛡️" : null,
+      currentHasCustomCrest: false,
+      guildVersion: purpose === "profile" ? 7 : null
+    })),
     ...overrides
   } as GuildService;
 }
@@ -760,6 +983,54 @@ function replyUpdate(text: string, promptText: string, updateId: number) {
         from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
         text: promptText
       }
+    }
+  };
+}
+
+function photoReplyUpdate(
+  promptText: string,
+  photo: Array<{ file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }>,
+  updateId: number
+) {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: updateId,
+      date: 1,
+      chat: { id: 42, type: "private" as const },
+      from: { id: 42, is_bot: false, first_name: "Тест" },
+      photo,
+      reply_to_message: {
+        message_id: updateId - 1,
+        date: 1,
+        chat: { id: 42, type: "private" as const },
+        from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
+        text: promptText
+      }
+    }
+  };
+}
+
+function documentReplyUpdate(promptText: string, updateId: number) {
+  return {
+    ...photoReplyUpdate(promptText, [], updateId),
+    message: {
+      ...photoReplyUpdate(promptText, [], updateId).message,
+      photo: undefined,
+      document: { file_id: "document-secret", file_unique_id: "document-unique", file_name: "crest.png" }
+    }
+  };
+}
+
+function arbitraryPhotoUpdate(updateId: number) {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: updateId,
+      date: 1,
+      chat: { id: 42, type: "private" as const },
+      from: { id: 42, is_bot: false, first_name: "Тест" },
+      photo: [{ file_id: "ordinary-photo", file_unique_id: "ordinary-unique", width: 512, height: 512 }]
     }
   };
 }

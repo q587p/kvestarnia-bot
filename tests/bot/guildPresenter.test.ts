@@ -35,6 +35,14 @@ describe("guild presenter privacy", () => {
       return parsed.ok && parsed.value.type === "create-crest" ? [parsed.value.crestIndex] : [];
     });
     expect(crestChoices).toEqual(Array.from({ length: 13 }, (_, index) => index));
+    const occupiedCatalogButtons = buildGuildCreationStartKeyboard([]).inline_keyboard.flat();
+    expect(occupiedCatalogButtons.filter((button) =>
+      "callback_data" in button && button.callback_data.startsWith("v1:g:r:")
+    )).toHaveLength(0);
+    expect(occupiedCatalogButtons).toContainEqual(expect.objectContaining({
+      text: "🖼️ Завантажити свій герб",
+      callback_data: "v1:g:nu"
+    }));
     expect(creationButtons.some((button) =>
       "callback_data" in button && parseGuildCallbackData(button.callback_data).ok
     )).toBe(true);

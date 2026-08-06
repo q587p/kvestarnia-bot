@@ -3,6 +3,7 @@ import { mainMenuButtons } from "./keyboards/mainMenuKeyboard";
 import {
   GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
   GUILD_CREATION_NAME_PROMPT_HEADING,
+  GUILD_CREST_UPLOAD_PROMPT_HEADING,
   GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING
 } from "./presenters/guildPresenter";
 import { parseStartPayload } from "./startPayload";
@@ -68,5 +69,5 @@ function isGuildPrompt(text: string): boolean {
     GUILD_CREATION_NAME_PROMPT_HEADING,
     GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
     GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING
-  ].some((heading) => firstLine.startsWith(`${heading} · `));
+  ].some((heading) => firstLine.startsWith(`${heading} · `)) || firstLine.startsWith(`${GUILD_CREST_UPLOAD_PROMPT_HEADING} · `);
 }

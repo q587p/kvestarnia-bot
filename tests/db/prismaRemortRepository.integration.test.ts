@@ -1675,9 +1675,11 @@ async function applyRaidChatMigration(prisma: PrismaClient): Promise<void> {
 }
 
 async function applyGuildMigration(prisma: PrismaClient): Promise<void> {
-  const sql = await readFile(resolve("prisma/migrations/20260802230000_guild_foundation/migration.sql"), "utf8");
-  for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
-    await prisma.$executeRawUnsafe(statement);
+  for (const migration of ["20260802230000_guild_foundation", "20260806120000_guild_custom_crests"]) {
+    const sql = await readFile(resolve(`prisma/migrations/${migration}/migration.sql`), "utf8");
+    for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 

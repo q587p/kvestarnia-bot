@@ -10,10 +10,11 @@ is a durable small identity that helps the same people find one another again.
 The guild never owns a party, encounter, combat lease, reward or settlement.
 
 Foundation is designed around a comfortable core of 3–5 people, with a hard
-active-member cap of 8. It stores one normalized/display name, one crest from a
-13-emoji catalog, a 0–93-grapheme description, active membership and private
-audit history. Names are retained historically while a separate reservation is
-released after the accepted expiry/disband hold.
+active-member cap of 8. It stores one normalized/display name, one exclusive
+crest from a 13-emoji catalog or one custom Telegram photo, a 0–93-grapheme
+description, active membership and private audit history. Names are retained
+historically while a separate reservation is released after the accepted
+expiry/disband hold.
 
 ## Guild Nest and discovery
 
@@ -35,6 +36,8 @@ description and current `n/8` count only. It has no roster, leader, role,
 membership id, Telegram identity, token, audit, timestamp, exact location,
 ranking, recommendation or application action. Guild UGC keeps canonical
 validation; broader moderation/reporting waits for a repository-wide facility.
+Custom crests use only the `🖼️` marker in rows/text. A separate view action may
+send the stored Telegram photo, but the public DTO never exposes media ids.
 
 ## Creation lifecycle
 
@@ -62,6 +65,26 @@ guild may be disbanded only by its sole leader; that reservation releases at
 `disbandedAt + 30d`. Lazy maintenance uses conditional updates, so release is
 idempotent and cannot free a newer reservation.
 
+## Crest identity
+
+Each catalog crest has one nullable unique reservation key. Forming and active
+guilds reserve it; expiry/disband clears it. Creation and leader profile editing
+show an advisory filtered list plus the guild's own current catalog crest, then
+claim inside the versioned transaction. The relevant overdue owner is
+terminalized directly, independent of the bounded cleanup backlog. Unique-key
+races give one winner; a losing create has no gold debit, founder cooldown or
+charter side effect.
+
+Custom identity is a direct alternative in both pickers, including when all 13
+catalog crests are occupied. A User-bound expiring upload draft stores only this
+bot's Telegram `file_id`, stable `file_unique_id`, dimensions and optional size;
+no binary or external URL is stored. The exact ForceReply accepts only a normal
+photo, selects the largest PhotoSize and fences continuation by flag,
+membership/leader authority, guild status and expected version. Replay is
+idempotent across restart. Audit records only semantic catalog/custom/reverted
+changes, never raw media identifiers. An invalidated Telegram reference yields
+neutral recovery with navigation still usable.
+
 ## Roles and permissions
 
 Technical role keys remain `leader`, `officer`, `member`. `Guild.leaderUserId`
@@ -73,7 +96,7 @@ There may be at most two officers.
 | Read profile/roster | yes | yes | yes |
 | Create/cancel own invitation | yes | yes | no |
 | Cancel another inviter's invitation | yes | no | no |
-| Edit crest/description | yes | no | no |
+| Edit available catalog/custom crest and description | yes | no | no |
 | Promote/demote, kick, offer transfer | yes | no | no |
 | Voluntary leave | only after accepted transfer | yes | yes |
 | Disband | sole active member only | no | no |
@@ -123,7 +146,7 @@ Character leads or participates in a live recruiting/active party or active
 group combat, even when no `ActiveCombatLease` exists. Safe Character recreation
 does not transfer leadership.
 
-Disabled rollout preserves rows and the minimum escape/recovery paths: profile
+Disabled rollout preserves rows, stored media and the minimum escape/recovery paths: profile
 read, nonleader leave, accepted transfer and sole-member disband. It blocks new
 formation, invite/accept, role/profile and guild-party writes. The default stays
 off until exact-head three-account QA and an abandoned-leader operator policy
