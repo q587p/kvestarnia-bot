@@ -168,14 +168,15 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
         return;
       }
 
-      if (!shouldCheckCombatLock(ctx)) {
+      const guildRoute = isGuildRoute(ctx);
+      if (!shouldCheckCombatLock(ctx) && !guildRoute) {
         measurement.end();
         await next();
         return;
       }
 
       if (
-        (ctx.callbackQuery || isDuelRoute(ctx) || isGuildRoute(ctx)) &&
+        (ctx.callbackQuery || isDuelRoute(ctx) || guildRoute) &&
         !isPendingRaidSafeCallback(callbackData) &&
         typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
         (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
