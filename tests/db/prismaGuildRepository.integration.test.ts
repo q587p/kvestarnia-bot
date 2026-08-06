@@ -1647,6 +1647,258 @@ describe("PrismaGuildRepository integration", () => {
     expect(safeAudit).not.toContain("telegram-unique-id");
   }, 60_000);
 
+  it("replaces a consumed custom creation crest with the latest upload across restarts", async () => {
+    const telegramUserId = 62_010n;
+    const userId = "custom-replace-founder";
+    const mediaA = {
+      fileId: "replace-secret-file-a",
+      fileUniqueId: "replace-secret-unique-a",
+      width: 512,
+      height: 512,
+      fileSize: 42_000
+    };
+    const mediaB = {
+      fileId: "replace-secret-file-b",
+      fileUniqueId: "replace-secret-unique-b",
+      width: 1024,
+      height: 768,
+      fileSize: 93_000
+    };
+    await seedCharacter(prisma, userId, telegramUserId, "Перемальовувачка", 1_000, { level: 5 });
+
+    await repository.beginCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadA13",
+      purpose: "creation",
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 23 * 60_000)
+    });
+    await repository.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadA13",
+      media: mediaA,
+      now: NOW
+    });
+    const previewA = await repository.createCustomIntentForTelegramUser(telegramUserId, {
+      token: "replaceIntentA13",
+      uploadToken: "replaceUploadA13",
+      displayName: "Перший Мальований Статут",
+      normalizedName: "перший мальований статут",
+      description: "Перший ескіз.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    });
+    expect(previewA).toMatchObject({ state: "ready", intent: { token: "replaceIntentA13" } });
+
+    const restartedBeforeReplacement = new PrismaGuildRepository(prisma);
+    await restartedBeforeReplacement.beginCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadB13",
+      purpose: "creation",
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 23 * 60_000)
+    });
+    await restartedBeforeReplacement.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadB13",
+      media: mediaB,
+      now: NOW
+    });
+
+    const restartedBeforePreview = new PrismaGuildRepository(prisma);
+    const previewB = await restartedBeforePreview.createCustomIntentForTelegramUser(telegramUserId, {
+      token: "replaceIntentB13",
+      uploadToken: "replaceUploadB13",
+      displayName: "Другий Мальований Статут",
+      normalizedName: "другий мальований статут",
+      description: "Остаточний ескіз.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    });
+    expect(previewB).toMatchObject({ state: "ready", intent: { token: "replaceIntentB13" } });
+    expect(JSON.stringify(previewB)).not.toContain(mediaB.fileId);
+    await expect(restartedBeforePreview.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadA13",
+      media: mediaA,
+      now: NOW
+    })).resolves.toEqual({ state: "not-found" });
+    await expect(restartedBeforePreview.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "replaceUploadB13",
+      media: mediaB,
+      now: NOW
+    })).resolves.toMatchObject({ state: "replayed", intentToken: "replaceIntentB13" });
+    await expect(restartedBeforePreview.getCreationCrestMediaForTelegramUser(
+      telegramUserId,
+      "replaceIntentA13",
+      NOW
+    )).resolves.toEqual({ state: "not-found" });
+    await expect(restartedBeforePreview.getCreationCrestMediaForTelegramUser(
+      telegramUserId,
+      "replaceIntentB13",
+      NOW
+    )).resolves.toEqual({ state: "ready", media: mediaB });
+    await expect(restartedBeforePreview.confirmCreateForTelegramUser(telegramUserId, "replaceIntentA13", NOW))
+      .resolves.toEqual({ state: "not-found" });
+
+    const restartedBeforeConfirm = new PrismaGuildRepository(prisma);
+    const confirmed = await restartedBeforeConfirm.confirmCreateForTelegramUser(
+      telegramUserId,
+      "replaceIntentB13",
+      NOW
+    );
+    expect(confirmed).toMatchObject({ state: "created", guild: { crest: "🖼️", hasCustomCrest: true } });
+    await expect(restartedBeforeConfirm.confirmCreateForTelegramUser(telegramUserId, "replaceIntentB13", NOW))
+      .resolves.toMatchObject({ state: "replayed" });
+    expect(await goldFor(prisma, telegramUserId)).toBe(1_000 - GUILD_CREATION_GOLD);
+    await expect(prisma.guildFounderCooldown.count({ where: { userId } })).resolves.toBe(1);
+    const currentIntent = await prisma.guildCreationIntent.findUniqueOrThrow({
+      where: { token: "replaceIntentB13" },
+      select: { id: true }
+    });
+    await expect(prisma.guildCrestUploadDraft.findMany({
+      where: { userId },
+      orderBy: { token: "asc" },
+      select: { token: true, status: true, activeUserKey: true, intentId: true }
+    })).resolves.toEqual([
+      { token: "replaceUploadA13", status: "consumed", activeUserKey: null, intentId: null },
+      { token: "replaceUploadB13", status: "consumed", activeUserKey: null, intentId: currentIntent.id }
+    ]);
+    await expect(prisma.guildCrestUploadDraft.count({ where: { userId, intentId: { not: null } } })).resolves.toBe(1);
+    const safeState = JSON.stringify({
+      previewB,
+      confirmed,
+      audit: await prisma.guildAudit.findMany({ select: { eventType: true, payloadJson: true } })
+    });
+    expect(safeState).not.toContain(mediaA.fileId);
+    expect(safeState).not.toContain(mediaA.fileUniqueId);
+    expect(safeState).not.toContain(mediaB.fileId);
+    expect(safeState).not.toContain(mediaB.fileUniqueId);
+  }, 60_000);
+
+  it("detaches a consumed custom draft across custom to catalog to custom replacement", async () => {
+    const telegramUserId = 62_011n;
+    const userId = "custom-catalog-founder";
+    const mediaA = {
+      fileId: "switch-secret-file-a",
+      fileUniqueId: "switch-secret-unique-a",
+      width: 512,
+      height: 512,
+      fileSize: 42_000
+    };
+    const mediaB = {
+      fileId: "switch-secret-file-b",
+      fileUniqueId: "switch-secret-unique-b",
+      width: 768,
+      height: 1024,
+      fileSize: 93_000
+    };
+    await seedCharacter(prisma, userId, telegramUserId, "Гербоперемикачка", 1_000, { level: 5 });
+
+    await repository.beginCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadA13",
+      purpose: "creation",
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 23 * 60_000)
+    });
+    await repository.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadA13",
+      media: mediaA,
+      now: NOW
+    });
+    await repository.createCustomIntentForTelegramUser(telegramUserId, {
+      token: "switchIntentA13",
+      uploadToken: "switchUploadA13",
+      displayName: "Мальований Перемикач",
+      normalizedName: "мальований перемикач",
+      description: "Спершу власний.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    });
+
+    const restartedForCatalog = new PrismaGuildRepository(prisma);
+    await expect(createCatalogIntent(
+      restartedForCatalog,
+      telegramUserId,
+      "switchCatalogIntent13",
+      "Каталожний Перемикач",
+      "🐸"
+    )).resolves.toMatchObject({ state: "ready", intent: { crest: "🐸", crestKind: "catalog" } });
+    await expect(restartedForCatalog.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadA13",
+      media: mediaA,
+      now: NOW
+    })).resolves.toEqual({ state: "not-found" });
+    await expect(restartedForCatalog.getCreationCrestMediaForTelegramUser(
+      telegramUserId,
+      "switchIntentA13",
+      NOW
+    )).resolves.toEqual({ state: "not-found" });
+
+    const restartedForUploadB = new PrismaGuildRepository(prisma);
+    await restartedForUploadB.beginCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadB13",
+      purpose: "creation",
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 23 * 60_000)
+    });
+    await restartedForUploadB.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadB13",
+      media: mediaB,
+      now: NOW
+    });
+    const restartedForPreviewB = new PrismaGuildRepository(prisma);
+    const previewB = await restartedForPreviewB.createCustomIntentForTelegramUser(telegramUserId, {
+      token: "switchIntentB13",
+      uploadToken: "switchUploadB13",
+      displayName: "Остаточний Перемикач",
+      normalizedName: "остаточний перемикач",
+      description: "Знову власний.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    });
+    expect(previewB).toMatchObject({ state: "ready", intent: { token: "switchIntentB13" } });
+    await expect(restartedForPreviewB.storeCrestUploadForTelegramUser(telegramUserId, {
+      token: "switchUploadA13",
+      media: mediaA,
+      now: NOW
+    })).resolves.toEqual({ state: "not-found" });
+    await expect(restartedForPreviewB.confirmCreateForTelegramUser(
+      telegramUserId,
+      "switchCatalogIntent13",
+      NOW
+    )).resolves.toEqual({ state: "not-found" });
+
+    const restartedBeforeConfirm = new PrismaGuildRepository(prisma);
+    await expect(restartedBeforeConfirm.confirmCreateForTelegramUser(telegramUserId, "switchIntentB13", NOW))
+      .resolves.toMatchObject({ state: "created", guild: { crest: "🖼️", hasCustomCrest: true } });
+    expect(await goldFor(prisma, telegramUserId)).toBe(1_000 - GUILD_CREATION_GOLD);
+    await expect(prisma.guildFounderCooldown.count({ where: { userId } })).resolves.toBe(1);
+    const currentIntent = await prisma.guildCreationIntent.findUniqueOrThrow({
+      where: { token: "switchIntentB13" },
+      select: { id: true }
+    });
+    await expect(prisma.guildCrestUploadDraft.findMany({
+      where: { userId },
+      orderBy: { token: "asc" },
+      select: { token: true, status: true, activeUserKey: true, intentId: true }
+    })).resolves.toEqual([
+      { token: "switchUploadA13", status: "consumed", activeUserKey: null, intentId: null },
+      { token: "switchUploadB13", status: "consumed", activeUserKey: null, intentId: currentIntent.id }
+    ]);
+    await expect(prisma.guildCrestUploadDraft.count({ where: { userId, activeUserKey: { not: null } } }))
+      .resolves.toBe(0);
+    await expect(prisma.guildCrestUploadDraft.count({ where: { userId, intentId: { not: null } } }))
+      .resolves.toBe(1);
+    const safeState = JSON.stringify({
+      previewB,
+      audit: await prisma.guildAudit.findMany({ select: { eventType: true, payloadJson: true } })
+    });
+    expect(safeState).not.toContain(mediaA.fileId);
+    expect(safeState).not.toContain(mediaA.fileUniqueId);
+    expect(safeState).not.toContain(mediaB.fileId);
+    expect(safeState).not.toContain(mediaB.fileUniqueId);
+  }, 60_000);
+
   it("does not mint invite opt-in state for a member and clears stale state on membership creation", async () => {
     await seedCharacter(prisma, "optin-member", 60_300n, "Учасниця", 1_000, { level: 5 });
     await expect(createOptIn(repository, 60_300n, "memberOptInToken93")).resolves.toMatchObject({ state: "ready" });

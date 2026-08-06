@@ -153,6 +153,9 @@ export class PrismaGuildRepository implements GuildRepository {
       }
 
       const existing = await tx.guildCreationIntent.findUnique({ where: { activeUserKey: actor.id } });
+      if (existing) {
+        await detachCreationIntentCrestDrafts(tx, existing.id, input.now);
+      }
       const intent = existing
         ? await tx.guildCreationIntent.update({
             where: { id: existing.id },
@@ -291,6 +294,9 @@ export class PrismaGuildRepository implements GuildRepository {
         guildId: null,
         updatedAt: input.now
       } as const;
+      if (existing) {
+        await detachCreationIntentCrestDrafts(tx, existing.id, input.now);
+      }
       const intent = existing
         ? await tx.guildCreationIntent.update({ where: { id: existing.id }, data })
         : await tx.guildCreationIntent.create({
@@ -784,6 +790,9 @@ export class PrismaGuildRepository implements GuildRepository {
         return { state: "not-found" };
       }
       if (draft.status === "consumed") {
+        if (!draft.intent) {
+          return { state: "not-found" };
+        }
         return {
           state: "replayed",
           token: draft.token,
@@ -2239,6 +2248,13 @@ async function maintainCrestUploadDrafts(tx: TxClient, now: Date): Promise<void>
   if (oldRows.length > 0) {
     await tx.guildCrestUploadDraft.deleteMany({ where: { id: { in: oldRows.map((row) => row.id) } } });
   }
+}
+
+async function detachCreationIntentCrestDrafts(tx: TxClient, intentId: string, now: Date): Promise<void> {
+  await tx.guildCrestUploadDraft.updateMany({
+    where: { intentId },
+    data: { intentId: null, updatedAt: now }
+  });
 }
 
 async function expireCreationIntents(tx: TxClient, now: Date): Promise<void> {
