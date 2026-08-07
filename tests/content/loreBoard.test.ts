@@ -261,7 +261,8 @@ describe("lore board content", () => {
     });
     expect(guild?.body).toContain("587 золота");
     expect(guild?.body).toContain("🪺 Гнізді ґільдій");
-    expect(guild?.body).toContain("🏰 Ґільдії");
+    expect(guild?.body).toContain("картки персонажа");
+    expect(guild?.body).not.toContain("🏰 Ґільдії");
     expect(guild?.body).toContain("приватним посиланням");
     expect(guild?.body).toContain("прийняття запрошення");
     expect(guild?.body).toContain("між ремортами");

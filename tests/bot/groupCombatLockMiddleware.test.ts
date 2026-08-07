@@ -22,7 +22,7 @@ const GUILD_FORCE_REPLY_PROMPTS = [
 ] as const;
 
 describe("group-combat lock middleware", () => {
-  it("routes the persistent guild button through the canonical combat lock", async () => {
+  it("keeps legacy cached guild-button text behind the canonical combat lock", async () => {
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
     const downstream = vi.fn();

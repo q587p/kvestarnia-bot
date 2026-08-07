@@ -110,12 +110,13 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.participants],
       [mainMenuButtons.help]
     ]);
     expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.equipment);
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.guild);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -128,7 +129,7 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, mainMenuButtons.tavern],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.participants],
       [mainMenuButtons.help, mainMenuButtons.admin]
     ]);
     expect(mainMenuButtons.admin).toBe("🧰 Адмінка");
@@ -272,7 +273,7 @@ describe("main menu and scene keyboards", () => {
     expect(replyKeyboardTexts(keyboard.keyboard)).toEqual([
       [mainMenuButtons.hero, `${mainMenuLocationButtons.hall} ✅`],
       [mainMenuButtons.quest, mainMenuButtons.inventory],
-      [mainMenuButtons.participants, mainMenuButtons.guild],
+      [mainMenuButtons.participants],
       [mainMenuButtons.help]
     ]);
     expect(getMainMenuLocationButtonPresenceId(`${mainMenuLocationButtons.hall} ✅`)).toBe(

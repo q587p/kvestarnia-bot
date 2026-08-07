@@ -25,9 +25,10 @@ per-guild hall or free-floating notice board. It shares
 splitting nearby, movement, daily-scene or combat-lock semantics.
 
 Public Nest and directory callbacks require the viewer's current Spusk
-location. Private `/guild`, the persistent `🏰 Ґільдії` recovery button,
-target-bound deep links, invite responses and character-card shortcuts remain
-available from anywhere under their existing rules. The default-off flag hides
+location. New persistent main keyboards have no global guild row. Private
+`/guild`, target-bound deep links, invite responses and character-card shortcuts
+remain available from anywhere under their existing rules; cached legacy
+`🏰 Ґільдії` text stays a guarded compatibility route. The default-off flag hides
 the entrance and makes stale public callbacks inert before repository access.
 
 The public directory is an active-only five-row projection ordered by

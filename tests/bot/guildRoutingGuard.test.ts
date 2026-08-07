@@ -10,7 +10,7 @@ vi.mock("../../src/bot/commands/fightCommand", () => ({
 
 describe("guild passage-search routing guard", () => {
   it.each([
-    ["persistent button", textUpdate("🏰 Ґільдії"), "reply"],
+    ["legacy cached button text", textUpdate("🏰 Ґільдії"), "reply"],
     ["fallback command", textUpdate("/guild_create"), "reply"],
     ["Nest read", callbackUpdate("v1:g:no"), "edit"],
     ["invite mutation", callbackUpdate("v1:g:a:inviteABC12"), "edit"],

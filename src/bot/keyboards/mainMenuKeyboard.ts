@@ -111,7 +111,6 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
-    .text(mainMenuButtons.guild)
     .row()
     .text(mainMenuButtons.help);
 

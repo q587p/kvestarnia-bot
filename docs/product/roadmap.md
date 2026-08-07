@@ -173,7 +173,9 @@ create/edit races без gold чи cooldown для програвшого зас
 
 PR `#190` готує repository release `0.4.5` із цим shell та окремим
 `🪺 Гніздом ґільдій` при Спуску. Active-only public directory ділить
-`PRESENCE_LOCATION_KORCHMA_DEEP`, а приватне відновлення працює звідусіль.
+`PRESENCE_LOCATION_KORCHMA_DEEP`; нова головна клавіатура не має окремого
+ґільдійного рядка, а приватне відновлення через `/guild`, адресні посилання й
+картку персонажа працює звідусіль.
 Усе це лишається за default-off `GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
 remort, а party/combat лишаються current-life контрактами без Guild foreign key.
 `/guild_party` лише показує members для вже чинного real-gameplay recruiting
