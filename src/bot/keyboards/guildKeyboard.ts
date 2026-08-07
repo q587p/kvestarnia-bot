@@ -30,6 +30,7 @@ import {
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
   makeGuildProfileCrestCallbackData,
+  makeGuildProfileKeepCustomCallbackData,
   makeGuildProfileOpenCallbackData,
   makeGuildProfileUploadCallbackData,
   makeGuildPrivateCrestViewCallbackData,
@@ -209,7 +210,8 @@ export function buildGuildCreationStartKeyboard(availableCrests: readonly string
 
 export function buildGuildProfileCrestKeyboard(
   version: number,
-  availableCrests: readonly string[] = GUILD_CREST_CATALOG
+  availableCrests: readonly string[] = GUILD_CREST_CATALOG,
+  currentHasCustomCrest = false
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   GUILD_CREST_CATALOG.forEach((crest, index) => {
@@ -221,8 +223,11 @@ export function buildGuildProfileCrestKeyboard(
       keyboard.row();
     }
   });
+  keyboard.row();
+  if (currentHasCustomCrest) {
+    keyboard.text("🖼️ Лишити чинний герб", makeGuildProfileKeepCustomCallbackData(version)).row();
+  }
   return keyboard
-    .row()
     .text("🖼️ Завантажити свій герб", makeGuildProfileUploadCallbackData(version))
     .row()
     .text("🏰 Назад", makeGuildOpenCallbackData());

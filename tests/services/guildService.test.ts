@@ -19,6 +19,8 @@ describe("GuildService rollout isolation", () => {
     const beginCrestUploadForTelegramUser = vi.fn();
     const storeCrestUploadForTelegramUser = vi.fn();
     const updateCustomProfileForTelegramUser = vi.fn();
+    const updateProfilePreservingCustomCrestForTelegramUser = vi.fn();
+    const validateCrestUploadDraftForTelegramUser = vi.fn();
     const getCreationCrestMediaForTelegramUser = vi.fn();
     const getGuildCrestMediaForTelegramUser = vi.fn();
     const service = new GuildService(
@@ -36,6 +38,8 @@ describe("GuildService rollout isolation", () => {
         beginCrestUploadForTelegramUser,
         storeCrestUploadForTelegramUser,
         updateCustomProfileForTelegramUser,
+        updateProfilePreservingCustomCrestForTelegramUser,
+        validateCrestUploadDraftForTelegramUser,
         getCreationCrestMediaForTelegramUser,
         getGuildCrestMediaForTelegramUser
       } as unknown as GuildRepository,
@@ -66,6 +70,11 @@ describe("GuildService rollout isolation", () => {
     await expect(service.updateCustomProfileForTelegramUser(42n, {
       uploadToken: "draft-token", description: "Опис"
     })).resolves.toEqual({ state: "disabled" });
+    await expect(service.updateProfilePreservingCustomCrestForTelegramUser(42n, {
+      description: "Опис", expectedVersion: 1
+    })).resolves.toEqual({ state: "disabled" });
+    await expect(service.validateCrestUploadDraftForTelegramUser(42n, "draft-token", "creation"))
+      .resolves.toEqual({ state: "disabled" });
     await expect(service.getCreationCrestMediaForTelegramUser(42n, "intent-token"))
       .resolves.toEqual({ state: "disabled" });
     await expect(service.getGuildCrestMediaForTelegramUser(42n, "guild-id", true))
@@ -83,6 +92,8 @@ describe("GuildService rollout isolation", () => {
     expect(beginCrestUploadForTelegramUser).not.toHaveBeenCalled();
     expect(storeCrestUploadForTelegramUser).not.toHaveBeenCalled();
     expect(updateCustomProfileForTelegramUser).not.toHaveBeenCalled();
+    expect(updateProfilePreservingCustomCrestForTelegramUser).not.toHaveBeenCalled();
+    expect(validateCrestUploadDraftForTelegramUser).not.toHaveBeenCalled();
     expect(getCreationCrestMediaForTelegramUser).not.toHaveBeenCalled();
     expect(getGuildCrestMediaForTelegramUser).not.toHaveBeenCalled();
   });

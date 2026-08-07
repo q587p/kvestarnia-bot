@@ -10,6 +10,7 @@ export type GuildCallback =
   | { type: "create-crest"; crestIndex: number }
   | { type: "profile-open"; version: number }
   | { type: "profile-upload"; version: number }
+  | { type: "profile-keep-custom"; version: number }
   | { type: "profile-crest"; crestIndex: number; version: number }
   | { type: "members-open"; version: number; page: number }
   | { type: "member-manage"; memberId: string; version: number }
@@ -45,6 +46,7 @@ export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
 export const makeGuildInviteStartCallbackData = (): string => `${PREFIX}:is`;
 export const makeGuildProfileOpenCallbackData = (version: number): string => `${PREFIX}:e:${version.toString(36)}`;
 export const makeGuildProfileUploadCallbackData = (version: number): string => `${PREFIX}:eu:${version.toString(36)}`;
+export const makeGuildProfileKeepCustomCallbackData = (version: number): string => `${PREFIX}:ek:${version.toString(36)}`;
 export const makeGuildProfileCrestCallbackData = (crestIndex: number, version: number): string =>
   `${PREFIX}:er:${crestIndex.toString(36)}:${version.toString(36)}`;
 export const makeGuildMembersOpenCallbackData = (version: number, page = 0): string =>
@@ -114,6 +116,10 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "eu") {
     const version = parseVersion(first, second);
     return version === null ? err("invalid-version") : ok({ type: "profile-upload", version });
+  }
+  if (action === "ek") {
+    const version = parseVersion(first, second);
+    return version === null ? err("invalid-version") : ok({ type: "profile-keep-custom", version });
   }
   if (action === "er" && first && VERSION_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
     const crestIndex = Number.parseInt(first, 36);

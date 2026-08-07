@@ -285,6 +285,7 @@ export interface GuildRepository {
   declineInviteForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildInviteRespondRepositoryResult>;
   cancelInviteForTelegramUser(telegramUserId: bigint, token: string, now: Date): Promise<GuildInviteRespondRepositoryResult>;
   updateProfileForTelegramUser(telegramUserId: bigint, input: { crest: string; description: string; expectedVersion: number; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
+  updateProfilePreservingCustomCrestForTelegramUser(telegramUserId: bigint, input: { description: string; expectedVersion: number; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
   updateCustomProfileForTelegramUser(telegramUserId: bigint, input: { uploadToken: string; description: string; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
   getCrestPickerForTelegramUser(telegramUserId: bigint, purpose: GuildCrestUploadPurpose, now: Date): Promise<GuildCrestPickerRepositoryResult>;
   beginCrestUploadForTelegramUser(telegramUserId: bigint, input: {
@@ -293,6 +294,11 @@ export interface GuildRepository {
     expectedGuildVersion?: number;
     now: Date;
     expiresAt: Date;
+  }): Promise<GuildCrestUploadDraftRepositoryResult>;
+  validateCrestUploadDraftForTelegramUser(telegramUserId: bigint, input: {
+    token: string;
+    purpose: GuildCrestUploadPurpose;
+    now: Date;
   }): Promise<GuildCrestUploadDraftRepositoryResult>;
   storeCrestUploadForTelegramUser(telegramUserId: bigint, input: {
     token: string;

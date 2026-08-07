@@ -176,7 +176,11 @@ export function registerGuildCommands(
       }
       await ctx.reply(presentGuildProfileStart(), {
         ...HTML_OPTIONS,
-        reply_markup: buildGuildProfileCrestKeyboard(picker.guildVersion, picker.availableCrests)
+        reply_markup: buildGuildProfileCrestKeyboard(
+          picker.guildVersion,
+          picker.availableCrests,
+          picker.currentHasCustomCrest
+        )
       });
       return;
     }
@@ -360,7 +364,11 @@ export async function handleGuildCallback(
     await safeAnswerCallbackQuery(ctx);
     await safeEditMessageText(ctx, presentGuildProfileStart(), {
       ...HTML_OPTIONS,
-      reply_markup: buildGuildProfileCrestKeyboard(callback.version, picker.availableCrests)
+      reply_markup: buildGuildProfileCrestKeyboard(
+        callback.version,
+        picker.availableCrests,
+        picker.currentHasCustomCrest
+      )
     });
     return;
   }
@@ -370,6 +378,27 @@ export async function handleGuildCallback(
     await ctx.reply(presentGuildCrestUploadPrompt(result, "profile"), {
       ...HTML_OPTIONS,
       ...(result.state === "ready" ? { reply_markup: CREST_PHOTO_FORCE_REPLY } : {})
+    });
+    return;
+  }
+  if (callback.type === "profile-keep-custom") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Зміни профілю зараз зачинені.", show_alert: true });
+      return;
+    }
+    const picker = await service.getCrestPickerForTelegramUser(actor, "profile");
+    if (
+      picker.state !== "ready" ||
+      picker.guildVersion !== callback.version ||
+      !picker.currentHasCustomCrest
+    ) {
+      await safeAnswerCallbackQuery(ctx, { text: "Профіль або повноваження вже змінилися.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, { text: "Чинний герб лишається." });
+    await ctx.reply(presentGuildProfileDescriptionPrompt(GUILD_CUSTOM_CREST_MARKER, callback.version), {
+      ...HTML_OPTIONS,
+      reply_markup: PROFILE_DESCRIPTION_FORCE_REPLY
     });
     return;
   }
@@ -772,24 +801,30 @@ function registerGuildCrestPhotoReplies(bot: Bot, service: GuildService): void {
     }
     const photos = "photo" in ctx.message ? ctx.message.photo : undefined;
     if (!photos || photos.length === 0) {
-      await ctx.reply(presentGuildCrestUploadPrompt(
-        { state: "ready", token: prompt.token, purpose: prompt.purpose },
-        prompt.purpose,
+      await retryGuildCrestUploadPrompt(
+        ctx,
+        service,
+        actor,
+        prompt,
         "Надішліть саме фото відповіддю на цей бланк. Інші типи файлів не підходять."
-      ), { ...HTML_OPTIONS, reply_markup: CREST_PHOTO_FORCE_REPLY });
+      );
       return;
     }
     const photo = [...photos].sort((left, right) => right.width * right.height - left.width * left.height)[0]!;
     if (
       photo.width < GUILD_CREST_MIN_DIMENSION || photo.height < GUILD_CREST_MIN_DIMENSION ||
       photo.width > GUILD_CREST_MAX_DIMENSION || photo.height > GUILD_CREST_MAX_DIMENSION ||
-      (photo.file_size !== undefined && photo.file_size > GUILD_CREST_MAX_FILE_SIZE)
+      photo.file_size === undefined || photo.file_size > GUILD_CREST_MAX_FILE_SIZE
     ) {
-      await ctx.reply(presentGuildCrestUploadPrompt(
-        { state: "ready", token: prompt.token, purpose: prompt.purpose },
-        prompt.purpose,
-        "Фото має бути від 64×64 до 2048×2048 і не більш як 5 МБ."
-      ), { ...HTML_OPTIONS, reply_markup: CREST_PHOTO_FORCE_REPLY });
+      await retryGuildCrestUploadPrompt(
+        ctx,
+        service,
+        actor,
+        prompt,
+        photo.file_size === undefined
+          ? "Писар не зміг перевірити розмір цього фото. Надішліть інше звичайне фото."
+          : "Фото має бути від 64×64 до 2048×2048 і не більш як 5 МБ."
+      );
       return;
     }
     const result = await service.storeCrestUploadForTelegramUser(actor, prompt.token, {
@@ -797,7 +832,7 @@ function registerGuildCrestPhotoReplies(bot: Bot, service: GuildService): void {
       fileUniqueId: photo.file_unique_id,
       width: photo.width,
       height: photo.height,
-      fileSize: photo.file_size ?? null
+      fileSize: photo.file_size
     });
     if ((result.state === "ready" || result.state === "replayed") && !result.intentToken) {
       if (result.purpose === "creation") {
@@ -920,6 +955,11 @@ function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
             uploadToken: profilePrompt.uploadToken,
             description
           })
+        : profilePrompt.preserveCurrentCustom
+          ? await service.updateProfilePreservingCustomCrestForTelegramUser(actor, {
+              description,
+              expectedVersion: profilePrompt.version
+            })
         : await service.updateProfileForTelegramUser(actor, {
             crest: profilePrompt.crest,
             description,
@@ -1038,14 +1078,39 @@ function guildCreationDescriptionPrompt(
 
 function guildProfileDescriptionPrompt(
   text: string
-): { crest: string; version: number; uploadToken?: string } | null {
-  const selection = guildCreationPromptSelection(text, GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING);
+): { crest: string; version: number; uploadToken?: string; preserveCurrentCustom?: boolean } | null {
+  const firstLine = text.split("\n", 1)[0] ?? "";
+  const preserveCurrentCustom = firstLine === `${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${GUILD_CUSTOM_CREST_MARKER}`;
+  const selection = preserveCurrentCustom
+    ? { crest: GUILD_CUSTOM_CREST_MARKER, preserveCurrentCustom: true as const }
+    : guildCreationPromptSelection(text, GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING);
   if (!selection) {
     return null;
   }
   const versionLine = text.split("\n").find((line) => line.startsWith("Редакція статуту: "));
   const version = Number(versionLine?.slice("Редакція статуту: ".length));
   return Number.isSafeInteger(version) && version >= 0 ? { ...selection, version } : null;
+}
+
+async function retryGuildCrestUploadPrompt(
+  ctx: Context,
+  service: GuildService,
+  actor: bigint,
+  prompt: { purpose: "creation" | "profile"; token: string },
+  error: string
+): Promise<void> {
+  const result = await service.validateCrestUploadDraftForTelegramUser(actor, prompt.token, prompt.purpose);
+  if (result.state === "ready") {
+    await ctx.reply(presentGuildCrestUploadPrompt(result, prompt.purpose, error), {
+      ...HTML_OPTIONS,
+      reply_markup: CREST_PHOTO_FORCE_REPLY
+    });
+    return;
+  }
+  await ctx.reply(presentGuildCrestUploadRecovery(result), {
+    ...HTML_OPTIONS,
+    reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+  });
 }
 
 function guildCrestUploadPrompt(text: string): { purpose: "creation" | "profile"; token: string } | null {

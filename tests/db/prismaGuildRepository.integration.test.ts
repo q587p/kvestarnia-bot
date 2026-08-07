@@ -5,7 +5,11 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaGuildRepository } from "../../src/db/repositories/prismaGuildRepository";
-import { GUILD_CREATION_GOLD, GUILD_CREST_CATALOG } from "../../src/domain/guild";
+import {
+  GUILD_CREATION_GOLD,
+  GUILD_CREST_CATALOG,
+  GUILD_CREST_MAX_FILE_SIZE
+} from "../../src/domain/guild";
 import { GuildService } from "../../src/services/guildService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 
@@ -1501,6 +1505,16 @@ describe("PrismaGuildRepository integration", () => {
       now: NOW,
       expiresAt: new Date(NOW.getTime() + 23 * 60_000)
     })).resolves.toMatchObject({ state: "ready", token: uploadToken, purpose: "creation" });
+    await expect(repository.validateCrestUploadDraftForTelegramUser(62_001n, {
+      token: uploadToken,
+      purpose: "creation",
+      now: NOW
+    })).resolves.toMatchObject({ state: "ready", token: uploadToken, purpose: "creation" });
+    await expect(repository.validateCrestUploadDraftForTelegramUser(62_001n, {
+      token: "forgedUploadToken13",
+      purpose: "creation",
+      now: NOW
+    })).resolves.toEqual({ state: "not-found" });
     const media = {
       fileId: "telegram-file-id-secret-creation",
       fileUniqueId: "telegram-unique-id-secret-creation",
@@ -1513,10 +1527,50 @@ describe("PrismaGuildRepository integration", () => {
       media: { ...media, width: 63 },
       now: NOW
     })).resolves.toEqual({ state: "invalid-media" });
+    await expect(repository.storeCrestUploadForTelegramUser(62_001n, {
+      token: uploadToken,
+      media: { ...media, fileSize: null },
+      now: NOW
+    })).resolves.toEqual({ state: "invalid-media" });
     await expect(prisma.guildCrestUploadDraft.findUniqueOrThrow({
       where: { token: uploadToken },
       select: { status: true, fileId: true }
     })).resolves.toEqual({ status: "pending", fileId: null });
+    await prisma.guildCrestUploadDraft.update({
+      where: { token: uploadToken },
+      data: {
+        status: "uploaded",
+        fileId: media.fileId,
+        fileUniqueId: "persisted-invalid-unique",
+        width: media.width,
+        height: media.height,
+        fileSize: null
+      }
+    });
+    await expect(repository.createCustomIntentForTelegramUser(62_001n, {
+      token: "missingSizeIntent13",
+      uploadToken,
+      displayName: "Невідомий Розмір",
+      normalizedName: "невідомий розмір",
+      description: "Писар не вгадує байти.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    })).resolves.toEqual({ state: "upload-unavailable" });
+    await prisma.guildCrestUploadDraft.update({
+      where: { token: uploadToken },
+      data: { fileSize: GUILD_CREST_MAX_FILE_SIZE + 1 }
+    });
+    await expect(repository.createCustomIntentForTelegramUser(62_001n, {
+      token: "oversizedIntent13",
+      uploadToken,
+      displayName: "Завеликий Розмір",
+      normalizedName: "завеликий розмір",
+      description: "Писар рахує байти.",
+      goldCost: GUILD_CREATION_GOLD,
+      now: NOW,
+      expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+    })).resolves.toEqual({ state: "upload-unavailable" });
     await expect(repository.storeCrestUploadForTelegramUser(62_001n, { token: uploadToken, media, now: NOW }))
       .resolves.toMatchObject({ state: "ready", purpose: "creation" });
     await expect(repository.storeCrestUploadForTelegramUser(62_001n, { token: uploadToken, media, now: NOW }))
@@ -1580,6 +1634,29 @@ describe("PrismaGuildRepository integration", () => {
       height: 768,
       fileSize: 42_000
     };
+    await prisma.guildCrestUploadDraft.update({
+      where: { token: "customProfileUpload13" },
+      data: {
+        status: "uploaded",
+        fileId: "persisted-oversized-profile-file",
+        fileUniqueId: "persisted-oversized-profile-unique",
+        width: 512,
+        height: 768,
+        fileSize: GUILD_CREST_MAX_FILE_SIZE + 1
+      }
+    });
+    await expect(restartedBeforeConfirm.updateCustomProfileForTelegramUser(62_001n, {
+      uploadToken: "customProfileUpload13",
+      description: "Це не має змінити профіль.",
+      now: NOW
+    })).resolves.toEqual({ state: "not-found" });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: confirmed.guild.id },
+      select: { crestFileId: true, description: true }
+    })).resolves.toEqual({
+      crestFileId: media.fileId,
+      description: "Власна геральдика без сирих ідентифікаторів."
+    });
     await restartedBeforeConfirm.storeCrestUploadForTelegramUser(62_001n, {
       token: "customProfileUpload13", media: replacementMedia, now: NOW
     });
@@ -1593,9 +1670,83 @@ describe("PrismaGuildRepository integration", () => {
       description: "Повтор не переписує профіль.",
       now: NOW
     })).resolves.toMatchObject({ state: "updated" });
+    const afterCustomReplacement = await readyHub(restartedBeforeConfirm, 62_001n, NOW);
+    const joinerMembership = await prisma.guildMember.findUniqueOrThrow({
+      where: { activeUserKey: "custom-joiner" },
+      select: { id: true }
+    });
+    await expect(restartedBeforeConfirm.setMemberRoleForTelegramUser(
+      62_001n,
+      joinerMembership.id,
+      "officer",
+      afterCustomReplacement.guild.version,
+      NOW
+    )).resolves.toMatchObject({ state: "updated" });
+    await seedCharacter(prisma, "custom-outsider", 62_003n, "Стороння", 0, { level: 1 });
+    const beforePreserveHub = await readyHub(restartedBeforeConfirm, 62_001n, NOW);
+    const beforePreserve = await prisma.guild.findUniqueOrThrow({
+      where: { id: confirmed.guild.id },
+      select: {
+        crest: true,
+        crestKind: true,
+        crestReservationKey: true,
+        crestFileId: true,
+        crestFileUniqueId: true,
+        crestWidth: true,
+        crestHeight: true,
+        crestFileSize: true,
+        version: true
+      }
+    });
+    await expect(restartedBeforeConfirm.updateProfilePreservingCustomCrestForTelegramUser(62_001n, {
+      description: "Лише новий опис; герб той самий.",
+      expectedVersion: beforePreserveHub.guild.version,
+      now: NOW
+    })).resolves.toMatchObject({
+      state: "updated",
+      guild: { crest: "🖼️", hasCustomCrest: true, description: "Лише новий опис; герб той самий." }
+    });
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { id: confirmed.guild.id },
+      select: {
+        crest: true,
+        crestKind: true,
+        crestReservationKey: true,
+        crestFileId: true,
+        crestFileUniqueId: true,
+        crestWidth: true,
+        crestHeight: true,
+        crestFileSize: true,
+        version: true
+      }
+    })).resolves.toEqual({ ...beforePreserve, version: beforePreserve.version + 1 });
+    await expect(restartedBeforeConfirm.updateProfilePreservingCustomCrestForTelegramUser(62_001n, {
+      description: "Старий повтор.",
+      expectedVersion: beforePreserveHub.guild.version,
+      now: NOW
+    })).resolves.toEqual({ state: "stale" });
+    await expect(restartedBeforeConfirm.updateProfilePreservingCustomCrestForTelegramUser(62_002n, {
+      description: "Офіцерка не змінює профіль.",
+      expectedVersion: beforePreserveHub.guild.version + 1,
+      now: NOW
+    })).resolves.toEqual({ state: "forbidden" });
+    await expect(restartedBeforeConfirm.updateProfilePreservingCustomCrestForTelegramUser(62_003n, {
+      description: "Стороння не змінює профіль.",
+      expectedVersion: beforePreserveHub.guild.version + 1,
+      now: NOW
+    })).resolves.toEqual({ state: "not-member" });
     await expect(prisma.guildAudit.count({
       where: { guildId: confirmed.guild.id, eventType: "profile.updated" }
-    })).resolves.toBe(1);
+    })).resolves.toBe(2);
+    const profileAudits = await prisma.guildAudit.findMany({
+      where: { guildId: confirmed.guild.id, eventType: "profile.updated" },
+      select: { payloadJson: true }
+    });
+    expect(profileAudits.map((audit) => audit.payloadJson)).toEqual(expect.arrayContaining([
+      { crestChange: "custom" },
+      { crestChange: "preserved-custom" }
+    ]));
+    expect(JSON.stringify(profileAudits)).not.toContain("telegram-");
 
     const afterCustom = await readyHub(restartedBeforeConfirm, 62_001n, NOW);
     await restartedBeforeConfirm.beginCrestUploadForTelegramUser(62_001n, {

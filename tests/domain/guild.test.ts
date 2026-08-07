@@ -67,6 +67,13 @@ describe("guild identity", () => {
       fileSize: GUILD_CREST_MAX_FILE_SIZE + 1
     })).toBe(false);
     expect(isValidGuildCrestMediaMetadata({
+      fileId: "file",
+      fileUniqueId: "unique",
+      width: 64,
+      height: 64,
+      fileSize: null
+    })).toBe(false);
+    expect(isValidGuildCrestMediaMetadata({
       fileId: "",
       fileUniqueId: "unique",
       width: 64,

@@ -19,6 +19,7 @@ import {
   makeGuildPartyInviteCallbackData,
   makeGuildPartyOpenCallbackData,
   makeGuildProfileCrestCallbackData,
+  makeGuildProfileKeepCustomCallbackData,
   makeGuildProfileOpenCallbackData,
   makeGuildProfileUploadCallbackData,
   makeGuildPrivateCrestViewCallbackData,
@@ -125,6 +126,7 @@ describe("guild callback data", () => {
     const values = [
       makeGuildCreateUploadCallbackData(),
       makeGuildProfileUploadCallbackData(587),
+      makeGuildProfileKeepCustomCallbackData(587),
       makeGuildCreationCrestViewCallbackData("customIntentToken13"),
       makeGuildPrivateCrestViewCallbackData(guildId),
       makeGuildPublicCrestViewCallbackData(guildId, 23)
@@ -133,12 +135,15 @@ describe("guild callback data", () => {
     expect(parseGuildCallbackData(values[0])).toEqual({ ok: true, value: { type: "create-upload" } });
     expect(parseGuildCallbackData(values[1])).toEqual({ ok: true, value: { type: "profile-upload", version: 587 } });
     expect(parseGuildCallbackData(values[2])).toEqual({
-      ok: true, value: { type: "crest-view-intent", token: "customIntentToken13" }
+      ok: true, value: { type: "profile-keep-custom", version: 587 }
     });
     expect(parseGuildCallbackData(values[3])).toEqual({
-      ok: true, value: { type: "crest-view-guild", guildId, publicAccess: false, page: 0 }
+      ok: true, value: { type: "crest-view-intent", token: "customIntentToken13" }
     });
     expect(parseGuildCallbackData(values[4])).toEqual({
+      ok: true, value: { type: "crest-view-guild", guildId, publicAccess: false, page: 0 }
+    });
+    expect(parseGuildCallbackData(values[5])).toEqual({
       ok: true, value: { type: "crest-view-guild", guildId, publicAccess: true, page: 23 }
     });
   });

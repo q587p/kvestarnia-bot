@@ -6,6 +6,7 @@ import {
   GUILD_MAX_OFFICERS,
   isEligibleGuildFounder,
   isValidGuildCrestMediaMetadata,
+  validateGuildDescription,
   validateGuildProfile,
   type GuildRole
 } from "../../domain/guild";
@@ -267,9 +268,12 @@ export class PrismaGuildRepository implements GuildRepository {
       }
       if (
         draft.status !== "uploaded" ||
-        draft.expiresAt <= input.now ||
-        !draft.fileId || !draft.fileUniqueId || !draft.width || !draft.height
+        draft.expiresAt <= input.now
       ) {
+        return { state: "upload-unavailable" };
+      }
+      const media = uploadDraftMedia(draft);
+      if (!media) {
         return { state: "upload-unavailable" };
       }
       const existing = await tx.guildCreationIntent.findUnique({ where: { activeUserKey: actor.id } });
@@ -281,11 +285,11 @@ export class PrismaGuildRepository implements GuildRepository {
         displayName: input.displayName,
         crest: GUILD_CUSTOM_CREST_MARKER,
         crestKind: "custom",
-        crestFileId: draft.fileId,
-        crestFileUniqueId: draft.fileUniqueId,
-        crestWidth: draft.width,
-        crestHeight: draft.height,
-        crestFileSize: draft.fileSize,
+        crestFileId: media.fileId,
+        crestFileUniqueId: media.fileUniqueId,
+        crestWidth: media.width,
+        crestHeight: media.height,
+        crestFileSize: media.fileSize,
         description: input.description,
         goldCost: input.goldCost,
         status: "pending",
@@ -856,6 +860,62 @@ export class PrismaGuildRepository implements GuildRepository {
     });
   }
 
+  async validateCrestUploadDraftForTelegramUser(
+    telegramUserId: bigint,
+    input: { token: string; purpose: GuildCrestUploadPurpose; now: Date }
+  ): Promise<GuildCrestUploadDraftRepositoryResult> {
+    const actor = await findActor(this.prisma, telegramUserId);
+    if (!actor?.character) {
+      return { state: "no-character" };
+    }
+    const draft = await this.prisma.guildCrestUploadDraft.findUnique({ where: { token: input.token } });
+    if (
+      !draft ||
+      draft.userId !== actor.id ||
+      draft.purpose !== input.purpose ||
+      draft.status !== "pending" ||
+      draft.activeUserKey !== actor.id
+    ) {
+      return { state: "not-found" };
+    }
+    if (draft.expiresAt <= input.now) {
+      return { state: "expired" };
+    }
+    const membership = activeMembership(actor);
+    const liveMembership = membership && isMembershipSnapshotLive(membership, input.now) ? membership : null;
+    if (input.purpose === "creation") {
+      if (liveMembership) {
+        return { state: "already-member" };
+      }
+      if (!isEligibleGuildFounder(actor.character.level, actor.character._count.remorts)) {
+        return { state: "ineligible" };
+      }
+      const cooldown = await this.prisma.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
+      if (cooldown?.availableAt && cooldown.availableAt > input.now) {
+        return { state: "founder-cooldown", availableAt: cooldown.availableAt, now: input.now };
+      }
+    } else {
+      if (!liveMembership || liveMembership.guildId !== draft.guildId) {
+        return { state: "not-member" };
+      }
+      if (liveMembership.role !== "leader") {
+        return { state: "forbidden" };
+      }
+      if (
+        draft.expectedGuildVersion === null ||
+        liveMembership.guild.version !== draft.expectedGuildVersion
+      ) {
+        return { state: "stale" };
+      }
+    }
+    return {
+      state: "ready",
+      token: draft.token,
+      purpose: input.purpose,
+      ...(draft.expectedGuildVersion === null ? {} : { expectedGuildVersion: draft.expectedGuildVersion })
+    };
+  }
+
   async getCreationCrestMediaForTelegramUser(
     telegramUserId: bigint,
     token: string,
@@ -1131,10 +1191,57 @@ export class PrismaGuildRepository implements GuildRepository {
     }
   }
 
+  async updateProfilePreservingCustomCrestForTelegramUser(
+    telegramUserId: bigint,
+    input: { description: string; expectedVersion: number; now: Date }
+  ): Promise<GuildMemberMutationRepositoryResult> {
+    const description = validateGuildDescription(input.description);
+    if (!description.ok) {
+      return { state: "invalid-target" };
+    }
+    return this.serializable(async (tx) => {
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const membership = await currentLiveMembership(tx, actor, input.now);
+      if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+        return { state: "not-member" };
+      }
+      if (membership.role !== "leader") {
+        return { state: "forbidden" };
+      }
+      if (membership.guild.crestKind !== "custom") {
+        return { state: "invalid-target" };
+      }
+      if (!(await claimGuildVersion(tx, membership.guildId, input.expectedVersion, input.now))) {
+        return { state: "stale" };
+      }
+      await tx.guild.update({
+        where: { id: membership.guildId },
+        data: { description: description.description, updatedAt: input.now }
+      });
+      await appendAudit(tx, {
+        guildId: membership.guildId,
+        eventType: "profile.updated",
+        actorUserId: actor.id,
+        subjectUserId: null,
+        dedupeKey: `guild:${membership.guildId}:profile:v${input.expectedVersion + 1}`,
+        payload: { crestChange: "preserved-custom" },
+        occurredAt: input.now
+      });
+      return updatedGuildResult(tx, membership.guildId, actor.id);
+    });
+  }
+
   async updateCustomProfileForTelegramUser(
     telegramUserId: bigint,
     input: { uploadToken: string; description: string; now: Date }
   ): Promise<GuildMemberMutationRepositoryResult> {
+    const description = validateGuildDescription(input.description);
+    if (!description.ok) {
+      return { state: "invalid-target" };
+    }
     return this.serializable(async (tx) => {
       const actor = await findActor(tx, telegramUserId);
       if (!actor?.character) {
@@ -1154,10 +1261,11 @@ export class PrismaGuildRepository implements GuildRepository {
       if (draft.status === "consumed") {
         return updatedGuildResult(tx, membership.guildId, actor.id);
       }
-      if (
-        draft.status !== "uploaded" || draft.expiresAt <= input.now ||
-        !draft.fileId || !draft.fileUniqueId || !draft.width || !draft.height
-      ) {
+      if (draft.status !== "uploaded" || draft.expiresAt <= input.now) {
+        return { state: "not-found" };
+      }
+      const media = uploadDraftMedia(draft);
+      if (!media) {
         return { state: "not-found" };
       }
       if (draft.expectedGuildVersion === null || membership.guild.version !== draft.expectedGuildVersion) {
@@ -1172,12 +1280,12 @@ export class PrismaGuildRepository implements GuildRepository {
           crest: GUILD_CUSTOM_CREST_MARKER,
           crestKind: "custom",
           crestReservationKey: null,
-          crestFileId: draft.fileId,
-          crestFileUniqueId: draft.fileUniqueId,
-          crestWidth: draft.width,
-          crestHeight: draft.height,
-          crestFileSize: draft.fileSize,
-          description: input.description,
+          crestFileId: media.fileId,
+          crestFileUniqueId: media.fileUniqueId,
+          crestWidth: media.width,
+          crestHeight: media.height,
+          crestFileSize: media.fileSize,
+          description: description.description,
           updatedAt: input.now
         }
       });
@@ -1880,6 +1988,11 @@ function activeMembership(actor: ActorRow | null | undefined): ActiveMembership 
   return actor?.guildMemberships[0] ?? null;
 }
 
+function isMembershipSnapshotLive(membership: ActiveMembership, now: Date): boolean {
+  return membership.guild.status === "active" ||
+    (membership.guild.status === "forming" && membership.guild.charterExpiresAt > now);
+}
+
 async function currentLiveMembership(
   tx: TxClient,
   actor: ActorRow | null | undefined,
@@ -2064,7 +2177,7 @@ function crestMedia(row: {
   crestHeight: number | null;
   crestFileSize: number | null;
 }): GuildCrestMediaInput | null {
-  return row.crestFileId && row.crestFileUniqueId && row.crestWidth && row.crestHeight
+  const media = row.crestFileId && row.crestFileUniqueId && row.crestWidth && row.crestHeight
     ? {
         fileId: row.crestFileId,
         fileUniqueId: row.crestFileUniqueId,
@@ -2073,6 +2186,26 @@ function crestMedia(row: {
         fileSize: row.crestFileSize
       }
     : null;
+  return media && isValidGuildCrestMediaMetadata(media) ? media : null;
+}
+
+function uploadDraftMedia(row: {
+  fileId: string | null;
+  fileUniqueId: string | null;
+  width: number | null;
+  height: number | null;
+  fileSize: number | null;
+}): GuildCrestMediaInput | null {
+  const media = row.fileId && row.fileUniqueId && row.width && row.height
+    ? {
+        fileId: row.fileId,
+        fileUniqueId: row.fileUniqueId,
+        width: row.width,
+        height: row.height,
+        fileSize: row.fileSize
+      }
+    : null;
+  return media && isValidGuildCrestMediaMetadata(media) ? media : null;
 }
 
 function crestKind(value: string): "catalog" | "custom" {

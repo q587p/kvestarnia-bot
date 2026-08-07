@@ -31,6 +31,8 @@ This project follows a simple pre-1.0 versioning policy:
 - Catalog pickers now hide crests reserved by other forming/active guilds while keeping the current guild's own crest selectable; stored custom media remains available to safe recovery when new guild writes are disabled.
 
 ### Fixed
+- Custom-crest leaders can now keep the exact current uploaded image while editing only the guild description through a versioned semantic callback; stale, duplicate, officer and nonmember attempts remain inert, and audit data records no Telegram media identifier.
+- New custom-crest uploads now require authoritative Telegram size metadata within the 5 MiB limit, and persisted draft metadata is revalidated before creation/profile consumption. Wrong-media replies receive another ForceReply only while their exact User-bound draft and authority remain live; dead prompts recover with usable guild controls.
 - Replaceable creation previews now detach the previous consumed custom upload before custom/custom or custom/catalog/custom replacement; stale photo prompts recover inertly, only the latest image remains inspectable/confirmable, and the final confirmation keeps one 587-gold debit and one founder cooldown.
 - Concurrent equivalent/different-name confirms, founder cooldown claims, competing accepts, final roster slots, officer caps, duplicate confirms and stale callbacks converge transactionally without extra debit, double membership or leaderless guilds.
 - Forming expiry and active disband retain private history but release names only after the accepted 23-hour/30-day holds; bounded intent cleanup removes old terminal previews.

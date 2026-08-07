@@ -117,9 +117,10 @@ export function isValidGuildCrestMediaMetadata(input: {
     Number.isInteger(input.width) && Number.isInteger(input.height) &&
     input.width >= GUILD_CREST_MIN_DIMENSION && input.height >= GUILD_CREST_MIN_DIMENSION &&
     input.width <= GUILD_CREST_MAX_DIMENSION && input.height <= GUILD_CREST_MAX_DIMENSION &&
-    (input.fileSize === null || (
+    input.fileSize !== null &&
+    (
       Number.isInteger(input.fileSize) && input.fileSize >= 0 && input.fileSize <= GUILD_CREST_MAX_FILE_SIZE
-    ));
+    );
 }
 
 export function validateGuildDescription(descriptionInput: string):

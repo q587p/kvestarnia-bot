@@ -234,6 +234,20 @@ export class GuildService {
       : Promise.resolve({ state: "disabled" });
   }
 
+  validateCrestUploadDraftForTelegramUser(
+    telegramUserId: bigint,
+    token: string,
+    purpose: GuildCrestUploadPurpose
+  ): Promise<GuildCrestUploadResult> {
+    return this.isEnabled()
+      ? this.guilds.validateCrestUploadDraftForTelegramUser(telegramUserId, {
+          token,
+          purpose,
+          now: this.clock()
+        })
+      : Promise.resolve({ state: "disabled" });
+  }
+
   updateCustomProfileForTelegramUser(
     telegramUserId: bigint,
     input: { uploadToken: string; description: string }
@@ -246,6 +260,23 @@ export class GuildService {
       ? this.guilds.updateCustomProfileForTelegramUser(telegramUserId, {
           uploadToken: input.uploadToken,
           description: description.description,
+          now: this.clock()
+        })
+      : Promise.resolve({ state: "invalid", reason: description.reason });
+  }
+
+  updateProfilePreservingCustomCrestForTelegramUser(
+    telegramUserId: bigint,
+    input: { description: string; expectedVersion: number }
+  ): Promise<GuildProfileUpdateResult> {
+    if (!this.isEnabled()) {
+      return Promise.resolve({ state: "disabled" });
+    }
+    const description = validateGuildDescription(input.description);
+    return description.ok
+      ? this.guilds.updateProfilePreservingCustomCrestForTelegramUser(telegramUserId, {
+          description: description.description,
+          expectedVersion: input.expectedVersion,
           now: this.clock()
         })
       : Promise.resolve({ state: "invalid", reason: description.reason });
