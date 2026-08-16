@@ -34,6 +34,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Personal invitation cards now carry their actionable private deep link in the body. Acceptance and create/join achievement notices retain guild recovery controls, and activation delivers the founder achievement as well as the joiner's achievement.
 
 ### Fixed
+- Condensed the current player-news entry to the durable Guild Foundation promise instead of listing release-candidate keyboard, pagination, recovery and copy repairs as separate features. The news policy and health test now apply a counterfactual editorial boundary and default five-bullet cap to the newest release.
 - The Spusk keyboard now places `🪺 Гніздо ґільдій` on the left and `⬇️ Спуститися` on the right in one row, matching the Nest's side-passage description.
 - Restored the canonical three-row persistent main keyboard after removing the global guild button: `👀 Хто поруч` now remains beside `📖 Допомога`, with the non-production admin control sharing that same bottom row instead of creating a fourth row.
 - Filtered creation and profile crest pickers now chunk the actually visible catalog choices into non-empty rows of at most five while retaining each crest's original callback index and guild version; full-width keep-current, custom-emoji and navigation actions no longer acquire empty spacer rows.

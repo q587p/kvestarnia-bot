@@ -105,9 +105,9 @@ describe("health server", () => {
     expect(text).toContain("Гніздо ґільдій, емоджі-герби й приватні поклики");
     expect(text).toContain("У грі вже:");
     expect(text).toContain("Біля Спуску до Низу знайшлася бічна камора");
-    expect(text).toContain("приватне посилання видно просто в картці");
-    expect(text).toContain("голова може запросити з тієї ж місцини");
-    expect(text).toContain("ґільдійна належність переживає нове життя пригодника");
+    expect(text).toContain("оглянути відкриті профілі чинних ґільдій");
+    expect(text).toContain("особисті поклики мають приватне адресне посилання");
+    expect(text).toContain("голова через меню керує профілем, ролями, запрошеннями");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

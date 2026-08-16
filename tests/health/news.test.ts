@@ -84,6 +84,7 @@ describe("public news rendering", () => {
     }
 
     expect(cursor).toBeGreaterThan(3);
+    expect(cursor - 3).toBeLessThanOrEqual(5);
     expect(lines[cursor]).toBe("");
     const tail = lines.slice(cursor + 1);
     expect(tail[0]).toMatch(/^\S[^\n]*$/u);
@@ -100,6 +101,12 @@ describe("public news rendering", () => {
     expect(body).not.toMatch(
       /(?:\bQA\b|\bCI\b|ручн\p{L}*\s+перевір|Telegram-перевір|цільов\p{L}*\s+(?:Квестарн|середовищ|бот)|збірк\p{L}*|пакет\p{L}*|депло\p{L}*|deploy|розгортан\p{L}*|rollout|feature.?flag|production|продакш\p{L}*|мердж\p{L}*|merge|готов\p{L}*\s+до\s+реліз)/iu
     );
+    const correctionRelease = /(?:виправ|полагод|лагод|bugfix|\bfix\b)/iu.test(latest?.title ?? "");
+    if (!correctionRelease) {
+      expect(body).not.toMatch(
+        /(?:баґ|баг|bug|регрес|виправлен|полагоджен|відновлен|помилк\p{L}*|повернен\p{L}*\s+(?:кноп|меню|ряд))/iu
+      );
+    }
   });
 
   it("keeps the latest release free of sentences repeated verbatim from historical news", () => {

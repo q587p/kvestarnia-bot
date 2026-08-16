@@ -216,12 +216,10 @@
 - Long keyboard candidate lists need pagination/filter/search; never silently make eligible rows unreachable.
 - Every visible timer/wait blocker should show remaining time derived from canonical timestamps.
 - Distinct concepts shown together should use distinct icons.
-- Every numbered package release has a matching current `news.md` entry. Hidden,
-  rewardless or feature-flagged runtime changes the wording, not this requirement.
-- Current release news ends with a short standalone in-world paragraph. `Ще не відчинено:` is only for a genuine unavailable gameplay boundary, never
-  manual QA, CI, deploy, rollout, or production-enablement status.
-- The newest news entry must not repeat a complete sentence verbatim from its
-  own body or any historical entry; rewrite only the current duplicate.
+- Every numbered package release has matching spoiler-light `news.md`: announce
+  stable player capabilities, not in-PR regression repairs, and use at most five
+  bullets by default. End with one in-world paragraph; operational status never
+  belongs there. Do not repeat current or historical complete sentences.
 
 ## Key docs
 
