@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-06)
+## Current repository baseline (repository evidence, 12026-08-16)
 
 The current branch prepares package `0.4.5` on top of merged package `0.4.4`.
 Merged head
@@ -18,7 +18,7 @@ runtime; the unnumbered GroupCombat SQLite delivery hotfix is merged at
 QA remain separate evidence. Guild Foundation merge, migration deployment,
 target availability and manual QA also remain separate evidence. The branch
 adds the same-presence `🪺 Гніздо ґільдій`, active-only public directory,
-exclusive catalog crests and custom Telegram-photo crests. The original
+exclusive catalog/custom emoji crests and 13-text private invitation cards. The original
 foundation migration remains unchanged; additive
 `20260806120000_guild_custom_crests` has a paired rollback and target deployment
 remains unproven.
@@ -42,7 +42,7 @@ remains unproven.
 | Local isolated-runtime supervision/log retention | yes; merged PR `#189` | no production migration | local tooling only | yes; merge checks passed | local crash/restart observation not recorded here | managed runtime stop/refresh; owner unassigned | deferred |
 | 0.4.4 bugfix & polish | yes; merged PR `#191` at `67bd02cd` | no migration required | production feedback proves the GroupCombat/left-passage path was reachable; exact hosted values remain unrecorded | yes; merge checks passed | formal final-head matrix not recorded; production feedback exposed stale cards under SQLite contention | deploy rollback; release operator unassigned | hotfix required |
 | GroupCombat SQLite delivery hotfix | yes; merged PR `#192` at `2afe359a` | no migration required | no new flag | merge checks passed with actor-first/session-serialized-tail, exact-revision CAS, scheduler-overlap, restart recovery, completed-result deep-link replay, partial-`P1008`, retry-window and repository integration coverage | full three-account rerun not recorded on merged head | deploy rollback; release operator unassigned | deferred |
-| 0.4.5 guild foundation, Guild Nest and crests | no; PR `#190` implementation branch | target deployment unknown; repository includes unchanged additive `20260802230000_guild_foundation` plus additive `20260806120000_guild_custom_crests`, each with tested rollback/restore isolation | no target evidence; repository default off | current-main integration and prior Nest/directory/routing checks passed; replacement-lifecycle repository 21/21, custom-crest correction unit 40/40 and main-keyboard/lore correction 168/168 pass locally; broad corrected-tree gate passes 4554 unit plus 741 integration tests; earlier CI is historical only and replacement exact-head CI remains required | exact-head three-account Nest/directory/create/invite/roles/remort/restart/party/privacy plus catalog/custom-crest replacement matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
+| 0.4.5 guild foundation, Guild Nest and emoji crests | no; PR `#190` implementation branch | target deployment unknown; repository includes unchanged additive `20260802230000_guild_foundation` plus additive `20260806120000_guild_custom_crests`, each with tested rollback/restore isolation | no target evidence; repository default off | current-main integration and prior Nest/directory/routing checks passed; emoji/invitation focused 124/124, guild repository 23/23, full unit 4566/4566 and integration 743/743 pass locally; replacement exact-head CI remains required | exact-head three-account Nest/directory/create/invite/roles/remort/restart/party/privacy plus catalog/custom-emoji and invitation-card matrix pending | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

@@ -6,16 +6,16 @@ reward, weekly-goal or guild-economy promise.
 | Boundary | Accepted value | Purpose |
 | --- | ---: | --- |
 | Founder eligibility | level 5+, or level 3+ after one remort | keeps founding deliberate without gating free joins |
-| Creation cost | 93 personal gold, non-refundable | one bounded personal sink; never shared custody |
+| Creation cost | 587 personal gold, non-refundable | one bounded personal sink; never shared custody |
 | Founder cooldown | rolling 7 days from confirm | prevents charter/name churn across expiry or disband |
 | Creation preview | 13 minutes, one live/User | bounded confirmation and replay window |
 | Forming charter | 7 days | enough time to recruit one distinct friend |
 | Forming name hold | expiry + 23 hours | blocks immediate impersonation without permanent capture |
 | Disbanded name hold | disband + 30 days | gives an established identity a longer reuse buffer |
-| Designed core / hard cap | 3–5 / 8 active Users | small-group product with bounded Telegram surfaces |
+| Designed core / current cap | 3–5 / 8 active Users | small-group product with bounded Telegram surfaces |
 | Officer cap | 2 | prevents rank inflation in the small roster |
 | Name / description | 3–32 / 0–93 graphemes | compact identity and moderation boundary |
-| Crest catalog | exactly 13 server-owned emoji | stable rendering and no arbitrary Unicode role |
+| Crest identity | 13 server-owned choices or one custom emoji | exclusive while forming/active; no image upload |
 | Invitation TTL | 93 hours | asynchronous consent without indefinite pending state |
 | Incoming invitation cap | 3 live/target | bounded pressure and keyboard size |
 | Actor invitation rate | 3 new per rolling 13 minutes | spam control independent of delivery success |
@@ -39,4 +39,5 @@ guild membership; `joinSource=guild` is attribution only.
 
 Balance expansion is blocked until this rewardless shell has exact-head manual
 QA and observed small-cohort evidence. Any economy or progression addition needs
-its own task and balance review.
+its own task and balance review. A later explicit capacity expansion may raise a
+guild only as far as 13 members; 0.4.5 defines no unlock, price or entitlement.

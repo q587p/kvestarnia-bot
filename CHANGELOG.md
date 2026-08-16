@@ -7,18 +7,18 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.5] - 12026-08-16 - Guild Foundation and Custom Crests
+## [0.4.5] - 12026-08-16 - Guild Foundation, Emoji Crests and Invitation Cards
 
 ### Added
 - Added `🪺 Гніздо ґільдій` as a dedicated side chamber off `Спуск до Низу`, with a compact landing, separate rules card, viewer-aware actions and an explicit return route while deliberately sharing the canonical Spusk presence location.
 - Added a separate active-only public guild directory and compact public profiles with stable five-row alphabetical pagination, current `n/8` counts, escaped UGC and no roster, leader, role, identity, token, audit, timestamp, exact-location, ranking or direct-application data.
 - Added a default-off durable guild social shell with historical normalized names, bounded reservation release, a 13-emoji crest catalog, 93-grapheme descriptions, User-level membership, leader/officer/member roles and privacy-safe audit/funnel records.
 - Added one replaceable 13-minute preview, an exact-once non-refundable 587-gold forming charter, rolling seven-day founder cooldown, seven-day activation window and rewardless activation/join achievements.
-- Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`.
+- Added target-bound opt-in invitations with a 93-hour TTL, pair uniqueness, three-incoming and rolling actor-rate limits, seven-day decline cooldown, five-row pagination and blocked-delivery recovery through `/guild`. Personal invitation cards offer exactly 13 distinct Ukrainian share texts; rotating copy preserves the same live link/token and expiry.
 - Added button-first guild UI from the persistent main menu and active character card: requirements, crest, separate private name and description prompts, preview/confirm, private share deep links, target-side accept/decline, inviter response notices, profile editing and stable member-action menus. Commands remain fallback routes.
 - Added a `📖 Перекази` customs entry explaining the shipped guild charter, roles, first-member activation, remort continuity and the separate ordinary-vatanga/economy boundary; the existing rewardless create/join achievements remain authoritative.
 - Added leader-only crest/description editing, durable nominee-offer/accept leadership transfer, explicit exit/disband confirmations, an additive migration with paired rollback and non-production `/dev_guild_gold` helper.
-- Added exclusive transactional reservation for all 13 catalog crests plus a direct custom Telegram-photo alternative in creation and leader profile editing. Custom media uses a durable expiring User-bound draft, safe `🖼️` text fallback, inspect-photo controls and no binary/URL storage or raw media-id exposure.
+- Added exclusive transactional reservation for all 13 catalog crests plus a direct one-emoji custom alternative in creation and leader profile editing. Custom emoji enter the ordinary preview/profile transaction without photo, file, URL or media-id handling.
 - Added additive `20260806120000_guild_custom_crests` migration/rollback for unique catalog reservation, custom media metadata and restart-safe upload drafts without changing the original guild-foundation migration.
 
 ### Changed
@@ -28,15 +28,15 @@ This project follows a simple pre-1.0 versioning policy:
 - Guild membership and leadership now survive real remort and safe Character recreation while live party/combat blockers and frozen-life contracts remain authoritative.
 - `/guild_party` now opens only a paginated member picker for an already-existing eligible gameplay `PartySession`. It reuses the ordinary invitation, `joinSource=guild` attribution and canonical party-card sender; it never creates an unattached guild lobby, and nonmembers retain ordinary routes.
 - Disabled mode preserves rows, safe reads, nonleader leave, accepted transfer and sole disband while blocking formation, invitation acceptance/new sends, roles, profile edits and guild-party writes.
-- Catalog pickers now hide crests reserved by other forming/active guilds while keeping the current guild's own crest selectable; stored custom media remains available to safe recovery when new guild writes are disabled.
+- Catalog pickers now hide crests reserved by other forming/active guilds while keeping the current guild's own crest selectable. A proposed custom emoji uses the same forming/active exclusivity and exact-owner lifecycle release; disabled mode rejects new crest writes.
+- Current guild capacity remains 8. A future separately designed expansion may raise an individual guild only as far as 13; no expansion action, price or entitlement ships here.
 
 ### Fixed
 - Restored the canonical three-row persistent main keyboard after removing the global guild button: `👀 Хто поруч` now remains beside `📖 Допомога`, with the non-production admin control sharing that same bottom row instead of creating a fourth row.
-- Filtered creation and profile crest pickers now chunk the actually visible catalog choices into non-empty rows of at most five while retaining each crest's original callback index and guild version; full-width keep-current, upload and navigation actions no longer acquire empty spacer rows.
+- Filtered creation and profile crest pickers now chunk the actually visible catalog choices into non-empty rows of at most five while retaining each crest's original callback index and guild version; full-width keep-current, custom-emoji and navigation actions no longer acquire empty spacer rows.
 - Restored the blank Markdown boundary after the current player-news closing paragraph so the historical `0.4.4` heading renders as a separate release instead of joining the Guild Nest copy.
-- Custom-crest leaders can now keep the exact current uploaded image while editing only the guild description through a versioned semantic callback; stale, duplicate, officer and nonmember attempts remain inert, and audit data records no Telegram media identifier.
-- New custom-crest uploads now require authoritative Telegram size metadata within the 5 MiB limit, and persisted draft metadata is revalidated before creation/profile consumption. Wrong-media replies receive another ForceReply only while their exact User-bound draft and authority remain live; dead prompts recover with usable guild controls.
-- Replaceable creation previews now detach the previous consumed custom upload before custom/custom or custom/catalog/custom replacement; stale photo prompts recover inertly, only the latest image remains inspectable/confirmable, and the final confirmation keeps one 587-gold debit and one founder cooldown.
+- Custom-crest leaders can now keep the exact current emoji while editing only the guild description through a versioned semantic callback; stale, duplicate, officer and nonmember attempts remain inert.
+- The custom crest route now accepts exactly one normalized emoji. Occupied, textual, multiple-emoji, forged and stale replies recover without intent/profile/gold/cooldown/audit mutation; saved pre-release photo prompts and view callbacks are inert and expose no media route.
 - Concurrent equivalent/different-name confirms, founder cooldown claims, competing accepts, final roster slots, officer caps, duplicate confirms and stale callbacks converge transactionally without extra debit, double membership or leaderless guilds.
 - Forming expiry and active disband retain private history but release names only after the accepted 23-hour/30-day holds; bounded intent cleanup removes old terminal previews.
 - `/restart` now blocks recruiting/active PartySession leaders or participants and active GroupCombat participants even without a combat lease, preventing cascade deletion of live party/combat state.
@@ -51,7 +51,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Every guild entry now passes through the canonical active-search and pending-Friday-raid routing guards before guild or presence work: legacy cached guild-button text, exact fallback commands, guided replies, callbacks and private start links cannot mutate or disclose guild state while a search or raid claim owns the route, while completed-search and monster-attack handoff remain intact.
 - Guided guild ForceReply continuations are now classified before the generic combat-lock text filter, so a prompt published before a pending Friday raid or live combat cannot bypass the canonical owner card or reach guild, invitation-delivery, audit, profile, creation-intent or presence mutations.
 - Catalog crest create/create, create/edit and edit/edit races now have one unique-key winner. The relevant overdue owner is terminalized independent of cleanup backlog, and a losing founder receives no gold debit, cooldown or charter side effect.
-- Custom-photo replies now require the exact User-bound bot prompt and pass active search, pending raid and combat ownership guards before draft/media/profile work. Invalid media, stale versions, duplicate delivery and invalidated Telegram references recover idempotently with usable controls and safe semantic-only audit data.
+- Custom-emoji replies require the exact User-bound bot prompt and pass active search, pending raid and combat ownership guards before intent/profile work. Invalid input, stale versions and duplicate delivery recover idempotently with usable controls.
 
 ## [0.4.4] - 12026-08-05 - Group Targeting, Left Invitations and Equipment Locks
 

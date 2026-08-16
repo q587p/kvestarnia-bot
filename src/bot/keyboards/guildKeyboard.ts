@@ -10,7 +10,6 @@ import {
   makeGuildCreateUploadCallbackData,
   makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
-  makeGuildCreationCrestViewCallbackData,
   makeGuildDeleteCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
@@ -18,6 +17,7 @@ import {
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
   makeGuildInviteCodeCallbackData,
+  makeGuildInviteCopyCallbackData,
   makeGuildInviteStartCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
@@ -33,13 +33,12 @@ import {
   makeGuildProfileKeepCustomCallbackData,
   makeGuildProfileOpenCallbackData,
   makeGuildProfileUploadCallbackData,
-  makeGuildPrivateCrestViewCallbackData,
-  makeGuildPublicCrestViewCallbackData,
   makeGuildTransferAcceptCallbackData
 } from "../callbacks/guildCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
 import { GUILD_CREST_CATALOG } from "../../domain/guild";
+import { GUILD_INVITE_SHARE_TEXTS, guildInviteShareText } from "../../content/guildInviteCopy";
 
 export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options: { writesEnabled?: boolean } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -60,9 +59,6 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
       .row();
   }
   if (result.state === "ready") {
-    if (result.guild.hasCustomCrest) {
-      keyboard.text("🖼️ Переглянути герб", makeGuildPrivateCrestViewCallbackData(result.guild.id)).row();
-    }
     if (writesEnabled) {
       keyboard.text("✉️ Запросити з ґільдії", makeGuildPartyOpenCallbackData()).row();
       if (result.guild.viewerRole === "leader" || result.guild.viewerRole === "officer") {
@@ -154,12 +150,8 @@ export function buildGuildDirectoryKeyboard(
   return keyboard.row().text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
 }
 
-export function buildGuildPublicProfileKeyboard(page: number, guildId?: string, hasCustomCrest = false): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
-  if (guildId && hasCustomCrest) {
-    keyboard.text("🖼️ Переглянути герб", makeGuildPublicCrestViewCallbackData(guildId, page)).row();
-  }
-  return keyboard.text("📚 До переліку", makeGuildDirectoryOpenCallbackData(page))
+export function buildGuildPublicProfileKeyboard(page: number): InlineKeyboard {
+  return new InlineKeyboard().text("📚 До переліку", makeGuildDirectoryOpenCallbackData(page))
     .row()
     .text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
 }
@@ -181,12 +173,8 @@ export function buildGuildPartyPickerKeyboard(
   return keyboard;
 }
 
-export function buildGuildCreationPreviewKeyboard(token: string, hasCustomCrest = false): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
-  if (hasCustomCrest) {
-    keyboard.text("🖼️ Переглянути герб", makeGuildCreationCrestViewCallbackData(token)).row();
-  }
-  return keyboard.text("✅ Заснувати", makeGuildCreateConfirmCallbackData(token))
+export function buildGuildCreationPreviewKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard().text("✅ Заснувати", makeGuildCreateConfirmCallbackData(token))
     .text("⬅️ Не зараз", makeGuildOpenCallbackData());
 }
 
@@ -215,7 +203,7 @@ export function buildGuildCreationStartKeyboard(availableCrests: readonly string
     keyboard.row();
   }
   return keyboard
-    .text("🖼️ Завантажити свій герб", makeGuildCreateUploadCallbackData())
+    .text("✍️ Запропонувати свій емоджі", makeGuildCreateUploadCallbackData())
     .row()
     .text("🏰 Назад", makeGuildOpenCallbackData());
 }
@@ -234,20 +222,30 @@ export function buildGuildProfileCrestKeyboard(
     keyboard.row();
   }
   if (currentHasCustomCrest) {
-    keyboard.text("🖼️ Лишити чинний герб", makeGuildProfileKeepCustomCallbackData(version)).row();
+    keyboard.text("🔁 Лишити чинний емоджі", makeGuildProfileKeepCustomCallbackData(version)).row();
   }
   return keyboard
-    .text("🖼️ Завантажити свій герб", makeGuildProfileUploadCallbackData(version))
+    .text("✍️ Запропонувати свій емоджі", makeGuildProfileUploadCallbackData(version))
     .row()
     .text("🏰 Назад", makeGuildOpenCallbackData());
 }
 
-export function buildGuildInviteCodeKeyboard(token?: string, inviteUrl?: string | null): InlineKeyboard {
+export function buildGuildInviteCodeKeyboard(
+  token?: string,
+  inviteUrl?: string | null,
+  variant = 0
+): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (token) {
     if (inviteUrl) {
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent("Запроси мене до ґільдії в Квестарні.")}`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(guildInviteShareText(variant))}`;
       keyboard.url("📨 Поділитися запрошенням", shareUrl).row();
+      keyboard
+        .text(
+          "🎲 Згенерувати інший текст",
+          makeGuildInviteCopyCallbackData((variant + 1) % GUILD_INVITE_SHARE_TEXTS.length)
+        )
+        .row();
       keyboard.copyText("🔗 Скопіювати посилання", inviteUrl).row();
     }
     keyboard.copyText("📋 Резервний код", token).row();

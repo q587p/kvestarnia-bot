@@ -9,12 +9,13 @@ A party is a temporary team for one already-authored gameplay occasion. A guild
 is a durable small identity that helps the same people find one another again.
 The guild never owns a party, encounter, combat lease, reward or settlement.
 
-Foundation is designed around a comfortable core of 3–5 people, with a hard
+Foundation is designed around a comfortable core of 3–5 people, with a current
 active-member cap of 8. It stores one normalized/display name, one exclusive
-crest from a 13-emoji catalog or one custom Telegram photo, a 0–93-grapheme
+emoji crest from the 13-choice catalog or one custom emoji, a 0–93-grapheme
 description, active membership and private audit history. Names are retained
 historically while a separate reservation is released after the accepted
-expiry/disband hold.
+expiry/disband hold. A future explicit expansion may raise an individual guild
+only as far as 13 members; this release provides no expansion mechanic or price.
 
 ## Guild Nest and discovery
 
@@ -35,10 +36,9 @@ The public directory is an active-only five-row projection ordered by
 normalized name and stable id. It exposes escaped crest/name, optional escaped
 description and current `n/8` count only. It has no roster, leader, role,
 membership id, Telegram identity, token, audit, timestamp, exact location,
-ranking, recommendation or application action. Guild UGC keeps canonical
-validation; broader moderation/reporting waits for a repository-wide facility.
-Custom crests use only the `🖼️` marker in rows/text. A separate view action may
-send the stored Telegram photo, but the public DTO never exposes media ids.
+ranking, recommendation or application action. Guild UGC, including a custom
+emoji crest, keeps canonical validation and HTML escaping; broader
+moderation/reporting waits for a repository-wide facility.
 
 ## Creation lifecycle
 
@@ -68,23 +68,23 @@ idempotent and cannot free a newer reservation.
 
 ## Crest identity
 
-Each catalog crest has one nullable unique reservation key. Forming and active
+Each emoji crest has one nullable unique reservation key. Forming and active
 guilds reserve it; expiry/disband clears it. Creation and leader profile editing
-show an advisory filtered list plus the guild's own current catalog crest, then
-claim inside the versioned transaction. The relevant overdue owner is
+show an advisory filtered catalog plus the guild's own current crest, then claim
+inside the versioned transaction. The relevant overdue owner is
 terminalized directly, independent of the bounded cleanup backlog. Unique-key
 races give one winner; a losing create has no gold debit, founder cooldown or
 charter side effect.
 
 Custom identity is a direct alternative in both pickers, including when all 13
-catalog crests are occupied. A User-bound expiring upload draft stores only this
-bot's Telegram `file_id`, stable `file_unique_id`, dimensions and optional size;
-no binary or external URL is stored. The exact ForceReply accepts only a normal
-photo, selects the largest PhotoSize and fences continuation by flag,
-membership/leader authority, guild status and expected version. Replay is
-idempotent across restart. Audit records only semantic catalog/custom/reverted
-changes, never raw media identifiers. An invalidated Telegram reference yields
-neutral recovery with navigation still usable.
+catalog crests are occupied. The exact ForceReply accepts exactly one normalized
+emoji and fences continuation by flag, membership/leader authority, guild status
+and expected version. Occupied, multiple, textual, forged and stale replies are
+rejected without profile, gold, cooldown or audit mutation. Replay stays
+idempotent across restart. Audit records only semantic catalog/custom-emoji
+changes. Photo, document, sticker, animation, video, URL and binary crest input
+are not supported; legacy pre-release photo prompts recover inertly through the
+emoji picker.
 
 ## Roles and permissions
 
@@ -110,7 +110,9 @@ successor from presence, activity or join order.
 ## Invitations and privacy
 
 There is no global exact-character-name directory. A target creates a bounded,
-target-bound opt-in code and shares it deliberately. External failures collapse
+target-bound opt-in code and shares it deliberately. Its forwardable card has 13
+distinct Ukrainian invitation texts; changing the text does not rotate the
+underlying live link or token. External failures collapse
 to one unavailable result instead of revealing whether a User exists or already
 belongs elsewhere.
 
@@ -147,7 +149,7 @@ Character leads or participates in a live recruiting/active party or active
 group combat, even when no `ActiveCombatLease` exists. Safe Character recreation
 does not transfer leadership.
 
-Disabled rollout preserves rows, stored media and the minimum escape/recovery paths: profile
+Disabled rollout preserves rows and the minimum escape/recovery paths: profile
 read, nonleader leave, accepted transfer and sole-member disband. It blocks new
 formation, invite/accept, role/profile and guild-party writes. The default stays
 off until exact-head three-account QA and an abandoned-leader operator policy

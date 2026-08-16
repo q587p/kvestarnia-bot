@@ -162,14 +162,17 @@ Formal final-hotfix Telegram QA remains pending.
 Малий соціяльний shell: один 13-хвилинний preview, exact-once особиста плата
 587 золота, семиденний forming charter, target-bound opt-in invitations,
 leader/officer/member, leader-only crest/description edit і приватний audit.
-Активний склад має hard cap 8; joining безкоштовний. Історична назва лишається,
+Активний склад має current cap 8; joining безкоштовний. Майбутнє окреме
+розширення може підняти межу конкретної ґільдії щонайбільше до 13, але цей
+release не містить ціни, entitlement чи кнопки розширення. Історична назва лишається,
 а окрема reservation звільняється після bounded expiry/disband hold.
 
 Тринадцять catalog crest є exclusive для forming/active статутів і
-звільняються terminal lifecycle. Засновник або голова може натомість прямо
-завантажити Telegram-фото; restart-safe draft зберігає тільки media references,
-а текстові поверхні показують `🖼️`. Transactional unique reservation вирішує
-create/edit races без gold чи cooldown для програвшого засновника.
+звільняються terminal lifecycle. Засновник або голова може натомість
+запропонувати один власний емоджі; фото, файли й посилання не приймаються.
+Transactional unique reservation вирішує catalog/custom create/edit races без
+gold чи cooldown для програвшого засновника. Особиста картка запрошення має 13
+різних текстів; їх ротація не замінює чинне приватне посилання.
 
 PR `#190` готує repository release `0.4.5` із цим shell та окремим
 `🪺 Гніздом ґільдій` при Спуску. Active-only public directory ділить
@@ -235,7 +238,7 @@ player LUCK/achievements і без scheduler-а.
 після достатніх даних тижневої мети. Пізніший номер дає зібрати ці дані, поки
 виходять старі social/economy promises. XP іде один раз із canonical
 guild-period completion receipt, не множиться на participant receipts; жодного
-бойового pay-to-win бонусу. Власні uploaded герби вже належать identity surface
+бойового pay-to-win бонусу. Власні емоджі-герби вже належать identity surface
 `0.4.5`; `0.4.13` їх не дублює й не продає.
 
 ### Не входить у 0.4.x foundation

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { BotServices } from "../../src/bot/botServices";
 import { registerGuildPassageSearchGuard } from "../../src/bot/modules/passageSearchGuard";
 import { sendFight } from "../../src/bot/commands/fightCommand";
+import { GUILD_CUSTOM_EMOJI_PROMPT_HEADING } from "../../src/bot/presenters/guildPresenter";
 
 vi.mock("../../src/bot/commands/fightCommand", () => ({
   sendFight: vi.fn().mockResolvedValue(undefined)
@@ -16,6 +17,7 @@ describe("guild passage-search routing guard", () => {
     ["invite mutation", callbackUpdate("v1:g:a:inviteABC12"), "edit"],
     ["private deep link", textUpdate("/start guild_inviteABC12"), "reply"],
     ["guided invite reply", promptReplyUpdate(), "reply"],
+    ["custom emoji reply", textPromptReplyUpdate(`${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`, "🧿"), "reply"],
     ["custom crest photo reply", crestPhotoPromptReplyUpdate(), "reply"]
   ] as const)("blocks the %s before every guild and presence side effect", async (_name, update, mode) => {
     const calls = apiCalls();
@@ -264,6 +266,23 @@ function promptReplyUpdate() {
         chat: { id: 1001, type: "private" as const },
         from: { id: 123, is_bot: true, first_name: "Квестарня" },
         text: "📨 Запрошення до ґільдії · крок 1 із 2\n\nВставте код."
+      }
+    }
+  };
+}
+
+function textPromptReplyUpdate(prompt: string, text: string) {
+  const update = textUpdate(text);
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      reply_to_message: {
+        message_id: 12,
+        date: 1,
+        chat: { id: 1001, type: "private" as const },
+        from: { id: 123, is_bot: true, first_name: "Квестарня" },
+        text: prompt
       }
     }
   };

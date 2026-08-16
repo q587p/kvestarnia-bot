@@ -16,11 +16,11 @@ import type { GuildRole } from "../../domain/guild";
 import type {
   GuildCreationPreviewResult,
   GuildCrestPickerResult,
-  GuildCrestUploadResult,
   GuildPartyPickerResult,
   GuildProfileUpdateResult
 } from "../../services/guildService";
 import { escapeHtml } from "./telegramHtml";
+import { guildInviteShareText } from "../../content/guildInviteCopy";
 
 export function presentGuildHub(
   result: GuildHubRepositoryResult,
@@ -97,7 +97,6 @@ export function presentGuildPublicProfile(
   if (result.state === "ready") {
     return [
       `${escapeHtml(result.guild.crest)} <b>${escapeHtml(result.guild.displayName)}</b>`,
-      ...(result.guild.hasCustomCrest ? ["🖼️ Ґільдія має власний завантажений герб."] : []),
       result.guild.description ? escapeHtml(result.guild.description) : "Короткого опису немає — герб працює за двох.",
       "",
       `Учасників: <b>${result.guild.memberCount}/8</b>.`,
@@ -119,7 +118,6 @@ export function presentGuildView(
 ): string {
   return [
     `${guild.crest} <b>${escapeHtml(guild.displayName)}</b>`,
-    ...(guild.hasCustomCrest ? ["🖼️ У статуті збережено власний завантажений герб."] : []),
     guild.description ? escapeHtml(guild.description) : "Короткий опис ще ховається під печаткою.",
     `Ваша роль: <b>${roleLabel(guild.viewerRole)}</b> · склад: <b>${guild.memberCount}/8</b>`,
     ...(guild.status === "forming"
@@ -172,7 +170,6 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
     "📜 <b>Заснування ґільдії · крок 4 із 4</b>",
     "",
     `${result.intent.crest} <b>${escapeHtml(result.intent.displayName)}</b>`,
-    ...(result.intent.hasCustomCrest ? ["🖼️ Для статуту завантажено власний герб; його можна переглянути кнопкою нижче."] : []),
     result.intent.description ? escapeHtml(result.intent.description) : "Без опису — загадково, але законно.",
     "",
     `Підтвердження коштує <b>${result.intent.goldCost} золота</b>. У вас: <b>${result.intent.availableGold}</b>.`,
@@ -190,7 +187,7 @@ export function presentGuildCreationStart(): string {
     "• не належати до іншої ґільдії;",
     "• <b>587 золота</b> й вільний семиденний засновницький облік.",
     "",
-    "Оберіть герб. Далі Квестарня окремо попросить назву й опис, покаже чернетку та лише тоді запропонує підтвердження.",
+    "Оберіть вільний герб із каталогу або запропонуйте один власний емоджі. Далі Квестарня окремо попросить назву й опис, покаже чернетку та лише тоді запропонує підтвердження.",
     "Після підтвердження запросіть іншого пригодника: його прийняття активує статут у межах семи днів."
   ].join("\n");
 }
@@ -198,10 +195,25 @@ export function presentGuildCreationStart(): string {
 export const GUILD_CREATION_NAME_PROMPT_HEADING = "📜 Заснування ґільдії · крок 2 із 4";
 export const GUILD_CREATION_DESCRIPTION_PROMPT_HEADING = "📜 Заснування ґільдії · крок 3 із 4";
 export const GUILD_CREST_UPLOAD_PROMPT_HEADING = "🖼️ Герб ґільдії";
+export const GUILD_CUSTOM_EMOJI_PROMPT_HEADING = "✍️ Власний емоджі-герб";
 
-export function presentGuildCreationNamePrompt(crest: string, error?: string, uploadToken?: string): string {
+export function presentGuildCustomEmojiPrompt(
+  purpose: "creation" | "profile",
+  version?: number,
+  error?: string
+): string {
   return [
-    `<b>${GUILD_CREATION_NAME_PROMPT_HEADING} · ${crest}${uploadToken ? ` · ${uploadToken}` : ""}</b>`,
+    `<b>${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · ${purpose === "creation" ? "c" : `p · ${version ?? 0}`}</b>`,
+    "",
+    ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
+    "Відповіддю саме на це повідомлення надішліть один емоджі без назви чи пояснення.",
+    "Якщо такий герб уже тримає формована або чинна ґільдія, писар попросить обрати інший."
+  ].join("\n");
+}
+
+export function presentGuildCreationNamePrompt(crest: string, error?: string): string {
+  return [
+    `<b>${GUILD_CREATION_NAME_PROMPT_HEADING} · ${crest}</b>`,
     "",
     ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
     "Як називатиметься ґільдія? Відповідайте лише назвою.",
@@ -213,11 +225,10 @@ export function presentGuildCreationNamePrompt(crest: string, error?: string, up
 export function presentGuildCreationDescriptionPrompt(
   crest: string,
   displayName: string,
-  error?: string,
-  uploadToken?: string
+  error?: string
 ): string {
   return [
-    `<b>${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ${crest}${uploadToken ? ` · ${uploadToken}` : ""}</b>`,
+    `<b>${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
     "",
     `<b>Назва:</b> ${escapeHtml(displayName)}`,
     "",
@@ -244,18 +255,17 @@ export function presentGuildProfileStart(): string {
   return [
     "✏️ <b>Профіль ґільдії · крок 1 із 2</b>",
     "",
-    "Оберіть новий герб. Далі писар окремо запитає короткий опис і ще раз перевірить вашу редакцію статуту."
+    "Оберіть вільний герб із каталогу або запропонуйте один власний емоджі. Далі писар окремо запитає короткий опис і ще раз перевірить вашу редакцію статуту."
   ].join("\n");
 }
 
 export function presentGuildProfileDescriptionPrompt(
   crest: string,
   version: number,
-  error?: string,
-  uploadToken?: string
+  error?: string
 ): string {
   return [
-    `<b>${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${crest}${uploadToken ? ` · ${uploadToken}` : ""}</b>`,
+    `<b>${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
     "",
     ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
     "Який короткий опис матиме ґільдія? Відповідайте лише описом.",
@@ -282,42 +292,6 @@ export function presentGuildCrestPickerUnavailable(result: GuildCrestPickerResul
   return text[result.state] ?? "Перелік гербів зараз недоступний.";
 }
 
-export function presentGuildCrestUploadPrompt(
-  result: GuildCrestUploadResult,
-  purpose: "creation" | "profile",
-  error?: string
-): string {
-  if (result.state !== "ready") {
-    return presentGuildCrestUploadRecovery(result);
-  }
-  return [
-    `<b>${GUILD_CREST_UPLOAD_PROMPT_HEADING} · ${purpose === "creation" ? "c" : "p"} · ${result.token}</b>`,
-    "",
-    ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
-    "Відповіддю саме на це повідомлення надішліть фото герба.",
-    "Потрібне звичайне фото від 64×64 до 2048×2048 і не більш як 5 МБ. Документи, наліпки, відео та посилання писар не приймає."
-  ].join("\n");
-}
-
-export function presentGuildCrestUploadRecovery(result: GuildCrestUploadResult): string {
-  if (result.state === "founder-cooldown") {
-    return `Новий бланк заснування відкриється за <b>${formatRemaining(result.availableAt, result.now)}</b>.`;
-  }
-  const text: Record<string, string> = {
-    disabled: "Нові завантаження гербів зараз зачинені. Збережені герби лишилися без змін.",
-    "no-character": "Спершу створіть пригодника через /start.",
-    "already-member": "Ця чернетка належала заснуванню, але ви вже маєте чинний статут.",
-    ineligible: "Поточне життя ще не має права засновника.",
-    "not-member": "Чинний ґільдійний профіль для цієї чернетки не знайшовся.",
-    forbidden: "Змінювати герб може лише чинна голова.",
-    stale: "Статут уже змінився. Відкрийте профіль ґільдії знову.",
-    "invalid-media": "Фото не відповідає дозволеним розмірам або ліміту файлу. Відкрийте новий бланк через меню ґільдії.",
-    "not-found": "Цей бланк герба вже нечинний. Відкрийте новий через меню ґільдії.",
-    expired: "Час бланка герба минув. Відкрийте новий через меню ґільдії."
-  };
-  return text[result.state] ?? "Герб уже прийнято. Продовжуйте з чинної картки.";
-}
-
 export function presentGuildCreationResult(result: GuildCreationConfirmRepositoryResult): string {
   if (result.state === "created") {
     return `${result.guild.crest} Чернетку <b>${escapeHtml(result.guild.displayName)}</b> підтверджено. Тепер запросіть першого друга: саме його вступ активує ґільдію.`;
@@ -332,7 +306,7 @@ export function presentGuildCreationResult(result: GuildCreationConfirmRepositor
     return "Ця назва зараз зарезервована іншим статутом. Золото лишилося при вас.";
   }
   if (result.state === "crest-taken") {
-    return "Цей каталожний герб уже закріпив інший чинний статут. Золото й засновницький облік не змінилися.";
+    return "Цей емоджі-герб уже закріпила інша формована або чинна ґільдія. Оберіть інший; золото й засновницький облік не змінилися.";
   }
   if (result.state === "expired") {
     return "Чернетка або строк формування минули. Створіть нову чернетку, коли засновницький облік дозволить.";
@@ -355,7 +329,7 @@ export function presentGuildCreationResult(result: GuildCreationConfirmRepositor
 export function presentGuildInviteOptIn(
   result: GuildInviteOptInRepositoryResult | { state: "disabled" },
   now: Date,
-  options: { deepLinkAvailable?: boolean } = {}
+  options: { deepLinkAvailable?: boolean; variant?: number } = {}
 ): string {
   if (result.state === "disabled") {
     return "Нові ґільдійні запрошення зараз зачинені.";
@@ -366,17 +340,24 @@ export function presentGuildInviteOptIn(
   if (result.state === "already-member") {
     return "Ви вже належите до ґільдії. Особистий код для отримання нового запрошення вам не потрібен.";
   }
+  if (result.state === "not-found") {
+    return "Чинного особистого посилання вже немає. Створіть нове кнопкою «Мій код» у ґільдійному меню.";
+  }
+  const shareText = guildInviteShareText(options.variant ?? 0);
   return [
     "✉️ <b>Особисте запрошення</b>",
     "",
     options.deepLinkAvailable
-      ? `Посилання чинне ще <b>${formatRemaining(result.expiresAt, now)}</b>. Натисніть «Поділитися запрошенням» і надішліть його лише тому, від кого хочете отримати запрошення.`
-      : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>. Передайте його лише тому, від кого хочете отримати запрошення.`,
+      ? `Посилання чинне ще <b>${formatRemaining(result.expiresAt, now)}</b>.`
+      : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>.`,
+    "",
+    `<blockquote>${escapeHtml(shareText)}</blockquote>`,
+    "",
     options.deepLinkAvailable
-      ? "Коли запрошувач відкриє посилання, Квестарня перевірить його повноваження, а ви отримаєте кнопки «Долучитися» та «Відхилити»."
-      : "Запрошувач може вставити резервний код через /guild_invite, після чого ви отримаєте кнопки «Долучитися» та «Відхилити».",
-    "Прийняття першого окремого учасника активує формований статут.",
-    "Новий код одразу скасує попередній; місце, час появи й Telegram-дані він не розкриває."
+      ? "Надішліть картку лише тому, від кого хочете отримати запрошення. Текст можна змінити без перевипуску посилання."
+      : "Передайте резервний код лише тому, від кого хочете отримати запрошення.",
+    "Квестарня перевірить запрошувача, а ви отримаєте кнопки «Долучитися» та «Відхилити». Перший окремий вступ активує формований статут.",
+    "Новий код скасовує попередній; місце, час появи й Telegram-дані не розкриваються."
   ].join("\n");
 }
 
@@ -464,7 +445,7 @@ export function presentGuildMemberMutation(result: GuildMemberMutationRepository
     "officer-cap": "У ґільдії вже двоє старшин. Спершу змініть одну з чинних ролей.",
     "leader-needs-successor": "Голова не може вийти, доки інший учасник не прийме запропонований провід.",
     "guild-not-sole": "Розпуск можливий лише тоді, коли голова лишається єдиним чинним учасником.",
-    "crest-taken": "Цей каталожний герб уже належить іншому чинному статуту. Оберіть вільний або завантажте власний."
+    "crest-taken": "Цей емоджі-герб уже належить іншому формованому або чинному статуту. Оберіть чи запропонуйте інший."
   };
   return text[result.state] ?? "Зміна не записалася.";
 }

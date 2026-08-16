@@ -76,6 +76,7 @@ export type GuildCreationConfirmRepositoryResult =
 
 export type GuildInviteOptInRepositoryResult =
   | { state: "no-character" }
+  | { state: "not-found" }
   | { state: "already-member" }
   | { state: "ready"; token: string; expiresAt: Date };
 
@@ -225,6 +226,7 @@ export type GuildCrestPickerRepositoryResult =
       availableCrests: string[];
       currentCrest: string | null;
       currentHasCustomCrest: boolean;
+      requestedCrestAvailable?: boolean;
       guildVersion: number | null;
     };
 
@@ -275,6 +277,7 @@ export interface GuildRepository {
   getPublicDirectoryForTelegramUser(telegramUserId: bigint, expectedLocationId: string, now: Date, page?: number): Promise<GuildPublicDirectoryRepositoryResult>;
   getPublicGuildForTelegramUser(telegramUserId: bigint, guildId: string, expectedLocationId: string, now: Date): Promise<GuildPublicProfileRepositoryResult>;
   createInviteOptInForTelegramUser(telegramUserId: bigint, input: { token: string; now: Date; expiresAt: Date }): Promise<GuildInviteOptInRepositoryResult>;
+  getInviteOptInForTelegramUser(telegramUserId: bigint, now: Date): Promise<GuildInviteOptInRepositoryResult>;
   createInviteForTelegramUser(telegramUserId: bigint, input: {
     token: string;
     targetToken: string;
@@ -287,7 +290,12 @@ export interface GuildRepository {
   updateProfileForTelegramUser(telegramUserId: bigint, input: { crest: string; description: string; expectedVersion: number; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
   updateProfilePreservingCustomCrestForTelegramUser(telegramUserId: bigint, input: { description: string; expectedVersion: number; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
   updateCustomProfileForTelegramUser(telegramUserId: bigint, input: { uploadToken: string; description: string; now: Date }): Promise<GuildMemberMutationRepositoryResult>;
-  getCrestPickerForTelegramUser(telegramUserId: bigint, purpose: GuildCrestUploadPurpose, now: Date): Promise<GuildCrestPickerRepositoryResult>;
+  getCrestPickerForTelegramUser(
+    telegramUserId: bigint,
+    purpose: GuildCrestUploadPurpose,
+    now: Date,
+    requestedCrest?: string
+  ): Promise<GuildCrestPickerRepositoryResult>;
   beginCrestUploadForTelegramUser(telegramUserId: bigint, input: {
     token: string;
     purpose: GuildCrestUploadPurpose;

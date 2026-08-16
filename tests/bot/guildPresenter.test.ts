@@ -8,6 +8,7 @@ import {
 } from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 import { GUILD_CREST_CATALOG } from "../../src/domain/guild";
+import { GUILD_INVITE_SHARE_TEXTS } from "../../src/content/guildInviteCopy";
 
 const keyboardRowTexts = (rows: ReturnType<typeof buildGuildCreationStartKeyboard>["inline_keyboard"]): string[][] =>
   rows.map((row) => row.map((button) => button.text));
@@ -34,7 +35,7 @@ describe("guild crest picker row shape", () => {
       [...GUILD_CREST_CATALOG.slice(0, 5)],
       [...GUILD_CREST_CATALOG.slice(5, 10)],
       [...GUILD_CREST_CATALOG.slice(10)],
-      ["🖼️ Завантажити свій герб"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expectSafeCrestRows(rows);
@@ -54,7 +55,7 @@ describe("guild crest picker row shape", () => {
     expect(rows.slice(0, 3).map((row) => row.length)).toEqual([5, 5, 1]);
     expect(callbacks).toEqual([0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12]);
     expect(keyboardRowTexts(rows).slice(3)).toEqual([
-      ["🖼️ Завантажити свій герб"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expectSafeCrestRows(rows);
@@ -69,7 +70,7 @@ describe("guild crest picker row shape", () => {
 
     expect(keyboardRowTexts(rows)).toEqual([
       [GUILD_CREST_CATALOG[4]],
-      ["🖼️ Завантажити свій герб"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expect(parsed).toEqual({ ok: true, value: { type: "create-crest", crestIndex: 4 } });
@@ -80,7 +81,7 @@ describe("guild crest picker row shape", () => {
     const rows = buildGuildCreationStartKeyboard([]).inline_keyboard;
 
     expect(keyboardRowTexts(rows)).toEqual([
-      ["🖼️ Завантажити свій герб"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expectSafeCrestRows(rows);
@@ -90,8 +91,8 @@ describe("guild crest picker row shape", () => {
     const rows = buildGuildProfileCrestKeyboard(587, [], true).inline_keyboard;
 
     expect(keyboardRowTexts(rows)).toEqual([
-      ["🖼️ Лишити чинний герб"],
-      ["🖼️ Завантажити свій герб"],
+      ["🔁 Лишити чинний емоджі"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expectSafeCrestRows(rows);
@@ -106,7 +107,7 @@ describe("guild crest picker row shape", () => {
 
     expect(keyboardRowTexts(rows)).toEqual([
       [GUILD_CREST_CATALOG[9]],
-      ["🖼️ Завантажити свій герб"],
+      ["✍️ Запропонувати свій емоджі"],
       ["🏰 Назад"]
     ]);
     expect(parsed).toEqual({ ok: true, value: { type: "profile-crest", crestIndex: 9, version: 587 } });
@@ -147,7 +148,7 @@ describe("guild presenter privacy", () => {
       "callback_data" in button && button.callback_data.startsWith("v1:g:r:")
     )).toHaveLength(0);
     expect(occupiedCatalogButtons).toContainEqual(expect.objectContaining({
-      text: "🖼️ Завантажити свій герб",
+      text: "✍️ Запропонувати свій емоджі",
       callback_data: "v1:g:nu"
     }));
     expect(creationButtons.some((button) =>
@@ -160,11 +161,27 @@ describe("guild presenter privacy", () => {
     expect(inviteButtons).toEqual(expect.arrayContaining([
       expect.objectContaining({ copy_text: { text: token } }),
       expect.objectContaining({ copy_text: { text: inviteUrl } }),
+      expect.objectContaining({ text: "🎲 Згенерувати інший текст", callback_data: "v1:g:ig:1" }),
       expect.objectContaining({ callback_data: "v1:g:o" })
     ]));
+    expect(JSON.stringify(inviteButtons.filter((button) => "callback_data" in button))).not.toContain(token);
     expect(inviteButtons.some((button) =>
       "url" in button && button.url.startsWith("https://t.me/share/url?")
     )).toBe(true);
+
+    const renderedShareTexts = GUILD_INVITE_SHARE_TEXTS.map((expectedText, variant) => {
+      const buttons = buildGuildInviteCodeKeyboard(token, inviteUrl, variant).inline_keyboard.flat();
+      const share = buttons.find((button) => "url" in button && button.url.startsWith("https://t.me/share/url?"));
+      expect(share && "url" in share ? new URL(share.url).searchParams.get("url") : null).toBe(inviteUrl);
+      expect(share && "url" in share ? new URL(share.url).searchParams.get("text") : null).toBe(expectedText);
+      expect(buttons).toContainEqual(expect.objectContaining({
+        text: "🎲 Згенерувати інший текст",
+        callback_data: `v1:g:ig:${((variant + 1) % 13).toString(36)}`
+      }));
+      expect(JSON.stringify(buttons.filter((button) => "callback_data" in button))).not.toContain(token);
+      return expectedText;
+    });
+    expect(new Set(renderedShareTexts).size).toBe(13);
   });
 
   it("shows safe identity, roles and canonical waits without tokens or presence data", () => {

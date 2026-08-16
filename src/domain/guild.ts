@@ -22,6 +22,7 @@ export type GuildIdentityValidation =
       displayName: string;
       normalizedName: string;
       crest: string;
+      crestKind: GuildCrestKind;
       description: string;
     }
   | {
@@ -49,6 +50,21 @@ const letterOrNumberPattern = /[\p{L}\p{N}]/u;
 const cyrillicPattern = /\p{Script=Cyrillic}/u;
 const latinPattern = /\p{Script=Latin}/u;
 const crestCatalog = new Set<string>(GUILD_CREST_CATALOG);
+const emojiLikePattern = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\uFE0F)/u;
+
+export function validateGuildCrest(input: string):
+  | { ok: true; crest: string; crestKind: GuildCrestKind }
+  | { ok: false; reason: "crest" } {
+  const crest = input.trim().normalize("NFC");
+  if (graphemeLength(crest) !== 1 || !emojiLikePattern.test(crest)) {
+    return { ok: false, reason: "crest" };
+  }
+  return {
+    ok: true,
+    crest,
+    crestKind: crestCatalog.has(crest) ? "catalog" : "custom"
+  };
+}
 
 export function validateGuildIdentity(input: {
   displayName: string;
@@ -57,7 +73,7 @@ export function validateGuildIdentity(input: {
 }): GuildIdentityValidation {
   const displayName = collapseWhitespace(input.displayName.normalize("NFKC"));
   const normalizedName = displayName.toLocaleLowerCase("uk-UA");
-  const crest = input.crest.trim().normalize("NFC");
+  const crestResult = validateGuildCrest(input.crest);
   const description = collapseWhitespace(input.description.normalize("NFKC"));
   const nameLength = graphemeLength(displayName);
 
@@ -74,7 +90,7 @@ export function validateGuildIdentity(input: {
   ) {
     return { ok: false, reason: "name-unsafe" };
   }
-  if (!crestCatalog.has(crest)) {
+  if (!crestResult.ok) {
     return { ok: false, reason: "crest" };
   }
   if (graphemeLength(description) > GUILD_DESCRIPTION_MAX_GRAPHEMES) {
@@ -84,7 +100,14 @@ export function validateGuildIdentity(input: {
     return { ok: false, reason: "description-unsafe" };
   }
 
-  return { ok: true, displayName, normalizedName, crest, description };
+  return {
+    ok: true,
+    displayName,
+    normalizedName,
+    crest: crestResult.crest,
+    crestKind: crestResult.crestKind,
+    description
+  };
 }
 
 export function isEligibleGuildFounder(level: number, remortCount: number): boolean {
@@ -92,9 +115,9 @@ export function isEligibleGuildFounder(level: number, remortCount: number): bool
 }
 
 export function validateGuildProfile(input: { crest: string; description: string }): GuildProfileValidation {
-  const crest = input.crest.trim().normalize("NFC");
+  const crestResult = validateGuildCrest(input.crest);
   const description = collapseWhitespace(input.description.normalize("NFKC"));
-  if (!crestCatalog.has(crest)) {
+  if (!crestResult.ok) {
     return { ok: false, reason: "crest" };
   }
   if (graphemeLength(description) > GUILD_DESCRIPTION_MAX_GRAPHEMES) {
@@ -103,7 +126,7 @@ export function validateGuildProfile(input: { crest: string; description: string
   if (forbiddenText.test(description)) {
     return { ok: false, reason: "description-unsafe" };
   }
-  return { ok: true, crest, description };
+  return { ok: true, crest: crestResult.crest, description };
 }
 
 export function isValidGuildCrestMediaMetadata(input: {

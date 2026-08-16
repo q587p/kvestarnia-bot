@@ -10,6 +10,7 @@ describe("GuildService rollout isolation", () => {
     const updateProfileForTelegramUser = vi.fn();
     const ensureCreationGoldForTelegramUser = vi.fn();
     const createInviteOptInForTelegramUser = vi.fn();
+    const getInviteOptInForTelegramUser = vi.fn();
     const resolvePartyRecipientForTelegramUser = vi.fn();
     const recordPartyInvite = vi.fn();
     const getNestForTelegramUser = vi.fn();
@@ -29,6 +30,7 @@ describe("GuildService rollout isolation", () => {
         updateProfileForTelegramUser,
         ensureCreationGoldForTelegramUser,
         createInviteOptInForTelegramUser,
+        getInviteOptInForTelegramUser,
         resolvePartyRecipientForTelegramUser,
         recordPartyInvite,
         getNestForTelegramUser,
@@ -53,6 +55,7 @@ describe("GuildService rollout isolation", () => {
       .resolves.toEqual({ state: "disabled" });
     await expect(service.ensureCreationGoldForDev(42n)).resolves.toBe("disabled");
     await expect(service.createInviteOptInForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
+    await expect(service.getInviteOptInForTelegramUser(42n)).resolves.toEqual({ state: "disabled" });
     await expect(service.resolvePartyRecipientForTelegramUser(42n, {
       partySessionId: "party-id",
       memberId: "member-id",
@@ -83,6 +86,7 @@ describe("GuildService rollout isolation", () => {
     expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
     expect(ensureCreationGoldForTelegramUser).not.toHaveBeenCalled();
     expect(createInviteOptInForTelegramUser).not.toHaveBeenCalled();
+    expect(getInviteOptInForTelegramUser).not.toHaveBeenCalled();
     expect(resolvePartyRecipientForTelegramUser).not.toHaveBeenCalled();
     expect(recordPartyInvite).not.toHaveBeenCalled();
     expect(getNestForTelegramUser).not.toHaveBeenCalled();

@@ -10,6 +10,7 @@ import {
   GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
   GUILD_CREATION_NAME_PROMPT_HEADING,
   GUILD_CREST_UPLOAD_PROMPT_HEADING,
+  GUILD_CUSTOM_EMOJI_PROMPT_HEADING,
   GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING
 } from "../../src/bot/presenters/guildPresenter";
 
@@ -17,6 +18,7 @@ const GUILD_FORCE_REPLY_PROMPTS = [
   ["creation name", `${GUILD_CREATION_NAME_PROMPT_HEADING} · 🐈`],
   ["creation description", `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🐈`],
   ["profile description", `${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · 🐈`],
+  ["custom emoji", `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`],
   ["custom crest photo", `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`],
   ["invitation target code", GUILD_INVITE_PROMPT_HEADING]
 ] as const;

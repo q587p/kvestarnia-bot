@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   GUILD_CREST_CATALOG,
-  GUILD_CREST_MAX_FILE_SIZE,
   GUILD_CREATION_GOLD,
   GUILD_DESCRIPTION_MAX_GRAPHEMES,
   isEligibleGuildFounder,
-  isValidGuildCrestMediaMetadata,
+  validateGuildCrest,
   validateGuildIdentity,
   validateGuildProfile
 } from "../../src/domain/guild";
@@ -21,6 +20,7 @@ describe("guild identity", () => {
       displayName: "ВАРЕНИЧНИЙ Статут",
       normalizedName: "вареничний статут",
       crest: "🛡️",
+      crestKind: "catalog",
       description: "Коротко й безпечно."
     });
   });
@@ -44,42 +44,12 @@ describe("guild identity", () => {
     expect(isEligibleGuildFounder(2, 42)).toBe(false);
   });
 
-  it("keeps custom crest metadata inside the documented authoritative limits", () => {
-    expect(isValidGuildCrestMediaMetadata({
-      fileId: "file",
-      fileUniqueId: "unique",
-      width: 64,
-      height: 2048,
-      fileSize: GUILD_CREST_MAX_FILE_SIZE
-    })).toBe(true);
-    expect(isValidGuildCrestMediaMetadata({
-      fileId: "file",
-      fileUniqueId: "unique",
-      width: 63,
-      height: 64,
-      fileSize: 1
-    })).toBe(false);
-    expect(isValidGuildCrestMediaMetadata({
-      fileId: "file",
-      fileUniqueId: "unique",
-      width: 64,
-      height: 64,
-      fileSize: GUILD_CREST_MAX_FILE_SIZE + 1
-    })).toBe(false);
-    expect(isValidGuildCrestMediaMetadata({
-      fileId: "file",
-      fileUniqueId: "unique",
-      width: 64,
-      height: 64,
-      fileSize: null
-    })).toBe(false);
-    expect(isValidGuildCrestMediaMetadata({
-      fileId: "",
-      fileUniqueId: "unique",
-      width: 64,
-      height: 64,
-      fileSize: null
-    })).toBe(false);
+  it("accepts one catalog or custom emoji and rejects text or several graphemes", () => {
+    expect(validateGuildCrest("🛡️")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
+    expect(validateGuildCrest(" 🧿 ")).toEqual({ ok: true, crest: "🧿", crestKind: "custom" });
+    expect(validateGuildCrest("🇺🇦")).toEqual({ ok: true, crest: "🇺🇦", crestKind: "custom" });
+    expect(validateGuildCrest("Щ")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("🧿🦉")).toEqual({ ok: false, reason: "crest" });
   });
 
   it("validates leader-editable crest and 93-grapheme description independently of names", () => {
@@ -88,7 +58,11 @@ describe("guild identity", () => {
       crest: "🦉",
       description: "Тиха рада."
     });
-    expect(validateGuildProfile({ crest: "🧿", description: "" })).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildProfile({ crest: "🧿", description: "" })).toEqual({
+      ok: true,
+      crest: "🧿",
+      description: ""
+    });
     expect(validateGuildProfile({ crest: "🦉", description: "x".repeat(94) })).toEqual({
       ok: false,
       reason: "description-length"

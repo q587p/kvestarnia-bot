@@ -166,7 +166,7 @@ export class PrismaGuildRepository implements GuildRepository {
               remortCount: actor.character._count.remorts,
               normalizedName: input.normalizedName,
               displayName: input.displayName,
-              crest: input.crestKind === "custom" ? GUILD_CUSTOM_CREST_MARKER : input.crest,
+              crest: input.crest,
               crestKind: input.crestKind ?? "catalog",
               crestFileId: input.crestMedia?.fileId ?? null,
               crestFileUniqueId: input.crestMedia?.fileUniqueId ?? null,
@@ -190,7 +190,7 @@ export class PrismaGuildRepository implements GuildRepository {
               remortCount: actor.character._count.remorts,
               normalizedName: input.normalizedName,
               displayName: input.displayName,
-              crest: input.crestKind === "custom" ? GUILD_CUSTOM_CREST_MARKER : input.crest,
+              crest: input.crest,
               crestKind: input.crestKind ?? "catalog",
               crestFileId: input.crestMedia?.fileId ?? null,
               crestFileUniqueId: input.crestMedia?.fileUniqueId ?? null,
@@ -368,10 +368,7 @@ export class PrismaGuildRepository implements GuildRepository {
           });
           return { state: "name-taken" };
         }
-        if (
-          intent.crestKind === "catalog" &&
-          !await releaseSpecificCrestReservationIfDue(tx, intent.crest, now)
-        ) {
+        if (intent.crestFileId === null && !await releaseSpecificCrestReservationIfDue(tx, intent.crest, now)) {
           await tx.guildCreationIntent.updateMany({
             where: { id: intent.id, status: "pending" },
             data: { status: "conflict", activeUserKey: null, updatedAt: now }
@@ -421,7 +418,7 @@ export class PrismaGuildRepository implements GuildRepository {
             displayName: intent.displayName,
             crest: intent.crest,
             crestKind: intent.crestKind,
-            crestReservationKey: intent.crestKind === "catalog" ? intent.crest : null,
+            crestReservationKey: intent.crestFileId === null ? intent.crest : null,
             crestFileId: intent.crestFileId,
             crestFileUniqueId: intent.crestFileUniqueId,
             crestWidth: intent.crestWidth,
@@ -659,7 +656,8 @@ export class PrismaGuildRepository implements GuildRepository {
   async getCrestPickerForTelegramUser(
     telegramUserId: bigint,
     purpose: GuildCrestUploadPurpose,
-    now: Date
+    now: Date,
+    requestedCrest?: string
   ): Promise<GuildCrestPickerRepositoryResult> {
     return this.serializable(async (tx) => {
       await maintainGuildState(tx, now);
@@ -689,13 +687,15 @@ export class PrismaGuildRepository implements GuildRepository {
       }
       const currentGuildId = purpose === "profile" ? membership?.guildId ?? null : null;
       const availableCrests = await availableCatalogCrests(tx, now, currentGuildId);
+      const requestedCrestAvailable = requestedCrest === undefined
+        ? undefined
+        : await releaseSpecificCrestReservationIfDue(tx, requestedCrest, now, currentGuildId);
       return {
         state: "ready",
         availableCrests,
-        currentCrest: purpose === "profile" && membership?.guild.crestKind === "catalog"
-          ? membership.guild.crest
-          : null,
+        currentCrest: purpose === "profile" ? membership?.guild.crest ?? null : null,
         currentHasCustomCrest: purpose === "profile" && membership?.guild.crestKind === "custom",
+        ...(requestedCrestAvailable === undefined ? {} : { requestedCrestAvailable }),
         guildVersion: purpose === "profile" ? membership?.guild.version ?? null : null
       };
     });
@@ -993,6 +993,31 @@ export class PrismaGuildRepository implements GuildRepository {
     });
   }
 
+  async getInviteOptInForTelegramUser(
+    telegramUserId: bigint,
+    now: Date
+  ): Promise<GuildInviteOptInRepositoryResult> {
+    return this.serializable(async (tx) => {
+      await maintainGuildState(tx, now);
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      if (await currentLiveMembership(tx, actor, now)) {
+        await tx.guildInviteOptIn.deleteMany({ where: { userId: actor.id } });
+        return { state: "already-member" };
+      }
+      const row = await tx.guildInviteOptIn.findUnique({ where: { userId: actor.id } });
+      if (!row || row.expiresAt <= now) {
+        if (row) {
+          await tx.guildInviteOptIn.deleteMany({ where: { id: row.id } });
+        }
+        return { state: "not-found" };
+      }
+      return { state: "ready", token: row.token, expiresAt: row.expiresAt };
+    });
+  }
+
   async createInviteForTelegramUser(
     telegramUserId: bigint,
     input: { token: string; targetToken: string; now: Date; expiresAt: Date }
@@ -1156,12 +1181,14 @@ export class PrismaGuildRepository implements GuildRepository {
         if (!(await claimGuildVersion(tx, membership.guildId, input.expectedVersion, input.now))) {
           return { state: "stale" };
         }
-        const reverted = membership.guild.crestKind === "custom";
+        const crestKind = GUILD_CREST_CATALOG.includes(profile.crest as (typeof GUILD_CREST_CATALOG)[number])
+          ? "catalog"
+          : "custom";
         await tx.guild.update({
           where: { id: membership.guildId },
           data: {
             crest: profile.crest,
-            crestKind: "catalog",
+            crestKind,
             crestReservationKey: profile.crest,
             crestFileId: null,
             crestFileUniqueId: null,
@@ -1178,7 +1205,7 @@ export class PrismaGuildRepository implements GuildRepository {
           actorUserId: actor.id,
           subjectUserId: null,
           dedupeKey: `guild:${membership.guildId}:profile:v${input.expectedVersion + 1}`,
-          payload: { crestChange: reverted ? "reverted" : "catalog" },
+          payload: { crestChange: crestKind === "catalog" ? "catalog" : "custom-emoji" },
           occurredAt: input.now
         });
         return updatedGuildResult(tx, membership.guildId, actor.id);
@@ -1877,15 +1904,15 @@ export class PrismaGuildRepository implements GuildRepository {
         });
         return { state: "name-taken" };
       }
-      if (intent.crestKind === "catalog") {
-        const crestOwner = await tx.guild.findUnique({ where: { crestReservationKey: intent.crest } });
-        if (crestOwner) {
-          await tx.guildCreationIntent.updateMany({
-            where: { id: intent.id, status: "pending" },
-            data: { status: "conflict", activeUserKey: null, updatedAt: now }
-          });
-          return { state: "crest-taken" };
-        }
+      const crestOwner = intent.crestFileId === null
+        ? await tx.guild.findUnique({ where: { crestReservationKey: intent.crest } })
+        : null;
+      if (crestOwner) {
+        await tx.guildCreationIntent.updateMany({
+          where: { id: intent.id, status: "pending" },
+          data: { status: "conflict", activeUserKey: null, updatedAt: now }
+        });
+        return { state: "crest-taken" };
       }
       const cooldown = await tx.guildFounderCooldown.findUnique({ where: { userId: actor.id } });
       if (cooldown?.availableAt && cooldown.availableAt > now) {

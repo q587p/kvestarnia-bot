@@ -8,6 +8,7 @@ import {
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
   makeGuildInviteCodeCallbackData,
+  makeGuildInviteCopyCallbackData,
   makeGuildInviteStartCallbackData,
   makeGuildMemberManageCallbackData,
   makeGuildMemberMutationCallbackData,
@@ -119,14 +120,16 @@ describe("guild callback data", () => {
     expect(parseGuildCallbackData("v1:g:c:short")).toEqual({ ok: false, error: "invalid-token" });
     expect(parseGuildCallbackData("v1:g:t:not-a-member:zz:extra")).toEqual({ ok: false, error: "invalid-prefix" });
     expect(parseGuildCallbackData("v1:g:r:d")).toEqual({ ok: false, error: "invalid-action" });
+    expect(parseGuildCallbackData("v1:g:ig:d")).toEqual({ ok: false, error: "invalid-action" });
   });
 
-  it("round-trips bounded custom crest upload and viewing callbacks", () => {
+  it("round-trips bounded custom-emoji, invite-copy and retired crest-view callbacks", () => {
     const guildId = "12345678-1234-4234-9234-123456789012";
     const values = [
       makeGuildCreateUploadCallbackData(),
       makeGuildProfileUploadCallbackData(587),
       makeGuildProfileKeepCustomCallbackData(587),
+      makeGuildInviteCopyCallbackData(12),
       makeGuildCreationCrestViewCallbackData("customIntentToken13"),
       makeGuildPrivateCrestViewCallbackData(guildId),
       makeGuildPublicCrestViewCallbackData(guildId, 23)
@@ -138,12 +141,15 @@ describe("guild callback data", () => {
       ok: true, value: { type: "profile-keep-custom", version: 587 }
     });
     expect(parseGuildCallbackData(values[3])).toEqual({
-      ok: true, value: { type: "crest-view-intent", token: "customIntentToken13" }
+      ok: true, value: { type: "invite-copy", variant: 12 }
     });
     expect(parseGuildCallbackData(values[4])).toEqual({
-      ok: true, value: { type: "crest-view-guild", guildId, publicAccess: false, page: 0 }
+      ok: true, value: { type: "crest-view-intent", token: "customIntentToken13" }
     });
     expect(parseGuildCallbackData(values[5])).toEqual({
+      ok: true, value: { type: "crest-view-guild", guildId, publicAccess: false, page: 0 }
+    });
+    expect(parseGuildCallbackData(values[6])).toEqual({
       ok: true, value: { type: "crest-view-guild", guildId, publicAccess: true, page: 23 }
     });
   });

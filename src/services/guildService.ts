@@ -199,10 +199,11 @@ export class GuildService {
 
   getCrestPickerForTelegramUser(
     telegramUserId: bigint,
-    purpose: GuildCrestUploadPurpose
+    purpose: GuildCrestUploadPurpose,
+    requestedCrest?: string
   ): Promise<GuildCrestPickerResult> {
     return this.isEnabled()
-      ? this.guilds.getCrestPickerForTelegramUser(telegramUserId, purpose, this.clock())
+      ? this.guilds.getCrestPickerForTelegramUser(telegramUserId, purpose, this.clock(), requestedCrest)
       : Promise.resolve({ state: "disabled" });
   }
 
@@ -324,6 +325,14 @@ export class GuildService {
       now,
       expiresAt: new Date(now.getTime() + GUILD_INVITE_OPT_IN_TTL_MS)
     });
+  }
+
+  getInviteOptInForTelegramUser(
+    telegramUserId: bigint
+  ): Promise<GuildInviteOptInRepositoryResult | { state: "disabled" }> {
+    return this.isEnabled()
+      ? this.guilds.getInviteOptInForTelegramUser(telegramUserId, this.clock())
+      : Promise.resolve({ state: "disabled" });
   }
 
   createInviteForTelegramUser(
