@@ -6,6 +6,7 @@ import {
   GUILD_MAX_OFFICERS,
   isEligibleGuildFounder,
   isValidGuildCrestMediaMetadata,
+  validateGuildCrest,
   validateGuildDescription,
   validateGuildProfile,
   type GuildRole
@@ -126,6 +127,7 @@ export class PrismaGuildRepository implements GuildRepository {
       displayName: string;
       normalizedName: string;
       crest: string;
+      crestReservationKey: string;
       crestKind?: "catalog" | "custom";
       crestMedia?: GuildCrestMediaInput;
       description: string;
@@ -134,6 +136,14 @@ export class PrismaGuildRepository implements GuildRepository {
       expiresAt: Date;
     }
   ): Promise<GuildCreationPreviewRepositoryResult> {
+    const crest = validateGuildCrest(input.crest);
+    if (crest.ok && (
+      crest.crest !== input.crest ||
+      crest.crestReservationKey !== input.crestReservationKey ||
+      crest.crestKind !== (input.crestKind ?? "catalog")
+    )) {
+      throw new Error("Invalid guild crest reservation contract.");
+    }
     return this.serializable(async (tx) => {
       await maintainGuildState(tx, input.now);
       await maintainCreationIntents(tx, input.now);
@@ -368,7 +378,11 @@ export class PrismaGuildRepository implements GuildRepository {
           });
           return { state: "name-taken" };
         }
-        if (intent.crestFileId === null && !await releaseSpecificCrestReservationIfDue(tx, intent.crest, now)) {
+        const intentCrestReservationKey = intent.crestFileId === null
+          ? storedCrestReservationKey(intent.crest)
+          : null;
+        if (intentCrestReservationKey !== null &&
+          !await releaseSpecificCrestReservationIfDue(tx, intentCrestReservationKey, now)) {
           await tx.guildCreationIntent.updateMany({
             where: { id: intent.id, status: "pending" },
             data: { status: "conflict", activeUserKey: null, updatedAt: now }
@@ -418,7 +432,7 @@ export class PrismaGuildRepository implements GuildRepository {
             displayName: intent.displayName,
             crest: intent.crest,
             crestKind: intent.crestKind,
-            crestReservationKey: intent.crestFileId === null ? intent.crest : null,
+            crestReservationKey: intentCrestReservationKey,
             crestFileId: intent.crestFileId,
             crestFileUniqueId: intent.crestFileUniqueId,
             crestWidth: intent.crestWidth,
@@ -657,7 +671,7 @@ export class PrismaGuildRepository implements GuildRepository {
     telegramUserId: bigint,
     purpose: GuildCrestUploadPurpose,
     now: Date,
-    requestedCrest?: string
+    requestedCrestReservationKey?: string
   ): Promise<GuildCrestPickerRepositoryResult> {
     return this.serializable(async (tx) => {
       await maintainGuildState(tx, now);
@@ -687,9 +701,9 @@ export class PrismaGuildRepository implements GuildRepository {
       }
       const currentGuildId = purpose === "profile" ? membership?.guildId ?? null : null;
       const availableCrests = await availableCatalogCrests(tx, now, currentGuildId);
-      const requestedCrestAvailable = requestedCrest === undefined
+      const requestedCrestAvailable = requestedCrestReservationKey === undefined
         ? undefined
-        : await releaseSpecificCrestReservationIfDue(tx, requestedCrest, now, currentGuildId);
+        : await releaseSpecificCrestReservationIfDue(tx, requestedCrestReservationKey, now, currentGuildId);
       return {
         state: "ready",
         availableCrests,
@@ -1175,21 +1189,23 @@ export class PrismaGuildRepository implements GuildRepository {
         if (!profile.ok) {
           return { state: "invalid-target" };
         }
-        if (!await releaseSpecificCrestReservationIfDue(tx, profile.crest, input.now, membership.guildId)) {
+        if (!await releaseSpecificCrestReservationIfDue(
+          tx,
+          profile.crestReservationKey,
+          input.now,
+          membership.guildId
+        )) {
           return { state: "crest-taken" };
         }
         if (!(await claimGuildVersion(tx, membership.guildId, input.expectedVersion, input.now))) {
           return { state: "stale" };
         }
-        const crestKind = GUILD_CREST_CATALOG.includes(profile.crest as (typeof GUILD_CREST_CATALOG)[number])
-          ? "catalog"
-          : "custom";
         await tx.guild.update({
           where: { id: membership.guildId },
           data: {
             crest: profile.crest,
-            crestKind,
-            crestReservationKey: profile.crest,
+            crestKind: profile.crestKind,
+            crestReservationKey: profile.crestReservationKey,
             crestFileId: null,
             crestFileUniqueId: null,
             crestWidth: null,
@@ -1205,7 +1221,7 @@ export class PrismaGuildRepository implements GuildRepository {
           actorUserId: actor.id,
           subjectUserId: null,
           dedupeKey: `guild:${membership.guildId}:profile:v${input.expectedVersion + 1}`,
-          payload: { crestChange: crestKind === "catalog" ? "catalog" : "custom-emoji" },
+          payload: { crestChange: profile.crestKind === "catalog" ? "catalog" : "custom-emoji" },
           occurredAt: input.now
         });
         return updatedGuildResult(tx, membership.guildId, actor.id);
@@ -1904,8 +1920,11 @@ export class PrismaGuildRepository implements GuildRepository {
         });
         return { state: "name-taken" };
       }
-      const crestOwner = intent.crestFileId === null
-        ? await tx.guild.findUnique({ where: { crestReservationKey: intent.crest } })
+      const intentCrestReservationKey = intent.crestFileId === null
+        ? storedCrestReservationKey(intent.crest)
+        : null;
+      const crestOwner = intentCrestReservationKey !== null
+        ? await tx.guild.findUnique({ where: { crestReservationKey: intentCrestReservationKey } })
         : null;
       if (crestOwner) {
         await tx.guildCreationIntent.updateMany({
@@ -2291,6 +2310,11 @@ async function releaseSpecificCrestReservationIfDue(
   await terminalizeGuildIfDue(tx, owner, now);
   const current = await tx.guild.findUnique({ where: { id: owner.id }, select: { crestReservationKey: true } });
   return current?.crestReservationKey !== crest;
+}
+
+function storedCrestReservationKey(crest: string): string {
+  const validation = validateGuildCrest(crest);
+  return validation.ok ? validation.crestReservationKey : crest;
 }
 
 async function releaseSpecificNameReservationIfDue(

@@ -264,8 +264,16 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🪜 Спуск до Низу");
     expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).not.toContain("Гнізда ґільдій");
     expect(text).not.toContain("Манчкін-скупник");
     expect(text).not.toContain("Ярус I: Сутерени Корчми");
+  });
+
+  it("points from the Nyz descent to the Guild Nest only while its entrance is available", () => {
+    const text = presentKorchmaDeepClosed(character, { guildFoundationEnabled: true });
+
+    expect(text).toContain("низький прохід до 🪺 Гнізда ґільдій");
+    expect(text).toContain("лавами, гербами й поштовими щілинами");
   });
 
   it("shows Munchkin at the Nyz descent at night", () => {

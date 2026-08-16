@@ -209,12 +209,18 @@ export function presentKorchmaFightingCornerLevelLocked(
 
 export function presentKorchmaDeepClosed(
   _character: CharacterSummary,
-  options: { munchkinLocation?: MunchkinLocation } = {}
+  options: { munchkinLocation?: MunchkinLocation; guildFoundationEnabled?: boolean } = {}
 ): string {
   return [
     "🪜 Спуск до Низу",
     "",
     "За бочками в коморі є сходи. Перші тринадцять сходинок ще пахнуть пивом і мишами. Далі — гарячим каменем, старою кров’ю і чимось, що не мало б дихати.",
+    ...(options.guildFoundationEnabled
+      ? [
+          "",
+          "Убік від сходів відходить низький прохід до 🪺 Гнізда ґільдій — круглої камори з лавами, гербами й поштовими щілинами."
+        ]
+      : []),
     ...presentDeepMunchkinLines(options.munchkinLocation ?? "front")
   ].join("\n");
 }

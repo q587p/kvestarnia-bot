@@ -24,6 +24,8 @@ combat layer. It is the canonical public discovery route, not a fourth passage,
 per-guild hall or free-floating notice board. It shares
 `PRESENCE_LOCATION_KORCHMA_DEEP`, so browsing renews neutral activity without
 splitting nearby, movement, daily-scene or combat-lock semantics.
+When the feature is enabled, the Spusk card itself names the low side passage,
+chamber, crests and postal slots before offering the full-width Nest action.
 
 Public Nest and directory callbacks require the viewer's current Spusk
 location. New persistent main keyboards have no global guild row. Private
@@ -77,11 +79,15 @@ races give one winner; a losing create has no gold debit, founder cooldown or
 charter side effect.
 
 Custom identity is a direct alternative in both pickers, including when all 13
-catalog crests are occupied. The exact ForceReply accepts exactly one normalized
-emoji and fences continuation by flag, membership/leader authority, guild status
-and expected version. Occupied, multiple, textual, forged and stale replies are
+catalog crests are occupied. The exact ForceReply accepts exactly one genuine
+Unicode RGI emoji sequence and fences continuation by flag, membership/leader
+authority, guild status and expected version. Occupied, multiple, textual,
+forged and stale replies are
 rejected without profile, gold, cooldown or audit mutation. Replay stays
-idempotent across restart. Audit records only semantic catalog/custom-emoji
+idempotent across restart. The normalized visible sequence keeps its emoji
+presentation selectors, while selector aliases share a separate canonical
+reservation key and catalog aliases render the canonical catalog form. Audit
+records only semantic catalog/custom-emoji
 changes. Photo, document, sticker, animation, video, URL and binary crest input
 are not supported; legacy pre-release photo prompts recover inertly through the
 emoji picker.

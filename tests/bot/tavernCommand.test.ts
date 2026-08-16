@@ -640,6 +640,7 @@ describe("tavern command screens", () => {
 
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
     expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(replies[0]?.text).toContain("низький прохід до 🪺 Гнізда ґільдій");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("deep-level1"));
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
     expect(JSON.stringify(replies[0]?.options)).toContain("v1:g:no");

@@ -867,7 +867,7 @@ function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
       const picker = await service.getCrestPickerForTelegramUser(
         actor,
         customEmojiPrompt.purpose,
-        crest.ok ? crest.crest : undefined
+        crest.ok ? crest.crestReservationKey : undefined
       );
       const staleProfile = customEmojiPrompt.purpose === "profile" &&
         (picker.state !== "ready" || picker.guildVersion !== customEmojiPrompt.version);

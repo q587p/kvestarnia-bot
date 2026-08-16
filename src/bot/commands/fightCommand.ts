@@ -239,7 +239,12 @@ export async function sendFight(
         PASSAGE_SEARCH_NODE_DESCENT
       );
       await sendResultText(
-        presentKorchmaDeepClosed(result.character, { munchkinLocation }),
+        presentKorchmaDeepClosed(result.character, {
+          munchkinLocation,
+          ...(options?.guildFoundationEnabled === undefined
+            ? {}
+            : { guildFoundationEnabled: options.guildFoundationEnabled })
+        }),
         {
           type: "deep",
           munchkinLocation,

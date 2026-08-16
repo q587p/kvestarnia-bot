@@ -200,10 +200,10 @@ export class GuildService {
   getCrestPickerForTelegramUser(
     telegramUserId: bigint,
     purpose: GuildCrestUploadPurpose,
-    requestedCrest?: string
+    requestedCrestReservationKey?: string
   ): Promise<GuildCrestPickerResult> {
     return this.isEnabled()
-      ? this.guilds.getCrestPickerForTelegramUser(telegramUserId, purpose, this.clock(), requestedCrest)
+      ? this.guilds.getCrestPickerForTelegramUser(telegramUserId, purpose, this.clock(), requestedCrestReservationKey)
       : Promise.resolve({ state: "disabled" });
   }
 

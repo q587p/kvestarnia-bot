@@ -1507,6 +1507,7 @@ describe("PrismaGuildRepository integration", () => {
         displayName,
         normalizedName: displayName.toLocaleLowerCase("uk-UA"),
         crest: "🧿",
+        crestReservationKey: "🧿",
         crestKind: "custom",
         description: "Один емоджі, одна печатка.",
         goldCost: GUILD_CREATION_GOLD,
@@ -1538,6 +1539,57 @@ describe("PrismaGuildRepository integration", () => {
     });
     await expect(repository.getCrestPickerForTelegramUser(loser, "creation", afterExpiry, "🧿"))
       .resolves.toMatchObject({ state: "ready", requestedCrestAvailable: true });
+  });
+
+  it("preserves selector presentation while equivalent custom emoji aliases have one transactional winner", async () => {
+    await seedCharacter(prisma, "emoji-alias-founder-a", 62_111n, "Сердечник А", 1_000, { level: 5 });
+    await seedCharacter(prisma, "emoji-alias-founder-b", 62_112n, "Сердечник Б", 1_000, { level: 5 });
+    for (const [telegramUserId, token, displayName, crest] of [
+      [62_111n, "emoji-alias-token-a", "Щире Серце", "❤"],
+      [62_112n, "emoji-alias-token-b", "Червоне Серце", "❤️"]
+    ] as const) {
+      await expect(repository.createIntentForTelegramUser(telegramUserId, {
+        token,
+        displayName,
+        normalizedName: displayName.toLocaleLowerCase("uk-UA"),
+        crest,
+        crestReservationKey: "❤",
+        crestKind: "custom",
+        description: "Одна видима печатка, один ключ.",
+        goldCost: GUILD_CREATION_GOLD,
+        now: NOW,
+        expiresAt: new Date(NOW.getTime() + 13 * 60_000)
+      })).resolves.toMatchObject({ state: "ready", intent: { crest } });
+    }
+
+    const results = await Promise.all([
+      repository.confirmCreateForTelegramUser(62_111n, "emoji-alias-token-a", NOW),
+      repository.confirmCreateForTelegramUser(62_112n, "emoji-alias-token-b", NOW)
+    ]);
+    expect(results.filter((result) => result.state === "created")).toHaveLength(1);
+    expect(results.filter((result) => result.state === "crest-taken")).toHaveLength(1);
+    const winnerIndex = results.findIndex((result) => result.state === "created");
+    const winner = winnerIndex === 0 ? 62_111n : 62_112n;
+    const loser = winner === 62_111n ? 62_112n : 62_111n;
+    const expectedDisplay = winner === 62_111n ? "❤" : "❤️";
+    await expect(prisma.guild.findUniqueOrThrow({
+      where: { crestReservationKey: "❤" },
+      select: { crest: true, crestReservationKey: true }
+    })).resolves.toEqual({ crest: expectedDisplay, crestReservationKey: "❤" });
+    await expect(goldFor(prisma, loser)).resolves.toBe(1_000);
+    await expect(prisma.guildFounderCooldown.count({
+      where: { user: { telegramUserId: loser } }
+    })).resolves.toBe(0);
+    await expect(repository.updateProfileForTelegramUser(winner, {
+      crest: "👩‍⚕️",
+      description: "Лікуємо селектори без ампутації.",
+      expectedVersion: 1,
+      now: new Date(NOW.getTime() + 1_000)
+    })).resolves.toMatchObject({ state: "updated", guild: { crest: "👩‍⚕️", version: 2 } });
+    await expect(prisma.guild.findFirstOrThrow({
+      where: { leaderUser: { telegramUserId: winner } },
+      select: { crest: true, crestReservationKey: true }
+    })).resolves.toEqual({ crest: "👩‍⚕️", crestReservationKey: "👩‍⚕" });
   });
 
   it("reads the current invitation card without rotating its private token", async () => {
@@ -2132,6 +2184,7 @@ async function createIntent(
     displayName,
     normalizedName,
     crest: `test-crest-${token}`,
+    crestReservationKey: `test-crest-${token}`,
     crestKind: "custom",
     description: "Короткий статут без зайвого боса.",
     goldCost: GUILD_CREATION_GOLD,
@@ -2171,6 +2224,7 @@ async function createCatalogIntent(
     displayName,
     normalizedName: displayName.toLocaleLowerCase("uk-UA"),
     crest,
+    crestReservationKey: crest,
     crestKind: "catalog",
     description: "Каталожний статут.",
     goldCost: GUILD_CREATION_GOLD,

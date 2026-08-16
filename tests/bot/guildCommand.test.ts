@@ -294,7 +294,7 @@ describe("guild command routes", () => {
         token: "emojiIntentToken13",
         displayName: "Оката Рада",
         normalizedName: "оката рада",
-        crest: "🧿",
+        crest: "❤️",
         crestKind: "custom",
         hasCustomCrest: true,
         description: "Дивимося в обидва боки.",
@@ -324,28 +324,28 @@ describe("guild command routes", () => {
 
     await bot.handleUpdate(callbackUpdate("v1:g:nu"));
     await bot.handleUpdate(replyUpdate(
-      "🧿",
+      "❤️",
       `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`,
       94
     ));
     await bot.handleUpdate(replyUpdate(
       "Оката Рада",
-      `${GUILD_CREATION_NAME_PROMPT_HEADING} · 🧿`,
+      `${GUILD_CREATION_NAME_PROMPT_HEADING} · ❤️`,
       95
     ));
     await bot.handleUpdate(replyUpdate(
       "Дивимося в обидва боки.",
-      `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🧿\n\nНазва: Оката Рада`,
+      `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ❤️\n\nНазва: Оката Рада`,
       96
     ));
 
-    expect(getCrestPickerForTelegramUser).toHaveBeenCalledWith(42n, "creation", "🧿");
+    expect(getCrestPickerForTelegramUser).toHaveBeenCalledWith(42n, "creation", "❤");
     expect(previewCreationForTelegramUser).toHaveBeenCalledWith(42n, {
-      crest: "🧿",
+      crest: "❤️",
       displayName: "Оката Рада",
       description: "Дивимося в обидва боки."
     });
-    expect(String(sent.at(-1)?.text)).toContain("🧿");
+    expect(String(sent.at(-1)?.text)).toContain("❤️");
     expect(JSON.stringify(sent.at(-1)?.reply_markup)).toContain("v1:g:c:emojiIntentToken13");
     expect(JSON.stringify(sent)).not.toContain("file_id");
   });

@@ -253,6 +253,7 @@ export interface GuildRepository {
     displayName: string;
     normalizedName: string;
     crest: string;
+    crestReservationKey: string;
     crestKind?: GuildCrestKind;
     crestMedia?: GuildCrestMediaInput;
     description: string;
@@ -294,7 +295,7 @@ export interface GuildRepository {
     telegramUserId: bigint,
     purpose: GuildCrestUploadPurpose,
     now: Date,
-    requestedCrest?: string
+    requestedCrestReservationKey?: string
   ): Promise<GuildCrestPickerRepositoryResult>;
   beginCrestUploadForTelegramUser(telegramUserId: bigint, input: {
     token: string;

@@ -646,7 +646,12 @@ export async function sendKorchmaDeepClosed(
   await sendText(
     ctx,
     mode,
-    presentKorchmaDeepClosed(result.character, { munchkinLocation }),
+    presentKorchmaDeepClosed(result.character, {
+      munchkinLocation,
+      ...(options.guildFoundationEnabled === undefined
+        ? {}
+        : { guildFoundationEnabled: options.guildFoundationEnabled })
+    }),
     {
       state: "deep",
       munchkinLocation,

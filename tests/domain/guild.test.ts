@@ -21,6 +21,7 @@ describe("guild identity", () => {
       normalizedName: "вареничний статут",
       crest: "🛡️",
       crestKind: "catalog",
+      crestReservationKey: "🛡️",
       description: "Коротко й безпечно."
     });
   });
@@ -45,35 +46,63 @@ describe("guild identity", () => {
   });
 
   it("accepts genuine emoji sequences and rejects text, lone flags or several graphemes", () => {
-    expect(validateGuildCrest("🛡️")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
-    expect(validateGuildCrest(" 🧿 ")).toEqual({ ok: true, crest: "🧿", crestKind: "custom" });
-    expect(validateGuildCrest("🇺🇦")).toEqual({ ok: true, crest: "🇺🇦", crestKind: "custom" });
-    expect(validateGuildCrest("👍🏽")).toEqual({ ok: true, crest: "👍🏽", crestKind: "custom" });
-    expect(validateGuildCrest("👩‍⚕️")).toEqual({ ok: true, crest: "👩‍⚕", crestKind: "custom" });
+    const englandFlag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+    expect(validateGuildCrest("🛡️")).toEqual({
+      ok: true, crest: "🛡️", crestKind: "catalog", crestReservationKey: "🛡️"
+    });
+    expect(validateGuildCrest(" 🧿 ")).toEqual({
+      ok: true, crest: "🧿", crestKind: "custom", crestReservationKey: "🧿"
+    });
+    expect(validateGuildCrest("🇺🇦")).toEqual({
+      ok: true, crest: "🇺🇦", crestKind: "custom", crestReservationKey: "🇺🇦"
+    });
+    expect(validateGuildCrest("👍🏽")).toEqual({
+      ok: true, crest: "👍🏽", crestKind: "custom", crestReservationKey: "👍🏽"
+    });
+    expect(validateGuildCrest("👩‍⚕️")).toEqual({
+      ok: true, crest: "👩‍⚕️", crestKind: "custom", crestReservationKey: "👩‍⚕"
+    });
+    expect(validateGuildCrest(englandFlag)).toEqual({
+      ok: true, crest: englandFlag, crestKind: "custom", crestReservationKey: englandFlag
+    });
     expect(validateGuildCrest("Щ")).toEqual({ ok: false, reason: "crest" });
     expect(validateGuildCrest("🇺")).toEqual({ ok: false, reason: "crest" });
     expect(validateGuildCrest("🧿🦉")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("😀‍😀")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("🧿‍🐉")).toEqual({ ok: false, reason: "crest" });
   });
 
   it("rejects variation-decorated text and canonicalizes presentation aliases", () => {
     expect(validateGuildCrest("A️")).toEqual({ ok: false, reason: "crest" });
     expect(validateGuildCrest("<️")).toEqual({ ok: false, reason: "crest" });
     expect(validateGuildCrest("&️")).toEqual({ ok: false, reason: "crest" });
-    expect(validateGuildCrest("🛡")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
-    expect(validateGuildCrest("🛡️")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
-    expect(validateGuildCrest("❤")).toEqual({ ok: true, crest: "❤", crestKind: "custom" });
-    expect(validateGuildCrest("❤️")).toEqual({ ok: true, crest: "❤", crestKind: "custom" });
+    expect(validateGuildCrest("🛡")).toEqual({
+      ok: true, crest: "🛡️", crestKind: "catalog", crestReservationKey: "🛡️"
+    });
+    expect(validateGuildCrest("🛡️")).toEqual({
+      ok: true, crest: "🛡️", crestKind: "catalog", crestReservationKey: "🛡️"
+    });
+    expect(validateGuildCrest("❤")).toEqual({
+      ok: true, crest: "❤", crestKind: "custom", crestReservationKey: "❤"
+    });
+    expect(validateGuildCrest("❤️")).toEqual({
+      ok: true, crest: "❤️", crestKind: "custom", crestReservationKey: "❤"
+    });
   });
 
   it("validates leader-editable crest and 93-grapheme description independently of names", () => {
     expect(validateGuildProfile({ crest: "🦉", description: "  Тиха   рада. " })).toEqual({
       ok: true,
       crest: "🦉",
+      crestKind: "catalog",
+      crestReservationKey: "🦉",
       description: "Тиха рада."
     });
     expect(validateGuildProfile({ crest: "🧿", description: "" })).toEqual({
       ok: true,
       crest: "🧿",
+      crestKind: "custom",
+      crestReservationKey: "🧿",
       description: ""
     });
     expect(validateGuildProfile({ crest: "🦉", description: "x".repeat(94) })).toEqual({

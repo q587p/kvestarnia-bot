@@ -267,6 +267,8 @@ describe("lore board content", () => {
     expect(guild?.body).toContain("прийняття запрошення");
     expect(guild?.body).toContain("між ремортами");
     expect(guild?.body).toContain("не спільний гаманець чи власна ватага");
+    expect(nest?.body).toContain("Від Спуску до Низу");
+    expect(nest?.body).toContain("поштовими щілинами");
 
     const seed = JSON.parse(readFileSync(
       join(process.cwd(), "docs", "content", "kvestarnia-lore-seed.json"),

@@ -23,6 +23,7 @@ export type GuildIdentityValidation =
       normalizedName: string;
       crest: string;
       crestKind: GuildCrestKind;
+      crestReservationKey: string;
       description: string;
     }
   | {
@@ -31,7 +32,7 @@ export type GuildIdentityValidation =
     };
 
 export type GuildProfileValidation =
-  | { ok: true; crest: string; description: string }
+  | { ok: true; crest: string; crestKind: GuildCrestKind; crestReservationKey: string; description: string }
   | { ok: false; reason: "crest" | "description-length" | "description-unsafe" };
 
 const reservedNames = new Set([
@@ -50,26 +51,86 @@ const letterOrNumberPattern = /[\p{L}\p{N}]/u;
 const cyrillicPattern = /\p{Script=Cyrillic}/u;
 const latinPattern = /\p{Script=Latin}/u;
 const emojiPresentationSelectorPattern = /[\uFE0E\uFE0F]/gu;
-const emojiCrestPattern = /^(?:(?:\p{Regional_Indicator}){2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}[\uFE0E\uFE0F]?\p{Emoji_Modifier}?(?:\u200D\p{Extended_Pictographic}[\uFE0E\uFE0F]?\p{Emoji_Modifier}?)*?)$/u;
+const emojiCodePointPattern = /^\p{Emoji}$/u;
+const rgiEmojiPattern = new RegExp("^\\p{RGI_Emoji}$", "v");
 const canonicalCatalogCrests = new Map<string, string>(GUILD_CREST_CATALOG.map((crest) => [
   crest.replace(emojiPresentationSelectorPattern, ""),
   crest
 ]));
 
 export function validateGuildCrest(input: string):
-  | { ok: true; crest: string; crestKind: GuildCrestKind }
+  | { ok: true; crest: string; crestKind: GuildCrestKind; crestReservationKey: string }
   | { ok: false; reason: "crest" } {
   const submittedCrest = input.trim().normalize("NFC");
-  if (graphemeLength(submittedCrest) !== 1 || !emojiCrestPattern.test(submittedCrest)) {
+  if (graphemeLength(submittedCrest) !== 1) {
     return { ok: false, reason: "crest" };
   }
-  const canonicalCrest = submittedCrest.replace(emojiPresentationSelectorPattern, "");
-  const catalogCrest = canonicalCatalogCrests.get(canonicalCrest);
+  const crestReservationKey = genuineEmojiReservationKey(submittedCrest);
+  if (!crestReservationKey) {
+    return { ok: false, reason: "crest" };
+  }
+  const catalogCrest = canonicalCatalogCrests.get(crestReservationKey);
   return {
     ok: true,
-    crest: catalogCrest ?? canonicalCrest,
-    crestKind: catalogCrest ? "catalog" : "custom"
+    crest: catalogCrest ?? submittedCrest,
+    crestKind: catalogCrest ? "catalog" : "custom",
+    crestReservationKey: catalogCrest ?? crestReservationKey
   };
+}
+
+function genuineEmojiReservationKey(submittedCrest: string): string | null {
+  const crestReservationKey = submittedCrest.replace(emojiPresentationSelectorPattern, "");
+  if (rgiEmojiPattern.test(submittedCrest)) {
+    return crestReservationKey;
+  }
+
+  const submittedSelectorPositions = emojiSelectorPositions(submittedCrest);
+  if (!submittedSelectorPositions) {
+    return null;
+  }
+  const codePoints = [...crestReservationKey];
+  const eligiblePositions = codePoints
+    .map((codePoint, index) => emojiCodePointPattern.test(codePoint) ? index : -1)
+    .filter((index) => index >= 0);
+  if (eligiblePositions.length === 0 || eligiblePositions.length > 10) {
+    return null;
+  }
+
+  const variants = 1 << eligiblePositions.length;
+  for (let mask = 1; mask < variants; mask += 1) {
+    const selectorPositions = new Set<number>();
+    for (let bit = 0; bit < eligiblePositions.length; bit += 1) {
+      if ((mask & (1 << bit)) !== 0) {
+        selectorPositions.add(eligiblePositions[bit]!);
+      }
+    }
+    if ([...submittedSelectorPositions].some((position) => !selectorPositions.has(position))) {
+      continue;
+    }
+    const candidate = codePoints
+      .map((codePoint, index) => `${codePoint}${selectorPositions.has(index) ? "\uFE0F" : ""}`)
+      .join("");
+    if (rgiEmojiPattern.test(candidate)) {
+      return crestReservationKey;
+    }
+  }
+  return null;
+}
+
+function emojiSelectorPositions(value: string): Set<number> | null {
+  const positions = new Set<number>();
+  let basePosition = -1;
+  for (const codePoint of value) {
+    if (codePoint === "\uFE0E" || codePoint === "\uFE0F") {
+      if (basePosition < 0 || positions.has(basePosition)) {
+        return null;
+      }
+      positions.add(basePosition);
+      continue;
+    }
+    basePosition += 1;
+  }
+  return positions;
 }
 
 export function validateGuildIdentity(input: {
@@ -112,6 +173,7 @@ export function validateGuildIdentity(input: {
     normalizedName,
     crest: crestResult.crest,
     crestKind: crestResult.crestKind,
+    crestReservationKey: crestResult.crestReservationKey,
     description
   };
 }
@@ -132,7 +194,13 @@ export function validateGuildProfile(input: { crest: string; description: string
   if (forbiddenText.test(description)) {
     return { ok: false, reason: "description-unsafe" };
   }
-  return { ok: true, crest: crestResult.crest, description };
+  return {
+    ok: true,
+    crest: crestResult.crest,
+    crestKind: crestResult.crestKind,
+    crestReservationKey: crestResult.crestReservationKey,
+    description
+  };
 }
 
 export function isValidGuildCrestMediaMetadata(input: {
