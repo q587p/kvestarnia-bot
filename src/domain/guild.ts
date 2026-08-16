@@ -62,7 +62,7 @@ export function validateGuildCrest(input: string):
   | { ok: true; crest: string; crestKind: GuildCrestKind; crestReservationKey: string }
   | { ok: false; reason: "crest" } {
   const submittedCrest = input.trim().normalize("NFC");
-  if (graphemeLength(submittedCrest) !== 1) {
+  if (graphemeLength(submittedCrest) !== 1 || submittedCrest.includes("\uFE0E")) {
     return { ok: false, reason: "crest" };
   }
   const crestReservationKey = genuineEmojiReservationKey(submittedCrest);

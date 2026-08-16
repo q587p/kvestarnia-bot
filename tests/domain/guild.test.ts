@@ -90,6 +90,16 @@ describe("guild identity", () => {
     });
   });
 
+  it.each([
+    "\u2764\uFE0E",
+    "\u00A9\uFE0E",
+    "\u2122\uFE0E",
+    "\u{1F469}\u200D\u2695\uFE0E",
+    "\u2600\uFE0E"
+  ])("rejects explicit text-presentation crest %s", (crest) => {
+    expect(validateGuildCrest(crest)).toEqual({ ok: false, reason: "crest" });
+  });
+
   it("validates leader-editable crest and 93-grapheme description independently of names", () => {
     expect(validateGuildProfile({ crest: "🦉", description: "  Тиха   рада. " })).toEqual({
       ok: true,
