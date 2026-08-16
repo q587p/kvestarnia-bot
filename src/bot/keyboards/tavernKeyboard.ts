@@ -464,7 +464,9 @@ export function buildKorchmaDeepKeyboard(
   }
 
   if (options.guildFoundationEnabled) {
-    keyboard.text("🪺 Гніздо ґільдій", makeGuildNestOpenCallbackData()).row();
+    return keyboard
+      .text("🪺 Гніздо ґільдій", makeGuildNestOpenCallbackData())
+      .text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
   }
 
   return keyboard.text("⬇️ Спуститися", makePlaceCallbackData("deep-level1"));
