@@ -61,6 +61,12 @@ describe("public news rendering", () => {
     expect(news).not.toMatch(/(?:mini\s*app|міні-?ап\p{L}*)/iu);
   });
 
+  it("keeps every release heading separated from the previous entry by a blank line", () => {
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8").replace(/\r\n/g, "\n");
+
+    expect(news).not.toMatch(/[^\n]\n## \d+\.\d+\.\d+ —/u);
+  });
+
   it("keeps the latest release news in the established lead, list and closing shape", () => {
     const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
     const latest = parseNewsEntries(news)[0];
