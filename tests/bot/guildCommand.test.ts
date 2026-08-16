@@ -384,12 +384,174 @@ describe("guild command routes", () => {
       102
     ));
 
-    expect(getCrestPickerForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getCrestPickerForTelegramUser).toHaveBeenNthCalledWith(1, 42n, "creation", undefined);
+    expect(getCrestPickerForTelegramUser).toHaveBeenNthCalledWith(2, 42n, "creation", "🧿");
     expect(sent).toHaveLength(2);
     expect(String(sent[0]?.text)).toContain("рівно один емоджі");
     expect(String(sent[1]?.text)).toContain("уже зайнятий");
     expect((sent[0]?.reply_markup as { force_reply?: boolean }).force_reply).toBe(true);
     expect((sent[1]?.reply_markup as { force_reply?: boolean }).force_reply).toBe(true);
+  });
+
+  it.each([
+    ["photo", { photo: [{ file_id: "photo-secret", file_unique_id: "photo-unique", width: 512, height: 512 }] }],
+    ["document", { document: { file_id: "document-secret", file_unique_id: "document-unique", file_name: "crest.png" } }],
+    ["sticker", { sticker: { file_id: "sticker-secret", file_unique_id: "sticker-unique", width: 512, height: 512, is_animated: false, is_video: false, type: "regular" } }],
+    ["animation", { animation: { file_id: "animation-secret", file_unique_id: "animation-unique", width: 512, height: 512, duration: 1 } }],
+    ["video", { video: { file_id: "video-secret", file_unique_id: "video-unique", width: 512, height: 512, duration: 1 } }]
+  ] as const)("rejects a %s reply to the exact custom-emoji prompt after revalidating authority", async (_kind, media) => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const getCrestPickerForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      availableCrests: [...GUILD_CREST_CATALOG],
+      currentCrest: null,
+      currentHasCustomCrest: false,
+      requestedCrestAvailable: null,
+      guildVersion: null
+    });
+    const mutations = {
+      previewCreationForTelegramUser: vi.fn(),
+      updateProfileForTelegramUser: vi.fn(),
+      confirmCreationForTelegramUser: vi.fn(),
+      beginCrestUploadForTelegramUser: vi.fn(),
+      storeCrestUploadForTelegramUser: vi.fn()
+    };
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({ getCrestPickerForTelegramUser, ...mutations }));
+
+    await bot.handleUpdate(mediaReplyUpdate(
+      `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`,
+      media,
+      103
+    ));
+
+    expect(getCrestPickerForTelegramUser).toHaveBeenCalledWith(42n, "creation");
+    expect(Object.values(mutations).every((mutation) => mutation.mock.calls.length === 0)).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(String(sent[0]?.text)).toContain("Фото, файли й інші повідомлення не підходять");
+    expect((sent[0]?.reply_markup as { force_reply?: boolean }).force_reply).toBe(true);
+    expect(JSON.stringify(sent)).not.toMatch(/(?:photo|document|sticker|animation|video)-secret/u);
+  });
+
+  it("does not reissue a stale profile emoji prompt for unsupported media", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const updateProfileForTelegramUser = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({
+      getCrestPickerForTelegramUser: vi.fn().mockResolvedValue({
+        state: "ready",
+        availableCrests: [...GUILD_CREST_CATALOG],
+        currentCrest: "🧿",
+        currentHasCustomCrest: true,
+        requestedCrestAvailable: null,
+        guildVersion: 8
+      }),
+      updateProfileForTelegramUser
+    }));
+
+    await bot.handleUpdate(mediaReplyUpdate(
+      `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · p · 7`,
+      { photo: [{ file_id: "stale-secret", file_unique_id: "stale-unique", width: 512, height: 512 }] },
+      104
+    ));
+
+    expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect((sent[0]?.reply_markup as { force_reply?: boolean }).force_reply).not.toBe(true);
+    expect(JSON.stringify(sent[0]?.reply_markup)).toContain("v1:g:o");
+    expect(JSON.stringify(sent)).not.toContain("stale-secret");
+  });
+
+  it("does not reissue unsupported-media prompts without current authority or while disabled", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    let enabled = true;
+    const getCrestPickerForTelegramUser = vi.fn().mockResolvedValue({ state: "forbidden" });
+    const updateProfileForTelegramUser = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({
+      isEnabled: () => enabled,
+      getCrestPickerForTelegramUser,
+      updateProfileForTelegramUser
+    }));
+
+    await bot.handleUpdate(mediaReplyUpdate(
+      `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · p · 7`,
+      { photo: [{ file_id: "forbidden-secret", file_unique_id: "forbidden-unique", width: 512, height: 512 }] },
+      105
+    ));
+    enabled = false;
+    await bot.handleUpdate(mediaReplyUpdate(
+      `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`,
+      { document: { file_id: "disabled-secret", file_unique_id: "disabled-unique" } },
+      106
+    ));
+
+    expect(getCrestPickerForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(updateProfileForTelegramUser).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(2);
+    expect(sent.every((message) =>
+      (message.reply_markup as { force_reply?: boolean }).force_reply !== true
+    )).toBe(true);
+    expect(JSON.stringify(sent[0]?.reply_markup)).toContain("v1:g:o");
+    expect(JSON.stringify(sent[1]?.reply_markup)).toContain("v1:g:o");
+    expect(JSON.stringify(sent)).not.toMatch(/(?:forbidden|disabled)-secret/u);
+  });
+
+  it("rejects a link entity in an otherwise valid custom-emoji reply", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const getCrestPickerForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      availableCrests: [...GUILD_CREST_CATALOG],
+      currentCrest: null,
+      currentHasCustomCrest: false,
+      requestedCrestAvailable: null,
+      guildVersion: null
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") {
+        sent.push(payload);
+      }
+      return Promise.resolve({ ok: true, result: { message_id: sent.length + 1 } });
+    });
+    registerGuildCommands(bot, guildService({ getCrestPickerForTelegramUser }));
+
+    await bot.handleUpdate(replyUpdate(
+      "🧿",
+      `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`,
+      105,
+      [{ offset: 0, length: 2, type: "text_link", url: "https://example.invalid" }]
+    ));
+
+    expect(getCrestPickerForTelegramUser).toHaveBeenCalledWith(42n, "creation", undefined);
+    expect(String(sent[0]?.text)).toContain("посилання");
+    expect((sent[0]?.reply_markup as { force_reply?: boolean }).force_reply).toBe(true);
   });
 
   it("retires exact old photo prompts inertly while arbitrary photos remain outside guild routing", async () => {
@@ -919,6 +1081,7 @@ describe("guild command routes", () => {
       })
     );
     const text = String(profile.editMessageText.mock.calls[0]?.[0]);
+    expect(text).toContain("&lt;🦉&gt;");
     expect(text).toContain("&lt;b&gt;Чужий HTML&lt;/b&gt;");
     expect(text).toContain("Лише &lt;script&gt;опис&lt;/script&gt;");
     expect(text).not.toContain("leader");
@@ -995,7 +1158,12 @@ function commandUpdate(text: string, updateId = 1) {
   };
 }
 
-function replyUpdate(text: string, promptText: string, updateId: number) {
+function replyUpdate(
+  text: string,
+  promptText: string,
+  updateId: number,
+  entities?: Array<{ offset: number; length: number; type: "url" | "text_link"; url?: string }>
+) {
   return {
     update_id: updateId,
     message: {
@@ -1004,10 +1172,31 @@ function replyUpdate(text: string, promptText: string, updateId: number) {
       chat: { id: 42, type: "private" },
       from: { id: 42, is_bot: false, first_name: "Тест" },
       text,
+      ...(entities ? { entities } : {}),
       reply_to_message: {
         message_id: updateId - 1,
         date: 1,
         chat: { id: 42, type: "private" },
+        from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
+        text: promptText
+      }
+    }
+  };
+}
+
+function mediaReplyUpdate(promptText: string, media: Record<string, unknown>, updateId: number) {
+  return {
+    update_id: updateId,
+    message: {
+      message_id: updateId,
+      date: 1,
+      chat: { id: 42, type: "private" as const },
+      from: { id: 42, is_bot: false, first_name: "Тест" },
+      ...media,
+      reply_to_message: {
+        message_id: updateId - 1,
+        date: 1,
+        chat: { id: 42, type: "private" as const },
         from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
         text: promptText
       }

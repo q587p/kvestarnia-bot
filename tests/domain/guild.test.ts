@@ -44,12 +44,25 @@ describe("guild identity", () => {
     expect(isEligibleGuildFounder(2, 42)).toBe(false);
   });
 
-  it("accepts one catalog or custom emoji and rejects text or several graphemes", () => {
+  it("accepts genuine emoji sequences and rejects text, lone flags or several graphemes", () => {
     expect(validateGuildCrest("🛡️")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
     expect(validateGuildCrest(" 🧿 ")).toEqual({ ok: true, crest: "🧿", crestKind: "custom" });
     expect(validateGuildCrest("🇺🇦")).toEqual({ ok: true, crest: "🇺🇦", crestKind: "custom" });
+    expect(validateGuildCrest("👍🏽")).toEqual({ ok: true, crest: "👍🏽", crestKind: "custom" });
+    expect(validateGuildCrest("👩‍⚕️")).toEqual({ ok: true, crest: "👩‍⚕", crestKind: "custom" });
     expect(validateGuildCrest("Щ")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("🇺")).toEqual({ ok: false, reason: "crest" });
     expect(validateGuildCrest("🧿🦉")).toEqual({ ok: false, reason: "crest" });
+  });
+
+  it("rejects variation-decorated text and canonicalizes presentation aliases", () => {
+    expect(validateGuildCrest("A️")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("<️")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("&️")).toEqual({ ok: false, reason: "crest" });
+    expect(validateGuildCrest("🛡")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
+    expect(validateGuildCrest("🛡️")).toEqual({ ok: true, crest: "🛡️", crestKind: "catalog" });
+    expect(validateGuildCrest("❤")).toEqual({ ok: true, crest: "❤", crestKind: "custom" });
+    expect(validateGuildCrest("❤️")).toEqual({ ok: true, crest: "❤", crestKind: "custom" });
   });
 
   it("validates leader-editable crest and 93-grapheme description independently of names", () => {

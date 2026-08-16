@@ -18,6 +18,7 @@ describe("guild passage-search routing guard", () => {
     ["private deep link", textUpdate("/start guild_inviteABC12"), "reply"],
     ["guided invite reply", promptReplyUpdate(), "reply"],
     ["custom emoji reply", textPromptReplyUpdate(`${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`, "🧿"), "reply"],
+    ["custom emoji photo reply", customEmojiPhotoPromptReplyUpdate(), "reply"],
     ["custom crest photo reply", crestPhotoPromptReplyUpdate(), "reply"]
   ] as const)("blocks the %s before every guild and presence side effect", async (_name, update, mode) => {
     const calls = apiCalls();
@@ -302,6 +303,20 @@ function crestPhotoPromptReplyUpdate() {
         chat: { id: 1001, type: "private" as const },
         from: { id: 123, is_bot: true, first_name: "Квестарня" },
         text: "🖼️ Герб ґільдії · c · customUploadToken13\n\nНадішліть фото."
+      }
+    }
+  };
+}
+
+function customEmojiPhotoPromptReplyUpdate() {
+  const update = crestPhotoPromptReplyUpdate();
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      reply_to_message: {
+        ...update.message.reply_to_message,
+        text: `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c\n\nНадішліть один емоджі.`
       }
     }
   };

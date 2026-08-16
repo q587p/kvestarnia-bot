@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { presentGuildHub } from "../../src/bot/presenters/guildPresenter";
+import {
+  presentGuildCreationPreview,
+  presentGuildHub,
+  presentGuildProfileUpdate
+} from "../../src/bot/presenters/guildPresenter";
 import {
   buildGuildCreationStartKeyboard,
   buildGuildHubKeyboard,
@@ -192,7 +196,7 @@ describe("guild presenter privacy", () => {
         id: "guild-id",
         displayName: "Тиха Печатка",
         normalizedName: "тиха печатка",
-        crest: "🛡️",
+        crest: "<🛡️&>",
         description: "Мала ґільдія без стеження.",
         status: "active",
         charterExpiresAt: new Date(now.getTime() + 93 * 60_000),
@@ -208,7 +212,7 @@ describe("guild presenter privacy", () => {
           token: "private-outgoing-token",
           guildId: "guild-id",
           guildName: "Тиха Печатка",
-          guildCrest: "🛡️",
+          guildCrest: "<&>",
           targetName: "Запрошена",
           canCancel: true,
           status: "pending",
@@ -229,7 +233,19 @@ describe("guild presenter privacy", () => {
     expect(text).not.toContain("private-outgoing-token");
     expect(text).not.toMatch(/telegram|локаці|онлайн|lastAction|lastSeen/iu);
     expect(text).not.toContain("/guild_");
+    expect(text).toContain("&lt;🛡️&amp;&gt;");
+    expect(text).not.toContain("<🛡️&>");
     expect(Buffer.byteLength(text, "utf8")).toBeLessThan(4096);
+  });
+
+  it("describes both catalog and one-emoji recovery for an invalid crest", () => {
+    const creation = presentGuildCreationPreview({ state: "invalid", reason: "crest" }, new Date(0));
+    const profile = presentGuildProfileUpdate({ state: "invalid", reason: "crest" });
+
+    expect(creation).toContain("13 каталогових гербів");
+    expect(creation).toContain("один власний емоджі");
+    expect(profile).toContain("13 каталогових гербів");
+    expect(profile).toContain("один власний емоджі");
   });
 
   it("keeps a full five-row roster/invite page and callbacks within Telegram bounds", () => {

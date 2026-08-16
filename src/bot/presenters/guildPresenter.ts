@@ -41,7 +41,7 @@ export function presentGuildHub(
       ...recovery,
       ...(result.incomingInvites.length > 0
         ? ["Запрошення:", ...result.incomingInvites.map((invite) =>
-          `${invite.guildCrest} <b>${escapeHtml(invite.guildName)}</b> — ще ${formatRemaining(invite.expiresAt, now)}`
+          `${escapeHtml(invite.guildCrest)} <b>${escapeHtml(invite.guildName)}</b> — ще ${formatRemaining(invite.expiresAt, now)}`
         ), ""]
         : ["Запрошень поки немає. Навіть писар не вдає, що загубив їх.", ""]),
       ...(writesEnabled
@@ -117,7 +117,7 @@ export function presentGuildView(
   now: Date
 ): string {
   return [
-    `${guild.crest} <b>${escapeHtml(guild.displayName)}</b>`,
+    `${escapeHtml(guild.crest)} <b>${escapeHtml(guild.displayName)}</b>`,
     guild.description ? escapeHtml(guild.description) : "Короткий опис ще ховається під печаткою.",
     `Ваша роль: <b>${roleLabel(guild.viewerRole)}</b> · склад: <b>${guild.memberCount}/8</b>`,
     ...(guild.status === "forming"
@@ -131,7 +131,7 @@ export function presentGuildView(
     ...guild.members.map((member) => `${roleIcon(member.role)} ${escapeHtml(member.name)} — ${roleLabel(member.role)}`),
     ...(incomingInvites.length > 0
       ? ["", "<b>Інші запрошення</b>", ...incomingInvites.map((invite) =>
-        `${invite.guildCrest} ${escapeHtml(invite.guildName)} — ще ${formatRemaining(invite.expiresAt, now)}`
+        `${escapeHtml(invite.guildCrest)} ${escapeHtml(invite.guildName)} — ще ${formatRemaining(invite.expiresAt, now)}`
       )]
       : []),
     ...(guild.outgoingInvites.length > 0
@@ -169,7 +169,7 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
   return [
     "📜 <b>Заснування ґільдії · крок 4 із 4</b>",
     "",
-    `${result.intent.crest} <b>${escapeHtml(result.intent.displayName)}</b>`,
+    `${escapeHtml(result.intent.crest)} <b>${escapeHtml(result.intent.displayName)}</b>`,
     result.intent.description ? escapeHtml(result.intent.description) : "Без опису — загадково, але законно.",
     "",
     `Підтвердження коштує <b>${result.intent.goldCost} золота</b>. У вас: <b>${result.intent.availableGold}</b>.`,
@@ -213,7 +213,7 @@ export function presentGuildCustomEmojiPrompt(
 
 export function presentGuildCreationNamePrompt(crest: string, error?: string): string {
   return [
-    `<b>${GUILD_CREATION_NAME_PROMPT_HEADING} · ${crest}</b>`,
+    `<b>${GUILD_CREATION_NAME_PROMPT_HEADING} · ${escapeHtml(crest)}</b>`,
     "",
     ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
     "Як називатиметься ґільдія? Відповідайте лише назвою.",
@@ -228,7 +228,7 @@ export function presentGuildCreationDescriptionPrompt(
   error?: string
 ): string {
   return [
-    `<b>${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
+    `<b>${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · ${escapeHtml(crest)}</b>`,
     "",
     `<b>Назва:</b> ${escapeHtml(displayName)}`,
     "",
@@ -265,7 +265,7 @@ export function presentGuildProfileDescriptionPrompt(
   error?: string
 ): string {
   return [
-    `<b>${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${crest}</b>`,
+    `<b>${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · ${escapeHtml(crest)}</b>`,
     "",
     ...(error ? [`⚠️ ${escapeHtml(error)}`, ""] : []),
     "Який короткий опис матиме ґільдія? Відповідайте лише описом.",
@@ -294,10 +294,10 @@ export function presentGuildCrestPickerUnavailable(result: GuildCrestPickerResul
 
 export function presentGuildCreationResult(result: GuildCreationConfirmRepositoryResult): string {
   if (result.state === "created") {
-    return `${result.guild.crest} Чернетку <b>${escapeHtml(result.guild.displayName)}</b> підтверджено. Тепер запросіть першого друга: саме його вступ активує ґільдію.`;
+    return `${escapeHtml(result.guild.crest)} Чернетку <b>${escapeHtml(result.guild.displayName)}</b> підтверджено. Тепер запросіть першого друга: саме його вступ активує ґільдію.`;
   }
   if (result.state === "replayed") {
-    return `${result.guild.crest} Статут <b>${escapeHtml(result.guild.displayName)}</b> уже підтверджено. Повторна печатка золота не списала.`;
+    return `${escapeHtml(result.guild.crest)} Статут <b>${escapeHtml(result.guild.displayName)}</b> уже підтверджено. Повторна печатка золота не списала.`;
   }
   if (result.state === "insufficient-gold") {
     return `Не вистачає золота: потрібно <b>${result.required}</b>, є <b>${result.available}</b>. Чернетка нічого не списала.`;
@@ -396,10 +396,10 @@ export function presentGuildInviteCreate(
 
 export function presentGuildInviteResponse(result: GuildInviteRespondRepositoryResult): string {
   if (result.state === "accepted") {
-    return `${result.guild.crest} Ви долучилися до <b>${escapeHtml(result.guild.displayName)}</b>.`;
+    return `${escapeHtml(result.guild.crest)} Ви долучилися до <b>${escapeHtml(result.guild.displayName)}</b>.`;
   }
   if (result.state === "replayed") {
-    return `${result.guild.crest} Ви вже в <b>${escapeHtml(result.guild.displayName)}</b>. Повторна відповідь нічого не змінила.`;
+    return `${escapeHtml(result.guild.crest)} Ви вже в <b>${escapeHtml(result.guild.displayName)}</b>. Повторна відповідь нічого не змінила.`;
   }
   const text: Record<string, string> = {
     declined: "Запрошення відхилено. Ця ґільдія не турбуватиме новим сім днів.",
@@ -418,16 +418,16 @@ export function presentGuildInviteResponseNotification(
   response: "accepted" | "declined"
 ): string {
   return response === "accepted"
-    ? `${notification.guildCrest} Запрошення прийнято: <b>${escapeHtml(notification.targetName)}</b> тепер у <b>${escapeHtml(notification.guildName)}</b>.`
-    : `${notification.guildCrest} Відповідь на запрошення для <b>${escapeHtml(notification.targetName)}</b>: відхилено.`;
+    ? `${escapeHtml(notification.guildCrest)} Запрошення прийнято: <b>${escapeHtml(notification.targetName)}</b> тепер у <b>${escapeHtml(notification.guildName)}</b>.`
+    : `${escapeHtml(notification.guildCrest)} Відповідь на запрошення для <b>${escapeHtml(notification.targetName)}</b>: відхилено.`;
 }
 
 export function presentGuildMemberMutation(result: GuildMemberMutationRepositoryResult): string {
   if (result.state === "updated") {
-    return `${result.guild.crest} Зміну записано в статуті <b>${escapeHtml(result.guild.displayName)}</b>.`;
+    return `${escapeHtml(result.guild.crest)} Зміну записано в статуті <b>${escapeHtml(result.guild.displayName)}</b>.`;
   }
   if (result.state === "transfer-offered") {
-    return `${result.guild.crest} Провід запропоновано. Чинна голова не зміниться, доки номінований учасник не прийме пропозицію.`;
+    return `${escapeHtml(result.guild.crest)} Провід запропоновано. Чинна голова не зміниться, доки номінований учасник не прийме пропозицію.`;
   }
   if (result.state === "left") {
     return `Ви вийшли з <b>${escapeHtml(result.guildName)}</b>. Окрема ватага чи битва лишилася без змін.`;
@@ -456,7 +456,7 @@ export function presentGuildProfileUpdate(result: GuildProfileUpdateResult): str
   }
   if (result.state === "invalid") {
     return result.reason === "crest"
-      ? "Оберіть герб із каталогу тринадцяти: 🛡️ ⚔️ 🏰 🐉 🦉 🦊 🐺 🐸 🦄 🔥 🌙 🍄 🥨."
+      ? "Оберіть один із 13 каталогових гербів або запропонуйте рівно один власний емоджі."
       : "Опис має бути без керівних знаків і не довший за 93 символи.";
   }
   return presentGuildMemberMutation(result);
@@ -479,7 +479,7 @@ export function presentGuildPrivateInvite(guildName: string, guildCrest: string,
   return [
     "✉️ <b>Запрошення до ґільдії</b>",
     "",
-    `${guildCrest} <b>${escapeHtml(guildName)}</b> кличе поставити підпис у статуті. Вступ безкоштовний і не має рівневого порога.`,
+    `${escapeHtml(guildCrest)} <b>${escapeHtml(guildName)}</b> кличе поставити підпис у статуті. Вступ безкоштовний і не має рівневого порога.`,
     `На відповідь: <b>${formatRemaining(expiresAt, now)}</b>.`,
     "Картка не показує місце, час появи чи Telegram-дані учасників."
   ].join("\n");
@@ -522,7 +522,7 @@ function invalidIdentityText(reason: Extract<GuildCreationPreviewResult, { state
     "name-length": "Назва має містити від 3 до 32 видимих знаків.",
     "name-reserved": "Цю назву береже канцелярія Квестарні. Оберіть іншу.",
     "name-unsafe": "Назва містить службові, небезпечні або змішані схожі знаки.",
-    crest: "Оберіть один герб із канонічного набору: 🛡️ ⚔️ 🏰 🐉 🦉 🦊 🐺 🐸 🦄 🔥 🌙 🍄 🥨.",
+    crest: "Оберіть один із 13 каталогових гербів або запропонуйте рівно один власний емоджі.",
     "description-length": "Опис має вміститися у 93 видимі знаки.",
     "description-unsafe": "Опис містить службові або небезпечні знаки."
   } as const;

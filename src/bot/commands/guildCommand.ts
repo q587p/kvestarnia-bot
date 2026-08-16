@@ -196,6 +196,7 @@ export function registerGuildCommands(
   registerMemberActionCommand(bot, service, "guild_promote", "promote");
   registerMemberActionCommand(bot, service, "guild_demote", "demote");
   registerMemberActionCommand(bot, service, "guild_kick", "kick");
+  registerGuildCustomEmojiNonTextReplies(bot, service);
   registerRetiredGuildCrestPhotoReplies(bot);
   registerGuildPromptReplies(bot, service);
 
@@ -780,6 +781,45 @@ function registerMemberActionCommand(
   });
 }
 
+function registerGuildCustomEmojiNonTextReplies(bot: Bot, service: GuildService): void {
+  bot.on("message", async (ctx, next) => {
+    const replyTo = ctx.message.reply_to_message;
+    const replyText = replyTo && "text" in replyTo ? replyTo.text : undefined;
+    const prompt = replyTo?.from?.is_bot && replyText ? guildCustomEmojiPrompt(replyText) : null;
+    if (ctx.chat.type !== "private" || !prompt || "text" in ctx.message) {
+      await next();
+      return;
+    }
+    const actor = telegramUserIdFromContext(ctx.from);
+    if (!actor) {
+      await next();
+      return;
+    }
+    if (!service.isEnabled()) {
+      await ctx.reply("Нові герби зараз зачинені. Це повідомлення нічого не змінило.", {
+        ...HTML_OPTIONS,
+        reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+      });
+      return;
+    }
+    const picker = await service.getCrestPickerForTelegramUser(actor, prompt.purpose);
+    const staleProfile = prompt.purpose === "profile" &&
+      (picker.state !== "ready" || picker.guildVersion !== prompt.version);
+    if (picker.state !== "ready" || staleProfile) {
+      await ctx.reply(presentGuildCrestPickerUnavailable(picker), {
+        ...HTML_OPTIONS,
+        reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+      });
+      return;
+    }
+    await ctx.reply(presentGuildCustomEmojiPrompt(
+      prompt.purpose,
+      prompt.version,
+      "Потрібен рівно один емоджі. Фото, файли й інші повідомлення не підходять."
+    ), { ...HTML_OPTIONS, reply_markup: CREST_EMOJI_FORCE_REPLY });
+  });
+}
+
 function registerRetiredGuildCrestPhotoReplies(bot: Bot): void {
   bot.on("message", async (ctx, next) => {
     const replyTo = ctx.message.reply_to_message;
@@ -812,19 +852,23 @@ function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
     const customEmojiPrompt = guildCustomEmojiPrompt(replyText);
     if (customEmojiPrompt) {
       if (!service.isEnabled()) {
-        await ctx.reply("Нові герби зараз зачинені. Надісланий емоджі нічого не змінив.");
+        await ctx.reply("Нові герби зараз зачинені. Надіслане повідомлення нічого не змінило.", {
+          ...HTML_OPTIONS,
+          reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+        });
         return;
       }
-      const crest = validateGuildCrest(ctx.message.text);
-      if (!crest.ok) {
-        await ctx.reply(presentGuildCustomEmojiPrompt(
-          customEmojiPrompt.purpose,
-          customEmojiPrompt.version,
-          "Потрібен рівно один емоджі без тексту, фото чи файлу."
-        ), { ...HTML_OPTIONS, reply_markup: CREST_EMOJI_FORCE_REPLY });
-        return;
-      }
-      const picker = await service.getCrestPickerForTelegramUser(actor, customEmojiPrompt.purpose, crest.crest);
+      const hasUnsupportedLink = ctx.message.entities?.some((entity) =>
+        entity.type === "url" || entity.type === "text_link"
+      ) ?? false;
+      const crest = hasUnsupportedLink
+        ? { ok: false as const, reason: "crest" as const }
+        : validateGuildCrest(ctx.message.text);
+      const picker = await service.getCrestPickerForTelegramUser(
+        actor,
+        customEmojiPrompt.purpose,
+        crest.ok ? crest.crest : undefined
+      );
       const staleProfile = customEmojiPrompt.purpose === "profile" &&
         (picker.state !== "ready" || picker.guildVersion !== customEmojiPrompt.version);
       if (picker.state !== "ready" || staleProfile) {
@@ -832,6 +876,14 @@ function registerGuildPromptReplies(bot: Bot, service: GuildService): void {
           ...HTML_OPTIONS,
           reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
         });
+        return;
+      }
+      if (!crest.ok) {
+        await ctx.reply(presentGuildCustomEmojiPrompt(
+          customEmojiPrompt.purpose,
+          customEmojiPrompt.version,
+          "Потрібен рівно один емоджі без тексту, посилання, фото чи файлу."
+        ), { ...HTML_OPTIONS, reply_markup: CREST_EMOJI_FORCE_REPLY });
         return;
       }
       if (picker.requestedCrestAvailable !== true) {

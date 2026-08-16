@@ -49,20 +49,26 @@ const forbiddenText = /[\p{Cc}\p{Cf}\p{Cs}<>&]/u;
 const letterOrNumberPattern = /[\p{L}\p{N}]/u;
 const cyrillicPattern = /\p{Script=Cyrillic}/u;
 const latinPattern = /\p{Script=Latin}/u;
-const crestCatalog = new Set<string>(GUILD_CREST_CATALOG);
-const emojiLikePattern = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\uFE0F)/u;
+const emojiPresentationSelectorPattern = /[\uFE0E\uFE0F]/gu;
+const emojiCrestPattern = /^(?:(?:\p{Regional_Indicator}){2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}[\uFE0E\uFE0F]?\p{Emoji_Modifier}?(?:\u200D\p{Extended_Pictographic}[\uFE0E\uFE0F]?\p{Emoji_Modifier}?)*?)$/u;
+const canonicalCatalogCrests = new Map<string, string>(GUILD_CREST_CATALOG.map((crest) => [
+  crest.replace(emojiPresentationSelectorPattern, ""),
+  crest
+]));
 
 export function validateGuildCrest(input: string):
   | { ok: true; crest: string; crestKind: GuildCrestKind }
   | { ok: false; reason: "crest" } {
-  const crest = input.trim().normalize("NFC");
-  if (graphemeLength(crest) !== 1 || !emojiLikePattern.test(crest)) {
+  const submittedCrest = input.trim().normalize("NFC");
+  if (graphemeLength(submittedCrest) !== 1 || !emojiCrestPattern.test(submittedCrest)) {
     return { ok: false, reason: "crest" };
   }
+  const canonicalCrest = submittedCrest.replace(emojiPresentationSelectorPattern, "");
+  const catalogCrest = canonicalCatalogCrests.get(canonicalCrest);
   return {
     ok: true,
-    crest,
-    crestKind: crestCatalog.has(crest) ? "catalog" : "custom"
+    crest: catalogCrest ?? canonicalCrest,
+    crestKind: catalogCrest ? "catalog" : "custom"
   };
 }
 
