@@ -190,19 +190,31 @@ export function buildGuildCreationPreviewKeyboard(token: string, hasCustomCrest 
     .text("⬅️ Не зараз", makeGuildOpenCallbackData());
 }
 
-export function buildGuildCreationStartKeyboard(availableCrests: readonly string[] = GUILD_CREST_CATALOG): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
-  GUILD_CREST_CATALOG.forEach((crest, index) => {
+function appendAvailableGuildCrests(
+  keyboard: InlineKeyboard,
+  availableCrests: readonly string[],
+  makeCallbackData: (crestIndex: number) => string
+): number {
+  let visibleCount = 0;
+  for (const [crestIndex, crest] of GUILD_CREST_CATALOG.entries()) {
     if (!availableCrests.includes(crest)) {
-      return;
+      continue;
     }
-    keyboard.text(crest, makeGuildCreateCrestCallbackData(index));
-    if ((index + 1) % 5 === 0) {
+    if (visibleCount > 0 && visibleCount % 5 === 0) {
       keyboard.row();
     }
-  });
+    keyboard.text(crest, makeCallbackData(crestIndex));
+    visibleCount += 1;
+  }
+  return visibleCount;
+}
+
+export function buildGuildCreationStartKeyboard(availableCrests: readonly string[] = GUILD_CREST_CATALOG): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (appendAvailableGuildCrests(keyboard, availableCrests, makeGuildCreateCrestCallbackData) > 0) {
+    keyboard.row();
+  }
   return keyboard
-    .row()
     .text("🖼️ Завантажити свій герб", makeGuildCreateUploadCallbackData())
     .row()
     .text("🏰 Назад", makeGuildOpenCallbackData());
@@ -214,16 +226,13 @@ export function buildGuildProfileCrestKeyboard(
   currentHasCustomCrest = false
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-  GUILD_CREST_CATALOG.forEach((crest, index) => {
-    if (!availableCrests.includes(crest)) {
-      return;
-    }
-    keyboard.text(crest, makeGuildProfileCrestCallbackData(index, version));
-    if ((index + 1) % 5 === 0) {
-      keyboard.row();
-    }
-  });
-  keyboard.row();
+  if (appendAvailableGuildCrests(
+    keyboard,
+    availableCrests,
+    (crestIndex) => makeGuildProfileCrestCallbackData(crestIndex, version)
+  ) > 0) {
+    keyboard.row();
+  }
   if (currentHasCustomCrest) {
     keyboard.text("🖼️ Лишити чинний герб", makeGuildProfileKeepCustomCallbackData(version)).row();
   }

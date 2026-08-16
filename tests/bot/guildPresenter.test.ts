@@ -3,9 +3,116 @@ import { presentGuildHub } from "../../src/bot/presenters/guildPresenter";
 import {
   buildGuildCreationStartKeyboard,
   buildGuildHubKeyboard,
-  buildGuildInviteCodeKeyboard
+  buildGuildInviteCodeKeyboard,
+  buildGuildProfileCrestKeyboard
 } from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
+import { GUILD_CREST_CATALOG } from "../../src/domain/guild";
+
+const keyboardRowTexts = (rows: ReturnType<typeof buildGuildCreationStartKeyboard>["inline_keyboard"]): string[][] =>
+  rows.map((row) => row.map((button) => button.text));
+
+const expectSafeCrestRows = (rows: ReturnType<typeof buildGuildCreationStartKeyboard>["inline_keyboard"]): void => {
+  expect(rows.every((row) => row.length > 0)).toBe(true);
+  for (const row of rows) {
+    const crestChoices = row.filter((button) => {
+      if (!("callback_data" in button)) {
+        return false;
+      }
+      const parsed = parseGuildCallbackData(button.callback_data);
+      return parsed.ok && (parsed.value.type === "create-crest" || parsed.value.type === "profile-crest");
+    });
+    expect(crestChoices.length).toBeLessThanOrEqual(5);
+  }
+};
+
+describe("guild crest picker row shape", () => {
+  it("chunks all thirteen available catalog crests as 5 / 5 / 3", () => {
+    const rows = buildGuildCreationStartKeyboard().inline_keyboard;
+
+    expect(keyboardRowTexts(rows)).toEqual([
+      [...GUILD_CREST_CATALOG.slice(0, 5)],
+      [...GUILD_CREST_CATALOG.slice(5, 10)],
+      [...GUILD_CREST_CATALOG.slice(10)],
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expectSafeCrestRows(rows);
+  });
+
+  it("chunks eleven sparse choices by visible position while preserving original callback indices", () => {
+    const availableCrests = GUILD_CREST_CATALOG.filter((_, index) => index !== 4 && index !== 9);
+    const rows = buildGuildCreationStartKeyboard(availableCrests).inline_keyboard;
+    const callbacks = rows.slice(0, 3).flat().map((button) => {
+      if (!("callback_data" in button)) {
+        return null;
+      }
+      const parsed = parseGuildCallbackData(button.callback_data);
+      return parsed.ok && parsed.value.type === "create-crest" ? parsed.value.crestIndex : null;
+    });
+
+    expect(rows.slice(0, 3).map((row) => row.length)).toEqual([5, 5, 1]);
+    expect(callbacks).toEqual([0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12]);
+    expect(keyboardRowTexts(rows).slice(3)).toEqual([
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expectSafeCrestRows(rows);
+  });
+
+  it("renders one boundary-index crest as one row", () => {
+    const rows = buildGuildCreationStartKeyboard([GUILD_CREST_CATALOG[4]]).inline_keyboard;
+    const button = rows[0]?.[0];
+    const parsed = button && "callback_data" in button
+      ? parseGuildCallbackData(button.callback_data)
+      : null;
+
+    expect(keyboardRowTexts(rows)).toEqual([
+      [GUILD_CREST_CATALOG[4]],
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expect(parsed).toEqual({ ok: true, value: { type: "create-crest", crestIndex: 4 } });
+    expectSafeCrestRows(rows);
+  });
+
+  it("renders upload and back only when no catalog crest is available", () => {
+    const rows = buildGuildCreationStartKeyboard([]).inline_keyboard;
+
+    expect(keyboardRowTexts(rows)).toEqual([
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expectSafeCrestRows(rows);
+  });
+
+  it("keeps custom-profile actions full-width with no available catalog crest", () => {
+    const rows = buildGuildProfileCrestKeyboard(587, [], true).inline_keyboard;
+
+    expect(keyboardRowTexts(rows)).toEqual([
+      ["🖼️ Лишити чинний герб"],
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expectSafeCrestRows(rows);
+  });
+
+  it("retains the original profile crest index and guild version", () => {
+    const rows = buildGuildProfileCrestKeyboard(587, [GUILD_CREST_CATALOG[9]], false).inline_keyboard;
+    const button = rows[0]?.[0];
+    const parsed = button && "callback_data" in button
+      ? parseGuildCallbackData(button.callback_data)
+      : null;
+
+    expect(keyboardRowTexts(rows)).toEqual([
+      [GUILD_CREST_CATALOG[9]],
+      ["🖼️ Завантажити свій герб"],
+      ["🏰 Назад"]
+    ]);
+    expect(parsed).toEqual({ ok: true, value: { type: "profile-crest", crestIndex: 9, version: 587 } });
+    expectSafeCrestRows(rows);
+  });
+});
 
 describe("guild presenter privacy", () => {
   it("offers button-first creation and private invite-code controls without exposing the token in text", () => {
