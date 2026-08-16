@@ -15,6 +15,7 @@ import {
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
   buildGuildInviteCodeKeyboard,
+  buildGuildNearbyInviteKeyboard,
   buildGuildMemberMutationKeyboard,
   buildGuildMemberTargetKeyboard,
   buildGuildMemberActionsKeyboard,
@@ -47,6 +48,7 @@ import {
   presentGuildInviteCreate,
   presentGuildInvitePrompt,
   presentGuildInviteOptIn,
+  presentGuildNearbyInvitePicker,
   presentGuildInviteResponse,
   presentGuildInviteResponseNotification,
   presentGuildMemberConfirmation,
@@ -75,6 +77,7 @@ import type { PartySessionService } from "../../services/partySessionService";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { GroupCombatService } from "../../services/groupCombatService";
+import type { PresenceService } from "../../services/presenceService";
 import { sendCanonicalPartyPreparationCard } from "./partySessionCommand";
 import {
   GUILD_CREST_CATALOG,
@@ -89,6 +92,7 @@ interface GuildCommandOptions {
   partyBoss?: PartyBossService | undefined;
   partyRaidChat?: PartyRaidChatService | undefined;
   groupCombat?: GroupCombatService | undefined;
+  presence?: Pick<PresenceService, "getOnlineForTelegramUser"> | undefined;
 }
 
 const HTML_OPTIONS = { parse_mode: "HTML" as const };
@@ -140,7 +144,7 @@ export function registerGuildCommands(
     }
     const result = await service.createInviteOptInForTelegramUser(actor);
     const inviteUrl = result.state === "ready" ? buildGuildInviteUrl(options.botUsername, result.token) : null;
-    await ctx.reply(presentGuildInviteOptIn(result, new Date(), { deepLinkAvailable: Boolean(inviteUrl) }), {
+    await ctx.reply(presentGuildInviteOptIn(result, new Date(), { inviteUrl }), {
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
@@ -317,7 +321,7 @@ export async function handleGuildCallback(
     const result = await service.createInviteOptInForTelegramUser(actor);
     const inviteUrl = result.state === "ready" ? buildGuildInviteUrl(options.botUsername, result.token) : null;
     await safeAnswerCallbackQuery(ctx, { text: result.state === "ready" ? "Код оновлено." : "Стан перевірено." });
-    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), { deepLinkAvailable: Boolean(inviteUrl) }), {
+    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), { inviteUrl }), {
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
@@ -353,6 +357,42 @@ export async function handleGuildCallback(
     });
     return;
   }
+  if (callback.type === "nearby-invite-open") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Нові запрошення зараз зачинені.", show_alert: true });
+      return;
+    }
+    const nearby = await getNearbyGuildInviteCandidates(actor, service, options);
+    if (nearby.state !== "ready") {
+      await safeAnswerCallbackQuery(ctx, { text: "Список уже недоступний.", show_alert: true });
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(nearby.candidates.length / 5));
+    const page = Math.min(Math.max(0, callback.page), totalPages - 1);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildNearbyInvitePicker(nearby.candidates.length, page), {
+      ...HTML_OPTIONS,
+      reply_markup: buildGuildNearbyInviteKeyboard(nearby.candidates, page)
+    });
+    return;
+  }
+  if (callback.type === "nearby-invite") {
+    if (!service.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: "Нові запрошення зараз зачинені.", show_alert: true });
+      return;
+    }
+    const nearby = await getNearbyGuildInviteCandidates(actor, service, options);
+    const candidate = nearby.state === "ready"
+      ? nearby.candidates.find((entry) => entry.candidateId === callback.candidateId)
+      : null;
+    if (!candidate) {
+      await safeAnswerCallbackQuery(ctx, { text: "Пригодник уже не доступний для цього запрошення.", show_alert: true });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await sendGuildInviteFromTargetCode(ctx, service, actor, candidate.targetToken);
+    return;
+  }
   if (callback.type === "invite-copy") {
     const result = await service.getInviteOptInForTelegramUser(actor);
     const inviteUrl = result.state === "ready" ? buildGuildInviteUrl(options.botUsername, result.token) : null;
@@ -360,7 +400,7 @@ export async function handleGuildCallback(
       text: result.state === "ready" ? "Інший текст готовий; посилання не змінилося." : "Стан посилання перевірено."
     });
     await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), {
-      deepLinkAvailable: Boolean(inviteUrl),
+      inviteUrl,
       variant: callback.variant
     }), {
       ...HTML_OPTIONS,
@@ -500,10 +540,32 @@ export async function handleGuildCallback(
         await ctx.api.sendMessage(
           Number(result.notification.inviterTelegramUserId),
           presentGuildInviteResponseNotification(result.notification, result.state),
-          HTML_OPTIONS
+          {
+            ...HTML_OPTIONS,
+            reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+          }
         );
       } catch {
         // Telegram delivery is best-effort; the durable invitation response remains canonical.
+      }
+      const founderAchievementText = presentAchievementUnlockNotification(
+        "founderAchievementUnlocks" in result && Array.isArray(result.founderAchievementUnlocks)
+          ? result.founderAchievementUnlocks
+          : []
+      );
+      if (founderAchievementText) {
+        try {
+          await ctx.api.sendMessage(
+            Number(result.notification.inviterTelegramUserId),
+            founderAchievementText,
+            {
+              ...HTML_OPTIONS,
+              reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+            }
+          );
+        } catch {
+          // The durable unlock remains authoritative when Telegram delivery fails.
+        }
       }
     }
     return;
@@ -1023,7 +1085,25 @@ export async function sendGuildInviteFromTargetCode(
       deliveryConfirmed = false;
     }
   }
-  await ctx.reply(presentGuildInviteCreate(result, new Date(), deliveryConfirmed), HTML_OPTIONS);
+  await ctx.reply(presentGuildInviteCreate(result, new Date(), deliveryConfirmed), {
+    ...HTML_OPTIONS,
+    reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+  });
+}
+
+async function getNearbyGuildInviteCandidates(
+  actor: bigint,
+  service: GuildService,
+  options: GuildCommandOptions
+) {
+  const snapshot = await options.presence?.getOnlineForTelegramUser(actor);
+  if (!snapshot || snapshot.state !== "ready") {
+    return { state: "unavailable" as const };
+  }
+  const nearbyIds = snapshot.location.people.active
+    .filter((person) => person.telegramUserId !== actor)
+    .map((person) => person.telegramUserId);
+  return service.getNearbyInviteCandidatesForTelegramUser(actor, nearbyIds);
 }
 
 export function buildGuildInviteUrl(botUsername: string | undefined, token: string): string | null {
@@ -1108,7 +1188,10 @@ function guildCreationInputError(reason: string): string {
 async function sendAchievementNotice(ctx: Context, unlocks: Parameters<typeof presentAchievementUnlockNotification>[0]): Promise<void> {
   const text = presentAchievementUnlockNotification(unlocks);
   if (text) {
-    await ctx.reply(text, HTML_OPTIONS);
+    await ctx.reply(text, {
+      ...HTML_OPTIONS,
+      reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+    });
   }
 }
 

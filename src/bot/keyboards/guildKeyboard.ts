@@ -1,6 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import type {
   GuildHubRepositoryResult,
+  GuildNearbyInviteCandidate,
   GuildMemberRecord,
   GuildNestRepositoryResult,
   GuildPublicDirectoryRepositoryResult
@@ -19,6 +20,8 @@ import {
   makeGuildInviteCodeCallbackData,
   makeGuildInviteCopyCallbackData,
   makeGuildInviteStartCallbackData,
+  makeGuildNearbyInviteCallbackData,
+  makeGuildNearbyInviteOpenCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberManageCallbackData,
@@ -304,14 +307,44 @@ export function buildGuildMemberManagementKeyboard(
     const role = member.role === "leader" ? "голова" : member.role === "officer" ? "старшина" : "учасник";
     keyboard.text(`${member.name} · ${role}`, makeGuildMemberManageCallbackData(member.id, version)).row();
   });
-  if (currentPage > 0) {
-    keyboard.text("⬅️", makeGuildMembersOpenCallbackData(version, currentPage - 1));
+  if (totalPages > 1) {
+    if (currentPage > 0) {
+      keyboard.text("⬅️", makeGuildMembersOpenCallbackData(version, currentPage - 1));
+    }
+    keyboard.text(`${currentPage + 1}/${totalPages}`, makeGuildMembersOpenCallbackData(version, currentPage));
+    if (currentPage < totalPages - 1) {
+      keyboard.text("➡️", makeGuildMembersOpenCallbackData(version, currentPage + 1));
+    }
+    keyboard.row();
   }
-  keyboard.text(`${currentPage + 1}/${totalPages}`, makeGuildMembersOpenCallbackData(version, currentPage));
-  if (currentPage < totalPages - 1) {
-    keyboard.text("➡️", makeGuildMembersOpenCallbackData(version, currentPage + 1));
+  return keyboard.text("🏰 До ґільдії", makeGuildOpenCallbackData());
+}
+
+export const GUILD_NEARBY_INVITE_PAGE_SIZE = 5;
+
+export function buildGuildNearbyInviteKeyboard(
+  candidates: readonly GuildNearbyInviteCandidate[],
+  page: number
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  const totalPages = Math.max(1, Math.ceil(candidates.length / GUILD_NEARBY_INVITE_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(0, page), totalPages - 1);
+  candidates
+    .slice(currentPage * GUILD_NEARBY_INVITE_PAGE_SIZE, (currentPage + 1) * GUILD_NEARBY_INVITE_PAGE_SIZE)
+    .forEach((candidate) => {
+      keyboard.text(`✉️ ${candidate.name}`, makeGuildNearbyInviteCallbackData(candidate.candidateId, currentPage)).row();
+    });
+  if (totalPages > 1) {
+    if (currentPage > 0) {
+      keyboard.text("⬅️", makeGuildNearbyInviteOpenCallbackData(currentPage - 1));
+    }
+    keyboard.text(`${currentPage + 1}/${totalPages}`, makeGuildNearbyInviteOpenCallbackData(currentPage));
+    if (currentPage < totalPages - 1) {
+      keyboard.text("➡️", makeGuildNearbyInviteOpenCallbackData(currentPage + 1));
+    }
+    keyboard.row();
   }
-  return keyboard.row().text("🏰 До ґільдії", makeGuildOpenCallbackData());
+  return keyboard.text("🏰 До ґільдії", makeGuildOpenCallbackData());
 }
 
 export function buildGuildMemberActionsKeyboard(member: GuildMemberRecord, version: number): InlineKeyboard {

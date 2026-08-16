@@ -9,6 +9,7 @@ import { startDicePokerTable, startQuickDicePoker } from "../../src/domain/diceP
 import { PRESENCE_LOCATION_KORCHMA_BAR } from "../../src/services/presenceService";
 import type { OnboardingService } from "../../src/services/onboardingService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
+import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("start command", () => {
   it("turns a shared guild deep link into the canonical invite flow", async () => {
@@ -61,6 +62,41 @@ describe("start command", () => {
 
     expect(options.parse_mode).toBe("HTML");
     expect(options.reply_markup).toBeDefined();
+  });
+
+  it("shows active guild identity on the existing-character /start card", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerStartCommand(bot, {
+      start: vi.fn().mockResolvedValue({ state: "existing-character", character: existingCharacterSummary })
+    } as unknown as OnboardingService, {
+      guilds: {
+        getHubForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          guild: { status: "active", crest: "🧿", displayName: "Тиха Печатка" }
+        })
+      } as never
+    });
+
+    await bot.handleUpdate({
+      update_id: 13,
+      message: {
+        message_id: 13,
+        date: 1,
+        chat: { id: 42, type: "private" },
+        from: { id: 42, is_bot: false, first_name: "Тест" },
+        text: "/start",
+        entities: [{ offset: 0, length: 6, type: "bot_command" }]
+      }
+    });
+
+    expect(String(sent[0]?.text)).toContain("🧿 Ґільдія: <b>Тиха Печатка</b>");
   });
 
   it("notifies existing tavern-game participants after a game deep-link join", async () => {
@@ -231,6 +267,30 @@ describe("start command", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 });
+
+const existingCharacterSummary: CharacterSummary = {
+  name: "Тестовий Герой",
+  pronoun: "they",
+  pronounLabel: "Вони",
+  path: "boundary",
+  currentLocationId: "location.korchma.deep",
+  raceId: "race.human-ish",
+  raceName: "Людисько",
+  classId: "class.warrior",
+  className: "Воїн",
+  title: "Пересічний Пригодник",
+  level: 5,
+  xp: 27,
+  nextLevelXp: 110,
+  xpToNextLevel: 83,
+  gold: 0,
+  hpCurrent: 36,
+  hpMax: 36,
+  manaCurrent: 18,
+  manaMax: 18,
+  stats: { strength: 8, dexterity: 10, intelligence: 6, charisma: 5, luck: 7 },
+  levelBonus: { hpMax: 4, manaMax: 2, primaryStat: { stat: "intelligence", bonus: 1 } }
+};
 
 function tavernGameSession(overrides: Record<string, unknown> = {}) {
   const now = new Date("2026-07-02T10:00:00.000Z");

@@ -14,6 +14,8 @@ import {
   makeGuildMemberMutationCallbackData,
   makeGuildMemberSelectCallbackData,
   makeGuildMembersOpenCallbackData,
+  makeGuildNearbyInviteCallbackData,
+  makeGuildNearbyInviteOpenCallbackData,
   makeGuildOpenCallbackData,
   makeGuildNestOpenCallbackData,
   makeGuildNestRulesCallbackData,
@@ -82,6 +84,8 @@ describe("guild callback data", () => {
       makeGuildProfileOpenCallbackData(587),
       makeGuildProfileCrestCallbackData(12, 587),
       makeGuildMembersOpenCallbackData(587, 1),
+      makeGuildNearbyInviteOpenCallbackData(23),
+      makeGuildNearbyInviteCallbackData("12345678-1234-4234-9234-123456789012", 4),
       makeGuildMemberManageCallbackData("12345678-1234-4234-9234-123456789012", 587),
       makeGuildPartyOpenCallbackData(42),
       makeGuildPartyInviteCallbackData("12345678-1234-4234-9234-123456789012", 587),
@@ -105,14 +109,22 @@ describe("guild callback data", () => {
     expect(parseGuildCallbackData(values[11])).toEqual({ ok: true, value: { type: "members-open", version: 587, page: 1 } });
     expect(parseGuildCallbackData(values[12])).toEqual({
       ok: true,
+      value: { type: "nearby-invite-open", page: 23 }
+    });
+    expect(parseGuildCallbackData(values[13])).toEqual({
+      ok: true,
+      value: { type: "nearby-invite", candidateId: "12345678-1234-4234-9234-123456789012", page: 4 }
+    });
+    expect(parseGuildCallbackData(values[14])).toEqual({
+      ok: true,
       value: { type: "member-manage", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
-    expect(parseGuildCallbackData(values[13])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
-    expect(parseGuildCallbackData(values[14])).toEqual({
+    expect(parseGuildCallbackData(values[15])).toEqual({ ok: true, value: { type: "party-open", page: 42 } });
+    expect(parseGuildCallbackData(values[16])).toEqual({
       ok: true,
       value: { type: "party-invite", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
-    expect(parseGuildCallbackData(values[15])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
+    expect(parseGuildCallbackData(values[17])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
   });
 
   it("rejects oversized, malformed and token-bearing lookalike callbacks", () => {

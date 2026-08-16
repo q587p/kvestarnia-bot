@@ -301,7 +301,8 @@ function presentPeople(
       ? { ...person, activeCosmeticTitle: null }
       : person;
 
-    return `— ${presentCharacterDisplayName(displayPerson, {
+    const guildCrest = person.guildCrest ? `${escapeHtml(person.guildCrest)} ` : "";
+    return `— ${guildCrest}${presentCharacterDisplayName(displayPerson, {
       maxNameLength: MAX_PRESENCE_NAME_LENGTH,
       maxTitleLength: 48
     })}`;

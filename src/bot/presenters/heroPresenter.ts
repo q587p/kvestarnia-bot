@@ -46,6 +46,7 @@ export function presentHero(
     varenykSatedAvailableAt?: Date | null;
     recoveryNotice?: ResourceRecoveryNotice;
     activeCosmeticTitle?: string | null;
+    guild?: { crest: string; displayName: string } | null;
     inventoryGoldValue?: number;
   } = {}
 ): string {
@@ -152,6 +153,9 @@ export function presentHero(
     `<i>${escapeHtml(summary.raceName)} · ${escapeHtml(summary.className)}</i>`,
     "",
     `Титул: <i>${escapeHtml(summary.title)}</i>`,
+    ...(options.guild
+      ? [`${escapeHtml(options.guild.crest)} Ґільдія: <b>${escapeHtml(options.guild.displayName)}</b>`]
+      : []),
     ...(options.activeCosmeticTitle
       ? [`🏷️ Косметичний титул: <i>${escapeHtml(options.activeCosmeticTitle)}</i>`]
       : []),

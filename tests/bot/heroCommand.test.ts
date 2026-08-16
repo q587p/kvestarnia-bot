@@ -131,7 +131,10 @@ describe("hero command", () => {
       })
     } as unknown as HeroService;
     const guildService = (status: "active" | "forming") => ({
-      getHubForTelegramUser: vi.fn().mockResolvedValue({ state: "ready", guild: { status } })
+      getHubForTelegramUser: vi.fn().mockResolvedValue({
+        state: "ready",
+        guild: { status, crest: "🧿", displayName: "Тиха Печатка" }
+      })
     });
 
     await sendHero(makeReplyContext(activeReplies), heroService, "reply", {
@@ -144,6 +147,8 @@ describe("hero command", () => {
     expect(flatInlineButtonTexts(activeReplies[0]?.options)).toContain("🏰 Ґільдія");
     expect(flatInlineButtonCallbacks(activeReplies[0]?.options)).toContain("v1:g:o");
     expect(flatInlineButtonTexts(formingReplies[0]?.options)).toContain("🏰 Ґільдія");
+    expect(activeReplies[0]?.text).toContain("🧿 Ґільдія: <b>Тиха Печатка</b>");
+    expect(formingReplies[0]?.text).toContain("🧿 Ґільдія: <b>Тиха Печатка</b>");
   });
 
   it("renders the authoritative full-HP recovery notice once in an edited hero card", async () => {

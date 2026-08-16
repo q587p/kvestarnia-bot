@@ -145,6 +145,16 @@ describe("hero presenter", () => {
     expect(text).toContain("Титул: <i>Пересічний Пригодник</i>\n🏷️ Косметичний титул:");
   });
 
+  it("shows and escapes the guild identity below the title", () => {
+    const text = presentHero(summary, {
+      guild: { crest: "🧿", displayName: "Ліс <&>" }
+    });
+
+    expect(text).toContain(
+      "Титул: <i>Пересічний Пригодник</i>\n🧿 Ґільдія: <b>Ліс &lt;&amp;&gt;</b>\n\nРівень"
+    );
+  });
+
   it("adds a short rest hint when the hero is at zero HP", () => {
     const text = presentHero({
       ...summary,

@@ -196,7 +196,14 @@ export function registerStartCommand(
     const result = await onboardingService.start(player);
 
     if (result.state === "existing-character") {
-      await ctx.reply(presentHero(result.character), buildExistingCharacterReplyOptions());
+      const guildHub = options.guilds
+        ? await options.guilds.getHubForTelegramUser(player.telegramUserId)
+        : null;
+      await ctx.reply(presentHero(result.character, {
+        guild: guildHub?.state === "ready"
+          ? { crest: guildHub.guild.crest, displayName: guildHub.guild.displayName }
+          : null
+      }), buildExistingCharacterReplyOptions());
       return;
     }
 

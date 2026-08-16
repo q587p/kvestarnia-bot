@@ -252,6 +252,32 @@ guild-period completion receipt, не множиться на participant receip
 - Redis/Mini App як передумова;
 - широкий рефакторинг усіх solo/duel orchestration layers.
 
+### Майбутні ґільдійні slices після foundation
+
+Досвід інших Telegram RPG зафіксовано як research, а не як готовий контракт чи
+макет для копіювання. Окремими задачами можна розглянути:
+
+- private/public рекрутинг, короткий анонс, безпечний внутрішньоігровий контакт,
+  заявки зі списку ґільдій і кнопкове схвалення/відмову;
+- особисті та спільні contribution-квести після доказів `0.4.6`, з canonical
+  receipts, anti-farming і exact-once settlement;
+- казну та зрозумілий журнал надходжень/витрат лише після окремого economy й
+  abuse review;
+- розширення початкових 8 місць до абсолютної межі 13 через окремо погоджений
+  progression/structure контракт;
+- bounded ґільдійний чат і системний журнал подій лише з moderation, retention,
+  flood-control та privacy policy;
+- споруди, але бойові HP/attack/defence бонуси — лише після повної перевірки
+  solo, duel, Big Barrel, PartyBoss і GroupCombat та без pay-to-win;
+- союзи, дипломатію, території, податки й ґільдійне PvP як пізні незалежні
+  seasonal systems із opt-in conflict, collusion і abandoned-leader policy;
+- XP/рівні та earned cosmetic frames у напрямі `0.4.13`, не як автоматичний
+  дозвіл на казну, території чи спільну бойову силу.
+
+`0.4.5` лишається read-only у public directory та target-bound у вступі. Кожен
+пункт вище потребує власної нумерованої задачі, міграції/rollback за потреби,
+QA-матриці й окремого продуктового рішення; реалізація одного не відкриває решту.
+
 ## Closed-alpha evidence, яке збираємо паралельно
 
 Технічні/performance й combat-balance вимірювання вже існують. Бракує не

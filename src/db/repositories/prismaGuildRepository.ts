@@ -24,6 +24,8 @@ import type {
   GuildFunnelCounters,
   GuildHubRepositoryResult,
   GuildInviteCreateRepositoryResult,
+  GuildNearbyInviteCandidate,
+  GuildNearbyInviteCandidatesRepositoryResult,
   GuildInviteOptInRepositoryResult,
   GuildInviteRecord,
   GuildInviteRespondRepositoryResult,
@@ -1029,6 +1031,66 @@ export class PrismaGuildRepository implements GuildRepository {
         return { state: "not-found" };
       }
       return { state: "ready", token: row.token, expiresAt: row.expiresAt };
+    });
+  }
+
+  async getNearbyInviteCandidatesForTelegramUser(
+    telegramUserId: bigint,
+    targetTelegramUserIds: readonly bigint[],
+    now: Date
+  ): Promise<GuildNearbyInviteCandidatesRepositoryResult> {
+    return this.serializable(async (tx) => {
+      const actor = await findActor(tx, telegramUserId);
+      if (!actor?.character) {
+        return { state: "no-character" };
+      }
+      const membership = await currentLiveMembership(tx, actor, now);
+      if (!membership || !isLiveGuildStatus(membership.guild.status)) {
+        return { state: "not-member" };
+      }
+      if (membership.role !== "leader") {
+        return { state: "forbidden" };
+      }
+      const orderedIds = [...new Set(targetTelegramUserIds)]
+        .filter((targetId) => targetId !== telegramUserId)
+        .slice(0, 50);
+      if (orderedIds.length === 0) {
+        return { state: "ready", candidates: [] };
+      }
+      const optIns = await tx.guildInviteOptIn.findMany({
+        where: {
+          expiresAt: { gt: now },
+          user: { telegramUserId: { in: orderedIds } }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              telegramUserId: true,
+              character: { select: { name: true } }
+            }
+          }
+        }
+      });
+      const available = new Map<bigint, GuildNearbyInviteCandidate>();
+      for (const optIn of optIns) {
+        if (!optIn.user.character || await hasCurrentLiveMembership(tx, optIn.user.id, now)) {
+          continue;
+        }
+        available.set(optIn.user.telegramUserId, {
+          candidateId: optIn.id,
+          telegramUserId: optIn.user.telegramUserId,
+          name: optIn.user.character.name,
+          targetToken: optIn.token
+        });
+      }
+      return {
+        state: "ready",
+        candidates: orderedIds.flatMap((targetId) => {
+          const candidate = available.get(targetId);
+          return candidate ? [candidate] : [];
+        })
+      };
     });
   }
 

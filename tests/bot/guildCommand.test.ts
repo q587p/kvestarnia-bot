@@ -133,6 +133,9 @@ describe("guild command routes", () => {
     )).toBe(true);
     expect(String(sent[2]?.text)).not.toContain("telegram");
     expect(String(sent[2]?.text)).toContain("<blockquote>");
+    expect(String(sent[2]?.text)).toContain(
+      '<a href="https://t.me/kvestarnia_bot?start=guild_privateInviteCode93">https://t.me/kvestarnia_bot?start=guild_privateInviteCode93</a>'
+    );
     const invalidCrestMarkup = sent[3]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(invalidCrestMarkup.inline_keyboard.flat().filter((button) =>
       "callback_data" in button && String(button.callback_data).startsWith("v1:g:r:")
@@ -266,6 +269,141 @@ describe("guild command routes", () => {
     expect(settings.reply_markup?.inline_keyboard).toEqual([
       [{ text: "🏰 До ґільдії", callback_data: "v1:g:o" }]
     ]);
+  });
+
+  it("pages opted-in same-location targets and revalidates presence before invitation", async () => {
+    const candidates = Array.from({ length: 6 }, (_, index) => ({
+      candidateId: `12345678-1234-4234-9234-12345678901${index}`,
+      telegramUserId: BigInt(93 + index),
+      name: `Адресат ${index + 1}`,
+      targetToken: `nearbyInviteCode${index + 1}`
+    }));
+    const getNearbyInviteCandidatesForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      candidates
+    });
+    const getOnlineForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      globalTotal: 7,
+      location: {
+        id: "location.korchma.deep",
+        name: "Спуск до Низу",
+        people: {
+          active: [
+            { telegramUserId: 42n, name: "Голова", status: "active" },
+            ...candidates.map((candidate) => ({
+              telegramUserId: candidate.telegramUserId,
+              name: candidate.name,
+              status: "active"
+            }))
+          ],
+          idle: [],
+          total: 7
+        }
+      },
+      activity: null
+    });
+    const opened = callbackContext();
+
+    await handleGuildCallback(
+      opened.ctx,
+      { type: "nearby-invite-open", page: 9 },
+      guildService({ getNearbyInviteCandidatesForTelegramUser }),
+      { presence: { getOnlineForTelegramUser } }
+    );
+
+    expect(getNearbyInviteCandidatesForTelegramUser).toHaveBeenCalledWith(
+      42n,
+      candidates.map((candidate) => candidate.telegramUserId)
+    );
+    expect(String(opened.editMessageText.mock.calls[0]?.[0])).toContain("Сторінка <b>2/2</b>");
+    const markup = opened.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup: { inline_keyboard: Array<Array<{ text: string; callback_data?: string }>> };
+    };
+    expect(markup.reply_markup.inline_keyboard.map((row) => row.map((button) => button.text))).toEqual([
+      ["✉️ Адресат 6"],
+      ["⬅️", "2/2"],
+      ["🏰 До ґільдії"]
+    ]);
+    expect(markup.reply_markup.inline_keyboard[0]?.[0]?.callback_data).toBe(
+      "v1:g:li:12345678-1234-4234-9234-123456789015:1"
+    );
+    expect(JSON.stringify(markup)).not.toContain("nearbyInviteCode6");
+
+    const createInviteForTelegramUser = vi.fn().mockResolvedValue({
+      state: "created",
+      invite: {
+        token: "createdInviteToken93",
+        guildId: "guild-id",
+        guildName: "Тиха Печатка",
+        guildCrest: "🧿",
+        targetName: "Адресат 6",
+        status: "pending",
+        expiresAt: new Date("2026-08-21T00:00:00.000Z")
+      },
+      deliveryTelegramUserId: 98n
+    });
+    const selected = callbackContext();
+    await handleGuildCallback(
+      selected.ctx,
+      { type: "nearby-invite", candidateId: "12345678-1234-4234-9234-123456789015", page: 1 },
+      guildService({ getNearbyInviteCandidatesForTelegramUser, createInviteForTelegramUser }),
+      { presence: { getOnlineForTelegramUser } }
+    );
+    expect(createInviteForTelegramUser).toHaveBeenCalledWith(42n, "nearbyInviteCode6");
+    expect(selected.sendMessage).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(selected.reply.mock.calls[0]?.[1])).toContain("v1:g:o");
+
+    createInviteForTelegramUser.mockClear();
+    getOnlineForTelegramUser.mockResolvedValueOnce({
+      state: "ready",
+      globalTotal: 1,
+      location: {
+        id: "location.korchma.deep",
+        name: "Спуск до Низу",
+        people: {
+          active: [{ telegramUserId: 42n, name: "Голова", status: "active" }],
+          idle: [],
+          total: 1
+        }
+      },
+      activity: null
+    });
+    getNearbyInviteCandidatesForTelegramUser.mockResolvedValueOnce({ state: "ready", candidates: [] });
+    const stale = callbackContext();
+    await handleGuildCallback(
+      stale.ctx,
+      { type: "nearby-invite", candidateId: "12345678-1234-4234-9234-123456789015", page: 1 },
+      guildService({ getNearbyInviteCandidatesForTelegramUser, createInviteForTelegramUser }),
+      { presence: { getOnlineForTelegramUser } }
+    );
+    expect(stale.answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
+    expect(createInviteForTelegramUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps stale nearby-invite callbacks inert while guild rollout is disabled", async () => {
+    const getOnlineForTelegramUser = vi.fn();
+    const getNearbyInviteCandidatesForTelegramUser = vi.fn();
+    const createInviteForTelegramUser = vi.fn();
+    const context = callbackContext();
+
+    await handleGuildCallback(
+      context.ctx,
+      { type: "nearby-invite", candidateId: "12345678-1234-4234-9234-123456789012", page: 0 },
+      guildService({
+        isEnabled: () => false,
+        getNearbyInviteCandidatesForTelegramUser,
+        createInviteForTelegramUser
+      }),
+      { presence: { getOnlineForTelegramUser } }
+    );
+
+    expect(context.answerCallbackQuery).toHaveBeenCalledWith(expect.objectContaining({ show_alert: true }));
+    expect(getOnlineForTelegramUser).not.toHaveBeenCalled();
+    expect(getNearbyInviteCandidatesForTelegramUser).not.toHaveBeenCalled();
+    expect(createInviteForTelegramUser).not.toHaveBeenCalled();
+    expect(context.reply).not.toHaveBeenCalled();
+    expect(context.sendMessage).not.toHaveBeenCalled();
   });
 
   it("regenerates invitation-card copy without rotating or exposing the private token", async () => {
@@ -834,7 +972,17 @@ describe("guild command routes", () => {
     const firstMarkup = first.editMessageText.mock.calls[0]?.[1] as {
       reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
     };
+    expect(String(first.editMessageText.mock.calls[0]?.[0])).toContain("Сторінка <b>1/2</b>.");
     const firstButtons = firstMarkup.reply_markup?.inline_keyboard?.flat() ?? [];
+    expect(firstMarkup.reply_markup?.inline_keyboard?.map((row) => row.map((button) => button.text))).toEqual([
+      ["Двійник · голова"],
+      ["Двійник · старшина"],
+      ["Учасник 3 · учасник"],
+      ["Учасник 4 · учасник"],
+      ["Учасник 5 · учасник"],
+      ["1/2", "➡️"],
+      ["🏰 До ґільдії"]
+    ]);
     expect(firstButtons.filter((button) => button.callback_data?.startsWith("v1:g:mm:"))).toHaveLength(5);
     expect(firstButtons).toEqual(expect.arrayContaining([
       expect.objectContaining({ callback_data: "v1:g:mm:member-00000001:7" }),
@@ -861,6 +1009,34 @@ describe("guild command routes", () => {
     expect(String(duplicate.editMessageText.mock.calls[0]?.[0])).toContain("Двійник");
     expect(duplicateMarkup).toContain("v1:g:sm:member-00000002:7");
     expect(duplicateMarkup).not.toContain("member-00000001");
+  });
+
+  it("omits redundant page text and controls for a one-page member list", async () => {
+    const getMemberManagementForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      guildId: "guild-id",
+      version: 7,
+      viewerRole: "leader",
+      members: [{ id: "member-00000001", name: "Шаннар де Кассал", role: "leader" as const }]
+    });
+    const singlePage = callbackContext();
+
+    await handleGuildCallback(
+      singlePage.ctx,
+      { type: "members-open", version: 7, page: 0 },
+      guildService({ getMemberManagementForTelegramUser })
+    );
+
+    const text = String(singlePage.editMessageText.mock.calls[0]?.[0]);
+    const markup = singlePage.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
+    };
+    expect(text).toBe("👥 <b>Учасники ґільдії</b>\n\nОберіть запис, щоб побачити доступні дії.");
+    expect(markup.reply_markup?.inline_keyboard?.map((row) => row.map((button) => button.text))).toEqual([
+      ["Шаннар де Кассал · голова"],
+      ["🏰 До ґільдії"]
+    ]);
+    expect(JSON.stringify(markup)).not.toContain("1/1");
   });
 
   it("opens profile editing and submits its description through buttons and ForceReply", async () => {
@@ -957,7 +1133,7 @@ describe("guild command routes", () => {
     expect(JSON.stringify(sent[0]?.reply_markup)).toContain("v1:g:o");
   });
 
-  it("notifies the inviter exactly once for acceptance and decline", async () => {
+  it("notifies both sides with recovery controls and delivers both activation achievements", async () => {
     const notification = {
       inviterTelegramUserId: 93n,
       targetName: "Адресатка",
@@ -973,14 +1149,31 @@ describe("guild command routes", () => {
           state: "accepted",
           guild: { crest: "🛡️", displayName: "Тиха Печатка" },
           characterId: "character-42",
-          activatedFounderCharacterId: null,
+          activatedFounderCharacterId: "founder-character",
+          founderAchievementUnlocks: [{
+            id: "achievement.guild.created",
+            title: "Печатка на двох",
+            cosmeticTitleGrantId: null,
+            unlockedAt: new Date("2026-08-17T20:00:00.000Z")
+          }],
+          achievementUnlocks: [{
+            id: "achievement.guild.joined",
+            title: "У списку вже не самотньо",
+            cosmeticTitleGrantId: null,
+            unlockedAt: new Date("2026-08-17T20:00:00.000Z")
+          }],
           notification
         })
       })
     );
-    expect(accepted.sendMessage).toHaveBeenCalledTimes(1);
+    expect(accepted.sendMessage).toHaveBeenCalledTimes(2);
     expect(accepted.sendMessage.mock.calls[0]?.[0]).toBe(93);
     expect(String(accepted.sendMessage.mock.calls[0]?.[1])).toContain("прийнято");
+    expect(JSON.stringify(accepted.sendMessage.mock.calls[0]?.[2])).toContain("v1:g:o");
+    expect(String(accepted.sendMessage.mock.calls[1]?.[1])).toContain("Печатка на двох");
+    expect(JSON.stringify(accepted.sendMessage.mock.calls[1]?.[2])).toContain("v1:g:o");
+    expect(String(accepted.reply.mock.calls[0]?.[0])).toContain("У списку вже не самотньо");
+    expect(JSON.stringify(accepted.reply.mock.calls[0]?.[1])).toContain("v1:g:o");
 
     const declined = callbackContext();
     await handleGuildCallback(

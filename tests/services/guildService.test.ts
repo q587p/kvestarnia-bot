@@ -146,7 +146,21 @@ describe("GuildService rollout isolation", () => {
 
   it("emits activation and join achievements only from an accepted repository result", async () => {
     const now = new Date("2026-08-02T20:00:00.000Z");
-    const trackEventSafely = vi.fn().mockResolvedValue([]);
+    const founderUnlock = {
+      id: "achievement.guild.created",
+      title: "Печатка на двох",
+      cosmeticTitleGrantId: null,
+      unlockedAt: now
+    };
+    const joinerUnlock = {
+      id: "achievement.guild.joined",
+      title: "У списку вже не самотньо",
+      cosmeticTitleGrantId: null,
+      unlockedAt: now
+    };
+    const trackEventSafely = vi.fn()
+      .mockResolvedValueOnce([founderUnlock])
+      .mockResolvedValueOnce([joinerUnlock]);
     const guild = {
       id: "guild-id",
       displayName: "Тиха Печатка",
@@ -180,7 +194,7 @@ describe("GuildService rollout isolation", () => {
       { trackEventSafely } as unknown as AchievementService
     );
 
-    await service.acceptInviteForTelegramUser(42n, "invite-token");
+    const result = await service.acceptInviteForTelegramUser(42n, "invite-token");
 
     expect(trackEventSafely).toHaveBeenNthCalledWith(1, {
       type: "guild.created",
@@ -193,6 +207,10 @@ describe("GuildService rollout isolation", () => {
       characterId: "joiner-character",
       occurredAt: now,
       sourceId: "guild-id"
+    });
+    expect(result).toMatchObject({
+      founderAchievementUnlocks: [founderUnlock],
+      achievementUnlocks: [joinerUnlock]
     });
   });
 

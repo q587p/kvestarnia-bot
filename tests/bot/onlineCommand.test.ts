@@ -59,6 +59,67 @@ describe("online command", () => {
     expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:sh:bp");
   });
 
+  it("shows the same-location guild invite action only to a leader with an opted-in nearby target", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const ctx = {
+      from: { id: 42, is_bot: false, first_name: "Голова" },
+      reply: (text: string, options: unknown) => {
+        replies.push({ text, options });
+        return Promise.resolve({});
+      }
+    } as unknown as Context;
+    const presenceService = {
+      getOnlineForTelegramUser: vi.fn().mockResolvedValue({
+        state: "ready",
+        globalTotal: 2,
+        location: {
+          id: "location.korchma.deep",
+          name: "Спуск до Низу",
+          people: {
+            active: [
+              { telegramUserId: 42n, name: "Голова", status: "active" },
+              { telegramUserId: 93n, name: "Адресатка", status: "active" }
+            ],
+            idle: [],
+            total: 2
+          }
+        },
+        activity: null
+      })
+    } as unknown as PresenceService;
+    const getNearbyInviteCandidatesForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      candidates: [{
+        candidateId: "12345678-1234-4234-9234-123456789012",
+        telegramUserId: 93n,
+        name: "Адресатка",
+        targetToken: "privateInviteCode93"
+      }]
+    });
+
+    await sendOnline(ctx, presenceService, {
+      guilds: { getNearbyInviteCandidatesForTelegramUser }
+    });
+
+    expect(getNearbyInviteCandidatesForTelegramUser).toHaveBeenCalledWith(42n, [93n]);
+    expect(JSON.stringify(replies[0]?.options)).toContain("✉️ Запросити до ґільдії");
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:g:ln:0");
+
+    replies.length = 0;
+    getNearbyInviteCandidatesForTelegramUser.mockResolvedValueOnce({ state: "forbidden" });
+    await sendOnline(ctx, presenceService, {
+      guilds: { getNearbyInviteCandidatesForTelegramUser }
+    });
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:g:ln:0");
+
+    replies.length = 0;
+    getNearbyInviteCandidatesForTelegramUser.mockResolvedValueOnce({ state: "ready", candidates: [] });
+    await sendOnline(ctx, presenceService, {
+      guilds: { getNearbyInviteCandidatesForTelegramUser }
+    });
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:g:ln:0");
+  });
+
   it("shows nearby duel, Bard performance and gift buttons when an eligible Bard has another active player nearby", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const ctx = {

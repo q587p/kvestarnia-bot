@@ -13,6 +13,8 @@ export type GuildCallback =
   | { type: "profile-keep-custom"; version: number }
   | { type: "profile-crest"; crestIndex: number; version: number }
   | { type: "invite-copy"; variant: number }
+  | { type: "nearby-invite-open"; page: number }
+  | { type: "nearby-invite"; candidateId: string; page: number }
   | { type: "members-open"; version: number; page: number }
   | { type: "member-manage"; memberId: string; version: number }
   | { type: "create-confirm"; token: string }
@@ -46,6 +48,9 @@ export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => 
 export const makeGuildInviteCodeCallbackData = (): string => `${PREFIX}:i`;
 export const makeGuildInviteStartCallbackData = (): string => `${PREFIX}:is`;
 export const makeGuildInviteCopyCallbackData = (variant: number): string => `${PREFIX}:ig:${variant.toString(36)}`;
+export const makeGuildNearbyInviteOpenCallbackData = (page = 0): string => `${PREFIX}:ln:${page.toString(36)}`;
+export const makeGuildNearbyInviteCallbackData = (candidateId: string, page = 0): string =>
+  `${PREFIX}:li:${candidateId}:${page.toString(36)}`;
 export const makeGuildProfileOpenCallbackData = (version: number): string => `${PREFIX}:e:${version.toString(36)}`;
 export const makeGuildProfileUploadCallbackData = (version: number): string => `${PREFIX}:eu:${version.toString(36)}`;
 export const makeGuildProfileKeepCustomCallbackData = (version: number): string => `${PREFIX}:ek:${version.toString(36)}`;
@@ -118,6 +123,12 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   if (action === "ig" && first && second === undefined && VERSION_PATTERN.test(first)) {
     const variant = Number.parseInt(first, 36);
     return variant < 13 ? ok({ type: "invite-copy", variant }) : err("invalid-action");
+  }
+  if (action === "ln" && first && second === undefined && VERSION_PATTERN.test(first)) {
+    return ok({ type: "nearby-invite-open", page: Number.parseInt(first, 36) });
+  }
+  if (action === "li" && first && MEMBER_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
+    return ok({ type: "nearby-invite", candidateId: first, page: Number.parseInt(second, 36) });
   }
   if (action === "eu") {
     const version = parseVersion(first, second);

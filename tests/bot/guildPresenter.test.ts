@@ -138,13 +138,19 @@ describe("guild presenter privacy", () => {
       state: "ready",
       token: "privateInviteCode93",
       expiresAt: new Date("2026-08-21T20:00:00.000Z")
-    }, new Date("2026-08-17T20:00:00.000Z"), { deepLinkAvailable: true });
+    }, new Date("2026-08-17T20:00:00.000Z"), {
+      inviteUrl: "https://t.me/kvestarnia_bot?start=guild_privateInviteCode93"
+    });
 
+    expect(text).toContain(
+      '<a href="https://t.me/kvestarnia_bot?start=guild_privateInviteCode93">https://t.me/kvestarnia_bot?start=guild_privateInviteCode93</a>'
+    );
     expect(text).toContain(
       "Текст можна змінити без перевипуску посилання.\n\nКвестарня перевірить запрошувача"
     );
     expect(text).toContain("кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>");
-    expect(text).toContain("формований статут.\n\nНовий код скасовує попередній");
+    expect(text).toContain("формований статут.\n\nНовий код одразу скасовує попередній");
+    expect(text).not.toContain("місце, час появи");
   });
 
   it("offers button-first creation and private invite-code controls without exposing the token in text", () => {

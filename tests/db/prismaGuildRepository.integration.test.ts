@@ -551,6 +551,38 @@ describe("PrismaGuildRepository integration", () => {
     }
   });
 
+  it("lists only opted-in nonmembers from the leader-provided nearby audience", async () => {
+    await seedCharacter(prisma, "nearby-leader", 54_101n, "Голова Поруч", 1_000, { level: 5 });
+    await seedCharacter(prisma, "nearby-member", 54_102n, "Учасник Поруч", 0);
+    await activateGuild(repository, 54_101n, 54_102n, "nearby-guild", "Печатка Поруч");
+    await seedCharacter(prisma, "nearby-target-a", 54_103n, "Адресатка А", 0);
+    await seedCharacter(prisma, "nearby-target-b", 54_104n, "Адресатка Б", 0);
+    await createOptIn(repository, 54_103n, "nearby-target-code-a");
+    await createOptIn(repository, 54_104n, "nearby-target-code-b");
+
+    await expect(repository.getNearbyInviteCandidatesForTelegramUser(
+      54_101n,
+      [54_104n, 54_103n, 54_104n, 54_102n, 54_101n],
+      NOW
+    )).resolves.toEqual({
+      state: "ready",
+      candidates: [
+        expect.objectContaining({ telegramUserId: 54_104n, name: "Адресатка Б", targetToken: "nearby-target-code-b" }),
+        expect.objectContaining({ telegramUserId: 54_103n, name: "Адресатка А", targetToken: "nearby-target-code-a" })
+      ]
+    });
+    await expect(repository.getNearbyInviteCandidatesForTelegramUser(
+      54_102n,
+      [54_103n],
+      NOW
+    )).resolves.toEqual({ state: "forbidden" });
+    await expect(repository.getNearbyInviteCandidatesForTelegramUser(
+      54_101n,
+      [54_103n, 54_104n],
+      new Date(NOW.getTime() + 93 * HOUR + 1)
+    )).resolves.toEqual({ state: "ready", candidates: [] });
+  });
+
   it("serializes cross-guild accepts and the final roster slot, and caps officers at two", async () => {
     await seedCharacter(prisma, "accept-a", 55_001n, "Голова А", 1_000, { level: 5 });
     await seedCharacter(prisma, "accept-b", 55_002n, "Голова Б", 1_000, { level: 5 });

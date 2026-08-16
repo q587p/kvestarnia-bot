@@ -44,6 +44,14 @@ ranking, recommendation or application action. Guild UGC, including a custom
 emoji crest, keeps canonical validation and HTML escaping; broader
 moderation/reporting waits for a repository-wide facility.
 
+The private hero card shows a forming/active guild's escaped crest and name.
+`👀 Хто поруч` may prefix an already-visible active Character with only the
+escaped active-guild crest; it still reveals no guild name, role, membership id,
+Telegram identity, timestamp or extra location data. An active leader may open
+a five-row same-location invitation picker only for nearby nonmembers who have
+already minted a live private opt-in. Presence, authority, membership and that
+target-bound consent are revalidated at the callback/mutation boundary.
+
 ## Creation lifecycle
 
 Founder eligibility is `(currentLevel >= 5) OR (remortCount >= 1 AND
@@ -119,8 +127,9 @@ successor from presence, activity or join order.
 
 There is no global exact-character-name directory. A target creates a bounded,
 target-bound opt-in code and shares it deliberately. Its forwardable card has 13
-distinct Ukrainian invitation texts; changing the text does not rotate the
-underlying live link or token. External failures collapse
+distinct Ukrainian invitation texts and includes the actionable private deep
+link in the body; changing the text does not rotate the underlying live link or
+token. External failures collapse
 to one unavailable result instead of revealing whether a User exists or already
 belongs elsewhere.
 
@@ -169,3 +178,48 @@ No guild bank, shared economy/items, trade, XP, levels, weekly goal, buffs,
 bosses, chat, alliances, war, territory, leaderboard, matchmaking or PvP. Any
 future guild progression requires a separate version task, economy/abuse review
 and production evidence; it is not implied by the foundation tables.
+
+## Future guild-system backlog
+
+The following ideas are recorded for later version tasks only. They do not
+expand the 0.4.5 schema, rollout flag or release promise, and the referenced
+other-game UI is product research rather than copy to reproduce verbatim.
+
+1. **Public recruitment and applications.** Add leader-controlled `private` and
+   `public` modes. Private guilds accept no directory applications. Public
+   guilds may expose a short recruitment announcement, open/closed recruitment
+   state and a safe in-game contact path, with button-first application review.
+   Do not expose Telegram handles, exact location or membership ids. Define
+   spam limits, decline cooldowns, blocking, moderation and capacity races first.
+2. **Contribution goals and guild quests.** Build the already planned weekly
+   goal before considering daily personal/shared objectives. Contributions need
+   canonical gameplay receipts, anti-farming weights, remort rules, exact-once
+   settlement and useful progress cards. Exact thresholds and rewards remain a
+   balance decision; weaker-enemy weighting from another game is not accepted
+   automatically.
+3. **Treasury and transparent ledger.** A shared-gold system needs explicit
+   deposit sources, withdrawal/spend authority, immutable receipts, daily/all-
+   time summaries, rollback and abuse recovery. It must not silently tax player
+   rewards or mix guild money with a Character wallet. This is a high-risk
+   economy slice, not a foundation follow-up.
+4. **Capacity growth and structures.** The current cap starts at 8 and a future
+   expansion may reach at most 13. A later structure/entitlement design may
+   unlock those five places stepwise. Other buildings, shared combat health,
+   attack/defence buffs and timed activations require separate balance and
+   all-combat-surface proof; no pay-to-win bonuses are pre-approved.
+5. **Guild chat and event journal.** Consider a bounded guild-only message feed
+   plus system events for joins, exits and accepted applications. It requires
+   reporting/moderation, retention limits, escaping, flood control, deleted-user
+   handling and privacy review before implementation.
+6. **Diplomacy, alliances and territories.** Alliance requests, hostility,
+   territory control, taxes and guild PvP are independent late-game systems.
+   They need season/reset ownership, opt-in conflict, matchmaking, settlement,
+   collusion and abandoned-leader policies. They must not block ordinary PvE or
+   turn the read-only 0.4.5 directory into an authorization boundary.
+7. **Guild progression and cosmetics.** Guild XP/levels and earned frames remain
+   the 0.4.13 direction after weekly-goal evidence. Progression may unlock
+   cosmetic identity and carefully reviewed comfort features; it does not imply
+   shared combat power, territory or treasury access.
+
+Each item needs its own scoped task, QA matrix, data/rollback plan and player-
+visible menu design. Shipping one item does not implicitly authorize the next.

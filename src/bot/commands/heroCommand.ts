@@ -107,6 +107,9 @@ export async function sendHero(
       varenykSatedAvailableAt: result.varenykSatedAvailableAt,
       ...(result.recoveryNotice ? { recoveryNotice: result.recoveryNotice } : {}),
       activeCosmeticTitle: result.activeCosmeticTitle,
+      guild: guildHub?.state === "ready"
+        ? { crest: guildHub.guild.crest, displayName: guildHub.guild.displayName }
+        : null,
       inventoryGoldValue: result.inventoryGoldValue
     });
 

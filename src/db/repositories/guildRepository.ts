@@ -230,6 +230,17 @@ export type GuildCrestPickerRepositoryResult =
       guildVersion: number | null;
     };
 
+export interface GuildNearbyInviteCandidate {
+  candidateId: string;
+  telegramUserId: bigint;
+  name: string;
+  targetToken: string;
+}
+
+export type GuildNearbyInviteCandidatesRepositoryResult =
+  | { state: "no-character" | "not-member" | "forbidden" }
+  | { state: "ready"; candidates: GuildNearbyInviteCandidate[] };
+
 export type GuildCrestUploadPurpose = "creation" | "profile";
 
 export type GuildCrestUploadDraftRepositoryResult =
@@ -279,6 +290,11 @@ export interface GuildRepository {
   getPublicGuildForTelegramUser(telegramUserId: bigint, guildId: string, expectedLocationId: string, now: Date): Promise<GuildPublicProfileRepositoryResult>;
   createInviteOptInForTelegramUser(telegramUserId: bigint, input: { token: string; now: Date; expiresAt: Date }): Promise<GuildInviteOptInRepositoryResult>;
   getInviteOptInForTelegramUser(telegramUserId: bigint, now: Date): Promise<GuildInviteOptInRepositoryResult>;
+  getNearbyInviteCandidatesForTelegramUser(
+    telegramUserId: bigint,
+    targetTelegramUserIds: readonly bigint[],
+    now: Date
+  ): Promise<GuildNearbyInviteCandidatesRepositoryResult>;
   createInviteForTelegramUser(telegramUserId: bigint, input: {
     token: string;
     targetToken: string;

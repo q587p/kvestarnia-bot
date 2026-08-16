@@ -10,6 +10,7 @@ import type {
   GuildFunnelCounters,
   GuildHubRepositoryResult,
   GuildInviteCreateRepositoryResult,
+  GuildNearbyInviteCandidatesRepositoryResult,
   GuildInviteOptInRepositoryResult,
   GuildInviteRespondRepositoryResult,
   GuildMemberRecord,
@@ -55,7 +56,14 @@ export type GuildCreationPreviewResult =
 export type GuildCreationConfirmResult = GuildCreationConfirmRepositoryResult;
 
 export type GuildInviteRespondResult =
-  GuildInviteRespondRepositoryResult & { achievementUnlocks?: AchievementUnlock[] };
+  GuildInviteRespondRepositoryResult & {
+    achievementUnlocks?: AchievementUnlock[];
+    founderAchievementUnlocks?: AchievementUnlock[];
+  };
+
+export type GuildNearbyInviteCandidatesResult =
+  | { state: "disabled" }
+  | GuildNearbyInviteCandidatesRepositoryResult;
 
 export type GuildMemberTargetResult =
   | { state: "disabled" | "no-character" | "not-member" | "not-found" | "stale" }
@@ -335,6 +343,19 @@ export class GuildService {
       : Promise.resolve({ state: "disabled" });
   }
 
+  getNearbyInviteCandidatesForTelegramUser(
+    telegramUserId: bigint,
+    targetTelegramUserIds: readonly bigint[]
+  ): Promise<GuildNearbyInviteCandidatesResult> {
+    return this.isEnabled()
+      ? this.guilds.getNearbyInviteCandidatesForTelegramUser(
+          telegramUserId,
+          targetTelegramUserIds,
+          this.clock()
+        )
+      : Promise.resolve({ state: "disabled" });
+  }
+
   createInviteForTelegramUser(
     telegramUserId: bigint,
     targetToken: string
@@ -360,21 +381,21 @@ export class GuildService {
     if (result.state !== "accepted" && result.state !== "replayed") {
       return result;
     }
-    if (result.activatedFounderCharacterId) {
-      await this.achievements?.trackEventSafely({
+    const founderAchievementUnlocks = result.activatedFounderCharacterId
+      ? await this.achievements?.trackEventSafely({
         type: "guild.created",
         characterId: result.activatedFounderCharacterId,
         occurredAt: now,
         sourceId: result.guild.id
-      });
-    }
+      }) ?? []
+      : [];
     const achievementUnlocks = await this.achievements?.trackEventSafely({
       type: "guild.joined",
       characterId: result.characterId,
       occurredAt: now,
       sourceId: result.guild.id
     }) ?? [];
-    return { ...result, achievementUnlocks };
+    return { ...result, achievementUnlocks, founderAchievementUnlocks };
   }
 
   declineInviteForTelegramUser(telegramUserId: bigint, token: string): Promise<GuildInviteRespondRepositoryResult> {

@@ -333,7 +333,7 @@ export function presentGuildCreationResult(result: GuildCreationConfirmRepositor
 export function presentGuildInviteOptIn(
   result: GuildInviteOptInRepositoryResult | { state: "disabled" },
   now: Date,
-  options: { deepLinkAvailable?: boolean; variant?: number } = {}
+  options: { inviteUrl?: string | null; variant?: number } = {}
 ): string {
   if (result.state === "disabled") {
     return "Нові ґільдійні запрошення зараз зачинені.";
@@ -348,23 +348,31 @@ export function presentGuildInviteOptIn(
     return "Чинного особистого посилання вже немає. Створіть нове кнопкою «Мій код» у ґільдійному меню.";
   }
   const shareText = guildInviteShareText(options.variant ?? 0);
-  return [
+  const inviteUrl = options.inviteUrl?.trim() || null;
+  const lines = [
     "✉️ <b>Особисте запрошення</b>",
     "",
-    options.deepLinkAvailable
+    inviteUrl
       ? `Посилання чинне ще <b>${formatRemaining(result.expiresAt, now)}</b>.`
       : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>.`,
-    "",
+    ""
+  ];
+  if (inviteUrl) {
+    const safeInviteUrl = escapeHtml(inviteUrl);
+    lines.push(`<a href="${safeInviteUrl}">${safeInviteUrl}</a>`, "");
+  }
+  lines.push(
     `<blockquote>${escapeHtml(shareText)}</blockquote>`,
     "",
-    options.deepLinkAvailable
+    inviteUrl
       ? "Надішліть картку лише тому, від кого хочете отримати запрошення. Текст можна змінити без перевипуску посилання."
       : "Передайте резервний код лише тому, від кого хочете отримати запрошення.",
     "",
     "Квестарня перевірить запрошувача, а ви отримаєте кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>. Перший окремий вступ активує формований статут.",
     "",
-    "Новий код скасовує попередній; місце, час появи й Telegram-дані не розкриваються."
-  ].join("\n");
+    "Новий код одразу скасовує попередній."
+  );
+  return lines.join("\n");
 }
 
 export function presentGuildInviteCreate(
@@ -486,8 +494,24 @@ export function presentGuildPrivateInvite(guildName: string, guildCrest: string,
     "✉️ <b>Запрошення до ґільдії</b>",
     "",
     `${escapeHtml(guildCrest)} <b>${escapeHtml(guildName)}</b> кличе поставити підпис у статуті. Вступ безкоштовний і не має рівневого порога.`,
-    `На відповідь: <b>${formatRemaining(expiresAt, now)}</b>.`,
-    "Картка не показує місце, час появи чи Telegram-дані учасників."
+    `На відповідь: <b>${formatRemaining(expiresAt, now)}</b>.`
+  ].join("\n");
+}
+
+export function presentGuildNearbyInvitePicker(candidateCount: number, page: number): string {
+  if (candidateCount === 0) {
+    return [
+      "✉️ <b>Запросити присутнього</b>",
+      "",
+      "Серед присутніх ніхто ще не відкрив особисте ґільдійне запрошення. Попросіть пригодника відкрити «Мій код» — після цього він з’явиться тут."
+    ].join("\n");
+  }
+  const totalPages = Math.ceil(candidateCount / 5);
+  return [
+    "✉️ <b>Запросити присутнього</b>",
+    "",
+    "Оберіть пригодника. Квестарня ще раз перевірить присутність і право на запрошення.",
+    ...(totalPages > 1 ? [`Сторінка <b>${page + 1}/${totalPages}</b>.`] : [])
   ].join("\n");
 }
 
@@ -536,12 +560,15 @@ function invalidIdentityText(reason: Extract<GuildCreationPreviewResult, { state
 }
 
 export function presentGuildMemberManagement(page: number, totalPages: number): string {
-  return [
+  const lines = [
     "👥 <b>Учасники ґільдії</b>",
     "",
-    "Оберіть запис, щоб побачити доступні дії.",
-    `Сторінка <b>${page + 1}/${Math.max(1, totalPages)}</b>.`
-  ].join("\n");
+    "Оберіть запис, щоб побачити доступні дії."
+  ];
+  if (totalPages > 1) {
+    lines.push(`Сторінка <b>${page + 1}/${totalPages}</b>.`);
+  }
+  return lines.join("\n");
 }
 
 export function presentGuildMemberActions(member: { name: string; role: GuildRole }): string {

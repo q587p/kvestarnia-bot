@@ -19,6 +19,16 @@ const presenceSelect = {
       level: true,
       activeCosmeticTitleGrantId: true
     }
+  },
+  guildMemberships: {
+    where: {
+      activeUserKey: { not: null },
+      guild: { status: "active" }
+    },
+    select: {
+      guild: { select: { crest: true } }
+    },
+    take: 1
   }
 } satisfies Prisma.UserSelect;
 
@@ -168,6 +178,7 @@ function toPresenceRecord(user: SelectedPresenceUser): PresenceRecord {
     characterClassId: user.character?.classId ?? null,
     characterLevel: user.character?.level ?? null,
     characterActiveCosmeticTitleGrantId: user.character?.activeCosmeticTitleGrantId ?? null,
+    guildCrest: user.guildMemberships[0]?.guild.crest ?? null,
     lastActionAt: user.lastActionAt,
     lastSeenLocationId: user.lastSeenLocationId,
     currentRaidId: user.currentRaidId,
