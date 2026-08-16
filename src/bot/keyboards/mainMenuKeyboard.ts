@@ -111,7 +111,6 @@ export function buildMainMenuKeyboard(options: MainMenuKeyboardOptions = {}): Ke
     .text(mainMenuButtons.inventory)
     .row()
     .text(mainMenuButtons.participants)
-    .row()
     .text(mainMenuButtons.help);
 
   if (shouldIncludeAdminButton(options.includeAdmin)) {
