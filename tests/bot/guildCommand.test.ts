@@ -249,6 +249,25 @@ describe("guild command routes", () => {
     });
   });
 
+  it("keeps a guild return control when no eligible party exists", async () => {
+    const context = callbackContext();
+
+    await handleGuildCallback(
+      context.ctx,
+      { type: "party-open", page: 0 },
+      guildService({ getPartyPickerForTelegramUser: vi.fn().mockResolvedValue({ state: "no-party" }) })
+    );
+
+    expect(context.editMessageText).toHaveBeenCalledTimes(1);
+    expect(String(context.editMessageText.mock.calls[0]?.[0])).toContain("Ґільдія не створює окрему ватагу");
+    const settings = context.editMessageText.mock.calls[0]?.[1] as {
+      reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
+    };
+    expect(settings.reply_markup?.inline_keyboard).toEqual([
+      [{ text: "🏰 До ґільдії", callback_data: "v1:g:o" }]
+    ]);
+  });
+
   it("regenerates invitation-card copy without rotating or exposing the private token", async () => {
     const createInviteOptInForTelegramUser = vi.fn();
     const getInviteOptInForTelegramUser = vi.fn().mockResolvedValue({

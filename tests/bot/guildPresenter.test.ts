@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   presentGuildCreationPreview,
   presentGuildHub,
+  presentGuildInviteOptIn,
+  presentGuildNestRules,
   presentGuildProfileUpdate
 } from "../../src/bot/presenters/guildPresenter";
 import {
@@ -11,7 +13,11 @@ import {
   buildGuildProfileCrestKeyboard
 } from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
-import { GUILD_CREST_CATALOG } from "../../src/domain/guild";
+import {
+  GUILD_CREST_CATALOG,
+  GUILD_INITIAL_MEMBER_CAPACITY,
+  GUILD_MAX_MEMBER_CAPACITY
+} from "../../src/domain/guild";
 import { GUILD_INVITE_SHARE_TEXTS } from "../../src/content/guildInviteCopy";
 
 const keyboardRowTexts = (rows: ReturnType<typeof buildGuildCreationStartKeyboard>["inline_keyboard"]): string[][] =>
@@ -120,6 +126,27 @@ describe("guild crest picker row shape", () => {
 });
 
 describe("guild presenter privacy", () => {
+  it("explains the initial and absolute member-capacity boundaries", () => {
+    const text = presentGuildNestRules();
+
+    expect(text).toContain(`Початкова межа — <b>${GUILD_INITIAL_MEMBER_CAPACITY} учасників</b>`);
+    expect(text).toContain(`розширити до <b>${GUILD_MAX_MEMBER_CAPACITY} місць</b>`);
+  });
+
+  it("keeps invitation instructions in separate beats and emphasizes the real buttons", () => {
+    const text = presentGuildInviteOptIn({
+      state: "ready",
+      token: "privateInviteCode93",
+      expiresAt: new Date("2026-08-21T20:00:00.000Z")
+    }, new Date("2026-08-17T20:00:00.000Z"), { deepLinkAvailable: true });
+
+    expect(text).toContain(
+      "Текст можна змінити без перевипуску посилання.\n\nКвестарня перевірить запрошувача"
+    );
+    expect(text).toContain("кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>");
+    expect(text).toContain("формований статут.\n\nНовий код скасовує попередній");
+  });
+
   it("offers button-first creation and private invite-code controls without exposing the token in text", () => {
     const hub = {
       state: "not-member" as const,

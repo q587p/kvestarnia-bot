@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   GUILD_CREST_CATALOG,
   GUILD_CUSTOM_CREST_MARKER,
-  GUILD_MAX_MEMBERS,
+  GUILD_INITIAL_MEMBER_CAPACITY,
   GUILD_MAX_OFFICERS,
   isEligibleGuildFounder,
   isValidGuildCrestMediaMetadata,
@@ -1074,7 +1074,7 @@ export class PrismaGuildRepository implements GuildRepository {
         if (await hasCurrentLiveMembership(tx, optIn.user.id, input.now)) {
           return { state: "target-unavailable" };
         }
-        if (membership.guild.members.length >= GUILD_MAX_MEMBERS) {
+        if (membership.guild.members.length >= GUILD_INITIAL_MEMBER_CAPACITY) {
           return { state: "guild-full" };
         }
         const declineBoundary = new Date(input.now.getTime() - DECLINE_COOLDOWN_MS);
@@ -1805,7 +1805,7 @@ export class PrismaGuildRepository implements GuildRepository {
         const activeMembers = await tx.guildMember.count({
           where: { guildId: invite.guildId, activeUserKey: { not: null } }
         });
-        if (activeMembers >= GUILD_MAX_MEMBERS) {
+        if (activeMembers >= GUILD_INITIAL_MEMBER_CAPACITY) {
           return { state: "guild-full" };
         }
         const activating = invite.guild.status === "forming" && activeMembers === 1;

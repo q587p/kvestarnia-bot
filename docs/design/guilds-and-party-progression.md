@@ -9,13 +9,15 @@ A party is a temporary team for one already-authored gameplay occasion. A guild
 is a durable small identity that helps the same people find one another again.
 The guild never owns a party, encounter, combat lease, reward or settlement.
 
-Foundation is designed around a comfortable core of 3–5 people, with a current
-active-member cap of 8. It stores one normalized/display name, one exclusive
+Foundation is designed around a comfortable core of 3–5 people. The domain
+separates an initial active-member capacity of 8 from an absolute future maximum
+of 13, while current admission and UI remain at 8. It stores one normalized/display name, one exclusive
 emoji crest from the 13-choice catalog or one custom emoji, a 0–93-grapheme
 description, active membership and private audit history. Names are retained
 historically while a separate reservation is released after the accepted
 expiry/disband hold. A future explicit expansion may raise an individual guild
-only as far as 13 members; this release provides no expansion mechanic or price.
+only as far as 13 members; this release provides no expansion mechanic, price,
+entitlement or persisted capacity field and therefore needs no capacity migration.
 
 ## Guild Nest and discovery
 

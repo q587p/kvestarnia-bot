@@ -12,7 +12,11 @@ import type {
   GuildPublicDirectoryRepositoryResult,
   GuildPublicProfileRepositoryResult
 } from "../../db/repositories/guildRepository";
-import type { GuildRole } from "../../domain/guild";
+import {
+  GUILD_INITIAL_MEMBER_CAPACITY,
+  GUILD_MAX_MEMBER_CAPACITY,
+  type GuildRole
+} from "../../domain/guild";
 import type {
   GuildCreationPreviewResult,
   GuildCrestPickerResult,
@@ -75,7 +79,7 @@ export function presentGuildNestRules(): string {
     "• Вступ безплатний і не має вимоги до рівня чи реморту.",
     "• Заснування: 5+ рівень або 3+ після першого реморту; ціна — <b>587 золота</b>.",
     "• Статут формується сім днів і оживає, коли долучиться другий окремий гравець.",
-    "• Межа — 8 учасників: один голова і щонайбільше двоє старшин.",
+    `• Початкова межа — <b>${GUILD_INITIAL_MEMBER_CAPACITY} учасників</b>: один голова і щонайбільше двоє старшин. Згодом статут можна буде розширити до <b>${GUILD_MAX_MEMBER_CAPACITY} місць</b>, не більше.`,
     "• Запрошення приватні й адресні: публічного вступу з переліку немає."
   ].join("\n");
 }
@@ -99,7 +103,7 @@ export function presentGuildPublicProfile(
       `${escapeHtml(result.guild.crest)} <b>${escapeHtml(result.guild.displayName)}</b>`,
       result.guild.description ? escapeHtml(result.guild.description) : "Короткого опису немає — герб працює за двох.",
       "",
-      `Учасників: <b>${result.guild.memberCount}/8</b>.`,
+      `Учасників: <b>${result.guild.memberCount}/${GUILD_INITIAL_MEMBER_CAPACITY}</b>.`,
       "Вступ відбувається лише через приватне адресне запрошення."
     ].join("\n");
   }
@@ -119,7 +123,7 @@ export function presentGuildView(
   return [
     `${escapeHtml(guild.crest)} <b>${escapeHtml(guild.displayName)}</b>`,
     guild.description ? escapeHtml(guild.description) : "Короткий опис ще ховається під печаткою.",
-    `Ваша роль: <b>${roleLabel(guild.viewerRole)}</b> · склад: <b>${guild.memberCount}/8</b>`,
+    `Ваша роль: <b>${roleLabel(guild.viewerRole)}</b> · склад: <b>${guild.memberCount}/${GUILD_INITIAL_MEMBER_CAPACITY}</b>`,
     ...(guild.status === "forming"
       ? [`📜 Статут формується: потрібен перший друг. Часу ще <b>${formatRemaining(guild.charterExpiresAt, now)}</b>.`]
       : []),
@@ -245,7 +249,7 @@ export function presentGuildInvitePrompt(): string {
     "📨 <b>Запрошення до ґільдії · крок 1 із 2</b>",
     "",
     "Попросіть адресата відкрити /guild, далі натиснути «Мій код». Відповіддю на це повідомлення вставте отриманий резервний код.",
-    "Квестарня перевірить право запросити, а адресат отримає окремі кнопки «Долучитися» та «Відхилити»."
+    "Квестарня перевірить право запросити, а адресат отримає окремі кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>."
   ].join("\n");
 }
 
@@ -356,7 +360,9 @@ export function presentGuildInviteOptIn(
     options.deepLinkAvailable
       ? "Надішліть картку лише тому, від кого хочете отримати запрошення. Текст можна змінити без перевипуску посилання."
       : "Передайте резервний код лише тому, від кого хочете отримати запрошення.",
-    "Квестарня перевірить запрошувача, а ви отримаєте кнопки «Долучитися» та «Відхилити». Перший окремий вступ активує формований статут.",
+    "",
+    "Квестарня перевірить запрошувача, а ви отримаєте кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>. Перший окремий вступ активує формований статут.",
+    "",
     "Новий код скасовує попередній; місце, час появи й Telegram-дані не розкриваються."
   ].join("\n");
 }

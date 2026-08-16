@@ -23,6 +23,7 @@ import {
   buildGuildNestRulesKeyboard,
   buildGuildNestUnavailableKeyboard,
   buildGuildPartyPickerKeyboard,
+  buildGuildPartyRecoveryKeyboard,
   buildGuildDirectoryKeyboard,
   buildGuildPublicProfileKeyboard,
   buildGuildProfileCrestKeyboard,
@@ -623,7 +624,7 @@ async function sendGuildPartyPicker(
   const text = presentGuildPartyPicker(result);
   const settings = result.state === "ready"
     ? { ...HTML_OPTIONS, reply_markup: buildGuildPartyPickerKeyboard(result) }
-    : HTML_OPTIONS;
+    : { ...HTML_OPTIONS, reply_markup: buildGuildPartyRecoveryKeyboard() };
   if (mode === "edit") {
     await safeEditMessageText(ctx, text, settings);
   } else {

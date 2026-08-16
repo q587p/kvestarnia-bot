@@ -37,7 +37,7 @@ import {
 } from "../callbacks/guildCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
-import { GUILD_CREST_CATALOG } from "../../domain/guild";
+import { GUILD_CREST_CATALOG, GUILD_INITIAL_MEMBER_CAPACITY } from "../../domain/guild";
 import { GUILD_INVITE_SHARE_TEXTS, guildInviteShareText } from "../../content/guildInviteCopy";
 
 export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options: { writesEnabled?: boolean } = {}): InlineKeyboard {
@@ -137,7 +137,10 @@ export function buildGuildDirectoryKeyboard(
   const keyboard = new InlineKeyboard();
   for (const guild of result.guilds) {
     keyboard
-      .text(`${guild.crest} ${guild.displayName} · ${guild.memberCount}/8`, makeGuildDirectoryProfileCallbackData(guild.id, result.page))
+      .text(
+        `${guild.crest} ${guild.displayName} · ${guild.memberCount}/${GUILD_INITIAL_MEMBER_CAPACITY}`,
+        makeGuildDirectoryProfileCallbackData(guild.id, result.page)
+      )
       .row();
   }
   if (result.hasPreviousPage) {
@@ -171,6 +174,10 @@ export function buildGuildPartyPickerKeyboard(
     keyboard.text("➡️", makeGuildPartyOpenCallbackData(result.page + 1));
   }
   return keyboard;
+}
+
+export function buildGuildPartyRecoveryKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData());
 }
 
 export function buildGuildCreationPreviewKeyboard(token: string): InlineKeyboard {

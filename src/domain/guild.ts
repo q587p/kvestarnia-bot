@@ -1,5 +1,6 @@
 export const GUILD_CREATION_GOLD = 587;
-export const GUILD_MAX_MEMBERS = 8;
+export const GUILD_INITIAL_MEMBER_CAPACITY = 8;
+export const GUILD_MAX_MEMBER_CAPACITY = 13;
 export const GUILD_MAX_OFFICERS = 2;
 export const GUILD_NAME_MIN_GRAPHEMES = 3;
 export const GUILD_NAME_MAX_GRAPHEMES = 32;

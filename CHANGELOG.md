@@ -29,7 +29,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/guild_party` now opens only a paginated member picker for an already-existing eligible gameplay `PartySession`. It reuses the ordinary invitation, `joinSource=guild` attribution and canonical party-card sender; it never creates an unattached guild lobby, and nonmembers retain ordinary routes.
 - Disabled mode preserves rows, safe reads, nonleader leave, accepted transfer and sole disband while blocking formation, invitation acceptance/new sends, roles, profile edits and guild-party writes.
 - Catalog pickers now hide crests reserved by other forming/active guilds while keeping the current guild's own crest selectable. A proposed custom emoji uses the same forming/active exclusivity and exact-owner lifecycle release; disabled mode rejects new crest writes.
-- Current guild capacity remains 8. A future separately designed expansion may raise an individual guild only as far as 13; no expansion action, price or entitlement ships here.
+- Guild capacity now has separate code-owned initial and absolute boundaries: current admission and every count remain at 8, while a future separately designed expansion may raise an individual guild only as far as 13. No expansion action, price, entitlement, persisted capacity field or capacity migration ships here.
 
 ### Fixed
 - The Spusk keyboard now places `🪺 Гніздо ґільдій` on the left and `⬇️ Спуститися` on the right in one row, matching the Nest's side-passage description.
@@ -43,6 +43,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/restart` now blocks recruiting/active PartySession leaders or participants and active GroupCombat participants even without a combat lease, preventing cascade deletion of live party/combat state.
 - Guild cards, paginated rosters, ordinary party notices and audit payloads omit exact location, activity/online timestamps, Telegram identities and invitation tokens; failed invitation delivery leaves durable `/guild` recovery.
 - Disabled legacy guild-party callbacks now stop at the service boundary before recipient resolution, Telegram delivery, canonical-card publication or audit mutation.
+- Non-ready guild-party picker cards now retain a working `🏰 До ґільдії` control, while personal invitation instructions use mobile-readable paragraph breaks and bold labels matching the real accept/decline buttons.
 - Guild hub pages now use one stable five-row member/invitation stream; exact-name role commands read the complete membership set and duplicate names receive distinct membership-backed selectors.
 - `/restart` ignores an expired non-automatic recruiting residue while continuing to protect live ordinary parties, automatic-start Big Barrel/left-passage contracts and active group combat.
 - Forming charter expiry now terminalizes the operation's specific guild independently of the bounded 23-row maintenance backlog, preventing late invitation acceptance, new invitations, hub access or mutations from reviving an overdue charter.
