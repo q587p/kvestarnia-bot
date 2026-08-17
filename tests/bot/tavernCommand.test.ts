@@ -50,7 +50,7 @@ describe("tavern command screens", () => {
       capturingPresenceService(),
       "reply",
       undefined,
-      { now: dayInKyiv }
+      { now: dayInKyiv, guildFoundationEnabled: true }
     );
 
     expect(replies[0]?.text).toContain("За дверима гуде <b>Корчма Квестарні</b>");
@@ -635,13 +635,15 @@ describe("tavern command screens", () => {
       readyTavernService({ ...character, level: 3 }),
       capturingPresenceService(),
       "reply",
-      { now: dayInKyiv }
+      { now: dayInKyiv, guildFoundationEnabled: true }
     );
 
     expect(replies[0]?.text).toContain("🪜 Спуск до Низу");
     expect(replies[0]?.text).toContain("За бочками в коморі є сходи.");
+    expect(replies[0]?.text).toContain("низький прохід до 🪺 Гнізда ґільдій");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("deep-level1"));
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
+    expect(JSON.stringify(replies[0]?.options)).toContain("v1:g:no");
   });
 
   it("keeps lower-level characters out of the Nyz descent surface", async () => {
@@ -652,12 +654,13 @@ describe("tavern command screens", () => {
       readyTavernService({ ...character, level: 1 }),
       capturingPresenceService(),
       "reply",
-      { now: dayInKyiv }
+      { now: dayInKyiv, guildFoundationEnabled: true }
     );
 
     expect(replies[0]?.text).toContain("🪜 Низ відкриється з 3 рівня");
     expect(replies[0]?.text).not.toContain("Перші тринадцять сходинок");
     expect(JSON.stringify(replies[0]?.options)).not.toContain(makePlaceCallbackData("deep-level1"));
+    expect(JSON.stringify(replies[0]?.options)).not.toContain("v1:g:no");
     expect(JSON.stringify(replies[0]?.options)).toContain(makePlaceCallbackData("hall"));
   });
 

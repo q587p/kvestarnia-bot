@@ -12,11 +12,14 @@ import { parseStartPayload } from "../startPayload";
 
 export type PresenceContext = Omit<MarkPlayerPresenceInput, "user">;
 
-export function getPresenceContext(ctx: Context): PresenceContext | null {
+export function getPresenceContext(
+  ctx: Context,
+  options: { guildFoundationEnabled?: boolean } = {}
+): PresenceContext | null {
   const callbackData = ctx.callbackQuery?.data;
 
   if (callbackData) {
-    return getCallbackPresenceContext(callbackData);
+    return getCallbackPresenceContext(callbackData, options);
   }
 
   const text = ctx.message?.text?.trim();
@@ -28,7 +31,13 @@ export function getPresenceContext(ctx: Context): PresenceContext | null {
   return getTextPresenceContext(text);
 }
 
-export function getCallbackPresenceContext(data: string): PresenceContext | null {
+export function getCallbackPresenceContext(
+  data: string,
+  options: { guildFoundationEnabled?: boolean } = {}
+): PresenceContext | null {
+  if (data.startsWith("v1:g:")) {
+    return options.guildFoundationEnabled ? {} : null;
+  }
   if (data.startsWith("v1:tavern:round")) {
     return {
       locationId: PRESENCE_LOCATION_KORCHMA_BAR,
@@ -271,6 +280,7 @@ export function getTextPresenceContext(text: string): PresenceContext | null {
     text === mainMenuButtons.hero ||
     text === mainMenuButtons.equipment ||
     text === mainMenuButtons.inventory ||
+    text === mainMenuButtons.guild ||
     text === mainMenuButtons.participants ||
     text === mainMenuButtons.help ||
     text === mainMenuButtons.admin

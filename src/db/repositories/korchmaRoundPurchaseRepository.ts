@@ -17,6 +17,7 @@ export type KorchmaRoundPurchaseResult =
 export interface KorchmaRoundLeaderboardEntry {
   characterId: string;
   name: string;
+  guildCrest?: string;
   roundCount: number;
   spentGold: number;
 }

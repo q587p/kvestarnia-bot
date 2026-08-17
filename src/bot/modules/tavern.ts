@@ -132,7 +132,7 @@ import {
 presentInvalidCallback
 } from "../presenters/onboardingPresenter";
 import { presentParticipants } from "../presenters/presencePresenter";
-import { escapeHtml } from "../presenters/telegramHtml";
+import { presentCharacterDisplayName } from "../presenters/characterDisplay";
 import {
 presentBardPerformanceAudienceNotification,
 presentBardPerformancePerformerFeedback,
@@ -711,7 +711,12 @@ async function handleShynokCallback(
       ? { text: "Виступ почався.", show_alert: false }
       : { show_alert: result.state !== "live" });
     if (result.state === "started") {
-      await notifyBardPerformanceAudience(ctx, result.character.name, result.audience);
+      await notifyBardPerformanceAudience(
+        ctx,
+        result.character.name,
+        result.audience,
+        result.character.guildCrest
+      );
     }
     await safeEditMessageText(ctx, presentBardPerformanceStartResult(result), {
       ...HTML_MESSAGE_OPTIONS,
@@ -1064,7 +1069,7 @@ function presentTavernGameRematchInvite(
   return [
     "🔁 Реванш?",
     "",
-    `${escapeHtml(session.creator.name)} відкрив новий стіл після вашої партії.`,
+    `${presentCharacterDisplayName(session.creator, { boldName: false })} відкрив новий стіл після вашої партії.`,
     "",
     presentTavernGameSession(session)
   ].join("\n");
@@ -1084,12 +1089,13 @@ async function notifyBardPerformanceAudience(
       expiresAt: Date;
       now: Date;
     };
-  }>
+  }>,
+  performerGuildCrest?: string
 ): Promise<void> {
   await Promise.allSettled(audience.map((notice) =>
     ctx.api.sendMessage(
       Number(notice.telegramUserId),
-      presentBardPerformanceAudienceNotification(performerName, notice),
+      presentBardPerformanceAudienceNotification(performerName, notice, performerGuildCrest),
       {
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildBardPerformanceResponseKeyboard(notice.reaction.id, notice.gold)
@@ -1436,7 +1442,8 @@ async function handlePlaceCallback(
       return;
     }
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
-      passageSearch: services.passageSearch
+      passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true
     });
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
@@ -1467,6 +1474,7 @@ async function handlePlaceCallback(
       presence: services.presence,
       tavernRaid: services.tavern,
       passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

@@ -227,17 +227,17 @@ function presentOpenTavernGameTable(session: TavernGameSessionRecord): string {
       ? "📜 Табличні кості"
       : session.gameKey === "kosti" ? "🎲 Кості" : "♟ Тавлеї";
 
-  return `— ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+  return `— ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
 }
 
 function presentDoppelgangerOpenTavernGameTable(session: TavernGameSessionRecord): string | null {
   if (isDicePokerState(session.result)) {
     const label = session.result.mode === "quick" ? "⚡ Швидкі кості" : "📜 Табличні кості";
-    return `— ${label} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+    return `— ${label} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
   }
 
   if (session.rulesVersion === TAVLEI_DOPPELGANGER_RULES_VERSION) {
-    return `— ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+    return `— ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
   }
 
   return null;

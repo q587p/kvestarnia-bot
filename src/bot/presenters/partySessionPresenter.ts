@@ -163,6 +163,10 @@ export function presentPartyJoin(
 function presentPartyCreateIneligible(
   result: Extract<PartyCreateResult, { state: "ineligible" }>
 ): string {
+  if (result.reason === "active-combat") {
+    return "Спершу завершіть чинний бій. Нова ватага не переписує бойову печатку іншої пригоди.";
+  }
+
   if (result.reason === "pending-solo-raid") {
     return presentPendingSoloRaidConflict(result.availableAt, result.now, "відкрити новий збір");
   }
@@ -463,7 +467,9 @@ export function presentPartyBossIntro(
 ): string {
   const state = session.state;
   const big = isBigPartyBossSession(session);
-  const participantNames = state.participants.map((participant) => escapeHtml(participant.name)).join(", ");
+  const participantNames = state.participants.map((participant) =>
+    `${participant.guildCrest ? `${escapeHtml(participant.guildCrest)} ` : ""}${escapeHtml(participant.name)}`
+  ).join(", ");
   const startTip = presentPartyBossStartTip(session, viewerCharacterId);
   const protocolIntro = state.personalProtocol
     ? `📄 Протокол 13-З перейшов у бій. Підписів: ${state.personalProtocol.signatures.length}.`
@@ -911,6 +917,7 @@ function presentJournalParticipantResourceRows(
     const status = resources?.status ?? participant.status;
     return presentBattleCombatantResourceLine({
       icon: "▪️",
+      guildCrest: participant.guildCrest,
       name: participant.name,
       hp,
       hpMax,
@@ -1042,6 +1049,7 @@ function presentParticipantResourceRows(
     const name = isViewer ? "Ви" : participant.name;
     return presentBattleCombatantResourceLine({
       icon,
+      guildCrest: participant.guildCrest,
       name,
       hp: participant.resources.hp,
       hpMax: participant.resources.hpMax,

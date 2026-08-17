@@ -7,8 +7,15 @@ import {
 
 const plannedCommands = ["guild"] as const satisfies readonly PlannedCommand[];
 
-export function registerPlannedCommands(bot: Bot): void {
+export function registerPlannedCommands(
+  bot: Bot,
+  options: { guildEnabled?: boolean } = {}
+): void {
   for (const command of plannedCommands) {
+    if (command === "guild" && options.guildEnabled) {
+      continue;
+    }
+
     bot.command(command, async (ctx) => {
       await sendPlannedCommand(ctx, command);
     });

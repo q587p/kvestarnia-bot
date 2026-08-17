@@ -7,6 +7,7 @@ import type { TavernGameService } from "../../services/tavernGameService";
 import type { FightingCornerQuestService } from "../../services/fightingCornerQuestService";
 import type { HealthRecoveryNotificationService } from "../../services/healthRecoveryNotificationService";
 import type { GroupCombatService } from "../../services/groupCombatService";
+import type { GuildService } from "../../services/guildService";
 import { getDevHelpSections } from "../devHelpSections";
 import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
 import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
@@ -23,6 +24,7 @@ export function registerHelpCommand(
     tavernGameService?: Pick<TavernGameService, "isEnabled"> | undefined;
     fightingCornerQuestService?: Pick<FightingCornerQuestService, "isDevHelperEnabled"> | undefined;
     healthRecoveryNotificationService?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled"> | undefined;
+    guildService?: Pick<GuildService, "areDevHelpersEnabled"> | undefined;
   } = {}
 ): void {
   const visibility = {
@@ -35,7 +37,8 @@ export function registerHelpCommand(
       ? options.tavernGameService.isEnabled()
       : false,
     includeFightingCornerQuest: options.fightingCornerQuestService?.isDevHelperEnabled() ?? false,
-    includeHpRecovery: options.healthRecoveryNotificationService?.areDevHelpersEnabled() ?? false
+    includeHpRecovery: options.healthRecoveryNotificationService?.areDevHelpersEnabled() ?? false,
+    includeGuild: options.guildService?.areDevHelpersEnabled() ?? false
   };
 
   bot.command("help", async (ctx) => {

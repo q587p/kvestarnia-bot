@@ -1,4 +1,4 @@
-import { type Context,type NextFunction } from "grammy";
+import { type Bot, type Context, type NextFunction } from "grammy";
 import type { PassageSearchCheckResult } from "../../services/passageSearchService";
 import type { BotServices } from "../botServices";
 import { sendFight } from "../commands/fightCommand";
@@ -12,10 +12,28 @@ import { presentPassageSearch } from "../presenters/passageSearchPresenter";
 import { presentAchievementUnlockNotification } from "../presenters/achievementPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { getGuildRouteMode } from "../guildRoute";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
+
+export function registerGuildPassageSearchGuard(bot: Bot, services: BotServices): void {
+  bot.use(async (ctx, next) => {
+    const mode = getGuildRouteMode(ctx);
+    if (!mode) {
+      await next();
+      return;
+    }
+
+    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+    if (telegramUserId && (await showActivePassageSearchIfNeeded(ctx, services, telegramUserId, mode))) {
+      return;
+    }
+
+    await next();
+  });
+}
 
 export async function guardActivePassageSearchCommand(
   ctx: Context,
@@ -93,6 +111,7 @@ export async function sendPassageSearchMonsterAttackFight(
     presence: services.presence,
     tavernRaid: services.tavern,
     passageSearch: services.passageSearch,
+    guildFoundationEnabled: services.guilds?.isEnabled() === true,
     requireKorchmaInterior: false,
     suppressStartIntro: shouldSendStartIntro
   });

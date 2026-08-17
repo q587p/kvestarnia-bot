@@ -24,6 +24,7 @@ import { FirstKorchmaQuestService } from "../services/firstKorchmaQuestService";
 import { FightingCornerQuestService } from "../services/fightingCornerQuestService";
 import { HeroService } from "../services/heroService";
 import { GroupCombatService } from "../services/groupCombatService";
+import { GuildService } from "../services/guildService";
 import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
@@ -121,14 +122,16 @@ export function createServices(
     undefined,
     {
       devHelpersEnabled: nonProduction && config.devGrantCommandsEnabled
-    }
+    },
+    config.guildFoundationEnabled ? repositories.guilds : undefined
   );
   const groupCombat = new GroupCombatService(
     repositories.groupCombatSessions,
     {
       enabled: true,
       devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled,
+      guildIdentityEnabled: config.guildFoundationEnabled
     },
     undefined,
     achievements,
@@ -136,6 +139,17 @@ export function createServices(
       buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
     repositories.dailyActions
   );
+  const partySessions = new PartySessionService(repositories.partySessions, {
+    enabled: nonProduction ||
+      config.partySessionFoundationEnabled ||
+      config.bigBarrelBrotherRaidEnabled ||
+      config.leftPassagePartyAttackEnabled ||
+      config.guildFoundationEnabled,
+    runtimeServicingEnabled: true,
+    devHelpersEnabled: nonProduction,
+    bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
+    leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
+  }, undefined, achievements);
 
   const services: ApplicationServices = {
     activityEvents,
@@ -163,7 +177,8 @@ export function createServices(
       undefined,
       undefined,
       achievements,
-      repositories.equipment
+      repositories.equipment,
+      config.guildFoundationEnabled ? repositories.guilds : undefined
     ),
     combatLeases: new CombatLeaseReadService(repositories.combatLeaseReads),
     dailyKorchmaRound: new DailyKorchmaRoundService(
@@ -235,6 +250,10 @@ export function createServices(
       repositories.huntContracts
     ),
     groupCombat,
+    guilds: new GuildService(repositories.guilds, partySessions, {
+      enabled: config.guildFoundationEnabled,
+      devHelpersEnabled: nonProduction && config.guildFoundationEnabled
+    }, undefined, achievements),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(
@@ -247,7 +266,10 @@ export function createServices(
     itemUse: new ItemUseService(repositories.itemUse, undefined, achievements),
     itemTransfers: new ItemTransferService(repositories.itemTransfers, presence),
     levelBarter: new LevelBarterService(repositories.levelBarter, undefined, achievements, publicActivityEvents),
-    levelMilestones: new LevelMilestoneService(repositories.levelMilestones),
+    levelMilestones: new LevelMilestoneService(
+      repositories.levelMilestones,
+      config.guildFoundationEnabled ? repositories.guilds : undefined
+    ),
     mantokChest: new MantokChestService(repositories.mantokChestRuns, undefined, undefined, achievements, publicActivityEvents),
     onboarding: new OnboardingService(repositories.users, repositories.characters, achievements, publicActivityEvents),
     passageSearch: new PassageSearchService(
@@ -260,22 +282,14 @@ export function createServices(
     partyBoss: new PartyBossService(repositories.partyBossSessions, {
       enabled: nonProduction ||
         config.bigBarrelBrotherRaidEnabled,
-      devHelpersEnabled: nonProduction
+      devHelpersEnabled: nonProduction,
+      guildIdentityEnabled: config.guildFoundationEnabled
     }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions),
     partyRaidChat: new PartyRaidChatService(repositories.partyRaidChat, {
       enabled: partyRaidChatEnabled,
       devHelpersEnabled: nonProduction && partyRaidChatEnabled
     }),
-    partySessions: new PartySessionService(repositories.partySessions, {
-      enabled: nonProduction ||
-        config.partySessionFoundationEnabled ||
-        config.bigBarrelBrotherRaidEnabled ||
-        config.leftPassagePartyAttackEnabled,
-      runtimeServicingEnabled: true,
-      devHelpersEnabled: nonProduction,
-      bigBarrelBrotherEnabled: config.bigBarrelBrotherRaidEnabled,
-      leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled
-    }, undefined, achievements),
+    partySessions,
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     questMarkerReads: new QuestMarkerReadService(repositories.questMarkerReads),
@@ -287,7 +301,13 @@ export function createServices(
       repositories.dailyActions,
       repositories.roundPurchases
     ),
-    tavernGames: new TavernGameService(repositories.tavernGames, config, undefined, achievements),
+    tavernGames: new TavernGameService(
+      repositories.tavernGames,
+      config,
+      undefined,
+      achievements,
+      config.guildFoundationEnabled ? repositories.guilds : undefined
+    ),
     tavern,
     trainingDoppelganger: new TrainingDoppelgangerService(
       repositories.characters,

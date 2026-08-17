@@ -21,6 +21,7 @@ import type { HeroService } from "../services/heroService";
 import type { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import type { HuntService } from "../services/huntService";
 import type { GroupCombatService } from "../services/groupCombatService";
+import type { GuildService } from "../services/guildService";
 import type { InventoryService } from "../services/inventoryService";
 import type { ItemCraftService } from "../services/itemCraftService";
 import type { ItemUpgradeService } from "../services/itemUpgradeService";
@@ -62,6 +63,7 @@ export interface BotServices {
   fightingCornerQuest: FightingCornerQuestService;
   hunt: HuntService;
   groupCombat?: GroupCombatService;
+  guilds?: GuildService;
   yeger: YegerQuestService;
   onboarding: OnboardingService;
   passageSearch?: PassageSearchService;

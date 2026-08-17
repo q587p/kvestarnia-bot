@@ -1,5 +1,9 @@
 import type { CharacterRecord } from "./characterRepository";
 
+export const BIG_BARREL_PARTY_ORIGIN_LOCATION_ID = "barrel.big-brother";
+export const GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID = "group-combat.proof";
+export const LEFT_PASSAGE_PARTY_ORIGIN_KIND = "nyz-left-passage-party.v1";
+
 export type PartySessionStatus =
   | "recruiting"
   | "cancelled"
@@ -9,8 +13,28 @@ export type PartySessionStatus =
   | "completed";
 export type PartyParticipantStatus = "joined" | "left";
 export type PartyParticipantReadiness = "waiting" | "ready";
-export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "dev";
+export type PartyJoinSource = "leader" | "nearby" | "deep-link" | "guild" | "dev";
 export type PartyTerminalReplayState = "cancelled" | "expired" | "terminal-ineligible";
+
+export function isAutomaticStartPartyOrigin(
+  originLocationId: string | null,
+  originKind: string | null
+): boolean {
+  return originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID ||
+    originLocationId === GROUP_COMBAT_PARTY_ORIGIN_LOCATION_ID ||
+    originKind === LEFT_PASSAGE_PARTY_ORIGIN_KIND;
+}
+
+export function isAuthoritativeLivePartySession(
+  session: { status: string; expiresAt: Date; originLocationId: string | null; originKind: string | null },
+  now: Date
+): boolean {
+  return session.status === "active" || (
+    session.status === "recruiting" && (
+      session.expiresAt > now || isAutomaticStartPartyOrigin(session.originLocationId, session.originKind)
+    )
+  );
+}
 
 export interface PartyCharacterSnapshot extends CharacterRecord {
   telegramUserId: bigint;
@@ -161,6 +185,7 @@ export type PartyLeftPassageRestIneligible = {
 
 export type PartyCreateRepositoryResult =
   | { state: "no-character" }
+  | { state: "ineligible"; reason: "active-combat" }
   | PartyLossCooldownIneligible
   | PartyPendingSoloRaidIneligible
   | { state: "live"; session: PartySessionRecord }

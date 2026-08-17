@@ -18,7 +18,7 @@ import {
 } from "../keyboards/fightKeyboard";
 import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildPartyBossKeyboard } from "../keyboards/partySessionKeyboard";
-import { isMainMenuLocationButtonText, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
+import { isMainMenuLocationButtonText, mainMenuButtons, mainMenuQuestButtonTexts } from "../keyboards/mainMenuKeyboard";
 import { getCallbackMessageFreshness } from "../messageFreshness";
 import { editPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import { presentFightStart, presentPersistentFight } from "../presenters/fightPresenter";
@@ -54,6 +54,7 @@ import {
   TURN_BASED_DUEL_LEASE_KIND
 } from "../../domain/combat/combatLeaseRegistry";
 import { GROUP_COMBAT_CALLBACK_ROUTE_PATTERN } from "../callbacks/groupCombatCallbackData";
+import { isGuildRoute } from "../guildRoute";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -167,14 +168,15 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
         return;
       }
 
-      if (!shouldCheckCombatLock(ctx)) {
+      const guildRoute = isGuildRoute(ctx);
+      if (!shouldCheckCombatLock(ctx) && !guildRoute) {
         measurement.end();
         await next();
         return;
       }
 
       if (
-        (ctx.callbackQuery || isDuelRoute(ctx)) &&
+        (ctx.callbackQuery || isDuelRoute(ctx) || guildRoute) &&
         !isPendingRaidSafeCallback(callbackData) &&
         typeof services.tavern.getActivePendingFridayBarrelRaidForTelegramUser === "function" &&
         (await editPendingRaidBlockIfNeeded(ctx, telegramUserId, services.tavern, {
@@ -359,7 +361,7 @@ function isRestartOrRemortRoute(ctx: Context): boolean {
 function isLockedMainMenuText(text: string | undefined): boolean {
   return (
     isMainMenuLocationButtonText(text) ||
-    (text !== undefined && mainMenuQuestButtonTexts.includes(text))
+    (text !== undefined && (mainMenuQuestButtonTexts.includes(text) || text === mainMenuButtons.guild))
   );
 }
 

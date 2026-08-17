@@ -93,6 +93,9 @@ export function parsePartyBossStateStrict(
     if (typeof participant.name !== "string" || !isParticipantStatus(participant.status)) {
       fail("participants", `PartyBoss participant ${participant.characterId} has an invalid identity.`);
     }
+    if (participant.guildCrest !== undefined) {
+      requireString(participant.guildCrest, `participants.${index}.guildCrest`);
+    }
     requireFiniteNonNegative(participant.remortCount, `participants.${index}.remortCount`);
     const combatStats = record(
       participant.combatStats,

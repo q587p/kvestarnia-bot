@@ -64,7 +64,7 @@ export function presentFightStart(character: CharacterSummary): string {
     "Те, що мало бути простою шаурмою, розкриває зуби. Вечеря щойно стала переговорами.",
     ...presentCharacterFlavor(character, "quest.start", "fight"),
     "",
-    `❤️ Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Монстр: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
+    `❤️ ${character.guildCrest ? `${escapeHtml(character.guildCrest)} ` : ""}Ви: ${character.hpCurrent}/${character.hpMax}   🌯 Монстр: ${MIMIC_SHAWARMA_HP}/${MIMIC_SHAWARMA_HP}`,
     "",
     "Що робимо?"
   ].join("\n");
@@ -842,6 +842,7 @@ function presentPersistentFightState(input: {
     "",
     presentBattleCombatantResourceLine({
       icon: "❤️",
+      guildCrest: state?.hero.guildCrest ?? input.character.guildCrest,
       name: "Ви",
       hp: state?.hero.hp ?? "?",
       hpMax: state?.hero.hpMax ?? "?",

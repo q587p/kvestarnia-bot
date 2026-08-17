@@ -12,6 +12,7 @@ import {
   makeCosmeticTitleSetCallbackData
 } from "../callbacks/achievementCallbackData";
 import { makeEquipmentCallbackData } from "../callbacks/itemCallbackData";
+import { makeGuildOpenCallbackData } from "../callbacks/guildCallbackData";
 
 export function buildHeroAchievementsKeyboard(
   options: {
@@ -19,6 +20,7 @@ export function buildHeroAchievementsKeyboard(
     priestSelfBlessCallbackData?: string | null;
     varenykSelfFeedCallbackData?: string | null;
     restoreCallbackData?: string | null;
+    showActiveGuild?: boolean;
   } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
@@ -41,6 +43,10 @@ export function buildHeroAchievementsKeyboard(
 
   if (options.restoreCallbackData) {
     keyboard.row().text("🧻 До відновлення", options.restoreCallbackData);
+  }
+
+  if (options.showActiveGuild) {
+    keyboard.row().text("🏰 Ґільдія", makeGuildOpenCallbackData());
   }
 
   return keyboard;

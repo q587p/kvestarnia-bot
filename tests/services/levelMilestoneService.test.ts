@@ -58,4 +58,26 @@ describe("LevelMilestoneService", () => {
     await expect(service.getBoardForRemort(2)).resolves.toEqual({ levels: [] });
     expect(calls).toEqual(["backfill", "list-remort-2"]);
   });
+
+  it("decorates public milestone identities with current live guild crests when enabled", async () => {
+    const repository = {
+      backfillCurrentLevels: vi.fn(() => Promise.resolve(undefined)),
+      listFirstReachedLevels: vi.fn(() => Promise.resolve({
+        levels: [{
+          level: 5,
+          entries: [{ characterId: "character-1", name: "Дара", rank: 1 }]
+        }]
+      })),
+      listFirstReachedLevelsForRemort: vi.fn()
+    } as unknown as LevelMilestoneRepository;
+    const service = new LevelMilestoneService(
+      repository,
+      { getLiveCrestsForCharacterIds: () => Promise.resolve(new Map([["character-1", "🐸"]])) },
+      () => new Date("2026-08-17T10:00:00.000Z")
+    );
+
+    await expect(service.getBoard()).resolves.toMatchObject({
+      levels: [{ entries: [{ characterId: "character-1", guildCrest: "🐸" }] }]
+    });
+  });
 });

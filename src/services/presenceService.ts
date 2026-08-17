@@ -71,6 +71,7 @@ export interface PresencePerson {
   telegramUserId: bigint;
   name: string;
   activeCosmeticTitle?: string | null;
+  guildCrest?: string | null;
   classId?: string;
   level?: number;
   status: Exclude<PresenceStatus, "inactive">;
@@ -580,6 +581,7 @@ function groupPeople(records: PresenceRecord[], now: Date): PresenceGroup {
         telegramUserId: record.telegramUserId,
         name: getPresenceName(record),
         ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
+        ...(record.guildCrest ? { guildCrest: record.guildCrest } : {}),
         ...(record.characterClassId === null || record.characterClassId === undefined
           ? {}
           : { classId: record.characterClassId }),

@@ -60,6 +60,7 @@ export function registerCoreBotModule(
     classNoncombatEnabled: Boolean(services.classNoncombat),
     duelEnabled: Boolean(services.duel),
     itemGiftEnabled: Boolean(services.itemTransfers),
+    guilds: services.guilds,
     partySessions: services.partySessions,
     tavernGames: services.tavernGames
   });
@@ -70,13 +71,14 @@ export function registerCoreBotModule(
     partyRaidChatService: services.partyRaidChat,
     tavernGameService: services.tavernGames,
     fightingCornerQuestService: services.fightingCornerQuest,
-    healthRecoveryNotificationService: services.healthRecoveryNotifications
+    healthRecoveryNotificationService: services.healthRecoveryNotifications,
+    guildService: services.guilds
   });
   registerNewsCommand(bot);
   registerLoreBoardCommand(bot);
   registerSupportCommand(bot, options.supportJarUrl, options.supportJarStatus);
   registerVersionCommand(bot);
-  registerPlannedCommands(bot);
+  registerPlannedCommands(bot, { guildEnabled: Boolean(services.guilds) });
   bot.command("games", async (ctx) => {
     const telegramUserId = telegramUserIdFromContext(ctx.from) ?? undefined;
     const result = await services.tavernGames?.getHub(telegramUserId) ?? { state: "disabled" as const };
@@ -118,7 +120,9 @@ async function handleMenuCallback(
   await safeAnswerCallbackQuery(ctx);
 
   if (action === "hero") {
-    await sendHero(ctx, services.hero, "edit");
+    await sendHero(ctx, services.hero, "edit", {
+      ...(services.guilds ? { guildService: services.guilds } : {})
+    });
     return;
   }
 
@@ -131,7 +135,8 @@ async function handleMenuCallback(
       includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
-      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+      includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
+      includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: buildHelpKeyboard()
     });
@@ -162,7 +167,8 @@ async function handleHelpCallback(
     includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeTavernGames: services.tavernGames?.isEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
-    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
+    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
   }, page), {
     reply_markup: buildHelpKeyboard(page)
   });

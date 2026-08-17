@@ -11,6 +11,7 @@ import {
   presentShynokRoundPreview,
   presentShynokSaleSelection,
   presentBardPerformanceAudienceNotification,
+  presentBardPerformancePerformerFeedback,
   presentBardPerformanceResponseResult,
   presentBardPerformanceStartResult
 } from "../../src/bot/presenters/shynokPresenter";
@@ -444,6 +445,27 @@ describe("shynokPresenter", () => {
     expect(html).toContain("✨ Виступ надихає вас: +3 до влучання на 13 хв.");
     expect(html).toContain("кожен завершений хід забирає ще одну хвилину");
     expect(html).toContain("аплодувати безкоштовно");
+  });
+
+  it("shows escaped guild crests on Bard performance and reaction identities", () => {
+    const audience = presentBardPerformanceAudienceNotification(
+      "Лірник",
+      {
+        telegramUserId: 42n,
+        name: "Слухачка",
+        reaction: bardReaction()
+      },
+      "<&"
+    );
+    const feedback = presentBardPerformancePerformerFeedback({
+      state: "applauded",
+      reaction: bardReaction({ audienceGuildCrest: "🐸" }),
+      performance: bardPerformance(),
+      character
+    } as never);
+
+    expect(audience).toContain("&lt;&amp; <b>Лірник</b>");
+    expect(feedback).toContain("🐸 <b>Слухач</b>");
   });
 
   it("says that equal or weaker Inspiration did not refresh the timer", () => {

@@ -4620,7 +4620,12 @@ export class FightService {
     });
     const state = startCombat({
       id: input.sessionId,
-      hero: buildHeroCombatStats(input.characterSummary),
+      hero: {
+        ...buildHeroCombatStats(input.characterSummary),
+        ...(input.characterSummary.guildCrest
+          ? { guildCrest: input.characterSummary.guildCrest }
+          : {})
+      },
       monster: monsterStats,
       ...(extraMonsterStats.length > 0 ? { enemies: extraMonsterStats } : {})
     });

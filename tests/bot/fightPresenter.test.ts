@@ -60,6 +60,35 @@ const character: CharacterSummary = {
 };
 
 describe("fight presenter", () => {
+  it("keeps the escaped guild crest in ordinary fight identity headers", () => {
+    const guildCharacter = { ...character, guildCrest: "🐸" };
+    const start = presentFightStart(guildCharacter);
+    const persistent = presentPersistentFight({
+      state: "persistent-active",
+      character: guildCharacter,
+      session: persistentSession({
+        hero: {
+          hp: 24,
+          hpMax: 24,
+          mana: 12,
+          manaMax: 12,
+          guildCrest: "🐸"
+        }
+      }),
+      monster: {
+        id: "monster.test",
+        name: "Тестовий Монстр",
+        description: "Перевіряє шапки.",
+        level: 3,
+        tags: ["test"]
+      },
+      questProgress: null
+    });
+
+    expect(start).toContain("❤️ 🐸 Ви: 24/24");
+    expect(persistent).toContain("❤️ 🐸 Ви: 24/24 · мана 12/12");
+  });
+
   it("shows a short Ukrainian start scene", () => {
     const text = presentFightStart(character);
 

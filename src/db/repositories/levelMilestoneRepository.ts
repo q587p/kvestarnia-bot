@@ -15,6 +15,7 @@ export interface LevelMilestoneEntry {
   telegramUserId: bigint;
   characterId: string;
   name: string;
+  guildCrest?: string;
   level: number;
   reachedAt: Date;
 }

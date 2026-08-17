@@ -115,6 +115,7 @@ describe("main menu and scene keyboards", () => {
     expect(mainMenuButtons.equipment).toBe("🛡️ Спорядження");
     expect(mainMenuButtons.quest).toBe("🗺️ Квести");
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.equipment);
+    expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.guild);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain(mainMenuButtons.admin);
     expect(replyKeyboardTexts(keyboard.keyboard).flat()).not.toContain("👀 Озирнутися");
     expect(keyboard.resize_keyboard).toBe(true);
@@ -182,6 +183,10 @@ describe("main menu and scene keyboards", () => {
       "v1:nc:b:s:0:0:0",
       "v1:use:full:item.responsible-panic-bandage"
     ]);
+
+    const activeGuildKeyboard = buildHeroAchievementsKeyboard({ showActiveGuild: true });
+    expect(flatInlineButtonTexts(activeGuildKeyboard)).toContain("🏰 Ґільдія");
+    expect(flatInlineButtonCallbacks(activeGuildKeyboard)).toContain("v1:g:o");
   });
 
   it("paginates cosmetic title selection buttons", () => {
@@ -1407,6 +1412,12 @@ describe("main menu and scene keyboards", () => {
       "v1:search:start:d",
       "v1:place:deep-level1"
     ]);
+    expect(inlineButtonRows(buildKorchmaDeepKeyboard({ guildFoundationEnabled: true }))).toEqual([
+      ["⬆️ Повернутися до зали"],
+      ["🔎 Пошукати"],
+      ["🪺 Гніздо ґільдій", "⬇️ Спуститися"]
+    ]);
+    expect(flatInlineButtonCallbacks(buildKorchmaDeepKeyboard({ guildFoundationEnabled: true }))).toContain("v1:g:no");
     expect(flatInlineButtonTexts(buildKorchmaDeepKeyboard({ munchkinLocation: "nyz-descent" }))).toEqual([
       "⬆️ Повернутися до зали",
       "🎒 Манчкін-скупник",

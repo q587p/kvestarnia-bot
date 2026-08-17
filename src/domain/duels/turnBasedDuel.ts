@@ -48,6 +48,7 @@ export type TurnBasedDuelAction = "attack" | "defend" | "skill" | "race" | "gear
 export interface TurnBasedDuelParticipantSnapshot {
   characterId: string;
   displayName: string;
+  guildCrest?: string;
   activeCosmeticTitle?: string | null;
   title: string;
   raceId: string;
@@ -717,6 +718,7 @@ function buildParticipantSnapshot(
   return {
     characterId: character.id,
     displayName: character.name,
+    ...(character.guildCrest ? { guildCrest: character.guildCrest } : {}),
     ...(character.activeCosmeticTitle ? { activeCosmeticTitle: character.activeCosmeticTitle } : {}),
     title: character.title,
     raceId: character.raceId,

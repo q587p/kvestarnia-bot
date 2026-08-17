@@ -194,7 +194,7 @@ export function presentTavernGameActionResult(result: {
   now?: Date;
 }): string {
   if (result.resolution) {
-    return presentTavernGameResolution(result.resolution);
+    return presentTavernGameResolution(result.resolution, result.session);
   }
   const table = isDicePokerTableState(result.session?.result) ? result.session.result : null;
   const dicePoker = result.dicePoker ?? getSessionDicePoker(result.session, result.viewerTelegramUserId);
@@ -292,7 +292,7 @@ export function presentTavernGameActionResult(result: {
 function presentClosedTavernGameReplay(session: TavernGameSessionRecord): string | null {
   const resolution = parseStoredTavernGameResolution(session.result);
   if (resolution) {
-    return presentTavernGameResolution(resolution);
+    return presentTavernGameResolution(resolution, session);
   }
 
   if (session.status === "cancelled_refund" || session.status === "expired_refund") {
@@ -374,6 +374,7 @@ function presentTavernGameParticipantName(participant: TavernGameSessionRecord["
   const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(participant.character?.activeCosmeticTitleGrantId ?? null);
   return presentCharacterDisplayName({
     name: participant.character?.name || participant.displayName,
+    ...(participant.character?.guildCrest ? { guildCrest: participant.character.guildCrest } : {}),
     ...(activeCosmeticTitle ? { activeCosmeticTitle } : {})
   });
 }
@@ -428,7 +429,10 @@ export function normalizeTavernGameInviteTemplateIndex(value: number): number {
   return value;
 }
 
-function presentTavernGameResolution(resolution: TavernGameResolution): string {
+function presentTavernGameResolution(
+  resolution: TavernGameResolution,
+  session?: TavernGameSessionRecord
+): string {
   if (resolution.gameKey === "tavlei") {
     if (resolution.opponentKind === "doppelganger") {
       return presentDoppelgangerTavleiResolution(resolution);
@@ -447,30 +451,30 @@ function presentTavernGameResolution(resolution: TavernGameResolution): string {
     return [
       "♟ Тавлеї завершено.",
       "",
-      `${escapeHtml(resolution.winnerName)} забрав партію саме тоді, коли фішки вже почали робити вигляд, що вони тут головні.`,
+      `${presentGamePlayerName(session, resolution.winnerCharacterId, resolution.winnerName)} забрав партію саме тоді, коли фішки вже почали робити вигляд, що вони тут головні.`,
       "",
-      `🏆 Перемога: <b>${escapeHtml(resolution.winnerName)}</b>`,
+      `🏆 Перемога: ${presentGamePlayerName(session, resolution.winnerCharacterId, resolution.winnerName, true)}`,
       `💰 Виграш: <b>${resolution.payouts[resolution.winnerCharacterId] ?? resolution.potGold} зол.</b>`
     ].join("\n");
   }
 
   const rows = resolution.players
     .map((player) =>
-      `${escapeHtml(player.name)}: ${player.dice.join(" ")} — ${kostiHandLabel(player.handLabel)}.`
+      `${presentGamePlayerName(session, player.characterId, player.name)}: ${player.dice.join(" ")} — ${kostiHandLabel(player.handLabel)}.`
     )
     .join("\n");
   const signLine = resolution.signWinnerNames.length === 0
     ? "✨ Жоден знак не справдився, тож решта банку лишається переможцю."
     : resolution.signWinnerNames.length === 1
-      ? `✨ Знаковий банк бере ${escapeHtml(resolution.signWinnerNames[0] ?? "")}: <b>${resolution.signShareGold} зол.</b>`
-      : `✨ Знаковий банк ділять ${resolution.signWinnerNames.map(escapeHtml).join(", ")}: по <b>${resolution.signShareGold} зол.</b>`;
+      ? `✨ Знаковий банк бере ${presentGamePlayerName(session, resolution.signWinnerCharacterIds[0] ?? "", resolution.signWinnerNames[0] ?? "")}: <b>${resolution.signShareGold} зол.</b>`
+      : `✨ Знаковий банк ділять ${resolution.signWinnerNames.map((name, index) => presentGamePlayerName(session, resolution.signWinnerCharacterIds[index] ?? "", name)).join(", ")}: по <b>${resolution.signShareGold} зол.</b>`;
 
   return [
     "🎲 Кості гримнули по столу.",
     "",
     rows,
     "",
-    `🏆 Основний банк бере <b>${escapeHtml(resolution.mainWinnerName)}</b>: <b>${resolution.payouts[resolution.mainWinnerCharacterId] ?? resolution.mainPoolGold} зол.</b>`,
+    `🏆 Основний банк бере ${presentGamePlayerName(session, resolution.mainWinnerCharacterId, resolution.mainWinnerName, true)}: <b>${resolution.payouts[resolution.mainWinnerCharacterId] ?? resolution.mainPoolGold} зол.</b>`,
     signLine
   ].join("\n");
 }
@@ -484,16 +488,16 @@ function presentOpenTableLine(session: TavernGameSessionRecord): string {
   const table = isDicePokerTableState(session.result) ? session.result : null;
   const cap = table?.playerCap ?? (session.gameKey === "kosti" ? KOSTI_PLAYER_CAP : TAVLEI_PLAYER_CAP);
   const label = table ? dicePokerTableTitle(table.mode) : gameLabel(session.gameKey);
-  return `• ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${escapeHtml(session.creator.name)}`;
+  return `• ${label} · ${session.participants.length}/${cap} · ставка ${session.stakeGold} зол. · тримає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
 }
 
 function presentDoppelgangerOpenTableLine(session: TavernGameSessionRecord): string | null {
   if (isDicePokerState(session.result)) {
-    return `• ${dicePokerTableTitle(session.result.mode)} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+    return `• ${dicePokerTableTitle(session.result.mode)} з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
   }
 
   if (session.rulesVersion === TAVLEI_DOPPELGANGER_RULES_VERSION) {
-    return `• ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${escapeHtml(session.creator.name)}`;
+    return `• ♟ Тавлеї з Допельґанґером · ставка ${session.stakeGold} зол. · грає ${presentCharacterDisplayName(session.creator, { boldName: false })}`;
   }
 
   return null;
@@ -615,7 +619,10 @@ function presentDicePokerTableSession(session: TavernGameSessionRecord): string 
   const lines = [
     dicePokerTableTitle(table.mode),
     "",
-    `За столом: ${session.participants.map((participant) => escapeHtml(participant.displayName)).join(", ")}`,
+    `За столом: ${session.participants.map((participant) => presentCharacterDisplayName({
+      name: participant.displayName,
+      ...(participant.character.guildCrest ? { guildCrest: participant.character.guildCrest } : {})
+    }, { boldName: false })).join(", ")}`,
     `Місця: ${session.participants.length}/${table.playerCap}`,
     `Ставка: <b>${session.stakeGold} зол.</b> · банк: <b>${session.potGold} зол.</b>`
   ];
@@ -862,8 +869,27 @@ function dicePokerTableTitle(mode: "quick" | "scorecard"): string {
 
 function presentTableReadiness(participants: TavernGameSessionRecord["participants"]): string {
   return participants.map((participant) =>
-    `${parseTableReadiness(participant.result) === "ready" ? "✅" : "⏳"} ${escapeHtml(participant.displayName)}`
+    `${parseTableReadiness(participant.result) === "ready" ? "✅" : "⏳"} ${presentCharacterDisplayName({
+      name: participant.displayName,
+      ...(participant.character.guildCrest ? { guildCrest: participant.character.guildCrest } : {})
+    }, { boldName: false })}`
   ).join(" · ");
+}
+
+function presentGamePlayerName(
+  session: TavernGameSessionRecord | undefined,
+  characterId: string,
+  fallbackName: string,
+  boldName = false
+): string {
+  const participant = session?.participants.find((entry) => entry.characterId === characterId);
+  return presentCharacterDisplayName(
+    {
+      name: fallbackName,
+      ...(participant?.character.guildCrest ? { guildCrest: participant.character.guildCrest } : {})
+    },
+    { boldName }
+  );
 }
 
 function parseTableReadiness(input: unknown): "ready" | "waiting" {

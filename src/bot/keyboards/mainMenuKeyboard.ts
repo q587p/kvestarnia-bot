@@ -34,6 +34,7 @@ export const mainMenuButtons = {
   quest: "🗺️ Квести",
   inventory: "🎒 Манатки",
   participants: "👀 Хто поруч",
+  guild: "🏰 Ґільдії",
   help: "📖 Допомога",
   admin: "🧰 Адмінка"
 } as const;

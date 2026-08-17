@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   presentRestartActiveCombat,
+  presentRestartActiveParty,
   presentRestartCancelled,
   presentRestartDeleted,
   presentRestartNoCharacter,
@@ -24,6 +25,11 @@ describe("restart presenter", () => {
   it("explains why restart is blocked during combat", () => {
     expect(presentRestartActiveCombat()).toContain("активного бою");
     expect(presentRestartActiveCombat()).toContain("завершіть бій");
+  });
+
+  it("explains why restart is blocked by a live party even without combat", () => {
+    expect(presentRestartActiveParty()).toContain("живого збору ватаги");
+    expect(presentRestartActiveParty()).toContain("завершіть");
   });
 
   it("keeps cancellation non-destructive", () => {

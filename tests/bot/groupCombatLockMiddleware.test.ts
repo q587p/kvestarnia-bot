@@ -5,8 +5,374 @@ import { registerCombatLockMiddleware } from "../../src/bot/middleware/registerC
 import type { GroupCombatSessionRecord } from "../../src/db/repositories/groupCombatRepository";
 import type { GroupCombatService } from "../../src/services/groupCombatService";
 import { buildGroupCombatKeyboard } from "../../src/bot/keyboards/groupCombatKeyboard";
+import { GUILD_INVITE_PROMPT_HEADING } from "../../src/bot/guildRoute";
+import {
+  GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
+  GUILD_CREATION_NAME_PROMPT_HEADING,
+  GUILD_CREST_UPLOAD_PROMPT_HEADING,
+  GUILD_CUSTOM_EMOJI_PROMPT_HEADING,
+  GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING
+} from "../../src/bot/presenters/guildPresenter";
+
+const GUILD_FORCE_REPLY_PROMPTS = [
+  ["creation name", `${GUILD_CREATION_NAME_PROMPT_HEADING} · 🐈`],
+  ["creation description", `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🐈`],
+  ["profile description", `${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · 🐈`],
+  ["custom emoji", `${GUILD_CUSTOM_EMOJI_PROMPT_HEADING} · c`],
+  ["custom crest photo", `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`],
+  ["invitation target code", GUILD_INVITE_PROMPT_HEADING]
+] as const;
 
 describe("group-combat lock middleware", () => {
+  it("keeps legacy cached guild-button text behind the canonical combat lock", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const findLease = vi.fn().mockResolvedValue({
+      characterId: "character-1",
+      kind: "future-combat",
+      referenceId: "future-guild-lock"
+    });
+    registerCombatLockMiddleware(bot, {
+      combatLeases: { findActiveForTelegramUser: findLease },
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: () => Promise.resolve({ state: "none" }) }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate("🏰 Ґільдії"));
+
+    expect(findLease).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+  });
+
+  it.each([
+    "/guild",
+    "/guild_create",
+    "/guild_invite_code",
+    "/guild_invite inviteABC12",
+    "/guild_party",
+    "/guild_edit",
+    "/guild_leave",
+    "/guild_delete",
+    "/guild_transfer Учасник",
+    "/guild_promote Учасник",
+    "/guild_demote Учасник",
+    "/guild_kick Учасник",
+    "/start guild_inviteABC12",
+    "🏰 Ґільдії"
+  ])("keeps %s behind the pending-raid lock", async (text) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue({
+      state: "pending",
+      character: { name: "Лідерка" },
+      availableAt: new Date("2026-08-05T12:13:00.000Z"),
+      now: new Date("2026-08-05T12:00:00.000Z")
+    });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate(text));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends).toHaveLength(1);
+  });
+
+  it.each(["/guildhall", "/start guildish_inviteABC12"])(
+    "does not classify the unrelated route %s as guild activity",
+    async (text) => {
+      const calls = apiCalls();
+      const bot = testBot(calls.middleware);
+      const downstream = vi.fn();
+      const pending = vi.fn().mockResolvedValue({
+        state: "pending",
+        character: { name: "Лідерка" },
+        availableAt: new Date("2026-08-05T12:13:00.000Z"),
+        now: new Date("2026-08-05T12:00:00.000Z")
+      });
+      registerCombatLockMiddleware(bot, {
+        tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+        fight: { getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({ state: "no-character" }) }
+      } as unknown as BotServices);
+      bot.on("message", downstream);
+
+      await bot.handleUpdate(textUpdate(text));
+
+      expect(pending).not.toHaveBeenCalled();
+      expect(downstream).toHaveBeenCalledOnce();
+      expect(calls.sends).toHaveLength(0);
+    }
+  );
+
+  it("keeps ordinary guild routing reachable when no raid is pending", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue({ state: "none" });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+      fight: { getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({ state: "no-character" }) }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(textUpdate("/guild_create"));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(0);
+  });
+
+  it("blocks an invitation reply published before a pending raid without guild or delivery effects", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    let pendingActive = false;
+    const pending = vi.fn(() => Promise.resolve(pendingActive
+      ? pendingRaidResult()
+      : { state: "none" as const }));
+    const guildRepository = vi.fn();
+    const guildService = vi.fn();
+    const invitationDelivery = vi.fn();
+    const audit = vi.fn();
+    const profileMutation = vi.fn();
+    const creationIntentMutation = vi.fn();
+    const presenceMutation = vi.fn();
+
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending }
+    } as unknown as BotServices);
+    bot.on("message:text", async (ctx) => {
+      if (ctx.message.text === "publish invitation prompt") {
+        await ctx.reply(`${GUILD_INVITE_PROMPT_HEADING}\n\nВставте код.`);
+        return;
+      }
+      guildRepository();
+      guildService();
+      invitationDelivery();
+      audit();
+      profileMutation();
+      creationIntentMutation();
+      presenceMutation();
+    });
+
+    await bot.handleUpdate(textUpdate("publish invitation prompt"));
+    pendingActive = true;
+    await bot.handleUpdate(forceReplyUpdate(GUILD_INVITE_PROMPT_HEADING, "inviteABC12", 93));
+
+    expect(pending).toHaveBeenCalledOnce();
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(calls.sends).toHaveLength(2);
+    expect(calls.sends[0]?.text).toContain(GUILD_INVITE_PROMPT_HEADING);
+    expect(calls.sends[1]?.text).toContain("🍺 Ви зараз у рейді.");
+    expect(guildRepository).not.toHaveBeenCalled();
+    expect(guildService).not.toHaveBeenCalled();
+    expect(invitationDelivery).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+    expect(profileMutation).not.toHaveBeenCalled();
+    expect(creationIntentMutation).not.toHaveBeenCalled();
+    expect(presenceMutation).not.toHaveBeenCalled();
+  });
+
+  it("restores the canonical solo card when a profile reply follows a newly active combat", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    let combatActive = false;
+    const fightOverview = vi.fn(() => Promise.resolve(combatActive
+      ? activePersistentFightOverview()
+      : { state: "no-character" as const }));
+    const presenceMutation = vi.fn().mockResolvedValue(undefined);
+    const profileMutation = vi.fn();
+
+    registerCombatLockMiddleware(bot, {
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" })
+      },
+      fight: {
+        getFightOverviewForTelegramUser: fightOverview,
+        recordPersistentFightMessageReference: vi.fn().mockResolvedValue(undefined)
+      },
+      presence: { markAction: presenceMutation }
+    } as unknown as BotServices);
+    bot.on("message:text", async (ctx) => {
+      if (ctx.message.text === "publish profile prompt") {
+        await ctx.reply(`${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · 🐈\n\nНовий опис.`);
+        return;
+      }
+      profileMutation();
+    });
+
+    await bot.handleUpdate(textUpdate("publish profile prompt"));
+    combatActive = true;
+    await bot.handleUpdate(forceReplyUpdate(
+      `${GUILD_PROFILE_DESCRIPTION_PROMPT_HEADING} · 🐈`,
+      "Опис після початку бою",
+      93
+    ));
+
+    expect(fightOverview).toHaveBeenCalledOnce();
+    expect(profileMutation).not.toHaveBeenCalled();
+    expect(presenceMutation).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(2);
+    expect(calls.sends[1]?.text).toContain("⚔️ <b>Бій тримає вас за рукав</b>.");
+    expect(calls.sends[1]?.text).toContain("👹 Павук: 13/13");
+  });
+
+  it("restores the canonical group-combat card when a creation reply follows newly active group combat", async () => {
+    const session = activeSession();
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const creationIntentMutation = vi.fn();
+    const serviceSet = services(session, vi.fn().mockResolvedValue(true));
+    let groupCombatActive = false;
+    serviceSet.testSpies.findLease.mockImplementation(() => Promise.resolve(groupCombatActive
+      ? {
+          characterId: "character-1",
+          kind: "group-combat",
+          referenceId: session.id
+        }
+      : null));
+    Object.assign(serviceSet, {
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" })
+      }
+    });
+    registerCombatLockMiddleware(bot, serviceSet);
+    bot.on("message:text", async (ctx) => {
+      if (ctx.message.text === "publish creation prompt") {
+        await ctx.reply(`${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🐈\n\nОпишіть статут.`);
+        return;
+      }
+      creationIntentMutation();
+    });
+
+    await bot.handleUpdate(textUpdate("publish creation prompt"));
+    groupCombatActive = true;
+    await bot.handleUpdate(forceReplyUpdate(
+      `${GUILD_CREATION_DESCRIPTION_PROMPT_HEADING} · 🐈`,
+      "Опис після початку гуртового бою",
+      93
+    ));
+
+    expect(serviceSet.testSpies.findLease).toHaveBeenCalledOnce();
+    expect(serviceSet.testSpies.findGroupById).toHaveBeenCalledWith(session.id);
+    expect(creationIntentMutation).not.toHaveBeenCalled();
+    expect(calls.sends.some((call) => call.text.includes("<b>Бій</b>"))).toBe(true);
+  });
+
+  it.each(GUILD_FORCE_REPLY_PROMPTS)("routes the exact %s ForceReply heading through the pending-raid lock", async (_name, prompt) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue(pendingRaidResult());
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyUpdate(prompt));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends[0]?.text).toContain("🍺 Ви зараз у рейді.");
+  });
+
+  it.each(GUILD_FORCE_REPLY_PROMPTS)("lets the exact %s ForceReply flow continue when no lock exists", async (_name, prompt) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    registerCombatLockMiddleware(bot, {
+      tavern: {
+        getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" })
+      },
+      fight: {
+        getFightOverviewForTelegramUser: vi.fn().mockResolvedValue({ state: "no-character" })
+      }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyUpdate(prompt));
+
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(0);
+  });
+
+  it("blocks an exact custom-crest photo reply before pending-raid or combat-side mutations", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue(pendingRaidResult());
+    const findLease = vi.fn();
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+      combatLeases: { findActiveForTelegramUser: findLease }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyPhotoUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · c · customUploadToken13`
+    ));
+
+    expect(pending).toHaveBeenCalledWith(1001n);
+    expect(findLease).not.toHaveBeenCalled();
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends[0]?.text).toContain("🍺 Ви зараз у рейді.");
+  });
+
+  it("classifies a custom-crest photo reply as guild work when combat became active after prompt publication", async () => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const findLease = vi.fn().mockResolvedValue({
+      characterId: "character-1",
+      kind: "future-combat",
+      referenceId: "custom-crest-lock"
+    });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: vi.fn().mockResolvedValue({ state: "none" }) },
+      combatLeases: { findActiveForTelegramUser: findLease }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(forceReplyPhotoUpdate(
+      `${GUILD_CREST_UPLOAD_PROMPT_HEADING} · p · customUploadToken13`
+    ));
+
+    expect(findLease).toHaveBeenCalledWith(1001n);
+    expect(downstream).not.toHaveBeenCalled();
+    expect(calls.sends[0]?.text).toContain("не збігається");
+  });
+
+  it.each([
+    ["arbitrary text", textUpdate("Звичайна розмова")],
+    ["unrelated bot reply", forceReplyUpdate("🧭 Інша підказка", "Відповідь")]
+  ] as const)("does not lock %s", async (_name, update) => {
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const downstream = vi.fn();
+    const pending = vi.fn().mockResolvedValue(pendingRaidResult());
+    const findLease = vi.fn().mockResolvedValue({
+      characterId: "character-1",
+      kind: "group-combat",
+      referenceId: "group-session"
+    });
+    registerCombatLockMiddleware(bot, {
+      tavern: { getActivePendingFridayBarrelRaidForTelegramUser: pending },
+      combatLeases: { findActiveForTelegramUser: findLease }
+    } as unknown as BotServices);
+    bot.on("message", downstream);
+
+    await bot.handleUpdate(update);
+
+    expect(pending).not.toHaveBeenCalled();
+    expect(findLease).not.toHaveBeenCalled();
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(0);
+  });
+
   it.each([
     ["turn-based-duel", "duel"],
     ["party-boss", "partyBoss"],
@@ -428,6 +794,134 @@ function commandUpdate(type: "private" | "supergroup") {
       text: "/adventure",
       entities: [{ type: "bot_command" as const, offset: 0, length: 10 }]
     }
+  };
+}
+
+function textUpdate(text: string) {
+  return {
+    update_id: 587,
+    message: {
+      message_id: 587,
+      date: 1,
+      chat: { id: 1001, type: "private" as const },
+      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
+      text
+    }
+  };
+}
+
+function forceReplyUpdate(prompt: string, text = "Відповідь", promptMessageId = 586) {
+  const update = textUpdate(text);
+  return {
+    ...update,
+    update_id: update.update_id + 1,
+    message: {
+      ...update.message,
+      message_id: update.message.message_id + 1,
+      date: update.message.date + 1,
+      reply_to_message: {
+        message_id: promptMessageId,
+        date: update.message.date,
+        chat: update.message.chat,
+        from: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" },
+        text: `${prompt}\n\nОпублікована раніше підказка.`
+      }
+    }
+  };
+}
+
+function forceReplyPhotoUpdate(prompt: string, promptMessageId = 586) {
+  const update = forceReplyUpdate(prompt, "", promptMessageId);
+  return {
+    ...update,
+    message: {
+      ...update.message,
+      text: undefined,
+      photo: [{ file_id: "secret-file", file_unique_id: "secret-unique", width: 512, height: 512 }]
+    }
+  };
+}
+
+function pendingRaidResult() {
+  return {
+    state: "pending" as const,
+    character: persistentFightCharacter(),
+    periodId: "12026-08-06",
+    availableAt: new Date("2026-08-06T12:13:00.000Z"),
+    now: new Date("2026-08-06T12:00:00.000Z")
+  };
+}
+
+function activePersistentFightOverview() {
+  const now = new Date("2026-08-06T12:00:00.000Z");
+  return {
+    state: "persistent-active" as const,
+    character: persistentFightCharacter(),
+    session: {
+      id: "solo-session-13",
+      characterId: "character-1",
+      monsterId: "monster.deadline-spider",
+      status: "active" as const,
+      turn: 1,
+      reward: null,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: new Date("2026-08-06T12:23:00.000Z"),
+      state: {
+        id: "solo-session-13",
+        source: "normal" as const,
+        originLocationId: "location.korchma.deep.level1.straight",
+        status: "active" as const,
+        turn: 1,
+        hero: { hp: 23, hpMax: 23, mana: 13, manaMax: 13 },
+        monster: { id: "monster.deadline-spider", hp: 13, hpMax: 13 }
+      }
+    },
+    monster: {
+      id: "monster.deadline-spider",
+      name: "Павук дедлайнів",
+      description: "Плете павутину з «сьогодні швиденько».",
+      level: 2,
+      tags: ["beast", "time", "web"]
+    },
+    questProgress: null
+  };
+}
+
+function persistentFightCharacter() {
+  return {
+    name: "Лідерка",
+    pronoun: "she" as const,
+    pronounLabel: "Вона",
+    path: "boundary" as const,
+    raceId: "race.human-ish",
+    raceName: "Людисько",
+    classId: "class.warrior",
+    className: "Воїн",
+    title: "Пересічні Пригодники",
+    level: 7,
+    xp: 0,
+    nextLevelXp: 100,
+    xpToNextLevel: 100,
+    gold: 587,
+    hpCurrent: 23,
+    hpMax: 23,
+    manaCurrent: 13,
+    manaMax: 13,
+    stats: {
+      strength: 5,
+      dexterity: 5,
+      intelligence: 5,
+      charisma: 5,
+      luck: 5
+    },
+    levelBonus: {
+      hpMax: 0,
+      manaMax: 0,
+      primaryStat: { stat: "strength" as const, bonus: 0 }
+    },
+    combat: { attack: 5, defense: 5 },
+    equipment: []
   };
 }
 

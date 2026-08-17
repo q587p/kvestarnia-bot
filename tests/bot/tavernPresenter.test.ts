@@ -264,8 +264,16 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🪜 Спуск до Низу");
     expect(text).toContain("За бочками в коморі є сходи.");
+    expect(text).not.toContain("Гнізда ґільдій");
     expect(text).not.toContain("Манчкін-скупник");
     expect(text).not.toContain("Ярус I: Сутерени Корчми");
+  });
+
+  it("points from the Nyz descent to the Guild Nest only while its entrance is available", () => {
+    const text = presentKorchmaDeepClosed(character, { guildFoundationEnabled: true });
+
+    expect(text).toContain("низький прохід до 🪺 Гнізда ґільдій");
+    expect(text).toContain("лавами, гербами й поштовими щілинами");
   });
 
   it("shows Munchkin at the Nyz descent at night", () => {
@@ -281,6 +289,7 @@ describe("tavern presenter", () => {
       day: [{
         characterId: "character-1",
         name: "<b>Дара</b>",
+        guildCrest: "🐸",
         activeCosmeticTitle: "Перший <пергамент> не зʼїв",
         winCount: 2,
         drawCount: 1,
@@ -294,7 +303,7 @@ describe("tavern presenter", () => {
     expect(text).not.toContain("<b>Мандрівник</b>");
     expect(text).not.toContain("Пересічний Пригодник");
     expect(text).toContain("<b>За добу</b>:");
-    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("1. 🐸 &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не переміг");
     expect(text).toContain("1. Нестор — 5 перемог, 2 нічиї, 1 поразка");
     expect(text).not.toContain("<b>Дара</b>");
@@ -330,6 +339,7 @@ describe("tavern presenter", () => {
       standings: [{
         characterId: "character-1",
         name: "Дара",
+        guildCrest: "🐸",
         points: 5,
         wins: 2,
         draws: 1,
@@ -339,6 +349,7 @@ describe("tavern presenter", () => {
       previousWinners: [{
         characterId: "character-2",
         name: "Нестор",
+        guildCrest: "🦉",
         points: 3,
         wins: 1,
         draws: 0,
@@ -398,11 +409,12 @@ describe("tavern presenter", () => {
     expect(text).toContain("🏆 Турніри");
     expect(text).toContain("Період: 12026-07-08");
     expect(text).toContain("Ваші очки: <b>5</b>, місце 1");
-    expect(text).toContain("1. Дара — 5 оч., 2 перем., 1 ніч.");
+    expect(text).toContain("1. 🐸 Дара — 5 оч., 2 перем., 1 ніч.");
     expect(text).toContain("🎁 <b>На вас чекають нагороди</b>: 1");
     expect(text).toContain("🥇 Денний турнір — 12026-07-07");
     expect(text).toContain("Приз: 3 зол., 1 шт. «Бинт відповідальної паніки».");
     expect(text).toContain("<b>Попередні переможці</b> (12026-07-07):");
+    expect(text).toContain("1. 🦉 Нестор — 3 оч.");
     expect(text).not.toContain("Період: 2026-");
     expect(text).not.toContain("пораз");
   });
@@ -1235,7 +1247,7 @@ describe("tavern presenter", () => {
 
     expect(text).toContain("🍺 Рейдовий доступ до рейтингу");
     expect(text).toContain("Рейтинг щедрості");
-    expect(text).toContain("Мандрівник — 2 частування · 110 золота");
+    expect(text).toContain("🐸 Мандрівник — 2 частування · 110 золота");
     expect(text).not.toContain("Списано");
   });
 
@@ -1268,6 +1280,7 @@ const roundLeaderboard = {
     {
       characterId: "character-42",
       name: "Мандрівник",
+      guildCrest: "🐸",
       roundCount: 2,
       spentGold: 110
     }
@@ -1276,6 +1289,7 @@ const roundLeaderboard = {
     {
       characterId: "character-42",
       name: "Мандрівник",
+      guildCrest: "🐸",
       roundCount: 2,
       spentGold: 110
     }
@@ -1284,6 +1298,7 @@ const roundLeaderboard = {
     {
       characterId: "character-42",
       name: "Мандрівник",
+      guildCrest: "🐸",
       roundCount: 2,
       spentGold: 110
     }

@@ -7,6 +7,8 @@ import { makeItemGiftOpenCallbackData } from "../callbacks/itemGiftCallbackData"
 import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackData";
 import { makeClassNoncombatOpenCallbackData } from "../callbacks/classNoncombatCallbackData";
 import { makeNearbyDuelOpenCallbackData } from "../callbacks/nearbyDuelCallbackData";
+import { makeGuildNearbyInviteOpenCallbackData } from "../callbacks/guildCallbackData";
+import type { GuildService } from "../../services/guildService";
 import {
   makePartySessionJoinCallbackData,
   makePartySessionNearbyOpenCallbackData
@@ -35,6 +37,7 @@ export interface OnlineCommandOptions {
   classNoncombatEnabled?: boolean;
   duelEnabled?: boolean;
   itemGiftEnabled?: boolean;
+  guilds?: Pick<GuildService, "getNearbyInviteCandidatesForTelegramUser"> | undefined;
   partySessions?: PartySessionService | undefined;
   tavernGames?: Pick<TavernGameService, "getHub"> | undefined;
 }
@@ -127,6 +130,17 @@ async function buildNearbyActionsKeyboard(
   if (hasNearby && (await hasLiveParty(options.partySessions, telegramUserId))) {
     keyboard.text("🧭 Покликати у ватагу", makePartySessionNearbyOpenCallbackData()).row();
     hasActions = true;
+  }
+
+  if (hasNearby && options.guilds) {
+    const nearbyGuildInvites = await options.guilds.getNearbyInviteCandidatesForTelegramUser(
+      telegramUserId,
+      activeNearbyTelegramUserIds(snapshot, telegramUserId)
+    );
+    if (nearbyGuildInvites.state === "ready" && nearbyGuildInvites.candidates.length > 0) {
+      keyboard.text("✉️ Запросити до ґільдії", makeGuildNearbyInviteOpenCallbackData()).row();
+      hasActions = true;
+    }
   }
 
   if (hasNearby && options.duelEnabled) {
@@ -272,4 +286,15 @@ function hasOtherActiveNearby(
     snapshot.state === "ready" &&
     snapshot.location.people.active.some((person) => person.telegramUserId !== telegramUserId)
   );
+}
+
+function activeNearbyTelegramUserIds(
+  snapshot: Awaited<ReturnType<PresenceService["getOnlineForTelegramUser"]>>,
+  telegramUserId: bigint
+): bigint[] {
+  return snapshot.state === "ready"
+    ? snapshot.location.people.active
+        .filter((person) => person.telegramUserId !== telegramUserId)
+        .map((person) => person.telegramUserId)
+    : [];
 }

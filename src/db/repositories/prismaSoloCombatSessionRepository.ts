@@ -2712,7 +2712,15 @@ function parseResourceBlock(value: unknown): CombatState["hero"] | null {
 
   return hp === null || hpMax === null || mana === null || manaMax === null
     ? null
-    : { hp, hpMax, mana, manaMax };
+    : {
+        hp,
+        hpMax,
+        mana,
+        manaMax,
+        ...(typeof value.guildCrest === "string" && value.guildCrest.length > 0
+          ? { guildCrest: value.guildCrest }
+          : {})
+      };
 }
 
 function parseMonsterBlock(value: unknown): CombatState["monster"] | null {

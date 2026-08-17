@@ -19,6 +19,7 @@ import type {
   UpdateTurnBasedDuelSessionInput,
   ResolvedDuelChallengeRecord
 } from "./duelChallengeRepository";
+import { readLiveGuildCrest } from "./guildIdentityRead";
 import type { UpdateCharacterResourcesInput } from "./characterRepository";
 import type { CharacterEquipmentRecord } from "./equipmentRepository";
 import {
@@ -56,7 +57,7 @@ import { freezeBardInspirationFromCooldown } from "./prismaBardSupport";
 
 type DuelChallengeWithCharacters = Awaited<ReturnType<typeof findChallengeByToken>>;
 type DuelCombatSessionWithChallenge =
-  | Prisma.DuelCombatSessionGetPayload<{ include: typeof sessionInclude }>
+  | Prisma.DuelCombatSessionGetPayload<{ include: ReturnType<typeof buildSessionInclude> }>
   | null;
 
 class QuickDuelCombatBlockedError extends Error {
@@ -82,11 +83,18 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
+  private readonly characterInclude: ReturnType<typeof buildCharacterInclude>;
+  private readonly sessionInclude: ReturnType<typeof buildSessionInclude>;
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
-    private readonly rng: RandomSource = new CryptoRandomSource()
-  ) {}
+    private readonly rng: RandomSource = new CryptoRandomSource(),
+    guildIdentityEnabled = false
+  ) {
+    this.characterInclude = buildCharacterInclude(guildIdentityEnabled);
+    this.sessionInclude = buildSessionInclude(this.characterInclude);
+  }
 
   async createOpenForTelegramUser(
     telegramUserId: bigint,
@@ -311,7 +319,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
   }
 
   async findByToken(inviteToken: string): Promise<DuelChallengeRecord | null> {
-    return mapChallenge(await findChallengeByToken(this.prisma, inviteToken));
+    return mapChallenge(await findChallengeByToken(this.prisma, inviteToken, this.characterInclude));
   }
 
   async listResolvedSince(since: Date): Promise<ResolvedDuelChallengeRecord[]> {
@@ -329,8 +337,8 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
         }
       },
       include: {
-        challenger: characterInclude,
-        target: characterInclude
+        challenger: this.characterInclude,
+        target: this.characterInclude
       },
       orderBy: {
         resolvedAt: "desc"
@@ -378,7 +386,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           telegramUserId
         }
       },
-      ...characterInclude
+      ...this.characterInclude
     });
 
     if (!character) {
@@ -834,7 +842,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           targetChatId: input.targetChatId ?? null,
           targetMessageId: input.targetMessageId ?? null
         },
-        include: sessionInclude
+        include: this.sessionInclude
       });
 
       return { record, transitioned: true };
@@ -907,7 +915,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       orderBy: {
         updatedAt: "desc"
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return this.mapDuelCombatSession(session);
@@ -926,7 +934,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           { targetCharacterId: characterId }
         ]
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return this.mapDuelCombatSession(session);
@@ -946,7 +954,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           { target: { user: { telegramUserId } } }
         ]
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return this.mapDuelCombatSession(session);
@@ -959,7 +967,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
           inviteToken
         }
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return this.mapDuelCombatSession(session);
@@ -1118,7 +1126,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
 
       return tx.duelCombatSession.findUnique({
         where: { id: sessionId },
-        include: sessionInclude
+        include: this.sessionInclude
       });
     });
 
@@ -1137,7 +1145,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       orderBy: {
         turnExpiresAt: "asc"
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return sessions
@@ -1175,7 +1183,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
     const session = await this.prisma.duelCombatSession.findUnique({
       where: { id: sessionId },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return {
@@ -1213,7 +1221,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
     });
     const session = await this.prisma.duelCombatSession.findUnique({
       where: { id: sessionId },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     return {
@@ -1231,7 +1239,7 @@ export class PrismaDuelChallengeRepository implements DuelChallengeRepository {
       where: {
         status: "active"
       },
-      include: sessionInclude
+      include: this.sessionInclude
     });
 
     for (const session of activeSessions) {
@@ -1511,7 +1519,11 @@ async function awardTurnBasedDuelXp(
   await hpRecoveryProducer.record(tx, character.id, now, "recovering");
 }
 
-async function findChallengeByToken(prisma: PrismaClient, inviteToken: string) {
+async function findChallengeByToken(
+  prisma: PrismaClient,
+  inviteToken: string,
+  characterInclude: ReturnType<typeof buildCharacterInclude>
+) {
   return prisma.duelChallenge.findUnique({
     where: {
       inviteToken
@@ -1523,31 +1535,55 @@ async function findChallengeByToken(prisma: PrismaClient, inviteToken: string) {
   });
 }
 
-const characterInclude = {
-  include: {
-    user: {
-      select: {
-        lastSeenLocationId: true,
-        telegramUserId: true
-      }
-    },
-    equipment: true,
-    _count: {
-      select: {
-        remorts: true
-      }
-    }
-  }
-} satisfies Prisma.CharacterDefaultArgs;
-
-const sessionInclude = {
-  duelChallenge: {
+function buildCharacterInclude(guildIdentityEnabled: boolean) {
+  return {
     include: {
-      challenger: characterInclude,
-      target: characterInclude
+      user: {
+        select: {
+          lastSeenLocationId: true,
+          telegramUserId: true,
+          ...(guildIdentityEnabled
+            ? {
+                guildMemberships: {
+                  where: { leftAt: null, activeUserKey: { not: null } },
+                  select: {
+                    leftAt: true,
+                    activeUserKey: true,
+                    guild: {
+                      select: {
+                        crest: true,
+                        status: true,
+                        charterExpiresAt: true,
+                        disbandedAt: true
+                      }
+                    }
+                  },
+                  take: 1
+                }
+              }
+            : {})
+        }
+      },
+      equipment: true,
+      _count: {
+        select: {
+          remorts: true
+        }
+      }
     }
-  }
-} satisfies Prisma.DuelCombatSessionInclude;
+  } satisfies Prisma.CharacterDefaultArgs;
+}
+
+function buildSessionInclude(characterInclude: ReturnType<typeof buildCharacterInclude>) {
+  return {
+    duelChallenge: {
+      include: {
+        challenger: characterInclude,
+        target: characterInclude
+      }
+    }
+  } satisfies Prisma.DuelCombatSessionInclude;
+}
 
 function mapChallenge(record: DuelChallengeWithCharacters): DuelChallengeRecord | null {
   if (!record) {
@@ -1661,7 +1697,20 @@ function isResolvedDuelChallengeRecord(
 
 function mapCharacter(
   record: Character & {
-    user: { lastSeenLocationId: string | null; telegramUserId: bigint };
+    user: {
+      lastSeenLocationId: string | null;
+      telegramUserId: bigint;
+      guildMemberships?: Array<{
+        leftAt: Date | null;
+        activeUserKey: string | null;
+        guild?: {
+          crest: string;
+          status: string;
+          charterExpiresAt: Date;
+          disbandedAt: Date | null;
+        };
+      }>;
+    };
     equipment: CharacterEquipment[];
     _count?: { remorts?: number };
   },
@@ -1673,11 +1722,13 @@ function mapCharacter(
   const activeEquipment = equipmentAt
     ? getActiveEquipmentRows({ rows: equipment, actionPayloads: attunementPayloads, now: equipmentAt })
     : equipment;
+  const guildCrest = readLiveGuildCrest(user.guildMemberships, new Date());
 
   return {
     ...character,
     telegramUserId: user.telegramUserId,
     currentLocationId: user.lastSeenLocationId,
+    ...(guildCrest ? { guildCrest } : {}),
     remortCount: getIncludedRemortCount(record),
     equipment: activeEquipment.map(mapEquipment)
   };
@@ -1841,6 +1892,7 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   const characterId = stringOrNull(value.characterId);
   const displayName = stringOrNull(value.displayName);
   const activeCosmeticTitle = stringOrNull(value.activeCosmeticTitle);
+  const guildCrest = stringOrNull(value.guildCrest);
   const title = stringOrNull(value.title);
   const raceId = stringOrNull(value.raceId);
   const raceName = stringOrNull(value.raceName);
@@ -1902,6 +1954,7 @@ function parseTurnBasedParticipant(value: unknown): TurnBasedDuelState["particip
   return {
     characterId,
     displayName,
+    ...(guildCrest ? { guildCrest } : {}),
     ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
     title,
     raceId,
@@ -2443,6 +2496,7 @@ function parseParticipant(value: unknown): DuelResultParticipantSnapshot | null 
   const characterId = stringOrNull(value.characterId);
   const displayName = stringOrNull(value.displayName);
   const activeCosmeticTitle = stringOrNull(value.activeCosmeticTitle);
+  const guildCrest = stringOrNull(value.guildCrest);
   const title = stringOrNull(value.title);
   const raceId = stringOrNull(value.raceId);
   const raceName = stringOrNull(value.raceName);
@@ -2456,6 +2510,7 @@ function parseParticipant(value: unknown): DuelResultParticipantSnapshot | null 
   return {
     characterId,
     displayName,
+    ...(guildCrest ? { guildCrest } : {}),
     ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
     title,
     raceId,

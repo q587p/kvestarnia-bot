@@ -290,6 +290,12 @@ describe("presence routing", () => {
     expect(getTextPresenceContext("/start@kvestarnia_test_bot")).toEqual({});
   });
 
+  it("renews guild browsing only while the rollout is enabled", () => {
+    expect(getCallbackPresenceContext("v1:g:no")).toBeNull();
+    expect(getCallbackPresenceContext("v1:g:no", { guildFoundationEnabled: true })).toEqual({});
+    expect(getCallbackPresenceContext("v1:g:dl:0", { guildFoundationEnabled: true })).toEqual({});
+  });
+
   it.each([
     "🍺 Корчма",
     "Квести",
@@ -297,6 +303,7 @@ describe("presence routing", () => {
     "👤 Персонаж",
     "🛡️ Спорядження",
     "🎒 Манатки",
+    mainMenuButtons.guild,
     "👀 Хто поруч",
     "📖 Допомога",
     mainMenuButtons.admin

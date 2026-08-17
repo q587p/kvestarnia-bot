@@ -59,6 +59,7 @@ export interface FightCommandOptions {
   presence: PresenceService;
   tavernRaid?: TavernRaidService;
   passageSearch?: PassageSearchService | undefined;
+  guildFoundationEnabled?: boolean;
 }
 
 export function registerFightCommand(
@@ -238,8 +239,20 @@ export async function sendFight(
         PASSAGE_SEARCH_NODE_DESCENT
       );
       await sendResultText(
-        presentKorchmaDeepClosed(result.character, { munchkinLocation }),
-        { type: "deep", munchkinLocation, searchAvailable }
+        presentKorchmaDeepClosed(result.character, {
+          munchkinLocation,
+          ...(options?.guildFoundationEnabled === undefined
+            ? {}
+            : { guildFoundationEnabled: options.guildFoundationEnabled })
+        }),
+        {
+          type: "deep",
+          munchkinLocation,
+          searchAvailable,
+          ...(options?.guildFoundationEnabled === undefined
+            ? {}
+            : { guildFoundationEnabled: options.guildFoundationEnabled })
+        }
       );
       return;
     }
@@ -371,7 +384,7 @@ async function sendText(
     | false
     | "enter-korchma"
     | "deep"
-    | { type: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
+    | { type: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean; guildFoundationEnabled?: boolean }
     | "persistent-difficulty"
     | { type: "persistent-difficulty"; searchAvailable?: boolean }
     | "persistent-ready"
@@ -406,7 +419,10 @@ async function sendText(
                       : { munchkinLocation: keyboard.munchkinLocation }),
                     ...(keyboard.searchAvailable === undefined
                       ? {}
-                      : { searchAvailable: keyboard.searchAvailable })
+                      : { searchAvailable: keyboard.searchAvailable }),
+                    ...(keyboard.guildFoundationEnabled === undefined
+                      ? {}
+                      : { guildFoundationEnabled: keyboard.guildFoundationEnabled })
                   }
                 )
             : keyboard === "persistent-difficulty"

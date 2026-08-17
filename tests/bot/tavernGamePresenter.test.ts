@@ -66,7 +66,8 @@ describe("tavern game presenter", () => {
           stakeGold: 13,
           creator: {
             ...session().creator,
-            name: "Shannar de Kassal"
+            name: "Shannar de Kassal",
+            guildCrest: "🐸"
           },
           result: startQuickDicePoker("hub-doppelganger"),
           participants: [participant({
@@ -81,7 +82,7 @@ describe("tavern game presenter", () => {
     });
 
     expect(text).toContain("Столи зараз:");
-    expect(text).toContain("• ⚡ Швидкі кості з Допельґанґером · ставка 13 зол. · грає Shannar de Kassal");
+    expect(text).toContain("• ⚡ Швидкі кості з Допельґанґером · ставка 13 зол. · грає 🐸 Shannar de Kassal");
     expect(text).not.toContain("1/7");
     expect(text).not.toContain("Поки що ніхто не тримає стіл.");
   });
@@ -820,6 +821,7 @@ describe("tavern game presenter", () => {
         day: [{
           characterId: "character-1",
           name: "<b>Дара</b>",
+          guildCrest: "🐸",
           activeCosmeticTitle: "Перший <стіл>",
           winCount: 2,
           drawCount: 1,
@@ -833,7 +835,7 @@ describe("tavern game presenter", () => {
     expect(text).toContain("🏆 Рейтинг ігор за столом");
     expect(text).toContain("Корчмар рахує завершені тавлеї та кості");
     expect(text).toContain("<b>За добу</b>:");
-    expect(text).toContain("1. &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;стіл&gt;»</i>) — 2 перемоги, 1 нічия, 5 поразок");
+    expect(text).toContain("1. 🐸 &lt;b&gt;Дара&lt;/b&gt; (<i>«Перший &lt;стіл&gt;»</i>) — 2 перемоги, 1 нічия, 5 поразок");
     expect(text).toContain("<b>За тиждень</b>: ще ніхто не дограв");
     expect(text).toContain("1. Нестор — 11 перемог, 12 нічиїх, 14 поразок");
     expect(text).not.toContain("<b>Дара</b>");

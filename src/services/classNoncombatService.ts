@@ -9,6 +9,7 @@ import type {
   VarenykPlanningSnapshot
 } from "../db/repositories/classNoncombatRepository";
 import type { CharacterRecord } from "../db/repositories/characterRepository";
+import type { GuildRepository } from "../db/repositories/guildRepository";
 import type { EquipmentRepository } from "../db/repositories/equipmentRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
@@ -132,7 +133,8 @@ export class ClassNoncombatService {
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
     private readonly achievements?: AchievementService,
-    private readonly equipment?: Pick<EquipmentRepository, "listByTelegramUserId">
+    private readonly equipment?: Pick<EquipmentRepository, "listByTelegramUserId">,
+    private readonly guildIdentity?: Required<Pick<GuildRepository, "getLiveCrestsForCharacterIds">>
   ) {}
 
   async openForTelegramUser(
@@ -164,6 +166,10 @@ export class ClassNoncombatService {
     if (!snapshot) {
       return { state: "no-character" };
     }
+    await this.attachGuildCrests(
+      [snapshot.character, ...snapshot.targets.map((target) => target.character)],
+      now
+    );
 
     const character = mode === "rogue"
       ? summarizeCharacterForOpenList(snapshot.character)
@@ -592,6 +598,7 @@ export class ClassNoncombatService {
     character: CharacterRecord,
     now: Date
   ): Promise<EffectiveClassNoncombatCharacter> {
+    await this.attachGuildCrests([character], now);
     const [equipmentSnapshot, activeBlessing] = await Promise.all([
       this.equipment?.listByTelegramUserId(telegramUserId) ?? Promise.resolve(null),
       this.repository.getActivePriestBlessingForTelegramUser(telegramUserId, now)
@@ -630,6 +637,18 @@ export class ClassNoncombatService {
       equippedItemIds: equippedItems.map((item) => item.id),
       activePriestBlessing: activeBlessing
     };
+  }
+
+  private async attachGuildCrests(characters: CharacterRecord[], now: Date): Promise<void> {
+    if (!this.guildIdentity || characters.length === 0) return;
+    const crests = await this.guildIdentity.getLiveCrestsForCharacterIds(
+      characters.map((character) => character.id),
+      now
+    );
+    for (const character of characters) {
+      const crest = crests.get(character.id);
+      if (crest) character.guildCrest = crest;
+    }
   }
 }
 

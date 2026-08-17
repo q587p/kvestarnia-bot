@@ -11,16 +11,23 @@ import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
+import { isAuthoritativeLivePartySession } from "./partySessionRepository";
+import { readLiveGuildCrest } from "./guildIdentityRead";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
   | { state: "insufficient"; character: CharacterRecord };
 
 export class PrismaCharacterRepository implements CharacterRepository, RestartRepository {
+  private readonly characterRecordInclude: ReturnType<typeof buildCharacterRecordInclude>;
+
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
-  ) {}
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    guildIdentityEnabled = false
+  ) {
+    this.characterRecordInclude = buildCharacterRecordInclude(guildIdentityEnabled);
+  }
 
   async findByUserId(userId: string): Promise<CharacterRecord | null> {
     const character = await this.prisma.character.findUnique({
@@ -28,7 +35,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         userId
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -48,7 +55,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         }
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -87,9 +94,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
             telegramUserId
           }
         },
-        select: {
-          id: true
-        }
+        select: { id: true }
       });
 
       if (!character) {
@@ -107,6 +112,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
   }
 
   async restartByTelegramUserId(telegramUserId: bigint): Promise<RestartCharacterResult> {
+    const now = new Date();
     return this.prisma.$transaction(async (tx) => {
       const character = await tx.character.findFirst({
         where: {
@@ -115,12 +121,26 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         select: {
-          id: true
+          id: true,
+          activeCombatLease: { select: { id: true } }
         }
       });
 
       if (!character) {
         return "no-character";
+      }
+
+      if (character.activeCombatLease) {
+        return "active-combat";
+      }
+
+      const activeGroupCombat = await countActiveGroupCombats(tx, character.id);
+      if (activeGroupCombat > 0) {
+        return "active-combat";
+      }
+
+      if (await hasAuthoritativePartyParticipation(tx, character.id, now)) {
+        return "active-party";
       }
 
       await reanchorTerminalPartyBossHistory(tx, character.id);
@@ -149,7 +169,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         }
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -207,7 +227,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
             id: character.id
           },
           include: {
-            ...characterRecordInclude
+            ...this.characterRecordInclude
           }
         });
 
@@ -261,7 +281,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
         const record = await tx.character.findUnique({
           where: { id: character.id },
-          include: { ...characterRecordInclude }
+          include: { ...this.characterRecordInclude }
         });
         return record ? toCharacterRecord(record) : null;
       });
@@ -276,7 +296,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
         },
-        include: { ...characterRecordInclude }
+        include: { ...this.characterRecordInclude }
       });
       return toCharacterRecord(updated);
     }
@@ -290,7 +310,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
         },
-        include: { ...characterRecordInclude }
+        include: { ...this.characterRecordInclude }
       });
       await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
       return toCharacterRecord(updated);
@@ -336,7 +356,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         where: {
           userId: user.id
         },
-        include: characterRecordInclude
+        include: this.characterRecordInclude
       });
 
       if (existing) {
@@ -384,7 +404,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         include: {
-          ...characterRecordInclude
+          ...this.characterRecordInclude
         }
       });
 
@@ -409,7 +429,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         include: {
-          ...characterRecordInclude
+          ...this.characterRecordInclude
         }
       });
 
@@ -419,6 +439,75 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
       };
     });
   }
+}
+
+async function countActiveGroupCombats(
+  tx: Prisma.TransactionClient,
+  characterId: string
+): Promise<number> {
+  try {
+    return await tx.groupCombatSession.count({
+      where: {
+        status: "active",
+        participants: { some: { characterId } }
+      }
+    });
+  } catch (error) {
+    if (isPrismaSchemaCompatibilityError(error, "GroupCombatSession", ["P2021"])) {
+      return 0;
+    }
+    throw error;
+  }
+}
+
+async function hasAuthoritativePartyParticipation(
+  tx: Prisma.TransactionClient,
+  characterId: string,
+  now: Date
+): Promise<boolean> {
+  const where = {
+    status: { in: ["recruiting", "active"] },
+    OR: [
+      { leaderCharacterId: characterId },
+      { participants: { some: { characterId, status: "joined" } } }
+    ]
+  } satisfies Prisma.PartySessionWhereInput;
+  try {
+    const sessions = await tx.partySession.findMany({
+      where,
+      select: { status: true, expiresAt: true, originLocationId: true, originKind: true }
+    });
+    return sessions.some((session) => isAuthoritativeLivePartySession(session, now));
+  } catch (error) {
+    if (isPrismaSchemaCompatibilityError(error, "PartySession", ["P2021"])) {
+      return false;
+    }
+    if (!isPrismaSchemaCompatibilityError(error, "PartySession", ["P2022"])) {
+      throw error;
+    }
+    const sessions = await tx.partySession.findMany({
+      where,
+      select: { status: true, expiresAt: true, originLocationId: true }
+    });
+    return sessions.some((session) => isAuthoritativeLivePartySession({ ...session, originKind: null }, now));
+  }
+}
+
+function isPrismaSchemaCompatibilityError(
+  error: unknown,
+  modelName: string,
+  codes: readonly string[]
+): boolean {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    codes.includes(error.code) &&
+    "meta" in error &&
+    typeof error.meta === "object" &&
+    error.meta !== null &&
+    "modelName" in error.meta &&
+    error.meta.modelName === modelName;
 }
 
 async function reanchorTerminalPartyBossHistory(
@@ -465,32 +554,69 @@ async function reanchorTerminalPartyBossHistory(
   }
 }
 
-const characterRecordInclude = {
-  user: {
-    select: {
-      telegramUserId: true,
-      lastSeenLocationId: true
+function buildCharacterRecordInclude(guildIdentityEnabled: boolean) {
+  return {
+    user: {
+      select: {
+        telegramUserId: true,
+        lastSeenLocationId: true,
+        ...(guildIdentityEnabled
+          ? {
+              guildMemberships: {
+                where: { leftAt: null, activeUserKey: { not: null } },
+                select: {
+                  leftAt: true,
+                  activeUserKey: true,
+                  guild: {
+                    select: {
+                      crest: true,
+                      status: true,
+                      charterExpiresAt: true,
+                      disbandedAt: true
+                    }
+                  }
+                },
+                take: 1
+              }
+            }
+          : {})
+      }
+    },
+    _count: {
+      select: {
+        remorts: true
+      }
     }
-  },
-  _count: {
-    select: {
-      remorts: true
-    }
-  }
-} satisfies Prisma.CharacterInclude;
+  } satisfies Prisma.CharacterInclude;
+}
 
 function toCharacterRecord(
   character: Character & {
-    user: { telegramUserId: bigint; lastSeenLocationId: string | null };
+    user: {
+      telegramUserId: bigint;
+      lastSeenLocationId: string | null;
+      guildMemberships?: Array<{
+        leftAt: Date | null;
+        activeUserKey: string | null;
+        guild?: {
+          crest: string;
+          status: string;
+          charterExpiresAt: Date;
+          disbandedAt: Date | null;
+        };
+      }>;
+    };
     _count?: { remorts?: number };
   }
 ): CharacterRecord {
   const { user, ...record } = character;
   delete (record as { _count?: unknown })._count;
+  const guildCrest = readLiveGuildCrest(user.guildMemberships, new Date());
 
   return {
     ...record,
     currentLocationId: user.lastSeenLocationId,
+    ...(guildCrest ? { guildCrest } : {}),
     remortCount: getIncludedRemortCount(character)
   };
 }

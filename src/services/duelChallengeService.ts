@@ -65,6 +65,7 @@ export interface DuelPairLimit {
 export interface DuelLeaderboardEntry {
   characterId: string;
   name: string;
+  guildCrest?: string;
   activeCosmeticTitle?: string | null;
   winCount: number;
   drawCount: number;
@@ -1524,6 +1525,7 @@ function getOrCreateLeaderboardEntry(
   const next = {
     characterId: character.id,
     name: snapshotName ?? character.name,
+    ...(character.guildCrest ? { guildCrest: character.guildCrest } : {}),
     ...(snapshotActiveCosmeticTitle ? { activeCosmeticTitle: snapshotActiveCosmeticTitle } : {}),
     winCount: 0,
     drawCount: 0,
@@ -1611,6 +1613,7 @@ function summarizeDuelCharacterWithResultSnapshot(
   const replay = {
     ...summaryWithoutLiveRemort,
     name: snapshot.displayName,
+    ...(snapshot.guildCrest ? { guildCrest: snapshot.guildCrest } : {}),
     title: snapshot.title,
     raceId: snapshot.raceId,
     raceName: snapshot.raceName,
@@ -1717,6 +1720,7 @@ function buildStoredTurnBasedParticipantSnapshot(
   return {
     characterId: participant.characterId,
     displayName: participant.displayName,
+    ...(participant.guildCrest ? { guildCrest: participant.guildCrest } : {}),
     ...(participant.activeCosmeticTitle ? { activeCosmeticTitle: participant.activeCosmeticTitle } : {}),
     title: participant.title,
     raceId: participant.raceId,
@@ -1731,6 +1735,7 @@ function buildStoredTurnBasedParticipantSnapshot(
 function summarizeTurnBasedParticipant(participant: TurnBasedDuelParticipantSnapshot): CharacterSummary {
   return {
     name: participant.displayName,
+    ...(participant.guildCrest ? { guildCrest: participant.guildCrest } : {}),
     ...(participant.activeCosmeticTitle ? { activeCosmeticTitle: participant.activeCosmeticTitle } : {}),
     pronoun: "they",
     pronounLabel: "вони",
@@ -1782,6 +1787,7 @@ function buildParticipantSnapshot(
   return {
     characterId,
     displayName: character.name,
+    ...(character.guildCrest ? { guildCrest: character.guildCrest } : {}),
     ...(character.activeCosmeticTitle ? { activeCosmeticTitle: character.activeCosmeticTitle } : {}),
     title: character.title,
     raceId: character.raceId,

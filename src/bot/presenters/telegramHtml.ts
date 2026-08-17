@@ -5,8 +5,9 @@ export function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export function presentCharacterHeader(character: { name: string; title: string }): string {
-  return `<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
+export function presentCharacterHeader(character: { name: string; title: string; guildCrest?: string | null }): string {
+  const guildCrest = character.guildCrest ? `${escapeHtml(character.guildCrest)} ` : "";
+  return `${guildCrest}<b>${escapeHtml(character.name)}</b> · <i>${escapeHtml(character.title)}</i>`;
 }
 
 export function npcQuote(speaker: string, text: string): string {

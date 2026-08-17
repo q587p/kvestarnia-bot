@@ -19,6 +19,10 @@ export function presentRestartActiveCombat(): string {
   return "Почати заново під час активного бою не можна. Спершу завершіть бій — корчма не викреслює учасників посеред раунду.";
 }
 
+export function presentRestartActiveParty(): string {
+  return "Почати заново під час живого збору ватаги не можна. Спершу вийдіть із ватаги або завершіть спільну справу.";
+}
+
 export function presentRestartCancelled(): string {
   return "Перезапуск скасовано. Персонаж лишається при манатках і життєвих рішеннях.";
 }

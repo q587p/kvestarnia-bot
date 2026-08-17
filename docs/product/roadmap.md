@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.3` merged; `0.4.4` bugfix/polish наступна |
+| Party Progression | активна | `0.4.4` merged; `0.4.5` guild foundation у PR #190; `0.4.6` наступна |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -159,10 +159,35 @@ Formal final-hotfix Telegram QA remains pending.
 
 ### 0.4.5 — Guild foundation
 
-Малий соціяльний shell, який не чекає готового guild boss: унікальна
-нормалізована назва, emoji-герб, create gold sink, invite/join/leave,
-leader/officer/member та audit. Ґільдія може лише зручніше створити звичайний
-`PartySession`; вона не володіє combat state.
+Малий соціяльний shell: один 13-хвилинний preview, exact-once особиста плата
+587 золота, семиденний forming charter, target-bound opt-in invitations,
+leader/officer/member, leader-only crest/description edit і приватний audit.
+Активний склад має current cap 8; joining безкоштовний. Майбутнє окреме
+розширення може підняти межу конкретної ґільдії щонайбільше до 13, але цей
+release не містить ціни, entitlement чи кнопки розширення. Історична назва лишається,
+а окрема reservation звільняється після bounded expiry/disband hold.
+
+Тринадцять catalog crest є exclusive для forming/active статутів і
+звільняються terminal lifecycle. Засновник або голова може натомість
+запропонувати один власний емоджі; фото, файли й посилання не приймаються.
+Transactional unique reservation вирішує catalog/custom create/edit races без
+gold чи cooldown для програвшого засновника. Особиста картка запрошення має 13
+різних текстів; їх ротація не замінює чинне приватне посилання.
+
+PR `#190` готує repository release `0.4.5` із цим shell та окремим
+`🪺 Гніздом ґільдій` при Спуску. Active-only public directory ділить
+`PRESENCE_LOCATION_KORCHMA_DEEP`; нова головна клавіатура не має окремого
+ґільдійного рядка, а приватне відновлення через `/guild`, адресні посилання й
+картку персонажа працює звідусіль.
+Усе це лишається за default-off `GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
+remort; до першого реморту заснування відкривається на 7 рівні, після нього —
+на 3, а вступ не має рівневого gate. Party/combat лишаються current-life контрактами без Guild foreign key.
+`/guild_party` лише показує members для вже чинного real-gameplay recruiting
+`PartySession` і перевикористовує ordinary invite/join/canonical-card flow;
+generic guild lobby немає. PR #190, migration deployment, target flag і ручна
+триакаунтова Telegram QA лишаються окремими непідтвердженими доказами. Production
+enablement також чекає audited abandoned-leader operator runbook; automatic
+succession за presence/activity не дозволений.
 
 ### 0.4.6 — Guild weekly goal
 
@@ -210,11 +235,12 @@ player LUCK/achievements і без scheduler-а.
 
 ### 0.4.13 — Guild cosmetic progression
 
-Невеликий XP/level шар ґільдії, косметичні milestones і season-zero recap лише
+Невеликий XP/level шар ґільдії, earned cosmetic milestones/frames і season-zero recap лише
 після достатніх даних тижневої мети. Пізніший номер дає зібрати ці дані, поки
 виходять старі social/economy promises. XP іде один раз із canonical
 guild-period completion receipt, не множиться на participant receipts; жодного
-бойового pay-to-win бонусу.
+бойового pay-to-win бонусу. Власні емоджі-герби вже належать identity surface
+`0.4.5`; `0.4.13` їх не дублює й не продає.
 
 ### Не входить у 0.4.x foundation
 
@@ -226,6 +252,32 @@ guild-period completion receipt, не множиться на participant receip
 - одночасна міграція Big Barrel на новий runtime;
 - Redis/Mini App як передумова;
 - широкий рефакторинг усіх solo/duel orchestration layers.
+
+### Майбутні ґільдійні slices після foundation
+
+Досвід інших Telegram RPG зафіксовано як research, а не як готовий контракт чи
+макет для копіювання. Окремими задачами можна розглянути:
+
+- private/public рекрутинг, короткий анонс, безпечний внутрішньоігровий контакт,
+  заявки зі списку ґільдій і кнопкове схвалення/відмову;
+- особисті та спільні contribution-квести після доказів `0.4.6`, з canonical
+  receipts, anti-farming і exact-once settlement;
+- казну та зрозумілий журнал надходжень/витрат лише після окремого economy й
+  abuse review;
+- розширення початкових 8 місць до абсолютної межі 13 через окремо погоджений
+  progression/structure контракт;
+- bounded ґільдійний чат і системний журнал подій лише з moderation, retention,
+  flood-control та privacy policy;
+- споруди, але бойові HP/attack/defence бонуси — лише після повної перевірки
+  solo, duel, Big Barrel, PartyBoss і GroupCombat та без pay-to-win;
+- союзи, дипломатію, території, податки й ґільдійне PvP як пізні незалежні
+  seasonal systems із opt-in conflict, collusion і abandoned-leader policy;
+- XP/рівні та earned cosmetic frames у напрямі `0.4.13`, не як автоматичний
+  дозвіл на казну, території чи спільну бойову силу.
+
+`0.4.5` лишається read-only у public directory та target-bound у вступі. Кожен
+пункт вище потребує власної нумерованої задачі, міграції/rollback за потреби,
+QA-матриці й окремого продуктового рішення; реалізація одного не відкриває решту.
 
 ## Closed-alpha evidence, яке збираємо паралельно
 

@@ -108,6 +108,28 @@ describe("presence presenter", () => {
     expect(text).toContain("— <b>Дара &lt;&amp;&gt;</b> (<i>«Перший &lt;пергамент&gt; не зʼїв»</i>)");
   });
 
+  it("prefixes nearby active members with their escaped guild crest", () => {
+    const text = presentOnline({
+      state: "ready",
+      globalTotal: 2,
+      location: {
+        id: "location.korchma.deep",
+        name: "Спуск до Низу",
+        people: {
+          active: [
+            { telegramUserId: 1n, name: "587", status: "active" },
+            { telegramUserId: 13n, name: "Дара", guildCrest: "<&", status: "active" }
+          ],
+          idle: [],
+          total: 2
+        }
+      },
+      activity: null
+    });
+
+    expect(text).toContain("— &lt;&amp; <b>Дара</b>");
+  });
+
   it("does not repeat online cosmetic titles for people already shown in the location block", () => {
     const text = presentOnline({
       state: "ready",

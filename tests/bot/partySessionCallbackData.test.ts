@@ -39,6 +39,10 @@ describe("party session callback data", () => {
       ok: true,
       value: { type: "join", token }
     });
+    expect(parsePartySessionCallbackData(makePartySessionJoinCallbackData(token, "guild"))).toEqual({
+      ok: true,
+      value: { type: "join", token, source: "guild" }
+    });
     expect(parsePartySessionCallbackData(makePartySessionLeaveCallbackData(token))).toEqual({
       ok: true,
       value: { type: "leave", token }

@@ -139,7 +139,7 @@ type TavernCommandKeyboard =
       pendingRewards: Parameters<typeof buildDuelTournamentKeyboard>[0]["pendingRewards"];
     }
   | "deep"
-  | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean }
+  | { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean; guildFoundationEnabled?: boolean }
   | "back-to-fighting-corner"
   | "back-to-hall"
   | "arrivals"
@@ -602,7 +602,7 @@ export async function sendKorchmaDeepClosed(
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
   mode: "reply" | "edit",
-  options: { now?: Date; passageSearch?: PassageSearchService | undefined } = {}
+  options: { now?: Date; passageSearch?: PassageSearchService | undefined; guildFoundationEnabled?: boolean } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -646,8 +646,20 @@ export async function sendKorchmaDeepClosed(
   await sendText(
     ctx,
     mode,
-    presentKorchmaDeepClosed(result.character, { munchkinLocation }),
-    { state: "deep", munchkinLocation, searchAvailable }
+    presentKorchmaDeepClosed(result.character, {
+      munchkinLocation,
+      ...(options.guildFoundationEnabled === undefined
+        ? {}
+        : { guildFoundationEnabled: options.guildFoundationEnabled })
+    }),
+    {
+      state: "deep",
+      munchkinLocation,
+      searchAvailable,
+      ...(options.guildFoundationEnabled === undefined
+        ? {}
+        : { guildFoundationEnabled: options.guildFoundationEnabled })
+    }
   );
 }
 
@@ -1171,7 +1183,10 @@ async function sendText(
                       : { munchkinLocation: keyboard.munchkinLocation }),
                     ...(keyboard.searchAvailable === undefined
                       ? {}
-                      : { searchAvailable: keyboard.searchAvailable })
+                      : { searchAvailable: keyboard.searchAvailable }),
+                    ...(keyboard.guildFoundationEnabled === undefined
+                      ? {}
+                      : { guildFoundationEnabled: keyboard.guildFoundationEnabled })
                   }
                 )
             : keyboard === "back-to-fighting-corner"
@@ -1289,7 +1304,7 @@ function isHallKeyboard(
 
 function isDeepKeyboard(
   keyboard: TavernCommandKeyboard
-): keyboard is { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean } {
+): keyboard is { state: "deep"; munchkinLocation?: MunchkinLocation; searchAvailable?: boolean; guildFoundationEnabled?: boolean } {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "deep";
 }
 

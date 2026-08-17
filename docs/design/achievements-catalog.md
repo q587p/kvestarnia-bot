@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 147 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 150 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -123,6 +123,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.duel.quick.first` | enabled | visible | `duel.quick.resolved >= 1` | Миттєва дуель не встигла моргнути | уперше завершити миттєву дуель і зберегти обличчя в будь-якому стані. |
 | `achievement.social.duel-resolved` | enabled | visible | `duel.resolved >= 1` | Добровільна незручність | завершити перший двобій з іншим пригодником і зберегти корчемну ввічливість. |
 | `achievement.social.duel-win` | enabled | visible | `duel.won >= 1` | Переміг знайомого, дружба триває | виграти перший двобій і не оголошувати себе меблям чемпіоном. |
+| `achievement.guild.first-created` | enabled | visible | `guild.created >= 1` | Статут пережив першу пляму | уперше заснувати ґільдію й одразу дати писарю причину нервувати. |
+| `achievement.guild.first-joined` | enabled | visible | `guild.joined >= 1` | У списку вже не самотньо | уперше долучитися до ґільдії й не переплутати статут із меню шинку. |
 | `achievement.duel.quick.thirteen` | enabled | visible | `duel.quick.resolved >= 13` | Тринадцять швидких непорозумінь | завершити 13 миттєвих дуелей і навчити рукавичку літати по графіку. |
 | `achievement.duel.turnbased.first` | enabled | visible | `duel.turnbased.resolved >= 1` | Хід подумав і погодився | уперше завершити покрокову дуель і пережити офіційне очікування. |
 | `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |

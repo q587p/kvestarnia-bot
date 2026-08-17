@@ -79,6 +79,7 @@ import { PARTY_BOSS_LEASE_KIND } from "../../domain/combat/combatLeaseRegistry";
 import { PrismaPartyRaidChatTransactionWriter } from "./prismaPartyRaidChatEvents";
 import { PartyBossStateValidationError } from "../../domain/partyBoss/partyBossStateValidation";
 import { isConsumableCommitAllowed } from "./consumableCommitGate";
+import { readLiveGuildCrestsByCharacterIds } from "./guildIdentityRead";
 
 type TxClient = Prisma.TransactionClient;
 type PartyBossRow = Prisma.PartyBossSessionGetPayload<{ include: typeof partyBossInclude }>;
@@ -343,6 +344,13 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
       party = claimedParty;
       const joined = party.participants.filter((participant) => participant.status === "joined");
       const isBigBarrelParty = party.originLocationId === BIG_BARREL_PARTY_ORIGIN_LOCATION_ID;
+      const guildCrests = input.includeGuildIdentity
+        ? await readLiveGuildCrestsByCharacterIds(
+            tx,
+            joined.map((participant) => participant.characterId),
+            input.now
+          )
+        : new Map<string, string>();
 
       const wardSign = isBigBarrelParty ? buildKharakternykWardSignForStartedParty(joined) : undefined;
       const personalProtocol = isBigBarrelParty
@@ -362,10 +370,12 @@ export class PrismaPartyBossRepository implements PartyBossRepository {
             itemIds: participant.character.equipment.map((equipment) => equipment.itemId),
             characterLevel: combatStats.level
           }).map((grant) => grant.id);
+          const guildCrest = guildCrests.get(participant.characterId);
 
           return {
             characterId: participant.characterId,
             name: participant.character.name,
+            ...(guildCrest ? { guildCrest } : {}),
             remortCount: participant.character._count.remorts,
             combatStats,
             ...(equipmentAbilityGrantIds.length > 0 ? { equipmentAbilityGrantIds } : {})

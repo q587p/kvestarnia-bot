@@ -43,6 +43,15 @@ describe("start payload parser", () => {
       raw: "party_short",
       safe: true
     });
+    expect(parseStartPayload("guild_privateInviteCode93")).toEqual({
+      type: "guild-invite",
+      token: "privateInviteCode93"
+    });
+    expect(parseStartPayload("guild_short")).toEqual({
+      type: "unknown",
+      raw: "guild_short",
+      safe: true
+    });
     expect(parseStartPayload("nyz_left_attack_abCD_123-xy")).toEqual({
       type: "left-passage-attack",
       token: "abCD_123-xy"

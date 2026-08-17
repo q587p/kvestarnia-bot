@@ -16,6 +16,7 @@ import type { CharacterStats } from "./starterStats";
 
 export interface CharacterSummary {
   name: string;
+  guildCrest?: string;
   pronoun: Pronoun;
   pronounLabel: string;
   path: CharacterPath;
@@ -58,6 +59,7 @@ export interface CharacterEquipmentAttunementSummary {
 
 export interface CharacterSummaryInput {
   name: string;
+  guildCrest?: string;
   pronoun?: string;
   path?: string;
   currentLocationId?: string | null;
@@ -114,6 +116,7 @@ export function summarizeCharacter(
 
   return {
     name: input.name,
+    ...(input.guildCrest ? { guildCrest: input.guildCrest } : {}),
     pronoun,
     pronounLabel: getPronounLabel(pronoun),
     path,

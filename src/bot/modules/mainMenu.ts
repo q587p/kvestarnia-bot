@@ -25,6 +25,7 @@ sendCellarErrandRouted
 } from "../commands/cellarCommand";
 import { sendFight } from "../commands/fightCommand";
 import { sendHero } from "../commands/heroCommand";
+import { sendGuildHub } from "../commands/guildCommand";
 import { sendEquipment } from "../commands/equipmentCommand";
 import {
 sendHuntBoard
@@ -99,7 +100,17 @@ export function registerMainMenuKeyboard(
       return;
     }
 
-    await sendHero(ctx, services.hero, "reply");
+    await sendHero(ctx, services.hero, "reply", {
+      ...(services.guilds ? { guildService: services.guilds } : {})
+    });
+  });
+
+  bot.hears(mainMenuButtons.guild, async (ctx) => {
+    if (!services.guilds) {
+      await ctx.reply("Ґільдійна книга зараз недоступна.");
+      return;
+    }
+    await sendGuildHub(ctx, services.guilds, "reply", 0);
   });
 
   bot.hears([...mainMenuLocationButtonTexts], async (ctx) => {
@@ -147,6 +158,7 @@ export function registerMainMenuKeyboard(
       bardPerformance: services.bardPerformance,
       classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
+      guilds: services.guilds,
       itemGiftEnabled: Boolean(services.itemTransfers),
       partySessions: services.partySessions,
       tavernGames: services.tavernGames
@@ -191,7 +203,7 @@ export function registerMainMenuKeyboard(
 
 type DevHelpServices = Pick<
   BotServices,
-  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications"
+  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications" | "guilds"
 >;
 
 export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibility {
@@ -202,7 +214,8 @@ export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibilit
     includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
     includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
-    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
+    includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
+    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
   };
 }
 
@@ -215,7 +228,8 @@ export function shouldIncludeAdminMainMenu(
     || (services.groupCombat?.areDevHelpersEnabled() ?? false)
     || (services.partyRaidChat?.areDevHelpersEnabled() ?? false)
     || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
-    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false);
+    || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false)
+    || (services.guilds?.areDevHelpersEnabled() ?? false);
 }
 
 export async function buildCurrentMainMenuKeyboard(
@@ -609,7 +623,8 @@ async function sendCurrentPresenceLocation(
   }
   if (locationId === PRESENCE_LOCATION_KORCHMA_DEEP) {
     await sendKorchmaDeepClosed(ctx, services.tavern, services.presence, "reply", {
-      passageSearch: services.passageSearch
+      passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true
     });
     return;
   }
@@ -618,6 +633,7 @@ async function sendCurrentPresenceLocation(
       presence: services.presence,
       tavernRaid: services.tavern,
       passageSearch: services.passageSearch,
+      guildFoundationEnabled: services.guilds?.isEnabled() === true,
       requireKorchmaInterior: true,
       openDifficulty: true
     });

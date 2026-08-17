@@ -162,6 +162,7 @@ export interface CombatState {
     hpMax: number;
     mana: number;
     manaMax: number;
+    guildCrest?: string;
   };
   monster: CombatMonsterState;
   enemies?: CombatEnemyState[];
@@ -438,6 +439,7 @@ export interface StartCombatInput {
   hero: CombatActorStats & {
     hpCurrent?: number;
     manaCurrent?: number;
+    guildCrest?: string;
   };
   monster: MonsterCombatStats;
   enemies?: MonsterCombatStats[];
@@ -458,7 +460,8 @@ export function startCombat(input: StartCombatInput): CombatState {
       hp: clampResource(input.hero.hpCurrent ?? heroHpMax, heroHpMax),
       hpMax: heroHpMax,
       mana: clampResource(input.hero.manaCurrent ?? heroManaMax, heroManaMax),
-      manaMax: heroManaMax
+      manaMax: heroManaMax,
+      ...(input.hero.guildCrest ? { guildCrest: input.hero.guildCrest } : {})
     },
     monster: {
       ...combatEnemyToMonster(primaryEnemy)

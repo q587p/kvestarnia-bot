@@ -22,10 +22,37 @@ const presenceSelect = {
   }
 } satisfies Prisma.UserSelect;
 
-type SelectedPresenceUser = Prisma.UserGetPayload<{ select: typeof presenceSelect }>;
+const guildPresenceSelect = {
+  ...presenceSelect,
+  guildMemberships: {
+    where: {
+      activeUserKey: { not: null },
+      guild: { status: "active" as const }
+    },
+    select: {
+      guild: { select: { crest: true } }
+    },
+    take: 1
+  }
+} satisfies Prisma.UserSelect;
+
+function buildPresenceSelect(guildIdentityEnabled: boolean) {
+  return guildIdentityEnabled ? guildPresenceSelect : presenceSelect;
+}
+
+type SelectedPresenceUser =
+  | Prisma.UserGetPayload<{ select: typeof presenceSelect }>
+  | Prisma.UserGetPayload<{ select: typeof guildPresenceSelect }>;
 
 export class PrismaPresenceRepository implements PresenceRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly presenceSelect: ReturnType<typeof buildPresenceSelect>;
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    guildIdentityEnabled = false
+  ) {
+    this.presenceSelect = buildPresenceSelect(guildIdentityEnabled);
+  }
 
   async markAction(input: MarkPresenceInput): Promise<void> {
     const presenceUpdate = buildPresenceUpdate(input);
@@ -58,7 +85,7 @@ export class PrismaPresenceRepository implements PresenceRepository {
       where: {
         telegramUserId
       },
-      select: presenceSelect
+      select: this.presenceSelect
     });
 
     return user ? toPresenceRecord(user) : null;
@@ -133,7 +160,7 @@ export class PrismaPresenceRepository implements PresenceRepository {
           isNot: null
         }
       },
-      select: presenceSelect,
+      select: this.presenceSelect,
       orderBy: [
         {
           lastActionAt: "desc"
@@ -168,6 +195,9 @@ function toPresenceRecord(user: SelectedPresenceUser): PresenceRecord {
     characterClassId: user.character?.classId ?? null,
     characterLevel: user.character?.level ?? null,
     characterActiveCosmeticTitleGrantId: user.character?.activeCosmeticTitleGrantId ?? null,
+    guildCrest: "guildMemberships" in user
+      ? user.guildMemberships[0]?.guild.crest ?? null
+      : null,
     lastActionAt: user.lastActionAt,
     lastSeenLocationId: user.lastSeenLocationId,
     currentRaidId: user.currentRaidId,

@@ -61,6 +61,22 @@ describe("public news rendering", () => {
     expect(news).not.toMatch(/(?:mini\s*app|міні-?ап\p{L}*)/iu);
   });
 
+  it("keeps the Guild Foundation future boundary short, explicit and singular", () => {
+    const entries = parseNewsEntries(readFileSync(join(process.cwd(), "news.md"), "utf8"));
+    const guildFoundation = entries.find((entry) => entry.title.startsWith("0.4.5 —"));
+    const boundaries = guildFoundation?.body.match(/^Ще не відчинено: .+$/gmu) ?? [];
+
+    expect(boundaries).toEqual([
+      "Ще не відчинено: ґільдійний склад опечатано, книги слави чекають на перший запис, а будівельники досі шукають дозвіл на першу стіну."
+    ]);
+  });
+
+  it("keeps every release heading separated from the previous entry by a blank line", () => {
+    const news = readFileSync(join(process.cwd(), "news.md"), "utf8").replace(/\r\n/g, "\n");
+
+    expect(news).not.toMatch(/[^\n]\n## \d+\.\d+\.\d+ —/u);
+  });
+
   it("keeps the latest release news in the established lead, list and closing shape", () => {
     const news = readFileSync(join(process.cwd(), "news.md"), "utf8");
     const latest = parseNewsEntries(news)[0];
@@ -78,6 +94,7 @@ describe("public news rendering", () => {
     }
 
     expect(cursor).toBeGreaterThan(3);
+    expect(cursor - 3).toBeLessThanOrEqual(5);
     expect(lines[cursor]).toBe("");
     const tail = lines.slice(cursor + 1);
     expect(tail[0]).toMatch(/^\S[^\n]*$/u);
@@ -94,6 +111,12 @@ describe("public news rendering", () => {
     expect(body).not.toMatch(
       /(?:\bQA\b|\bCI\b|ручн\p{L}*\s+перевір|Telegram-перевір|цільов\p{L}*\s+(?:Квестарн|середовищ|бот)|збірк\p{L}*|пакет\p{L}*|депло\p{L}*|deploy|розгортан\p{L}*|rollout|feature.?flag|production|продакш\p{L}*|мердж\p{L}*|merge|готов\p{L}*\s+до\s+реліз)/iu
     );
+    const correctionRelease = /(?:виправ|полагод|лагод|bugfix|\bfix\b)/iu.test(latest?.title ?? "");
+    if (!correctionRelease) {
+      expect(body).not.toMatch(
+        /(?:баґ|баг|bug|регрес|виправлен|полагоджен|відновлен|помилк\p{L}*|повернен\p{L}*\s+(?:кноп|меню|ряд))/iu
+      );
+    }
   });
 
   it("keeps the latest release free of sentences repeated verbatim from historical news", () => {

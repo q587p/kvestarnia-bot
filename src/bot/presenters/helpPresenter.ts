@@ -12,6 +12,7 @@ export interface HelpVisibility {
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
+  includeGuild?: boolean;
 }
 
 const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> = {
@@ -149,7 +150,7 @@ function pageContent(
     "",
     ...commands,
     "",
-    "Крамниці, ремесло й ґільдії ще готуються.",
+    "Крамниці й ремесло ще готуються.",
     "Квестарню розробляє @q587p — розробник і корчмар за стійкою."
   ];
 }
@@ -209,7 +210,8 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includeRaidChat: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
-      includeHpRecovery: visibility
+      includeHpRecovery: visibility,
+      includeGuild: visibility
     };
   }
 
@@ -221,6 +223,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includeRaidChat: visibility.includeRaidChat ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
-    includeHpRecovery: visibility.includeHpRecovery ?? false
+    includeHpRecovery: visibility.includeHpRecovery ?? false,
+    includeGuild: visibility.includeGuild ?? false
   };
 }

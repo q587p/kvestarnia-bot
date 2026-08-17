@@ -12,7 +12,7 @@ const featureModuleOwners = {
   "tavern.ts": ["/^v1:sh:/", "/^v1:tavern:/", "/^v1:place:/", "/^v1:tour:/", "/^v1:mem:/", "/^v1:ev:/", "/^v[12]:cellar:/"],
   "quest.ts": ["/^v[12]:adv:/", "/^v1:quest:/", "/^v1:dkr:/", "/^v1:hunt:/", "/^v1:ygr:/"],
   "combat.ts": ["/^v1:spar:/", "/^v1:fight:/", "/^v1:search:/"],
-  "social.ts": ["/^v[1-5]:gc:/", "/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:nc:/", "/^v1:party:/"]
+  "social.ts": ["/^v1:g:/", "/^v[1-5]:gc:/", "/^v1:gift:/", "/^v1:post:/", "/^v1:duel:/", "/^v1:nd:/", "/^v1:nc:/", "/^v1:party:/"]
 };
 
 const expectedCallbackInventory = Object.values(featureModuleOwners).flat();
@@ -43,6 +43,7 @@ const expectedCommandRegistrationCalls = [
   "registerQuestHubCommand",
   "registerFightCommand",
   "registerTrainingDoppelgangerCommand",
+  "registerGuildCommands",
   "registerDuelCommand",
   "registerPartySessionDevCommand",
   "registerGroupCombatDevCommand"
@@ -69,6 +70,7 @@ const expectedCommandAliasInventory = [
   "dev_finish_attunements",
   "dev_group_combat",
   "dev_group_combat_timeout",
+  "dev_guild_gold",
   "dev_heal",
   "dev_help",
   "dev_hp_recovery_due",
@@ -99,6 +101,17 @@ const expectedCommandAliasInventory = [
   "fight",
   "gear",
   "guild",
+  "guild_create",
+  "guild_delete",
+  "guild_demote",
+  "guild_edit",
+  "guild_invite",
+  "guild_invite_code",
+  "guild_kick",
+  "guild_leave",
+  "guild_party",
+  "guild_promote",
+  "guild_transfer",
   "help",
   "hero",
   "hunt",
@@ -138,7 +151,11 @@ describe("0.2.2 architecture stabilization scope", () => {
 
     expect(source).toContain("installMessageFreshnessTracking(bot)");
     expect(source).toContain("registerCombatLockMiddleware(bot, services)");
-    expect(source).toContain("registerPresenceMiddleware(bot, services.presence)");
+    expect(source).toContain("registerGuildPassageSearchGuard(bot, services)");
+    expect(source).toContain("registerPresenceMiddleware(bot, services.presence, {");
+    expect(source.indexOf("registerGuildPassageSearchGuard(bot, services)"))
+      .toBeLessThan(source.indexOf("registerPresenceMiddleware(bot, services.presence, {"));
+    expect(source).toContain("guildFoundationEnabled: services.guilds?.isEnabled() === true");
     expect(source).not.toMatch(/\.\/(?:callbacks|commands|keyboards|presenters)\//);
 
     let previousIndex = -1;
@@ -253,6 +270,10 @@ function commandAliases(source: string): string[] {
   }
 
   for (const match of source.matchAll(/bot\.command\(\s*"([^"]+)"/g)) {
+    aliases.add(match[1] ?? "");
+  }
+
+  for (const match of source.matchAll(/registerMemberActionCommand\([^,]+,[^,]+,\s*"([^"]+)"/g)) {
     aliases.add(match[1] ?? "");
   }
 

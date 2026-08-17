@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentDuelAccept,
   presentDuelResultShare,
   presentDuelView,
   presentTurnBasedDuel,
@@ -8,6 +9,53 @@ import {
 } from "../../src/bot/presenters/duelPresenter";
 
 describe("duel presenter", () => {
+  it("shows guild crests in quick-duel confirmation and stored result identities", () => {
+    const confirmation = presentDuelAccept({
+      state: "confirmation",
+      challenge: { mode: "quick" },
+      challenger: {
+        name: "Shannar de Kassal",
+        guildCrest: "🐸",
+        title: "Гірська Слідознавиця",
+        level: 5
+      },
+      target: {
+        name: "Kyjivan BooksDragon",
+        guildCrest: "🧿",
+        title: "Заклиначі Коментарів на Полях",
+        level: 5
+      }
+    } as Parameters<typeof presentDuelAccept>[0]);
+    const result = presentDuelView({
+      state: "resolved",
+      challenge: { mode: "quick" },
+      challenger: {
+        name: "Shannar de Kassal",
+        guildCrest: "🐸",
+        level: 5
+      },
+      target: {
+        name: "Kyjivan BooksDragon",
+        guildCrest: "🧿",
+        level: 5
+      },
+      result: {
+        outcome: "target",
+        winnerCharacterId: "target",
+        loserCharacterId: "challenger",
+        challengerScore: 1,
+        targetScore: 2,
+        swing: 1,
+        flavorKey: "direct-hit"
+      }
+    } as Parameters<typeof presentDuelView>[0]);
+
+    expect(confirmation).toContain("Запрошує: 🐸 <b>Shannar de Kassal</b>");
+    expect(confirmation).toContain("Ви: 🧿 <b>Kyjivan BooksDragon</b>");
+    expect(result).toContain("🐸 <b>Shannar de Kassal</b> · рівень 5 ⚔️ 🧿 <b>Kyjivan BooksDragon</b> · рівень 5");
+    expect(result).toContain("🏁 🧿 <b>Kyjivan BooksDragon</b> перемагає");
+  });
+
   it("shows only the viewer's queued turn-based choice before the round resolves", () => {
     const result = makeTurnBasedDuelView({
       pendingActions: {

@@ -98,7 +98,8 @@ describe("class noncombat presenter", () => {
         expiresAt: new Date("2026-07-03T09:13:00.000Z"),
         availableAt: new Date("2026-07-03T10:33:00.000Z")
       },
-      target: { manaCurrent: 4, manaMax: 10 }
+      actor: { name: "Пан Вареник" },
+      target: { name: "Сусід", manaCurrent: 4, manaMax: 10 },
     } as never;
     const actorResult = presentVarenykSatedResult(completed);
     const targetNotification = presentVarenykSatedTargetNotification(completed);
@@ -115,6 +116,20 @@ describe("class noncombat presenter", () => {
     expect(targetNotification).not.toContain("Ресурси вже повні");
     expect(targetNotification).toContain("<b>Пан Вареник</b> передав вам вареники");
     expect(targetNotification).toContain("Видно в персонажі поруч з іншими станами.");
+  });
+
+  it("shows escaped guild crests on class-interaction identities", () => {
+    const preview = presentVarenykSatedPreview({
+      state: "preview",
+      targetTelegramUserId: 42n,
+      target: { name: "Сусід", guildCrest: "<&" },
+      statRank: 1,
+      plan: { rank: 1, manaCost: 8, immediateHp: 3, immediateMana: 0 },
+      durationMinutes: 13,
+      recipientWaitMinutes: 93
+    } as never);
+
+    expect(preview).toContain("Ціль: &lt;&amp; <b>Сусід</b>.");
   });
 
   it("formats a fresh self-feeding result like other class support outcomes", () => {

@@ -31,6 +31,8 @@ export const achievementTriggerTypes = [
   "item.received",
   "item.crafted",
   "item.used",
+  "guild.created",
+  "guild.joined",
   "equipment.item_equipped",
   "item-upgrade.succeeded",
   "item-upgrade.failed",
@@ -838,6 +840,28 @@ export const achievements = [
     sortOrder: 78.18,
     status: "enabled",
     trigger: { type: "item.used", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.first-created",
+    category: "weird",
+    title: "Статут пережив першу пляму",
+    description: "уперше заснувати ґільдію й одразу дати писарю причину нервувати.",
+    hidden: false,
+    lockedDescription: "уперше заснувати ґільдію.",
+    sortOrder: 78.19,
+    status: "enabled",
+    trigger: { type: "guild.created", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.first-joined",
+    category: "weird",
+    title: "У списку вже не самотньо",
+    description: "уперше долучитися до ґільдії й не переплутати статут із меню шинку.",
+    hidden: false,
+    lockedDescription: "уперше долучитися до ґільдії.",
+    sortOrder: 78.195,
+    status: "enabled",
+    trigger: { type: "guild.joined", threshold: 1 }
   },
   {
     id: "achievement.bandage.first-used",

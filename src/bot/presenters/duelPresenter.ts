@@ -840,6 +840,7 @@ function presentTurnBasedDuelIntroParticipant(
   participant: {
     displayName?: string;
     activeCosmeticTitle?: string | null;
+    guildCrest?: string | null;
     title?: string;
     level?: number;
     remortCount?: number;
@@ -849,6 +850,9 @@ function presentTurnBasedDuelIntroParticipant(
   const activeCosmeticTitle = participant.activeCosmeticTitle ?? fallback.activeCosmeticTitle;
   const identity = {
     name: participant.displayName ?? fallback.name,
+    ...(participant.guildCrest ?? fallback.guildCrest
+      ? { guildCrest: participant.guildCrest ?? fallback.guildCrest }
+      : {}),
     ...(activeCosmeticTitle === undefined ? {} : { activeCosmeticTitle })
   };
   const title = participant.title ?? fallback.title;
@@ -990,7 +994,7 @@ function presentTurnBasedDuelStartTip(character: CharacterSummary, seed: string)
 }
 
 function presentDuelRepeatedName(character: CharacterSummary): string {
-  return `<b>${escapeHtml(character.name)}</b>`;
+  return `${character.guildCrest ? `${escapeHtml(character.guildCrest)} ` : ""}<b>${escapeHtml(character.name)}</b>`;
 }
 
 function formatRemaining(expiresAt: Date, now: Date): string {

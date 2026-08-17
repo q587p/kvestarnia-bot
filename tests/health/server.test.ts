@@ -102,11 +102,13 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Менше кнопкового галасу, більше чесних підказок");
+    expect(text).toContain("Гніздо ґільдій, емоджі-герби й приватні поклики");
     expect(text).toContain("У грі вже:");
-    expect(text).toContain("Корчмар прибрав зі столу дублікати");
-    expect(text).toContain("гуртовий бій показує одну кнопку удару");
-    expect(text).toContain("манатки зі ще не виконаними вимогами мають видимий замок");
+    expect(text).toContain("Біля Спуску до Низу знайшлася бічна камора");
+    expect(text).toContain("оглянути відкриті профілі чинних ґільдій");
+    expect(text).toContain("особисті поклики мають приватне адресне посилання");
+    expect(text).toContain("голова через меню керує профілем, ролями, запрошеннями");
+    expect(text).toContain("ґільдійний склад опечатано, книги слави чекають на перший запис");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

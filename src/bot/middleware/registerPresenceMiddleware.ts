@@ -4,10 +4,14 @@ import { playerFromContext } from "../context";
 import { getPresenceContext } from "../presence/presenceRouting";
 import { measureUpdateComponent } from "../updatePerformanceTrace";
 
-export function registerPresenceMiddleware(bot: Bot, presenceService: PresenceService): void {
+export function registerPresenceMiddleware(
+  bot: Bot,
+  presenceService: PresenceService,
+  options: { guildFoundationEnabled?: boolean } = {}
+): void {
   bot.use(async (ctx, next) => {
     const player = playerFromContext(ctx.from);
-    const presenceContext = getPresenceContext(ctx);
+    const presenceContext = getPresenceContext(ctx, options);
 
     if (player && presenceContext) {
       try {

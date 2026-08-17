@@ -16,6 +16,7 @@ import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTou
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
 import { PrismaHuntContractRepository } from "../db/repositories/prismaHuntContractRepository";
 import { PrismaGroupCombatRepository } from "../db/repositories/prismaGroupCombatRepository";
+import { PrismaGuildRepository } from "../db/repositories/prismaGuildRepository";
 import { HpRecoveryNotificationProducer } from "../db/repositories/hpRecoveryNotificationProducer";
 import { PrismaHpRecoveryNotificationRepository } from "../db/repositories/prismaHpRecoveryNotificationRepository";
 import { PrismaInventoryRepository } from "../db/repositories/prismaInventoryRepository";
@@ -47,6 +48,7 @@ export function createRepositories(
   prisma: PrismaClient,
   options: {
     hpRecoveryNotificationsEnabled?: boolean;
+    guildIdentityEnabled?: boolean;
   } = {}
 ) {
   const hpRecoveryProducer = new HpRecoveryNotificationProducer(
@@ -55,12 +57,19 @@ export function createRepositories(
   const partyRaidChatWriter = new PrismaPartyRaidChatTransactionWriter(true);
 
   return {
-    activityEvents: new PrismaActivityEventRepository(prisma),
+    activityEvents: new PrismaActivityEventRepository(
+      prisma,
+      options.guildIdentityEnabled === true
+    ),
     achievements: new PrismaAchievementRepository(prisma),
     users: new PrismaUserRepository(prisma),
     bardPerformances: new PrismaBardPerformanceRepository(prisma),
     barrelRaidNotifications: new PrismaBarrelRaidNotificationRepository(prisma),
-    characters: new PrismaCharacterRepository(prisma, hpRecoveryProducer),
+    characters: new PrismaCharacterRepository(
+      prisma,
+      hpRecoveryProducer,
+      options.guildIdentityEnabled === true
+    ),
     cellarGrownupQuests: new PrismaCellarGrownupQuestRepository(prisma, hpRecoveryProducer),
     classNoncombat: new PrismaClassNoncombatRepository(prisma, hpRecoveryProducer),
     combatBalanceAnalytics: new PrismaCombatBalanceAnalyticsRepository(prisma),
@@ -68,11 +77,17 @@ export function createRepositories(
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
     devGrants: new PrismaDevGrantRepository(prisma),
-    duelChallenges: new PrismaDuelChallengeRepository(prisma, hpRecoveryProducer),
+    duelChallenges: new PrismaDuelChallengeRepository(
+      prisma,
+      hpRecoveryProducer,
+      undefined,
+      options.guildIdentityEnabled === true
+    ),
     duelTournaments: new PrismaDuelTournamentRepository(prisma),
     equipment: new PrismaEquipmentRepository(prisma, hpRecoveryProducer),
     huntContracts: new PrismaHuntContractRepository(prisma),
     groupCombatSessions: new PrismaGroupCombatRepository(prisma),
+    guilds: new PrismaGuildRepository(prisma),
     hpRecoveryNotifications: new PrismaHpRecoveryNotificationRepository(prisma, hpRecoveryProducer),
     inventory: new PrismaInventoryRepository(prisma),
     itemCraft: new PrismaItemCraftRepository(prisma),
@@ -88,10 +103,16 @@ export function createRepositories(
     partyRaidChat: new PrismaPartyRaidChatRepository(prisma),
     partySessions: new PrismaPartySessionRepository(prisma, partyRaidChatWriter),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
-    presence: new PrismaPresenceRepository(prisma),
+    presence: new PrismaPresenceRepository(
+      prisma,
+      options.guildIdentityEnabled === true
+    ),
     questMarkerReads: new PrismaQuestMarkerReadRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
-    roundPurchases: new PrismaKorchmaRoundPurchaseRepository(prisma),
+    roundPurchases: new PrismaKorchmaRoundPurchaseRepository(
+      prisma,
+      options.guildIdentityEnabled === true
+    ),
     shynok: new PrismaShynokRepository(prisma, hpRecoveryProducer),
     soloCombatSessions: new PrismaSoloCombatSessionRepository(prisma, hpRecoveryProducer),
     tavernGames: new PrismaTavernGameRepository(prisma),

@@ -854,11 +854,18 @@ export async function handlePartySessionCallback(
   }
 
   if (callback.type === "join") {
-    const result = await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
-      source: "nearby",
-      chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
-      messageId: ctx.callbackQuery?.message?.message_id ?? null
-    });
+    const initial = await service.getByToken(callback.token);
+    const result = initial.state === "ready" && isLeftPassagePartySession(initial.session)
+      ? await service.joinLeftPassageByTokenForTelegramUser(telegramUserId, callback.token, {
+          source: callback.source ?? "nearby",
+          chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+          messageId: ctx.callbackQuery?.message?.message_id ?? null
+        })
+      : await service.joinByTokenForTelegramUser(telegramUserId, callback.token, {
+          source: callback.source ?? "nearby",
+          chatId: ctx.chat?.id ? BigInt(ctx.chat.id) : null,
+          messageId: ctx.callbackQuery?.message?.message_id ?? null
+        });
     await safeAnswerCallbackQuery(ctx);
     const inviteUrl = "session" in result
       ? buildPartyInviteUrlForSession(options.botUsername, result.session)
@@ -1383,7 +1390,7 @@ async function sendBossJournalText(
   });
 }
 
-async function sendCanonicalPartyPreparationCard(
+export async function sendCanonicalPartyPreparationCard(
   ctx: Context,
   inviteToken: string,
   telegramUserId: bigint,

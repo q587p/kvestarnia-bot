@@ -56,6 +56,27 @@ describe("TavernGameService", () => {
     expect(result.state === "ready" ? result.openTables : []).toHaveLength(1);
   });
 
+  it("attaches current guild crests to open table identities when guild identity is enabled", async () => {
+    const repository = new FakeTavernGameRepository({
+      openTables: [session({ participants: [participant("character-1", 42n, "Тест")] })]
+    });
+    const service = new TavernGameService(
+      repository,
+      config({ tavernGamesEnabled: true, tavernGameTavleiEnabled: true }),
+      () => now,
+      undefined,
+      {
+        getLiveCrestsForCharacterIds: () => Promise.resolve(new Map([["character-1", "🐸"]]))
+      }
+    );
+
+    const result = await service.getHub();
+    const table = result.state === "ready" ? result.openTables[0] : undefined;
+
+    expect(table?.creator.guildCrest).toBe("🐸");
+    expect(table?.participants[0]?.character.guildCrest).toBe("🐸");
+  });
+
   it("filters disabled game tables out of the hub", async () => {
     const repository = new FakeTavernGameRepository({
       openTables: [
