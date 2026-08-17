@@ -104,6 +104,7 @@ describe("PartySessionService GroupCombat proof recruiting", () => {
     );
 
     await service.joinLeftPassageByTokenForTelegramUser(42n, "leftToken13", {
+      source: "guild",
       chatId: 42n,
       messageId: 13
     });
@@ -111,7 +112,7 @@ describe("PartySessionService GroupCombat proof recruiting", () => {
     expect(joinByTokenForTelegramUser).toHaveBeenCalledWith(42n, "leftToken13", expect.objectContaining({
       chatId: 42n,
       messageId: 13,
-      joinSource: "deep-link",
+      joinSource: "guild",
       expectedOriginKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
       expectedOriginLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
       relocateToExpectedOrigin: true

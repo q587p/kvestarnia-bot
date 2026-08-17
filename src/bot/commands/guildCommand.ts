@@ -71,7 +71,7 @@ import {
 } from "../presenters/partySessionPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
-import { buildPartyInviteUrl } from "../../services/partySessionService";
+import { buildPartyInviteUrlForSession } from "../../services/partySessionService";
 import type { GuildService } from "../../services/guildService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { PartyBossService } from "../../services/partyBossService";
@@ -731,7 +731,7 @@ async function handleGuildPartyInvite(
     await safeAnswerCallbackQuery(ctx, { text: "Склад або ватага вже змінилися.", show_alert: true });
     return;
   }
-  const inviteUrl = buildPartyInviteUrl(options.botUsername, current.session.inviteToken);
+  const inviteUrl = buildPartyInviteUrlForSession(options.botUsername, current.session);
   let delivered = false;
   try {
     await ctx.api.sendMessage(

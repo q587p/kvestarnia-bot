@@ -176,6 +176,7 @@ export class PartySessionService {
     telegramUserId: bigint,
     inviteToken: string,
     input: {
+      source?: "nearby" | "deep-link" | "guild";
       chatId?: bigint | null;
       messageId?: number | null;
     } = {}
@@ -185,7 +186,7 @@ export class PartySessionService {
     }
 
     return this.sessions.joinByTokenForTelegramUser(telegramUserId, inviteToken, {
-      joinSource: "deep-link",
+      joinSource: input.source ?? "deep-link",
       now: this.clock(),
       chatId: input.chatId ?? null,
       messageId: input.messageId ?? null,

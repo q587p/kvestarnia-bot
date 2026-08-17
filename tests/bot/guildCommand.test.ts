@@ -4,6 +4,7 @@ import { handleGuildCallback, registerGuildCommands } from "../../src/bot/comman
 import type { PartySessionRecord } from "../../src/db/repositories/partySessionRepository";
 import type { GuildService } from "../../src/services/guildService";
 import type { PartySessionService } from "../../src/services/partySessionService";
+import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotModuleDependencies } from "../../src/bot/modules/types";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
@@ -823,6 +824,7 @@ describe("guild command routes", () => {
     expect(resolvePartyRecipientForTelegramUser).toHaveBeenCalledTimes(2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe(93);
+    expect(String(sendMessage.mock.calls[0]?.[1])).toContain("start=party_partyABC12");
     expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:jg:partyABC12");
     expect(recordPartyInvite).toHaveBeenCalledWith("guild-id", 42n, "party-1", "target-user");
     expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Звичайне запрошення передано." });
@@ -831,6 +833,37 @@ describe("guild command routes", () => {
       chatId: 42n,
       messageId: 23
     });
+  });
+
+  it("delivers a guild-attributed left-passage invitation with its canonical deep link", async () => {
+    const session = {
+      ...makePartySession(),
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
+    };
+    const { ctx, sendMessage } = callbackContext();
+
+    await handleGuildCallback(
+      ctx,
+      { type: "party-invite", memberId: "member-00000001", version: 7 },
+      guildService({
+        resolvePartyRecipientForTelegramUser: vi.fn().mockResolvedValue(recipientResult()),
+        recordPartyInvite: vi.fn().mockResolvedValue(undefined)
+      }),
+      {
+        botUsername: "kvestarnia_bot",
+        partySessions: partyService({
+          getLiveRecruitingByTelegramUser: vi.fn().mockResolvedValue(session),
+          getByToken: vi.fn().mockResolvedValue({ state: "ready", session }),
+          recordParticipantMessageReference: vi.fn().mockResolvedValue({ state: "ready", session })
+        })
+      }
+    );
+
+    expect(String(sendMessage.mock.calls[0]?.[1]))
+      .toContain("start=nyz_left_attack_partyABC12");
+    expect(String(sendMessage.mock.calls[0]?.[1]))
+      .not.toContain("start=party_partyABC12");
+    expect(JSON.stringify(sendMessage.mock.calls[0]?.[2])).toContain("v1:party:jg:partyABC12");
   });
 
   it("warns on Telegram delivery failure but keeps the existing PartySession recoverable", async () => {

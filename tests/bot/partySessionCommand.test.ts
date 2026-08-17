@@ -1736,6 +1736,41 @@ describe("handlePartySessionCallback", () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it("routes the first guild-attributed left-passage callback through the origin-bound join", async () => {
+    const session: PartySessionRecord = {
+      ...makeSessionWithMember(),
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      participantCap: 3
+    };
+    const joinLeftPassageByTokenForTelegramUser = vi.fn().mockResolvedValue({ state: "joined", session });
+    const joinByTokenForTelegramUser = vi.fn();
+    const { ctx, editMessageText, reply } = createCallbackContext(93);
+
+    await handlePartySessionCallback(
+      ctx,
+      { type: "join", token: session.inviteToken, source: "guild" },
+      serviceWithCanonicalSession(session, {
+        joinLeftPassageByTokenForTelegramUser,
+        joinByTokenForTelegramUser
+      }),
+      {
+        presence: {} as PresenceService,
+        botUsername: "kvestarnia_test_bot"
+      }
+    );
+
+    expect(joinLeftPassageByTokenForTelegramUser).toHaveBeenCalledWith(93n, session.inviteToken, {
+      source: "guild",
+      chatId: 93n,
+      messageId: 13
+    });
+    expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
+    expect(messageText(editMessageText)).toContain("Ви приєдналися до ватаги");
+    expect(messageText(editMessageText)).not.toContain("Цей поклик належить лівому проходу Низу");
+    expect(reply).not.toHaveBeenCalled();
+  });
+
   it("refreshes the leader card after a non-leader leaves", async () => {
     const original = makeBigBarrelSessionWithMember();
     const session: PartySessionRecord = {

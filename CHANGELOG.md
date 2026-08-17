@@ -53,6 +53,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `/restart` now blocks recruiting/active PartySession leaders or participants and active GroupCombat participants even without a combat lease, preventing cascade deletion of live party/combat state.
 - Guild cards, paginated rosters, ordinary party notices and audit payloads omit exact location, activity/online timestamps, Telegram identities and invitation tokens; failed invitation delivery leaves durable `/guild` recovery.
 - Disabled legacy guild-party callbacks now stop at the service boundary before recipient resolution, Telegram delivery, canonical-card publication or audit mutation.
+- Guild-attributed invitations to an existing left-passage `PartySession` now carry the canonical `nyz_left_attack_*` link, and their first `Долучитися` callback uses the same origin-bound relocation join while preserving `joinSource=guild`; no retry is required.
 - Non-ready guild-party picker cards now retain a working `🏰 До ґільдії` control, while personal invitation instructions use mobile-readable paragraph breaks and bold labels matching the real accept/decline buttons.
 - One-page member management now omits redundant `1/1` text and keyboard controls; real multi-page rosters retain their current/total indicator and navigation.
 - Guild hub pages now use one stable five-row member/invitation stream; exact-name role commands read the complete membership set and duplicate names receive distinct membership-backed selectors.
