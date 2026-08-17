@@ -36,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Personal invitation cards now carry their actionable private deep link in the body. Acceptance and create/join achievement notices retain guild recovery controls, and activation delivers the founder achievement as well as the joiner's achievement.
 
 ### Fixed
+- Activating a forming guild with its second distinct User now records one replay-safe public Chronicle event under both `👥 Пригодники` and `⭐ Важливе`; the private forming charter remains undisclosed before activation.
 - Disabled presence reads now omit the guild membership relation entirely, while enabled reads select only the active-guild crest. This preserves the pre-guild query shape for a default-off deploy or rollback.
 - The canonical persistent `👀 Хто поруч` route now receives the guild service like `/online`, so an eligible leader sees the same-location opted-in invitation action without exposing the private opt-in token in Telegram markup.
 - All founding-unavailable guidance now uses the canonical level-7 first-life and level-3 post-remort constants.

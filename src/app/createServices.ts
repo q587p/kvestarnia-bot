@@ -253,7 +253,7 @@ export function createServices(
     guilds: new GuildService(repositories.guilds, partySessions, {
       enabled: config.guildFoundationEnabled,
       devHelpersEnabled: nonProduction && config.guildFoundationEnabled
-    }, undefined, achievements),
+    }, undefined, achievements, publicActivityEvents),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(

@@ -35,6 +35,7 @@ import {
 } from "../domain/guild";
 import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import type { PartySessionService } from "./partySessionService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP } from "./presenceService";
 
@@ -108,7 +109,8 @@ export class GuildService {
     private readonly parties: PartySessionService,
     private readonly options: GuildServiceOptions,
     private readonly clock: Clock = systemClock,
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly activityEvents?: PublicActivityEventPublisher
   ) {}
 
   isEnabled(): boolean {
@@ -395,6 +397,14 @@ export class GuildService {
       occurredAt: now,
       sourceId: result.guild.id
     }) ?? [];
+    if (result.activatedFounderCharacterId) {
+      await this.activityEvents?.recordGuildCreatedSafely({
+        guildId: result.guild.id,
+        guildDisplayName: result.guild.displayName,
+        guildCrest: result.guild.crest,
+        occurredAt: now
+      });
+    }
     return { ...result, achievementUnlocks, founderAchievementUnlocks };
   }
 

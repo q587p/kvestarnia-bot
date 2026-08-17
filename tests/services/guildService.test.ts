@@ -3,6 +3,7 @@ import type { GuildRepository } from "../../src/db/repositories/guildRepository"
 import { GuildService } from "../../src/services/guildService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 import type { AchievementService } from "../../src/services/achievementService";
+import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 
 describe("GuildService rollout isolation", () => {
   it("keeps every mutation inert while the guild rollout is disabled", async () => {
@@ -161,6 +162,7 @@ describe("GuildService rollout isolation", () => {
     const trackEventSafely = vi.fn()
       .mockResolvedValueOnce([founderUnlock])
       .mockResolvedValueOnce([joinerUnlock]);
+    const recordGuildCreatedSafely = vi.fn().mockResolvedValue(null);
     const guild = {
       id: "guild-id",
       displayName: "Тиха Печатка",
@@ -191,7 +193,8 @@ describe("GuildService rollout isolation", () => {
       {} as PartySessionService,
       { enabled: true },
       () => now,
-      { trackEventSafely } as unknown as AchievementService
+      { trackEventSafely } as unknown as AchievementService,
+      { recordGuildCreatedSafely } as unknown as PublicActivityEventPublisher
     );
 
     const result = await service.acceptInviteForTelegramUser(42n, "invite-token");
@@ -208,9 +211,57 @@ describe("GuildService rollout isolation", () => {
       occurredAt: now,
       sourceId: "guild-id"
     });
+    expect(recordGuildCreatedSafely).toHaveBeenCalledOnce();
+    expect(recordGuildCreatedSafely).toHaveBeenCalledWith({
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt: now
+    });
     expect(result).toMatchObject({
       founderAchievementUnlocks: [founderUnlock],
       achievementUnlocks: [joinerUnlock]
+    });
+  });
+
+  it("re-emits the same activation fact on repository replay so the chronicle dedupe can recover", async () => {
+    const now = new Date("2026-08-17T10:00:00.000Z");
+    const guild = {
+      id: "guild-id",
+      displayName: "Тиха Печатка",
+      crest: "🛡️"
+    };
+    const acceptInviteForTelegramUser = vi.fn().mockResolvedValue({
+      state: "replayed",
+      guild,
+      characterId: "joiner-character",
+      activatedFounderCharacterId: "founder-character"
+    });
+    const recordGuildCreatedSafely = vi.fn().mockResolvedValue(null);
+    const service = new GuildService(
+      { acceptInviteForTelegramUser } as unknown as GuildRepository,
+      {} as PartySessionService,
+      { enabled: true },
+      () => now,
+      undefined,
+      { recordGuildCreatedSafely } as unknown as PublicActivityEventPublisher
+    );
+
+    await service.acceptInviteForTelegramUser(42n, "invite-token");
+    await service.acceptInviteForTelegramUser(42n, "invite-token");
+
+    expect(recordGuildCreatedSafely).toHaveBeenCalledTimes(2);
+    expect(recordGuildCreatedSafely).toHaveBeenNthCalledWith(1, {
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt: now
+    });
+    expect(recordGuildCreatedSafely).toHaveBeenNthCalledWith(2, {
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt: now
     });
   });
 

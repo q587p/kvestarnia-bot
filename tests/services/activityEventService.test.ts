@@ -64,6 +64,40 @@ describe("ActivityEventService", () => {
     expect(repository.rows).toHaveLength(0);
   });
 
+  it("publishes guild activation once to adventurer and important chronicles", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+    const occurredAt = new Date("2026-08-17T10:00:00.000Z");
+
+    await publisher.recordGuildCreatedSafely({
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt
+    });
+    await publisher.recordGuildCreatedSafely({
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt
+    });
+
+    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "guild.created",
+      category: "adventurer",
+      severity: "high",
+      subjectKind: "guild",
+      subjectId: "guild-id",
+      subjectName: "Тиха Печатка",
+      sourceType: "guild",
+      sourceId: "guild-id",
+      dedupeKey: "guild.created:guild-id",
+      payload: { crest: "🛡️" },
+      occurredAt
+    });
+  });
+
   it("emits configured level and rare item rows without common-item noise", async () => {
     const repository = new FakeActivityEventRepository();
     const publisher = makePublicActivityEventPublisher(repository);

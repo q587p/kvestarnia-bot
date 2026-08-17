@@ -279,6 +279,12 @@ describe("application factory wiring", () => {
       itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
     `));
     expect(source).toContain(compact(`
+      guilds: new GuildService(repositories.guilds, partySessions, {
+        enabled: config.guildFoundationEnabled,
+        devHelpersEnabled: nonProduction && config.guildFoundationEnabled
+      }, undefined, achievements, publicActivityEvents)
+    `));
+    expect(source).toContain(compact(`
       itemUpgrades: new ItemUpgradeService(
         repositories.itemUpgrades,
         undefined,
