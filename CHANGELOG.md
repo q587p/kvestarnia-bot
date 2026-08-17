@@ -35,6 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Personal invitation cards now carry their actionable private deep link in the body. Acceptance and create/join achievement notices retain guild recovery controls, and activation delivers the founder achievement as well as the joiner's achievement.
 
 ### Fixed
+- Forwarded personal guild links now explain that they let a leader or officer invite the card owner rather than join the viewer. Nonmembers and ordinary members receive distinct missing-membership or missing-authority guidance with a retained guild-hub control.
 - Private forming and active character cards now render `Ґільдія: <герб> <назва>`. Guild-enabled nearby rows, duels, ordinary/Big Barrel/GroupCombat identities, Bard and class interactions, tavern games, public game/combat/milestone boards and Kvestarnia chronicles carry only the escaped live crest without exposing guild names, roles or membership identifiers; disabled mode keeps the prior non-guild read shape.
 - Condensed the current player-news entry to the durable Guild Foundation promise instead of listing release-candidate keyboard, pagination, recovery and copy repairs as separate features. The news policy and health test now apply a counterfactual editorial boundary and default five-bullet cap to the newest release.
 - The Spusk keyboard now places `🪺 Гніздо ґільдій` on the left and `⬇️ Спуститися` on the right in one row, matching the Nest's side-passage description.

@@ -57,6 +57,41 @@ describe("start command", () => {
     expect(String(delivered[1]?.text)).toContain("Запрошення збережено й передано приватно");
   });
 
+  it("explains the inviter role and keeps guild recovery when a nonmember follows a shared guild link", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const createInviteForTelegramUser = vi.fn().mockResolvedValue({ state: "not-member" });
+    const delivered: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") delivered.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: delivered.length } });
+    });
+    registerStartCommand(bot, { start: vi.fn() } as unknown as OnboardingService, {
+      guilds: { createInviteForTelegramUser } as never
+    });
+
+    await bot.handleUpdate({
+      update_id: 2,
+      message: {
+        message_id: 2,
+        date: 1,
+        chat: { id: 42, type: "private" },
+        from: { id: 42, is_bot: false, first_name: "Запрошувач" },
+        text: "/start guild_privateInviteCode93",
+        entities: [{ offset: 0, length: 6, type: "bot_command" }]
+      }
+    });
+
+    expect(createInviteForTelegramUser).toHaveBeenCalledWith(42n, "privateInviteCode93");
+    expect(delivered).toHaveLength(1);
+    expect(String(delivered[0]?.text)).toContain("не приєднує вас до ґільдії власника картки");
+    expect(String(delivered[0]?.text)).toContain("голові або старшині");
+    expect(delivered[0]?.parse_mode).toBe("HTML");
+    expect(JSON.stringify(delivered[0]?.reply_markup)).toContain("🏰 До ґільдії");
+    expect(JSON.stringify(delivered[0]?.reply_markup)).toContain("v1:g:o");
+  });
+
   it("uses Telegram HTML parse mode for existing hero summary", () => {
     const options = buildExistingCharacterReplyOptions();
 

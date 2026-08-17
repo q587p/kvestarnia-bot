@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   presentGuildCreationPreview,
   presentGuildHub,
+  presentGuildInviteCreate,
   presentGuildInviteOptIn,
   presentGuildNestRules,
   presentGuildProfileUpdate
@@ -19,6 +20,27 @@ import {
   GUILD_MAX_MEMBER_CAPACITY
 } from "../../src/domain/guild";
 import { GUILD_INVITE_SHARE_TEXTS } from "../../src/content/guildInviteCopy";
+
+describe("guild invitation recovery copy", () => {
+  it("explains that a nonmember deep-link visitor needs an authorized guild role", () => {
+    const text = presentGuildInviteCreate({ state: "not-member" }, new Date());
+
+    expect(text).toContain("не приєднує вас до ґільдії власника картки");
+    expect(text).toContain("<b>голові або старшині</b>");
+    expect(text).toContain("Ви зараз не належите до ґільдії");
+    expect(text).toContain("<b>🏰 До ґільдії</b>");
+    expect(text).toContain("створіть власну картку");
+  });
+
+  it("explains the missing authority to an ordinary guild member", () => {
+    const text = presentGuildInviteCreate({ state: "forbidden" }, new Date());
+
+    expect(text).toContain("Посилання відкрито правильно");
+    expect(text).toContain("<b>голова або старшина</b>");
+    expect(text).toContain("Ваша поточна роль не має такого повноваження");
+    expect(text).toContain("Передайте це саме посилання");
+  });
+});
 
 const keyboardRowTexts = (rows: ReturnType<typeof buildGuildCreationStartKeyboard>["inline_keyboard"]): string[][] =>
   rows.map((row) => row.map((button) => button.text));
