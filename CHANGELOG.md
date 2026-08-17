@@ -22,6 +22,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added additive `20260806120000_guild_custom_crests` migration/rollback for unique catalog reservation, custom media metadata and restart-safe upload drafts without changing the original guild-foundation migration.
 
 ### Changed
+- Player news now closes with one spoiler-light unavailable boundary for guild storage, glory and buildings; it promises neither mechanics nor timing and leaves those systems outside `0.4.5`.
 - The Nest is now the canonical public discovery route; `/guild`, hero shortcuts and private deep-link recovery remain usable from anywhere under their existing rules. Forming founders now receive the hero-card shortcut too.
 - Guild browsing renews neutral Spusk activity without moving presence. Newly rendered persistent main keyboards omit the global `🏰 Ґільдії` row; legacy cached text remains a guarded recovery route behind the canonical search/combat/pending-raid locks.
 - Invite opt-in tokens can now be minted only by nonmembers; current membership is checked transactionally and stale opt-in state is cleared when a membership is created.

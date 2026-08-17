@@ -108,6 +108,7 @@ describe("health server", () => {
     expect(text).toContain("оглянути відкриті профілі чинних ґільдій");
     expect(text).toContain("особисті поклики мають приватне адресне посилання");
     expect(text).toContain("голова через меню керує профілем, ролями, запрошеннями");
+    expect(text).toContain("ґільдійний склад опечатано, книги слави чекають на перший запис");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

@@ -61,6 +61,16 @@ describe("public news rendering", () => {
     expect(news).not.toMatch(/(?:mini\s*app|міні-?ап\p{L}*)/iu);
   });
 
+  it("keeps the Guild Foundation future boundary short, explicit and singular", () => {
+    const entries = parseNewsEntries(readFileSync(join(process.cwd(), "news.md"), "utf8"));
+    const guildFoundation = entries.find((entry) => entry.title.startsWith("0.4.5 —"));
+    const boundaries = guildFoundation?.body.match(/^Ще не відчинено: .+$/gmu) ?? [];
+
+    expect(boundaries).toEqual([
+      "Ще не відчинено: ґільдійний склад опечатано, книги слави чекають на перший запис, а будівельники досі шукають дозвіл на першу стіну."
+    ]);
+  });
+
   it("keeps every release heading separated from the previous entry by a blank line", () => {
     const news = readFileSync(join(process.cwd(), "news.md"), "utf8").replace(/\r\n/g, "\n");
 
