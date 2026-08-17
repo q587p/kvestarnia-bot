@@ -25,6 +25,14 @@ import { presentRewardBlock } from "./rewardPresenter";
 import { getDistinctShortMonsterNames } from "./monsterNamePresenter";
 import { presentBattleObserverNotice } from "./battleObserverPresenter";
 
+function groupCombatParticipantDisplayName(
+  participant: Pick<GroupCombatSessionRecord["state"]["participants"][number], "name" | "guildCrest">
+): string {
+  return participant.guildCrest
+    ? `${participant.guildCrest} ${participant.name}`
+    : participant.name;
+}
+
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
   viewerCharacterId: string,
@@ -59,6 +67,7 @@ export function presentGroupCombat(
       ? participant.characterId === viewerCharacterId ? "❤️" : "🫶"
       : "☠️",
     name: participant.name,
+    guildCrest: participant.guildCrest,
     hp: participant.hp,
     hpMax: participant.hpMax,
     mana: participant.mana,
@@ -137,7 +146,7 @@ export function presentGroupCombatStatistics(session: GroupCombatSessionRecord):
       (row) => row.characterId === participant.characterId
     );
     return contribution
-      ? presentBattleContributionLine(participant.name, {
+      ? presentBattleContributionLine(groupCombatParticipantDisplayName(participant), {
           damage: contribution.damage,
           healing: contribution.healing,
           guardPrevented: contribution.guardPrevented,
@@ -147,7 +156,7 @@ export function presentGroupCombatStatistics(session: GroupCombatSessionRecord):
           specialActions: contribution.specialActions ?? 0,
           guardedTurns: contribution.guardedTurns
         })
-      : `${escapeHtml(participant.name)}: запис не знайдено`;
+      : `${escapeHtml(groupCombatParticipantDisplayName(participant))}: запис не знайдено`;
   });
   const enemyRows = session.state.enemies.map((enemy) => {
     const contribution = session.state.enemyContributions?.find(
@@ -270,7 +279,9 @@ export function presentGroupCombatJournal(
       : "📜 <b>Журнал доказової сутички</b>",
     headerLines: [
       "",
-      session.state.participants.map((participant) => escapeHtml(participant.name)).join(" · "),
+      session.state.participants
+        .map((participant) => escapeHtml(groupCombatParticipantDisplayName(participant)))
+        .join(" · "),
       "",
       journalCoverage
     ],
@@ -286,7 +297,7 @@ function presentGroupCombatOpening(session: GroupCombatSessionRecord): string[] 
   const state = session.state;
   const party = state.participants.map((participant) =>
     [
-      `<b>${escapeHtml(participant.name)}</b>`,
+      `<b>${escapeHtml(groupCombatParticipantDisplayName(participant))}</b>`,
       participant.activeCosmeticTitle
         ? `<i>${escapeHtml(participant.activeCosmeticTitle)}</i>`
         : `рівень ${participant.level}`
@@ -419,7 +430,7 @@ function presentGroupCombatRecapSnapshot(
       continue;
     }
     actorRows.push(
-      `❤️ ${escapeHtml(participant.name)} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}${
+      `❤️ ${escapeHtml(groupCombatParticipantDisplayName(participant))} · рівень ${participant.level} — ${row.hp}/${participant.hpMax} · 🔮 мана ${row.mana}/${participant.manaMax}${
         snapshot.enemyFocusCharacterId === participant.characterId
           ? " ← 🎯 ціль ворогів"
           : ""

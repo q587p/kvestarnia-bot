@@ -30,6 +30,7 @@ export interface ActivityEventRecord {
   visibility: ActivityEventVisibility;
   actorCharacterId: string | null;
   actorDisplayName: string | null;
+  actorGuildCrest?: string | null;
   relatedCharacterIds: Prisma.JsonValue | null;
   subjectKind: string | null;
   subjectId: string | null;

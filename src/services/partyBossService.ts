@@ -29,6 +29,7 @@ import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 export interface PartyBossServiceOptions {
   enabled: boolean;
   devHelpersEnabled?: boolean;
+  guildIdentityEnabled?: boolean;
 }
 
 export type PartyBossDevRaidWinResult =
@@ -92,6 +93,7 @@ export class PartyBossService {
       partyInviteToken,
       now,
       turnExpiresAt: nextTurnDeadline(now),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
       ...(options.allowExpiredRecruiting ? { allowExpiredRecruiting: true } : {})
     });
   }

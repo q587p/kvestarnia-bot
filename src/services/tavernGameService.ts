@@ -49,6 +49,7 @@ import type {
   TavernGameResolveResult,
   TavernGameSessionRecord
 } from "../db/repositories/tavernGameRepository";
+import type { GuildRepository } from "../db/repositories/guildRepository";
 
 export const TAVERN_GAME_JOIN_TTL_MS = 13 * 60_000;
 export const TAVERN_GAME_DECISION_TTL_MS = 5 * 60_000;
@@ -136,7 +137,8 @@ export class TavernGameService {
       | "tavernGameCreateCooldownSec"
     >,
     private readonly now: () => Date = () => new Date(),
-    private readonly achievements?: AchievementService
+    private readonly achievements?: AchievementService,
+    private readonly guildIdentity?: Required<Pick<GuildRepository, "getLiveCrestsForCharacterIds">>
   ) {}
 
   isEnabled(): boolean {
@@ -178,6 +180,7 @@ export class TavernGameService {
       this.repository.listOpen(now),
       telegramUserId === undefined ? Promise.resolve(null) : this.repository.findCharacterByTelegramUser(telegramUserId)
     ]);
+    await this.attachGuildCrests(openTables, now);
     const enabledOpenTables = openTables.filter((session) =>
       this.isGameEnabled(session.gameKey) &&
       !(session.gameKey === "kosti" && session.rulesVersion !== DICE_POKER_RULES_VERSION)
@@ -204,6 +207,7 @@ export class TavernGameService {
     const weekSince = new Date(now.getTime() - 7 * DAY_MS);
     const monthSince = new Date(now.getTime() - 31 * DAY_MS);
     const records = await this.repository.listCompletedSince(monthSince);
+    await this.attachGuildCrests(records, now);
 
     return {
       state: "ready",
@@ -213,6 +217,36 @@ export class TavernGameService {
         month: buildLeaderboard(records, monthSince)
       }
     };
+  }
+
+  private async attachGuildCrests(
+    sessions: TavernGameSessionRecord[],
+    now: Date
+  ): Promise<void> {
+    if (!this.guildIdentity || sessions.length === 0) {
+      return;
+    }
+    const characterIds = sessions.flatMap((session) => [
+      session.creator.id,
+      ...session.participants.map((participant) => participant.characterId)
+    ]);
+    const crests = await this.guildIdentity.getLiveCrestsForCharacterIds(characterIds, now);
+    for (const session of sessions) {
+      const creatorCrest = crests.get(session.creator.id);
+      if (creatorCrest) session.creator.guildCrest = creatorCrest;
+      for (const participant of session.participants) {
+        const crest = crests.get(participant.characterId);
+        if (crest) participant.character.guildCrest = crest;
+      }
+    }
+  }
+
+  private async attachGuildCrestsToResult<T>(result: T, now: Date): Promise<T> {
+    if (result && typeof result === "object" && "session" in result) {
+      const session = (result as { session?: TavernGameSessionRecord }).session;
+      if (session) await this.attachGuildCrests([session], now);
+    }
+    return result;
   }
 
   async createForTelegramUser(
@@ -239,7 +273,7 @@ export class TavernGameService {
       now
     });
 
-    return result;
+    return this.attachGuildCrestsToResult(result, now);
   }
 
   async createDicePokerForTelegramUser(
@@ -278,7 +312,7 @@ export class TavernGameService {
       }
     }
 
-    return result;
+    return this.attachGuildCrestsToResult(result, now);
   }
 
   async createDicePokerWithDoppelgangerForTelegramUser(
@@ -316,7 +350,7 @@ export class TavernGameService {
       }
     }
 
-    return result;
+    return this.attachGuildCrestsToResult(result, now);
   }
 
   async createTavleiWithDoppelgangerForTelegramUser(
@@ -351,17 +385,19 @@ export class TavernGameService {
       }
     }
 
-    return result;
+    return this.attachGuildCrestsToResult(result, now);
   }
 
   async createRematchForTelegramUser(
     telegramUserId: bigint,
     token: string
   ): Promise<TavernGameRematchServiceResult> {
-    const previous = await this.repository.getByToken(token, this.now());
+    const now = this.now();
+    const previous = await this.repository.getByToken(token, now);
     if (!previous) {
       return { state: "not-found" };
     }
+    await this.attachGuildCrests([previous], now);
 
     const participant = previous.participants.find((row) => row.telegramUserId === telegramUserId);
     if (!participant) {
@@ -412,11 +448,11 @@ export class TavernGameService {
       return stale;
     }
 
-    return this.repository.joinByTokenForTelegramUser(telegramUserId, token, {
+    return this.attachGuildCrestsToResult(await this.repository.joinByTokenForTelegramUser(telegramUserId, token, {
       now,
       decisionExpiresAt: new Date(now.getTime() + TAVERN_GAME_DECISION_TTL_MS),
       quickStartExpiresAt: new Date(now.getTime() + DICE_POKER_QUICK_SOCIAL_TTL_MS)
-    });
+    }), now);
   }
 
   async getInviteViewForTelegramUser(
@@ -432,6 +468,7 @@ export class TavernGameService {
     if (!session) {
       return { state: "not-found" };
     }
+    await this.attachGuildCrests([session], now);
     if (!this.isGameEnabled(session.gameKey)) {
       return { state: "game-disabled", gameKey: session.gameKey };
     }
@@ -512,7 +549,10 @@ export class TavernGameService {
       return stale;
     }
 
-    return this.repository.setReadinessForTelegramUser(telegramUserId, token, readiness, { now });
+    return this.attachGuildCrestsToResult(
+      await this.repository.setReadinessForTelegramUser(telegramUserId, token, readiness, { now }),
+      now
+    );
   }
 
   async toggleDicePokerDieForTelegramUser(
@@ -537,13 +577,13 @@ export class TavernGameService {
         selectedMask: toggleDieSelection(tablePlayer.selectedMask, index)
       } as DicePokerState;
       const now = this.now();
-      return this.repository.saveDicePokerParticipantStateForTelegramUser(
+      return this.attachGuildCrestsToResult(await this.repository.saveDicePokerParticipantStateForTelegramUser(
         telegramUserId,
         token,
         state,
         now,
         getDicePokerRefreshExpiresAt(now, state)
-      );
+      ), now);
     }
     if (!isDicePokerState(current.result)) {
       return { state: "stale", session: current };
@@ -558,13 +598,13 @@ export class TavernGameService {
     } as DicePokerState;
 
     const now = this.now();
-    return this.repository.saveDicePokerStateForTelegramUser(
+    return this.attachGuildCrestsToResult(await this.repository.saveDicePokerStateForTelegramUser(
       telegramUserId,
       token,
       state,
       now,
       getDicePokerRefreshExpiresAt(now, state)
-    );
+    ), now);
   }
 
   async resolveQuickDicePokerForTelegramUser(
@@ -582,13 +622,13 @@ export class TavernGameService {
     const next = resolveQuickDicePokerRound(current.result, current.seed);
     if (next.phase !== "terminal") {
       const now = this.now();
-      return this.repository.saveDicePokerStateForTelegramUser(
+      return this.attachGuildCrestsToResult(await this.repository.saveDicePokerStateForTelegramUser(
         telegramUserId,
         token,
         next,
         now,
         getDicePokerRefreshExpiresAt(now, next)
-      );
+      ), now);
     }
 
     const result = await this.repository.completeDicePokerForTelegramUser(telegramUserId, token, {
@@ -665,13 +705,13 @@ export class TavernGameService {
 
     const next = rerollScorecardDice(current.result, current.seed);
     const now = this.now();
-    return this.repository.saveDicePokerStateForTelegramUser(
+    return this.attachGuildCrestsToResult(await this.repository.saveDicePokerStateForTelegramUser(
       telegramUserId,
       token,
       next,
       now,
       getDicePokerRefreshExpiresAt(now, next)
-    );
+    ), now);
   }
 
   private async resolveQuickDicePokerTableForTelegramUser(
@@ -706,13 +746,13 @@ export class TavernGameService {
 
     const next = rerollScorecardDice(state, `${token}:${telegramUserId}`);
     const now = this.now();
-    return this.repository.saveDicePokerParticipantStateForTelegramUser(
+    return this.attachGuildCrestsToResult(await this.repository.saveDicePokerParticipantStateForTelegramUser(
       telegramUserId,
       token,
       next,
       now,
       getDicePokerRefreshExpiresAt(now, next)
-    );
+    ), now);
   }
 
   async scoreScorecardCategoryForTelegramUser(
@@ -760,13 +800,13 @@ export class TavernGameService {
     const next = scoreScorecardCategory(current.result, category, current.seed);
     if (next.phase !== "terminal") {
       const now = this.now();
-      return this.repository.saveDicePokerStateForTelegramUser(
+      return this.attachGuildCrestsToResult(await this.repository.saveDicePokerStateForTelegramUser(
         telegramUserId,
         token,
         next,
         now,
         getDicePokerRefreshExpiresAt(now, next)
-      );
+      ), now);
     }
 
     const outcome = next.total >= 200 ? "win" : "draw";
@@ -789,7 +829,11 @@ export class TavernGameService {
       return gate;
     }
 
-    return this.repository.cancelDicePokerForTelegramUser(telegramUserId, token, this.now());
+    const now = this.now();
+    return this.attachGuildCrestsToResult(
+      await this.repository.cancelDicePokerForTelegramUser(telegramUserId, token, now),
+      now
+    );
   }
 
   async viewDicePokerForTelegramUser(
@@ -839,7 +883,10 @@ export class TavernGameService {
       return tokenGate;
     }
 
-    return this.repository.cancelForTelegramUser(telegramUserId, token, now);
+    return this.attachGuildCrestsToResult(
+      await this.repository.cancelForTelegramUser(telegramUserId, token, now),
+      now
+    );
   }
 
   private async submitDecisionForTelegramUser(
@@ -863,6 +910,7 @@ export class TavernGameService {
     result: T,
     now: Date
   ): Promise<T & TavernGameAchievementPayload> {
+    await this.attachGuildCrestsToResult(result, now);
     if (result.state !== "resolved" || !this.achievements) {
       return result;
     }
@@ -912,6 +960,7 @@ export class TavernGameService {
     now: Date,
     outcome: "win" | "draw" | "loss"
   ): Promise<T & TavernGameAchievementPayload> {
+    await this.attachGuildCrestsToResult(result, now);
     if (result.state !== "completed" || !this.achievements) {
       return result;
     }
@@ -1005,7 +1054,10 @@ export class TavernGameService {
   }
 
   private async getDicePokerStateForAction(token: string): Promise<TavernGameSessionRecord | null> {
-    return this.repository.getByToken(token, this.now());
+    const now = this.now();
+    const session = await this.repository.getByToken(token, now);
+    if (session) await this.attachGuildCrests([session], now);
+    return session;
   }
 }
 
@@ -1135,6 +1187,7 @@ function getOrCreateLeaderboardEntry(
   const next: TavernGameLeaderboardEntry = {
     characterId: participant.characterId,
     name: participant.displayName,
+    ...(participant.character.guildCrest ? { guildCrest: participant.character.guildCrest } : {}),
     ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
     winCount: 0,
     drawCount: 0,

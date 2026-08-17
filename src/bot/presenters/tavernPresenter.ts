@@ -994,7 +994,7 @@ function presentLeaderboardSection(
 function presentLeaderboardEntry(entry: KorchmaRoundLeaderboardEntry, rank: number): string {
   const count = `${entry.roundCount} ${presentRoundCount(entry.roundCount)}`;
 
-  return `${rank}. ${escapeHtml(entry.name)} — ${count} · ${entry.spentGold} золота`;
+  return `${rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — ${count} · ${entry.spentGold} золота`;
 }
 
 function presentRoundCount(count: number): string {
@@ -1057,7 +1057,7 @@ function presentLevelMilestoneEntries(milestones: LevelMilestoneBoard | undefine
     "Перші зарубки за рівні:",
     ...milestones.levels.map((group) => {
       const entries = group.entries
-        .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+        .map((entry) => `${presentMilestoneRank(entry.rank)} ${presentCharacterDisplayName(entry, { boldName: false })}`)
         .join(" · ");
 
       return `• рівень ${group.level}: ${entries}`;
@@ -1074,7 +1074,7 @@ function presentRemortLevelMilestoneEntries(milestones: LevelMilestoneBoard | un
 
   return milestones.levels.map((group) => {
     const entries = group.entries
-      .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+      .map((entry) => `${presentMilestoneRank(entry.rank)} ${presentCharacterDisplayName(entry, { boldName: false })}`)
       .join(" · ");
 
     return `• рівень ${group.level}: ${entries}`;
@@ -1092,7 +1092,7 @@ function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
   if (remorts.remorts.length === 1 && remorts.remorts[0]?.remortNumber === 1) {
     const entries = remorts.remorts[0].entries
       .slice(0, 3)
-      .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+      .map((entry) => `${presentMilestoneRank(entry.rank)} ${presentCharacterDisplayName(entry, { boldName: false })}`)
       .join(" · ");
 
     return ["<b>🕯️ Реморти Тринадцятки</b>", entries];
@@ -1103,7 +1103,7 @@ function presentRemortBoardEntries(remorts: RemortBoard | undefined): string[] {
     ...remorts.remorts.map((group) => {
       const entries = group.entries
         .slice(0, 3)
-        .map((entry) => `${presentMilestoneRank(entry.rank)} ${escapeHtml(entry.name)}`)
+        .map((entry) => `${presentMilestoneRank(entry.rank)} ${presentCharacterDisplayName(entry, { boldName: false })}`)
         .join(" · ");
 
       return `• реморт ${group.remortNumber}: ${entries}`;

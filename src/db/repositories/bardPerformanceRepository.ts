@@ -13,6 +13,7 @@ export interface BardPerformanceRecord {
   characterId: string;
   telegramUserId: bigint;
   performerName: string;
+  performerGuildCrest?: string;
   remortCount: number;
   techniqueId: string;
   rulesVersion: string;
@@ -38,6 +39,7 @@ export interface BardPerformanceReactionRecord {
   characterId: string;
   telegramUserId: bigint;
   audienceName: string;
+  audienceGuildCrest?: string;
   remortCount: number;
   status: BardPerformanceReactionStatus;
   tipGold: number;
@@ -56,6 +58,7 @@ export interface BardPerformanceStartSnapshot {
 export interface BardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
+  guildCrest?: string;
   gold: number;
   reaction: BardPerformanceReactionRecord;
   inspiration?: {

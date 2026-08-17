@@ -259,6 +259,10 @@ export type GuildCrestMediaRepositoryResult =
   | { state: "ready"; media: GuildCrestMediaRecord };
 
 export interface GuildRepository {
+  getLiveCrestsForCharacterIds?(
+    characterIds: readonly string[],
+    now: Date
+  ): Promise<Map<string, string>>;
   createIntentForTelegramUser(telegramUserId: bigint, input: {
     token: string;
     displayName: string;

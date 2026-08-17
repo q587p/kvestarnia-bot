@@ -58,6 +58,7 @@ export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 export interface PartyBossParticipantState {
   characterId: string;
   name: string;
+  guildCrest?: string;
   remortCount: number;
   status: PartyBossParticipantStatus;
   combatStats: CombatActorStats;
@@ -310,6 +311,7 @@ export function createPartyBossState(input: {
   participants: Array<{
     characterId: string;
     name: string;
+    guildCrest?: string;
     remortCount: number;
     combatStats: CombatActorStats & { hpCurrent: number; manaCurrent: number };
     equipmentAbilityGrantIds?: string[];
@@ -370,6 +372,7 @@ export function createPartyBossState(input: {
       return {
         characterId: participant.characterId,
         name: participant.name,
+        ...(participant.guildCrest ? { guildCrest: participant.guildCrest } : {}),
         remortCount: participant.remortCount,
         status: hp > 0 ? "active" : "knocked-out",
         combatStats: participant.combatStats,

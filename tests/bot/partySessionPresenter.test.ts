@@ -34,6 +34,16 @@ import {
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 
 describe("party session presenter", () => {
+  it("shows frozen guild crests in Big Barrel roster cards and intros", () => {
+    const leader = { ...participant("leader", "Голова"), guildCrest: "🐸" };
+    const striker = { ...participant("striker", "Шкодійка"), guildCrest: "🧿" };
+    const session = makeBigBossSession({ participants: [leader, striker] });
+
+    expect(presentPartyBossIntro(session)).toContain("👥 Ватага: 🐸 Голова, 🧿 Шкодійка");
+    expect(presentPartyBoss(session)).toContain("▪️ 🐸 Голова: HP 60/60 · мана 20/20");
+    expect(presentPartyBoss(session)).toContain("▪️ 🧿 Шкодійка: HP 60/60 · мана 20/20");
+  });
+
   it("marks Big Barrel Brother focus on participant rows instead of the boss row", () => {
     const text = presentPartyBoss(makeBigBossSession());
 

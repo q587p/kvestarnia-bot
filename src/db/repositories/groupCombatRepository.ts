@@ -165,12 +165,14 @@ export interface GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startDueProof(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startLeftPassageForTelegramUser(input: {
@@ -178,18 +180,21 @@ export interface GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startDueLeftPassage(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startReadyLeftPassage(input: {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   submitActionForTelegramUser(input: {

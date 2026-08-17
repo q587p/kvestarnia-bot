@@ -8,6 +8,7 @@ import type {
   BardPerformanceRespondResult as RepositoryRespondResult,
   BardPerformanceStartResult as RepositoryStartResult
 } from "../db/repositories/bardPerformanceRepository";
+import type { GuildRepository } from "../db/repositories/guildRepository";
 import {
   BARD_PERFORMANCE_COOLDOWN_MINUTES,
   BARD_PERFORMANCE_MIN_LEVEL,
@@ -88,6 +89,7 @@ export interface PresentedBardPerformance {
   id: string;
   token: string;
   performerName: string;
+  performerGuildCrest?: string;
   grade: BardPerformanceGrade;
   housePayoutGold: number;
   audienceCount: number;
@@ -100,6 +102,7 @@ export interface PresentedBardPerformance {
 export interface PresentedBardPerformanceReaction {
   id: string;
   audienceName: string;
+  audienceGuildCrest?: string;
   status: string;
   tipGold: number;
   expiresAt: Date;
@@ -108,6 +111,7 @@ export interface PresentedBardPerformanceReaction {
 export interface PresentedBardPerformanceAudienceNotice {
   telegramUserId: bigint;
   name: string;
+  guildCrest?: string;
   gold: number;
   reaction: PresentedBardPerformanceReaction;
   inspiration?: {
@@ -128,7 +132,8 @@ export class BardPerformanceService {
     private readonly performances: BardPerformanceRepository,
     private readonly clock: Clock = systemClock,
     private readonly rng: RandomSource = new CryptoRandomSource(),
-    private readonly options: { devHelpersEnabled?: boolean } = {}
+    private readonly options: { devHelpersEnabled?: boolean } = {},
+    private readonly guildIdentity?: Required<Pick<GuildRepository, "getLiveCrestsForCharacterIds">>
   ) {}
 
   areDevHelpersEnabled(): boolean {
@@ -148,6 +153,10 @@ export class BardPerformanceService {
       return { state: "no-character" };
     }
 
+    const now = this.clock();
+    const initialCrests = await this.readGuildCrests([snapshot.character.id], now);
+    const initialCrest = initialCrests.get(snapshot.character.id);
+    if (initialCrest) snapshot.character.guildCrest = initialCrest;
     const equippedItems = snapshot.equippedItemIds.flatMap((itemId) => {
       const item = items.find((candidate) => candidate.id === itemId);
       return item ? [item] : [];
@@ -167,7 +176,6 @@ export class BardPerformanceService {
       return { state: "level-locked", character, requiredLevel: BARD_PERFORMANCE_MIN_LEVEL };
     }
 
-    const now = this.clock();
     const locationId = normalizePresenceLocationId(snapshot.character.currentLocationId);
     const isShynok = locationId === PRESENCE_LOCATION_KORCHMA_BAR;
     const plan = rollBardPerformanceCheck({
@@ -207,6 +215,7 @@ export class BardPerformanceService {
       requiredLevel: BARD_PERFORMANCE_MIN_LEVEL
     });
 
+    await this.attachStartGuildIdentity(result, now);
     return presentStartResult(result);
   }
 
@@ -218,17 +227,19 @@ export class BardPerformanceService {
       return { state: "invalid-reaction" };
     }
 
+    const now = this.clock();
     const result = await this.performances.respondToPerformanceForTelegramUser(telegramUserId, {
       reactionId: input.reactionId,
       action: input.action,
       ...(input.action === "tip" ? { tipGold: input.tipGold } : {}),
-      now: this.clock(),
+      now,
       result: {
         action: input.action,
         tipGold: input.action === "tip" ? input.tipGold : 0
       }
     });
 
+    await this.attachRespondGuildIdentity(result, now);
     return presentRespondResult(result);
   }
 
@@ -317,6 +328,55 @@ export class BardPerformanceService {
         : null
     };
   }
+
+  private readGuildCrests(characterIds: readonly string[], now: Date): Promise<Map<string, string>> {
+    return this.guildIdentity
+      ? this.guildIdentity.getLiveCrestsForCharacterIds(characterIds, now)
+      : Promise.resolve(new Map<string, string>());
+  }
+
+  private async attachStartGuildIdentity(result: RepositoryStartResult, now: Date): Promise<void> {
+    const characterIds = [
+      ...("character" in result ? [result.character.id] : []),
+      ...("performance" in result ? [result.performance.characterId] : []),
+      ...(result.state === "started"
+        ? result.audience.map((notice) => notice.reaction.characterId)
+        : [])
+    ];
+    const crests = await this.readGuildCrests(characterIds, now);
+    if ("character" in result) {
+      const crest = crests.get(result.character.id);
+      if (crest) result.character.guildCrest = crest;
+    }
+    if ("performance" in result) {
+      const crest = crests.get(result.performance.characterId);
+      if (crest) result.performance.performerGuildCrest = crest;
+    }
+    if (result.state === "started") {
+      for (const notice of result.audience) {
+        const crest = crests.get(notice.reaction.characterId);
+        if (crest) {
+          notice.guildCrest = crest;
+          notice.reaction.audienceGuildCrest = crest;
+        }
+      }
+    }
+  }
+
+  private async attachRespondGuildIdentity(result: RepositoryRespondResult, now: Date): Promise<void> {
+    if (!("performance" in result) || !("reaction" in result)) {
+      return;
+    }
+    const crests = await this.readGuildCrests(
+      [result.performance.characterId, result.reaction.characterId],
+      now
+    );
+    const performerCrest = crests.get(result.performance.characterId);
+    const audienceCrest = crests.get(result.reaction.characterId);
+    if (performerCrest) result.performance.performerGuildCrest = performerCrest;
+    if (audienceCrest) result.reaction.audienceGuildCrest = audienceCrest;
+    if ("character" in result && audienceCrest) result.character.guildCrest = audienceCrest;
+  }
 }
 
 export function listBardPerformanceTipOptions(): readonly BardPerformanceTipAmount[] {
@@ -396,6 +456,7 @@ function presentAudienceNotice(notice: BardPerformanceAudienceNotice): Presented
   return {
     telegramUserId: notice.telegramUserId,
     name: notice.name,
+    ...(notice.guildCrest ? { guildCrest: notice.guildCrest } : {}),
     gold: notice.gold,
     reaction: presentReaction(notice.reaction),
     ...(notice.inspiration ? { inspiration: { ...notice.inspiration } } : {})
@@ -419,6 +480,7 @@ function presentPerformance(performance: BardPerformanceRecord): PresentedBardPe
     id: performance.id,
     token: performance.token,
     performerName: performance.performerName,
+    ...(performance.performerGuildCrest ? { performerGuildCrest: performance.performerGuildCrest } : {}),
     grade: performance.grade as BardPerformanceGrade,
     housePayoutGold: performance.housePayoutGold,
     audienceCount: performance.audienceCount,
@@ -433,6 +495,7 @@ function presentReaction(reaction: BardPerformanceReactionRecord): PresentedBard
   return {
     id: reaction.id,
     audienceName: reaction.audienceName,
+    ...(reaction.audienceGuildCrest ? { audienceGuildCrest: reaction.audienceGuildCrest } : {}),
     status: reaction.status,
     tipGold: reaction.tipGold,
     expiresAt: reaction.expiresAt

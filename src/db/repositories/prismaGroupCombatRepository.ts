@@ -95,6 +95,7 @@ import {
   PRESENCE_ADVENTURE_SOLO_FIGHT,
   PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT
 } from "../../services/presenceService";
+import { readLiveGuildCrestsByCharacterIds } from "./guildIdentityRead";
 
 type TxClient = Prisma.TransactionClient;
 const MAX_MUTATION_ATTEMPTS = 13;
@@ -550,6 +551,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, input.telegramUserId, "proof");
   }
@@ -558,6 +560,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "proof");
   }
@@ -567,6 +570,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, input.telegramUserId, "left-passage");
   }
@@ -575,6 +579,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "left-passage", "due");
   }
@@ -583,6 +588,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     partyInviteToken: string;
     now: Date;
     turnExpiresAt: Date;
+    includeGuildIdentity?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "left-passage", "ready");
   }
@@ -592,6 +598,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       partyInviteToken: string;
       now: Date;
       turnExpiresAt: Date;
+      includeGuildIdentity?: boolean;
     },
     manualLeaderTelegramUserId: bigint | null,
     mode: "proof" | "left-passage",
@@ -766,11 +773,20 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
         }
         party = canonical;
 
+        const joinedParticipants = party.participants.filter(
+          (candidate) => candidate.status === "joined"
+        );
+        const guildCrests = input.includeGuildIdentity
+          ? await readLiveGuildCrestsByCharacterIds(
+              tx,
+              joinedParticipants.map((participant) => participant.characterId),
+              input.now
+            )
+          : new Map<string, string>();
+
         const sessionId = randomUUID();
         const frozen: FrozenParticipantPayload[] = [];
-        for (const [rosterOrder, participant] of party.participants
-          .filter((candidate) => candidate.status === "joined")
-          .entries()) {
+        for (const [rosterOrder, participant] of joinedParticipants.entries()) {
           const character = participant.character;
           const combatStats = buildParticipantCombatStats(character, participant.remortCount);
           const sated = await freezeVarenykSatedFromCooldown({
@@ -794,10 +810,12 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           const activeCosmeticTitle = resolveActiveCosmeticTitleLabel(
             character.activeCosmeticTitleGrantId
           );
+          const guildCrest = guildCrests.get(character.id);
           const actor: GroupCombatActorSnapshot = {
             characterId: character.id,
             telegramUserId: character.user.telegramUserId.toString(),
             name: character.name,
+            ...(guildCrest ? { guildCrest } : {}),
             ...(activeCosmeticTitle ? { activeCosmeticTitle } : {}),
             remortCount: participant.remortCount,
             rosterOrder,

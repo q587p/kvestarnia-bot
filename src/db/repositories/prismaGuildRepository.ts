@@ -39,6 +39,7 @@ import type {
   GuildRepository,
   GuildViewRecord
 } from "./guildRepository";
+import { readLiveGuildCrestsByCharacterIds } from "./guildIdentityRead";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -121,6 +122,13 @@ type ActiveMembership = ActorRow["guildMemberships"][number];
 
 export class PrismaGuildRepository implements GuildRepository {
   constructor(private readonly prisma: PrismaClient) {}
+
+  getLiveCrestsForCharacterIds(
+    characterIds: readonly string[],
+    now: Date
+  ): Promise<Map<string, string>> {
+    return readLiveGuildCrestsByCharacterIds(this.prisma, characterIds, now);
+  }
 
   async createIntentForTelegramUser(
     telegramUserId: bigint,

@@ -9,12 +9,16 @@ import type {
   ListRecentActivityEventsQuery,
   RecordActivityEventInput
 } from "./activityEventRepository";
+import { readLiveGuildCrestsByCharacterIds } from "./guildIdentityRead";
 
 const DEFAULT_PAGE_SIZE = 15;
 const DEFAULT_RETENTION_DAYS = 93;
 
 export class PrismaActivityEventRepository implements ActivityEventRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly guildIdentityEnabled = false
+  ) {}
 
   async record(input: RecordActivityEventInput): Promise<ActivityEventRecord> {
     try {
@@ -98,11 +102,29 @@ export class PrismaActivityEventRepository implements ActivityEventRepository {
         });
 
     return {
-      events: rows.slice(0, pageSize).map(toRecord),
+      events: await this.toRecordsWithGuildIdentity(rows.slice(0, pageSize), query.now ?? new Date()),
       page,
       pageSize,
       hasNextPage: rows.length > pageSize
     };
+  }
+
+  private async toRecordsWithGuildIdentity(
+    rows: Parameters<typeof toRecord>[0][],
+    now: Date
+  ): Promise<ActivityEventRecord[]> {
+    const guildCrests = this.guildIdentityEnabled
+      ? await readLiveGuildCrestsByCharacterIds(
+          this.prisma,
+          rows.flatMap((row) => row.actorCharacterId ? [row.actorCharacterId] : []),
+          now
+        )
+      : new Map<string, string>();
+
+    return rows.map((row) => toRecord(
+      row,
+      row.actorCharacterId ? guildCrests.get(row.actorCharacterId) : undefined
+    ));
   }
 
   private async listRecentWithUnderdogThreshold(input: {
@@ -174,7 +196,7 @@ function toRecord(row: {
   occurredAt: Date;
   publishedAt: Date | null;
   createdAt: Date;
-}): ActivityEventRecord {
+}, actorGuildCrest?: string): ActivityEventRecord {
   return {
     id: row.id,
     eventType: row.eventType as ActivityEventType,
@@ -183,6 +205,7 @@ function toRecord(row: {
     visibility: "public",
     actorCharacterId: row.actorCharacterId,
     actorDisplayName: row.actorDisplayName,
+    ...(actorGuildCrest ? { actorGuildCrest } : {}),
     relatedCharacterIds: row.relatedCharacterIds,
     subjectKind: row.subjectKind,
     subjectId: row.subjectId,

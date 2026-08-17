@@ -6,11 +6,16 @@ import type {
   KorchmaRoundPurchaseInput,
   KorchmaRoundPurchaseRepository
 } from "./korchmaRoundPurchaseRepository";
+import { readLiveGuildCrestsByCharacterIds } from "./guildIdentityRead";
 
 const LEADERBOARD_LIMIT = 5;
 
 export class PrismaKorchmaRoundPurchaseRepository implements KorchmaRoundPurchaseRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly guildIdentityEnabled = false,
+    private readonly now: () => Date = () => new Date()
+  ) {}
 
   async spendGoldAndCreate(input: KorchmaRoundPurchaseInput) {
     return this.prisma.$transaction(async (tx) => {
@@ -155,10 +160,18 @@ export class PrismaKorchmaRoundPurchaseRepository implements KorchmaRoundPurchas
       }
     });
     const names = new Map(characters.map((character) => [character.id, character.name]));
+    const crests = this.guildIdentityEnabled
+      ? await readLiveGuildCrestsByCharacterIds(
+          this.prisma,
+          groups.map((group) => group.characterId),
+          this.now()
+        )
+      : new Map<string, string>();
 
     return groups.map((group) => ({
       characterId: group.characterId,
       name: names.get(group.characterId) ?? "Хтось дуже щедрий",
+      ...(crests.get(group.characterId) ? { guildCrest: crests.get(group.characterId)! } : {}),
       roundCount: group._count.id,
       spentGold: group._sum.spentGold ?? 0
     }));

@@ -3,6 +3,7 @@ import { escapeHtml } from "./telegramHtml";
 export interface CharacterDisplayIdentity {
   name: string;
   activeCosmeticTitle?: string | null;
+  guildCrest?: string | null;
 }
 
 export interface CharacterDisplayOptions {
@@ -16,7 +17,10 @@ export function presentCharacterDisplayName(
   options: CharacterDisplayOptions = {}
 ): string {
   const name = escapeHtml(truncateDisplayPart(identity.name, options.maxNameLength));
-  const renderedName = options.boldName === false ? name : `<b>${name}</b>`;
+  const guildCrest = identity.guildCrest ? `${escapeHtml(identity.guildCrest)} ` : "";
+  const renderedName = options.boldName === false
+    ? `${guildCrest}${name}`
+    : `${guildCrest}<b>${name}</b>`;
   const title = presentActiveCosmeticTitle(identity.activeCosmeticTitle, {
     ...(options.maxTitleLength === undefined ? {} : { maxLength: options.maxTitleLength })
   });

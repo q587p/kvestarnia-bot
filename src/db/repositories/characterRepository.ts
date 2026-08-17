@@ -21,6 +21,7 @@ export interface CharacterRecord {
   activeCosmeticTitleGrantId?: string | null;
   statsJson: unknown;
   remortCount?: number;
+  guildCrest?: string;
 }
 
 export interface CreateCharacterInput {

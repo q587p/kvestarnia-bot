@@ -122,6 +122,7 @@ const actorSchema = z.object({
   characterId: z.string().min(1),
   telegramUserId: z.string().regex(/^\d+$/),
   name: z.string().min(1).max(93),
+  guildCrest: z.string().min(1).max(32).optional(),
   activeCosmeticTitle: z.string().min(1).max(93).optional(),
   remortCount: nonNegativeInteger,
   rosterOrder: nonNegativeInteger,

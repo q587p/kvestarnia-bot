@@ -130,7 +130,7 @@ function renderGroupedRows(events: readonly ActivityEventRecord[], now: Date): s
 
 function renderEventRow(event: ActivityEventRecord): string {
   const time = formatKyivTime(event.occurredAt);
-  const actor = safeDynamicName(event.actorDisplayName);
+  const actor = `${event.actorGuildCrest ? `${escapeHtml(event.actorGuildCrest)} ` : ""}${safeDynamicName(event.actorDisplayName)}`;
   const subject = safeDynamicName(event.subjectName);
 
   switch (event.eventType) {

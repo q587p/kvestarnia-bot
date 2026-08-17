@@ -132,7 +132,7 @@ export function presentVarenykSatedPreview(result: VarenykSatedPreviewResult): s
   return [
     "🍽️ <b>Підтвердити годування?</b>",
     "",
-    `Ціль: <b>${self ? "ви" : escapeHtml(result.target.name)}</b>.`,
+    `Ціль: ${self ? "<b>ви</b>" : presentCharacterDisplayName(result.target)}.`,
     "",
     `Точна ціна: <b>${result.plan.manaCost} мани</b>.`,
     `Одразу до <b>+${result.plan.immediateHp} HP</b>.`,
@@ -149,6 +149,8 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     return presentBlocked("🍽️", "Годування не склалося", result.reason, result.availableAt);
   }
   const self = result.action.actorTelegramUserId === result.action.targetTelegramUserId;
+  const actor = result.actor ?? { name: result.action.actorName };
+  const target = result.target ?? { name: result.action.targetName };
   const now = Date.now();
   const timingLines = result.action.expiresAt.getTime() > now
     ? [
@@ -165,7 +167,7 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
     "",
     self
       ? "Вареник-мант нагодував себе. Кухонна етика знизала плечима, але зарахувала."
-      : `<b>${escapeHtml(result.action.actorName)}</b> нагодував <b>${escapeHtml(result.action.targetName)}</b>. Вареники не ставили зайвих питань.`,
+      : `${presentCharacterDisplayName(actor)} нагодував ${presentCharacterDisplayName(target)}. Вареники не ставили зайвих питань.`,
     "",
     result.action.immediateHpRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
@@ -179,10 +181,11 @@ export function presentVarenykSatedResult(result: VarenykSatedResult): string {
 export function presentVarenykSatedTargetNotification(
   result: Extract<VarenykSatedResult, { state: "completed" }>
 ): string {
+  const actor = result.actor ?? { name: result.action.actorName };
   return [
     "😋 <b>Вас нагодували</b>",
     "",
-    `<b>${escapeHtml(result.action.actorName)}</b> передав вам вареники. Корчма визнала це турботою.`,
+    `${presentCharacterDisplayName(actor)} передав вам вареники. Корчма визнала це турботою.`,
     "",
     result.action.immediateHpRestored > 0
       ? presentSatedRecoveryLine(result.action.immediateHpRestored, 0)
@@ -487,7 +490,7 @@ function presentPriestBlessWaitLines(
   }
 
   for (const target of result.targets.filter((candidate) => candidate.priestBlessAvailableAt)) {
-    lines.push(`✨ ${escapeHtml(target.name)}: повтор через ${formatRemaining(target.priestBlessAvailableAt!)}.`);
+    lines.push(`✨ ${presentClassNoncombatTargetName(target, false)}: повтор через ${formatRemaining(target.priestBlessAvailableAt!)}.`);
   }
 
   return lines;
@@ -503,7 +506,7 @@ function presentRogueAttemptedLines(
 
   return [
     "Сьогодні вже були:",
-    ...attempted.map((target) => `🗓️ ${escapeHtml(target.name)} — цю кишеню знову тільки завтра.`)
+    ...attempted.map((target) => `🗓️ ${presentClassNoncombatTargetName(target, false)} — цю кишеню знову тільки завтра.`)
   ];
 }
 
@@ -528,7 +531,7 @@ function presentVarenykStatusAndWaitLines(
 
   for (const target of result.targets) {
     const targetSummary = presentVarenykRecipientSummary(
-      `👤 <b>${escapeHtml(target.name)}</b>`,
+      `👤 ${presentClassNoncombatTargetName(target, true)}`,
       target.varenykSated,
       target.varenykSatedAvailableAt,
       now
@@ -537,6 +540,13 @@ function presentVarenykStatusAndWaitLines(
   }
 
   return lines;
+}
+
+function presentClassNoncombatTargetName(
+  target: Extract<ClassNoncombatOpenResult, { state: "ready" }>["targets"][number],
+  boldName: boolean
+): string {
+  return presentCharacterDisplayName(target.character ?? target, { boldName });
 }
 
 function presentVarenykRecipientSummary(

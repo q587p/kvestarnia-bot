@@ -344,6 +344,7 @@ export interface GroupCombatActorSnapshot {
   characterId: string;
   telegramUserId: string;
   name: string;
+  guildCrest?: string;
   activeCosmeticTitle?: string;
   remortCount: number;
   rosterOrder: number;

@@ -49,6 +49,7 @@ export class GroupCombatService {
       enabled: boolean;
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
+      guildIdentityEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
@@ -113,7 +114,8 @@ export class GroupCombatService {
       telegramUserId,
       partyInviteToken,
       now,
-      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
     });
   }
 
@@ -125,7 +127,8 @@ export class GroupCombatService {
     return this.repository.startDueLeftPassage({
       partyInviteToken,
       now,
-      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
     });
   }
 
@@ -137,7 +140,8 @@ export class GroupCombatService {
     return this.repository.startReadyLeftPassage({
       partyInviteToken,
       now,
-      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
     });
   }
 
@@ -154,7 +158,8 @@ export class GroupCombatService {
       telegramUserId,
       partyInviteToken,
       now,
-      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
     });
   }
 
@@ -166,7 +171,8 @@ export class GroupCombatService {
     return this.repository.startDueProof({
       partyInviteToken,
       now,
-      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS)
+      turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
     });
   }
 

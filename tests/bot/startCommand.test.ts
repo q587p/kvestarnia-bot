@@ -96,7 +96,7 @@ describe("start command", () => {
       }
     });
 
-    expect(String(sent[0]?.text)).toContain("🧿 Ґільдія: <b>Тиха Печатка</b>");
+    expect(String(sent[0]?.text)).toContain("Ґільдія: 🧿 <b>Тиха Печатка</b>");
   });
 
   it("notifies existing tavern-game participants after a game deep-link join", async () => {

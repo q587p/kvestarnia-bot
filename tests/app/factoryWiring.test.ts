@@ -239,7 +239,8 @@ describe("application factory wiring", () => {
       partyBoss: new PartyBossService(repositories.partyBossSessions, {
         enabled: nonProduction ||
           config.bigBarrelBrotherRaidEnabled,
-        devHelpersEnabled: nonProduction
+        devHelpersEnabled: nonProduction,
+        guildIdentityEnabled: config.guildFoundationEnabled
       }, undefined, achievements, publicActivityEvents, repositories.inventory, barrelBeerTutorial, repositories.dailyActions)
     `));
     expect(source).toContain(compact(`

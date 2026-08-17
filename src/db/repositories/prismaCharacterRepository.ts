@@ -12,16 +12,22 @@ import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCou
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 import { isAuthoritativeLivePartySession } from "./partySessionRepository";
+import { readLiveGuildCrest } from "./guildIdentityRead";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
   | { state: "insufficient"; character: CharacterRecord };
 
 export class PrismaCharacterRepository implements CharacterRepository, RestartRepository {
+  private readonly characterRecordInclude: ReturnType<typeof buildCharacterRecordInclude>;
+
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
-  ) {}
+    private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false),
+    guildIdentityEnabled = false
+  ) {
+    this.characterRecordInclude = buildCharacterRecordInclude(guildIdentityEnabled);
+  }
 
   async findByUserId(userId: string): Promise<CharacterRecord | null> {
     const character = await this.prisma.character.findUnique({
@@ -29,7 +35,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         userId
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -49,7 +55,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         }
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -163,7 +169,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         }
       },
       include: {
-        ...characterRecordInclude
+        ...this.characterRecordInclude
       }
     });
 
@@ -221,7 +227,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
             id: character.id
           },
           include: {
-            ...characterRecordInclude
+            ...this.characterRecordInclude
           }
         });
 
@@ -275,7 +281,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
         const record = await tx.character.findUnique({
           where: { id: character.id },
-          include: { ...characterRecordInclude }
+          include: { ...this.characterRecordInclude }
         });
         return record ? toCharacterRecord(record) : null;
       });
@@ -290,7 +296,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
         },
-        include: { ...characterRecordInclude }
+        include: { ...this.characterRecordInclude }
       });
       return toCharacterRecord(updated);
     }
@@ -304,7 +310,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           hpRegenAt: input.hpRegenAt,
           manaRegenAt: input.manaRegenAt
         },
-        include: { ...characterRecordInclude }
+        include: { ...this.characterRecordInclude }
       });
       await this.recordResourceRecovery(tx, character.id, input, data.hpCurrent);
       return toCharacterRecord(updated);
@@ -350,7 +356,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         where: {
           userId: user.id
         },
-        include: characterRecordInclude
+        include: this.characterRecordInclude
       });
 
       if (existing) {
@@ -398,7 +404,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         include: {
-          ...characterRecordInclude
+          ...this.characterRecordInclude
         }
       });
 
@@ -423,7 +429,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
           }
         },
         include: {
-          ...characterRecordInclude
+          ...this.characterRecordInclude
         }
       });
 
@@ -548,32 +554,69 @@ async function reanchorTerminalPartyBossHistory(
   }
 }
 
-const characterRecordInclude = {
-  user: {
-    select: {
-      telegramUserId: true,
-      lastSeenLocationId: true
+function buildCharacterRecordInclude(guildIdentityEnabled: boolean) {
+  return {
+    user: {
+      select: {
+        telegramUserId: true,
+        lastSeenLocationId: true,
+        ...(guildIdentityEnabled
+          ? {
+              guildMemberships: {
+                where: { leftAt: null, activeUserKey: { not: null } },
+                select: {
+                  leftAt: true,
+                  activeUserKey: true,
+                  guild: {
+                    select: {
+                      crest: true,
+                      status: true,
+                      charterExpiresAt: true,
+                      disbandedAt: true
+                    }
+                  }
+                },
+                take: 1
+              }
+            }
+          : {})
+      }
+    },
+    _count: {
+      select: {
+        remorts: true
+      }
     }
-  },
-  _count: {
-    select: {
-      remorts: true
-    }
-  }
-} satisfies Prisma.CharacterInclude;
+  } satisfies Prisma.CharacterInclude;
+}
 
 function toCharacterRecord(
   character: Character & {
-    user: { telegramUserId: bigint; lastSeenLocationId: string | null };
+    user: {
+      telegramUserId: bigint;
+      lastSeenLocationId: string | null;
+      guildMemberships?: Array<{
+        leftAt: Date | null;
+        activeUserKey: string | null;
+        guild?: {
+          crest: string;
+          status: string;
+          charterExpiresAt: Date;
+          disbandedAt: Date | null;
+        };
+      }>;
+    };
     _count?: { remorts?: number };
   }
 ): CharacterRecord {
   const { user, ...record } = character;
   delete (record as { _count?: unknown })._count;
+  const guildCrest = readLiveGuildCrest(user.guildMemberships, new Date());
 
   return {
     ...record,
     currentLocationId: user.lastSeenLocationId,
+    ...(guildCrest ? { guildCrest } : {}),
     remortCount: getIncludedRemortCount(character)
   };
 }

@@ -81,8 +81,8 @@ describe("duel tournament domain", () => {
     const standings = buildDuelTournamentStandings(records, window);
 
     expect(standings).toEqual([
-      expect.objectContaining({ characterId: "challenger", points: 5, wins: 2, draws: 1, rank: 1 }),
-      expect.objectContaining({ characterId: "target", points: 1, wins: 0, draws: 1, rank: 2 })
+      expect.objectContaining({ characterId: "challenger", guildCrest: "🐸", points: 5, wins: 2, draws: 1, rank: 1 }),
+      expect.objectContaining({ characterId: "target", guildCrest: "🦉", points: 1, wins: 0, draws: 1, rank: 2 })
     ]);
   });
 
@@ -184,6 +184,7 @@ function character(id: string, name: string) {
     userId: `user-${id}`,
     telegramUserId: id === "challenger" ? 1n : 2n,
     name,
+    guildCrest: id === "challenger" ? "🐸" : "🦉",
     pronoun: "they",
     path: "boundary",
     raceId: "race.human-ish",

@@ -30,6 +30,7 @@ import {
   PRESENCE_LOCATION_KORCHMA_BAR
 } from "../../services/presenceService";
 import { presentCharacterHeader } from "./telegramHtml";
+import { presentCharacterDisplayName } from "./characterDisplay";
 import { escapeHtml } from "./telegramHtml";
 
 export function presentShynokGate(result: { state: string }): string {
@@ -305,10 +306,14 @@ export function presentBardPerformanceStartResult(result: BardPerformanceStartRe
 
 export function presentBardPerformanceAudienceNotification(
   performerName: string,
-  notice: PresentedBardPerformanceAudienceNotice
+  notice: PresentedBardPerformanceAudienceNotice,
+  performerGuildCrest?: string
 ): string {
   const lines = [
-    `🎶 <b>${escapeHtml(performerName)}</b> починає виступ у вашій місцині.`,
+    `🎶 ${presentCharacterDisplayName({
+      name: performerName,
+      ...(performerGuildCrest ? { guildCrest: performerGuildCrest } : {})
+    })} починає виступ у вашій місцині.`,
   ];
   if (notice.inspiration) {
     const remaining = formatRemainingMinutesFrom(
@@ -410,11 +415,17 @@ export function presentBardPerformanceResponseResult(result: BardPerformanceResp
 
 export function presentBardPerformancePerformerFeedback(result: BardPerformanceRespondResult): string | null {
   if (result.state === "applauded") {
-    return `👏 <b>${escapeHtml(result.reaction.audienceName)}</b> аплодує вашому виступу.`;
+    return `👏 ${presentCharacterDisplayName({
+      name: result.reaction.audienceName,
+      ...(result.reaction.audienceGuildCrest ? { guildCrest: result.reaction.audienceGuildCrest } : {})
+    })} аплодує вашому виступу.`;
   }
 
   if (result.state === "tipped") {
-    return `🪙 <b>${escapeHtml(result.reaction.audienceName)}</b> дає вам <b>${result.reaction.tipGold} золота</b> за виступ.`;
+    return `🪙 ${presentCharacterDisplayName({
+      name: result.reaction.audienceName,
+      ...(result.reaction.audienceGuildCrest ? { guildCrest: result.reaction.audienceGuildCrest } : {})
+    })} дає вам <b>${result.reaction.tipGold} золота</b> за виступ.`;
   }
 
   return null;
@@ -618,7 +629,7 @@ function presentLeaderboardSection(
 function presentLeaderboardEntry(entry: KorchmaRoundLeaderboardEntry, rank: number): string {
   const count = `${entry.roundCount} ${presentRoundCount(entry.roundCount)}`;
 
-  return `${rank}. ${escapeHtml(entry.name)} — ${count} · ${entry.spentGold} золота`;
+  return `${rank}. ${presentCharacterDisplayName(entry, { boldName: false })} — ${count} · ${entry.spentGold} золота`;
 }
 
 function presentRoundCount(count: number): string {

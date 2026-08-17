@@ -25,6 +25,7 @@ export interface DuelTournamentPeriodWindow {
 export interface DuelTournamentEntry {
   characterId: string;
   name: string;
+  guildCrest?: string;
   activeCosmeticTitle?: string | null;
   points: number;
   wins: number;
@@ -192,6 +193,7 @@ export function buildDuelTournamentStandings(
         record.result.outcome === "challenger"
           ? record.result.participants?.challenger.activeCosmeticTitle
           : record.result.participants?.target.activeCosmeticTitle,
+        winner.guildCrest,
         winner.name
       );
       entry.points += points;
@@ -253,7 +255,7 @@ function isEligibleTournamentDuel(
 function addDrawPoints(
   entries: Map<string, Omit<DuelTournamentEntry, "rank">>,
   drawCountsByOpponent: Map<string, number>,
-  actor: { id: string; name: string },
+  actor: { id: string; name: string; guildCrest?: string },
   opponent: { id: string; name: string }
 ): void {
   const key = `${actor.id}:${opponent.id}`;
@@ -264,7 +266,7 @@ function addDrawPoints(
     return;
   }
 
-  const entry = getOrCreateEntry(entries, actor.id, undefined, undefined, actor.name);
+  const entry = getOrCreateEntry(entries, actor.id, undefined, undefined, actor.guildCrest, actor.name);
   entry.points += DRAW_POINTS;
   entry.draws += 1;
   entry.scoredDuels += 1;
@@ -275,6 +277,7 @@ function getOrCreateEntry(
   characterId: string,
   snapshotName: string | undefined,
   snapshotActiveCosmeticTitle: string | null | undefined,
+  guildCrest: string | undefined,
   fallbackName: string
 ): Omit<DuelTournamentEntry, "rank"> {
   const current = entries.get(characterId);
@@ -289,6 +292,7 @@ function getOrCreateEntry(
     wins: 0,
     draws: 0,
     scoredDuels: 0,
+    ...(guildCrest ? { guildCrest } : {}),
     ...(snapshotActiveCosmeticTitle === undefined
       ? {}
       : { activeCosmeticTitle: snapshotActiveCosmeticTitle })

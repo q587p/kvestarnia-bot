@@ -70,6 +70,7 @@ export interface TavernGameSessionRecord {
 export interface TavernGameLeaderboardEntry {
   characterId: string;
   name: string;
+  guildCrest?: string;
   activeCosmeticTitle?: string | null;
   winCount: number;
   drawCount: number;

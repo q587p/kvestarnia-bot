@@ -26,6 +26,23 @@ import {
 const NOW = new Date("2026-07-22T10:00:00.000Z");
 
 describe("group combat presenter", () => {
+  it("shows frozen guild crests in the live roster, opening and statistics", () => {
+    const session = createSession(2);
+    session.state.participants[0]!.guildCrest = "🐸";
+    session.state.participants[1]!.guildCrest = "🧿";
+
+    const card = presentGroupCombat(session, session.state.participants[0]!.characterId, NOW);
+    const intro = presentGroupCombatIntro(session);
+    const statistics = presentGroupCombatStatistics(session);
+
+    expect(card).toContain("❤️ 🐸 Пригодник 1: 20/20 · мана 10/10");
+    expect(card).toContain("🫶 🧿 Пригодник 2: 20/20 · мана 10/10");
+    expect(intro).toContain("<b>🐸 Пригодник 1</b>");
+    expect(intro).toContain("<b>🧿 Пригодник 2</b>");
+    expect(statistics).toContain("🐸 Пригодник 1:");
+    expect(statistics).toContain("🧿 Пригодник 2:");
+  });
+
   it("keeps the maximum proof card bounded and matches the established 23-second combat prompt", () => {
     const state = createGroupCombatProofState({
       sessionId: "group-card",

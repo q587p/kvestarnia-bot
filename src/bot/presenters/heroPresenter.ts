@@ -154,7 +154,7 @@ export function presentHero(
     "",
     `Титул: <i>${escapeHtml(summary.title)}</i>`,
     ...(options.guild
-      ? [`${escapeHtml(options.guild.crest)} Ґільдія: <b>${escapeHtml(options.guild.displayName)}</b>`]
+      ? [`Ґільдія: ${escapeHtml(options.guild.crest)} <b>${escapeHtml(options.guild.displayName)}</b>`]
       : []),
     ...(options.activeCosmeticTitle
       ? [`🏷️ Косметичний титул: <i>${escapeHtml(options.activeCosmeticTitle)}</i>`]

@@ -51,6 +51,27 @@ describe("BardPerformanceService", () => {
     expect(repository.lastStartInput?.cooldownAvailableAt.toISOString()).toBe("2026-06-26T11:33:00.000Z");
   });
 
+  it("attaches live guild crests to Bard identities only through the optional guild reader", async () => {
+    const repository = new FakeBardPerformanceRepository();
+    const service = new BardPerformanceService(
+      repository,
+      () => now,
+      new FakeRandomSource([0.5]),
+      {},
+      {
+        getLiveCrestsForCharacterIds: () => Promise.resolve(new Map([["character-bard", "🐸"]]))
+      }
+    );
+
+    const result = await service.startForTelegramUser(telegramUserId);
+
+    expect(result).toMatchObject({
+      state: "started",
+      character: { guildCrest: "🐸" },
+      performance: { performerGuildCrest: "🐸" }
+    });
+  });
+
   it("starts an off-Shynok same-location performance without house payout", async () => {
     const repository = new FakeBardPerformanceRepository({
       character: { currentLocationId: "location.korchma.front" }

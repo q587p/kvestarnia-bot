@@ -134,6 +134,24 @@ describe("latest events presenter", () => {
     expect(text).toContain("Пригодник без таблички");
   });
 
+  it("shows and escapes the actor's live guild crest without exposing other guild data", () => {
+    const text = presentLatestEventsPage({
+      now: new Date("2026-07-02T12:00:00.000Z"),
+      page: {
+        events: [makeEvent("character.created", "2026-07-02T09:00:00.000Z", {
+          actorDisplayName: "Арден",
+          actorGuildCrest: "<&"
+        })],
+        page: 0,
+        pageSize: 15,
+        hasNextPage: false
+      }
+    });
+
+    expect(text).toContain("&lt;&amp; Арден");
+    expect(text).not.toContain("membership");
+  });
+
   it("renders successful item upgrade activity rows", () => {
     const text = presentLatestEventsPage({
       filter: "itm",

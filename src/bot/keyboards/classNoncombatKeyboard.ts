@@ -49,7 +49,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
     for (const target of result.targets) {
       const canHealTarget = canHeal(target);
       if (canHealTarget) {
-        keyboard.text(`⚕️ ${formatName(target.name)}`, makePriestHealCallbackData({
+        keyboard.text(`⚕️ ${formatTarget(target)}`, makePriestHealCallbackData({
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
@@ -58,7 +58,7 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       }
 
       keyboard
-        .text(canHealTarget ? "✨" : `✨ ${formatName(target.name)}`, makePriestBlessCallbackData({
+        .text(canHealTarget ? "✨" : `✨ ${formatTarget(target)}`, makePriestBlessCallbackData({
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
@@ -75,16 +75,16 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
   } else if (result.mode === "rogue") {
     for (const target of result.targets.filter((candidate) => candidate.level >= 3)) {
       if (target.canRoguePickpocket) {
-        keyboard.text(`🗡️ ${formatName(target.name)}`, makeRoguePickpocketCallbackData({
+        keyboard.text(`🗡️ ${formatTarget(target)}`, makeRoguePickpocketCallbackData({
           targetTelegramUserId: target.telegramUserId,
           actorRemortCount,
           targetRemortCount: target.remortCount,
           page: currentPage
         }));
       } else if (target.rogueAttemptedToday) {
-        keyboard.text(`🗓️ ${formatName(target.name)} завтра`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
+        keyboard.text(`🗓️ ${formatTarget(target)} завтра`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
       } else if (result.roguePickpocketCooldownAvailableAt) {
-        keyboard.text(`🕯️ ${formatName(target.name)} пізніше`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
+        keyboard.text(`🕯️ ${formatTarget(target)} пізніше`, makeClassNoncombatOpenCallbackData(result.mode, currentPage));
       }
       keyboard.row();
     }
@@ -110,8 +110,8 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
       if (target.canVarenykFeed && result.varenykPlan) {
         keyboard.text(
           target.varenykSated
-            ? `🍽️ ${formatName(target.name)} — оновити стан`
-            : `🍽️ ${formatName(target.name)}`,
+            ? `🍽️ ${formatTarget(target)} — оновити стан`
+            : `🍽️ ${formatTarget(target)}`,
           makeVarenykFeedPreviewCallbackData({
             targetTelegramUserId: target.telegramUserId,
             actorRemortCount,
@@ -120,9 +120,9 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
           })
         ).row();
       } else if (target.varenykSated) {
-        keyboard.text(`😋 ${formatName(target.name)} — Ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+        keyboard.text(`😋 ${formatTarget(target)} — Ситий`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
       } else if (target.varenykSatedAvailableAt) {
-        keyboard.text(`🍽️ ${formatName(target.name)} — пауза`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
+        keyboard.text(`🍽️ ${formatTarget(target)} — пауза`, makeClassNoncombatOpenCallbackData(result.mode, currentPage)).row();
       }
     }
     addPaginationControls(keyboard, {
@@ -139,6 +139,10 @@ export function buildClassNoncombatKeyboard(result: ClassNoncombatOpenResult): I
 
 function formatName(name: string): string {
   return name.length > 24 ? `${name.slice(0, 23)}…` : name;
+}
+
+function formatTarget(target: { name: string; character: { guildCrest?: string } }): string {
+  return formatName(`${target.character?.guildCrest ? `${target.character.guildCrest} ` : ""}${target.name}`);
 }
 
 function canHeal(character: { hpCurrent: number; hpMax: number }): boolean {

@@ -144,6 +144,7 @@ export interface PartyBossStartInput {
   now: Date;
   turnExpiresAt: Date;
   allowExpiredRecruiting?: boolean;
+  includeGuildIdentity?: boolean;
 }
 
 export interface PartyBossResolveInput {
