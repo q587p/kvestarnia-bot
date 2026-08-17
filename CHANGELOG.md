@@ -36,6 +36,9 @@ This project follows a simple pre-1.0 versioning policy:
 - Personal invitation cards now carry their actionable private deep link in the body. Acceptance and create/join achievement notices retain guild recovery controls, and activation delivers the founder achievement as well as the joiner's achievement.
 
 ### Fixed
+- Disabled presence reads now omit the guild membership relation entirely, while enabled reads select only the active-guild crest. This preserves the pre-guild query shape for a default-off deploy or rollback.
+- The canonical persistent `👀 Хто поруч` route now receives the guild service like `/online`, so an eligible leader sees the same-location opted-in invitation action without exposing the private opt-in token in Telegram markup.
+- All founding-unavailable guidance now uses the canonical level-7 first-life and level-3 post-remort constants.
 - Forwarded personal guild links now explain that they let a leader or officer invite the card owner rather than join the viewer. Nonmembers and ordinary members receive distinct missing-membership or missing-authority guidance with a retained guild-hub control.
 - Private forming and active character cards now render `Ґільдія: <герб> <назва>`. Guild-enabled nearby rows, duels, ordinary/Big Barrel/GroupCombat identities, Bard and class interactions, tavern games, public game/combat/milestone boards and Kvestarnia chronicles carry only the escaped live crest without exposing guild names, roles or membership identifiers; disabled mode keeps the prior non-guild read shape.
 - Condensed the current player-news entry to the durable Guild Foundation promise instead of listing release-candidate keyboard, pagination, recovery and copy repairs as separate features. The news policy and health test now apply a counterfactual editorial boundary and default five-bullet cap to the newest release.

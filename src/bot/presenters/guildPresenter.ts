@@ -290,7 +290,7 @@ export function presentGuildCrestPickerUnavailable(result: GuildCrestPickerResul
     disabled: "Нові статути й зміни гербів зараз зачинені.",
     "no-character": "Спершу створіть пригодника через /start.",
     "already-member": "Ви вже належите до ґільдії.",
-    ineligible: "Заснування потребує 5 рівня або 3 рівня після першого реморту.",
+    ineligible: `Заснування потребує ${GUILD_FOUNDER_MIN_LEVEL} рівня до першого реморту або ${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівня після нього.`,
     "not-member": "Чинний ґільдійний профіль не знайшовся.",
     forbidden: "Змінювати герб може лише чинна голова.",
     stale: "Статут уже змінився. Відкрийте профіль знову."

@@ -769,6 +769,102 @@ describe("presence middleware", () => {
     ]);
   });
 
+  it("shows the guild invite action through the canonical nearby reply-keyboard route", async () => {
+    const presence = new CapturingPresenceService();
+    presence.onlineSnapshot = {
+      state: "ready",
+      globalTotal: 2,
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_HALL,
+        name: "Зала корчми",
+        people: {
+          active: [
+            { telegramUserId: 42n, name: "Голова", status: "active" },
+            { telegramUserId: 93n, name: "Адресатка", status: "active" }
+          ],
+          idle: [],
+          total: 2
+        }
+      },
+      activity: null
+    };
+    const getNearbyInviteCandidatesForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      candidates: [{
+        candidateId: "12345678-1234-4234-9234-123456789012",
+        telegramUserId: 93n,
+        name: "Адресатка",
+        targetToken: "privateInviteCode93"
+      }]
+    });
+    const bot = createTestBot(presence, {
+      guilds: {
+        isEnabled: () => true,
+        areDevHelpersEnabled: () => false,
+        getNearbyInviteCandidatesForTelegramUser
+      } as unknown as BotServices["guilds"]
+    });
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    bot.api.config.use((prev, method, payload, signal) => {
+      calls.push({ method, payload });
+      return prev(method, payload, signal);
+    });
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("👀 Хто поруч"));
+
+    const payload = JSON.stringify(calls.find((call) => call.method === "sendMessage")?.payload);
+    expect(getNearbyInviteCandidatesForTelegramUser).toHaveBeenCalledWith(42n, [93n]);
+    expect(payload).toContain("✉️ Запросити до ґільдії");
+    expect(payload).toContain("v1:g:ln:0");
+    expect(payload).not.toContain("privateInviteCode93");
+  });
+
+  it.each([
+    ["disabled", false, { state: "disabled" }],
+    ["forbidden", true, { state: "forbidden" }],
+    ["empty", true, { state: "ready", candidates: [] }]
+  ] as const)("hides the nearby guild invite action for the %s state", async (_name, enabled, result) => {
+    const presence = new CapturingPresenceService();
+    presence.onlineSnapshot = {
+      state: "ready",
+      globalTotal: 2,
+      location: {
+        id: PRESENCE_LOCATION_KORCHMA_HALL,
+        name: "Зала корчми",
+        people: {
+          active: [
+            { telegramUserId: 42n, name: "Голова", status: "active" },
+            { telegramUserId: 93n, name: "Адресатка", status: "active" }
+          ],
+          idle: [],
+          total: 2
+        }
+      },
+      activity: null
+    };
+    const bot = createTestBot(presence, {
+      guilds: {
+        isEnabled: () => enabled,
+        areDevHelpersEnabled: () => false,
+        getNearbyInviteCandidatesForTelegramUser: vi.fn().mockResolvedValue(result)
+      } as unknown as BotServices["guilds"]
+    });
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    bot.api.config.use((prev, method, payload, signal) => {
+      calls.push({ method, payload });
+      return prev(method, payload, signal);
+    });
+    await bot.init();
+
+    await bot.handleUpdate(messageUpdate("👀 Хто поруч"));
+
+    const payload = JSON.stringify(calls.find((call) => call.method === "sendMessage")?.payload);
+    expect(payload).not.toContain("✉️ Запросити до ґільдії");
+    expect(payload).not.toContain("v1:g:ln:0");
+    expect(payload).not.toContain("privateInviteCode93");
+  });
+
   it("shows the party invite picker from the nearby menu button", async () => {
     const presence = new CapturingPresenceService();
     presence.onlineSnapshot = {

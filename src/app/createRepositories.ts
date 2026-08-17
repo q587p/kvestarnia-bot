@@ -103,7 +103,10 @@ export function createRepositories(
     partyRaidChat: new PrismaPartyRaidChatRepository(prisma),
     partySessions: new PrismaPartySessionRepository(prisma, partyRaidChatWriter),
     playerHintReceipts: new PrismaPlayerHintReceiptRepository(prisma),
-    presence: new PrismaPresenceRepository(prisma),
+    presence: new PrismaPresenceRepository(
+      prisma,
+      options.guildIdentityEnabled === true
+    ),
     questMarkerReads: new PrismaQuestMarkerReadRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(

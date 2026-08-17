@@ -158,6 +158,7 @@ export function registerMainMenuKeyboard(
       bardPerformance: services.bardPerformance,
       classNoncombatEnabled: Boolean(services.classNoncombat),
       duelEnabled: Boolean(services.duel),
+      guilds: services.guilds,
       itemGiftEnabled: Boolean(services.itemTransfers),
       partySessions: services.partySessions,
       tavernGames: services.tavernGames

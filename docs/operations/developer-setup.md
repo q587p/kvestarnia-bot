@@ -129,7 +129,7 @@ foreign key до `PartySession`/`GroupCombatSession` і не відкриває 
 buff, weekly goal, boss, chat, trade, war, territory чи PvP. Для локальної
 триакаунтової перевірки ввімкніть прапорець у checkout `.env`, виконайте
 `refresh-local-bot.cmd` та звірте candidate SHA і скопійоване значення через
-`status-local-bot.cmd`. Засновник потребує 5 рівня або 3 рівня після реморту й
+`status-local-bot.cmd`. Засновник потребує 7 рівня до першого реморту або 3 рівня після нього й
 587 золота; `/guild_party` працює лише для вже чинного eligible gameplay-збору,
 не створює generic lobby. Rollback спершу вимикає прапорець і перезапускає бот;
 SQL rollback дозволений лише на погодженій isolated/restored базі. До production

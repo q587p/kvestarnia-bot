@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRepositories } from "../../src/app/createRepositories";
 import { createServices } from "../../src/app/createServices";
 import type { AppConfig } from "../../src/config/env";
@@ -107,6 +107,64 @@ describe("application factory wiring", () => {
     expect(repositories.yegerNotchExchange).toBeInstanceOf(PrismaYegerNotchExchangeRepository);
     expect(source).toContain("new PrismaPartyRaidChatTransactionWriter(true)");
     expect(source).not.toContain("bigBarrelRaidChatEnabled");
+  });
+
+  it("keeps presence guild identity out of disabled queries and enables the active crest through factory wiring", async () => {
+    const findUnique = vi.fn().mockResolvedValue({
+      telegramUserId: 42n,
+      displayName: "Мандрівник",
+      lastActionAt: new Date("2026-08-17T10:00:00.000Z"),
+      lastSeenLocationId: "location.korchma.hall",
+      currentRaidId: null,
+      currentAdventureId: null,
+      character: {
+        name: "Мандрівник",
+        classId: "class.warrior",
+        level: 7,
+        activeCosmeticTitleGrantId: null
+      }
+    });
+    const prisma = { user: { findUnique } } as unknown as PrismaClient;
+
+    const disabled = createRepositories(prisma, { guildIdentityEnabled: false });
+    await expect(disabled.presence.findByTelegramUserId(42n)).resolves.toMatchObject({
+      guildCrest: null
+    });
+    const disabledQuery: unknown = findUnique.mock.calls[0]?.[0];
+    const disabledSelect = (disabledQuery as { select?: unknown }).select;
+    expect(disabledSelect).not.toHaveProperty("guildMemberships");
+
+    findUnique.mockResolvedValueOnce({
+      telegramUserId: 42n,
+      displayName: "Мандрівник",
+      lastActionAt: new Date("2026-08-17T10:00:00.000Z"),
+      lastSeenLocationId: "location.korchma.hall",
+      currentRaidId: null,
+      currentAdventureId: null,
+      character: {
+        name: "Мандрівник",
+        classId: "class.warrior",
+        level: 7,
+        activeCosmeticTitleGrantId: null
+      },
+      guildMemberships: [{ guild: { crest: "🐸" } }]
+    });
+    const enabled = createRepositories(prisma, { guildIdentityEnabled: true });
+
+    await expect(enabled.presence.findByTelegramUserId(42n)).resolves.toMatchObject({
+      guildCrest: "🐸"
+    });
+    const enabledQuery: unknown = findUnique.mock.calls[1]?.[0];
+    const enabledSelect = (enabledQuery as {
+      select?: { guildMemberships?: unknown };
+    }).select;
+    expect(enabledSelect?.guildMemberships).toMatchObject({
+      where: {
+        activeUserKey: { not: null },
+        guild: { status: "active" }
+      },
+      take: 1
+    });
   });
 
   it("creates the expected application service surface", () => {
