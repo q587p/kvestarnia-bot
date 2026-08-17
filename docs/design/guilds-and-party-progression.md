@@ -54,8 +54,9 @@ target-bound consent are revalidated at the callback/mutation boundary.
 
 ## Creation lifecycle
 
-Founder eligibility is `(currentLevel >= 5) OR (remortCount >= 1 AND
-currentLevel >= 3)`. Join has no level, remort, quest, item or payment gate.
+Founder eligibility is `(remortCount = 0 AND currentLevel >= 7) OR
+(remortCount >= 1 AND currentLevel >= 3)`. Join has no level, remort, quest,
+item or payment gate.
 
 Creation uses one replaceable 13-minute intent per User. The preview freezes
 name, crest, description and 587-gold cost. Confirm atomically:

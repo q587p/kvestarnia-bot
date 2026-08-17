@@ -41,7 +41,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("enforces founder eligibility, one replaceable live preview, expiry and exact-once debit", async () => {
-    await seedCharacter(prisma, "preview-low", 51_001n, "Низький Рівень", 1_000, { level: 4 });
+    await seedCharacter(prisma, "preview-low", 51_001n, "Низький Рівень", 1_000, { level: 6 });
     await expect(createIntent(repository, 51_001n, "preview-low-token", "Низька Печатка"))
       .resolves.toEqual({ state: "ineligible" });
 
@@ -66,13 +66,13 @@ describe("PrismaGuildRepository integration", () => {
       .resolves.toMatchObject({ state: "replayed" });
     await expect(goldFor(prisma, 51_002n)).resolves.toBe(1_000 - GUILD_CREATION_GOLD);
 
-    await seedCharacter(prisma, "preview-poor", 51_003n, "Без Золота", 0, { level: 5 });
+    await seedCharacter(prisma, "preview-poor", 51_003n, "Без Золота", 0, { level: 7 });
     await createIntent(repository, 51_003n, "preview-poor-token", "Бідна Печатка");
     await expect(repository.confirmCreateForTelegramUser(51_003n, "preview-poor-token", NOW))
       .resolves.toEqual({ state: "insufficient-gold", required: GUILD_CREATION_GOLD, available: 0 });
     await expect(prisma.guildFounderCooldown.count({ where: { userId: "preview-poor" } })).resolves.toBe(0);
 
-    await seedCharacter(prisma, "preview-expired", 51_004n, "Прострочений", 1_000, { level: 5 });
+    await seedCharacter(prisma, "preview-expired", 51_004n, "Прострочений", 1_000, { level: 7 });
     await createIntent(repository, 51_004n, "preview-expired-token", "Пізня Печатка", NOW, new Date(NOW.getTime() + 1_000));
     await expect(repository.confirmCreateForTelegramUser(
       51_004n,
@@ -109,8 +109,8 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("serializes equivalent-name and different-name confirms with one founder charter per seven days", async () => {
-    await seedCharacter(prisma, "race-name-a", 52_001n, "Коваль А", 1_000, { level: 5 });
-    await seedCharacter(prisma, "race-name-b", 52_002n, "Коваль Б", 1_000, { level: 5 });
+    await seedCharacter(prisma, "race-name-a", 52_001n, "Коваль А", 1_000, { level: 7 });
+    await seedCharacter(prisma, "race-name-b", 52_002n, "Коваль Б", 1_000, { level: 7 });
     await createIntent(repository, 52_001n, "race-name-token-a", "Вареничний Статут", NOW, undefined, "вареничний статут");
     await createIntent(repository, 52_002n, "race-name-token-b", "ВАРЕНИЧНИЙ СТАТУТ", NOW, undefined, "вареничний статут");
     const results = await Promise.all([
@@ -124,7 +124,7 @@ describe("PrismaGuildRepository integration", () => {
     await expect(goldFor(prisma, winnerId)).resolves.toBe(1_000 - GUILD_CREATION_GOLD);
     await expect(goldFor(prisma, loserId)).resolves.toBe(1_000);
 
-    await seedCharacter(prisma, "race-different", 52_003n, "Дві Чернетки", 1_000, { level: 5 });
+    await seedCharacter(prisma, "race-different", 52_003n, "Дві Чернетки", 1_000, { level: 7 });
     await createIntent(repository, 52_003n, "race-different-old", "Перша Назва");
     await createIntent(repository, 52_003n, "race-different-new", "Друга Назва");
     const different = await Promise.all([
@@ -146,7 +146,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("activates only on the second distinct user, records achievements sources once, and releases forming names after the hold", async () => {
-    await seedCharacter(prisma, "activation-founder", 53_001n, "Засновниця", 1_000, { level: 5 });
+    await seedCharacter(prisma, "activation-founder", 53_001n, "Засновниця", 1_000, { level: 7 });
     await seedCharacter(prisma, "activation-joiner", 53_002n, "Перший Друг", 0, { level: 1 });
     const forming = await createAndConfirm(repository, 53_001n, "activation-charter", "Жива Печатка");
     await expect(prisma.guildAudit.count({ where: { guildId: forming.guild.id, eventType: "guild.created" } }))
@@ -165,8 +165,8 @@ describe("PrismaGuildRepository integration", () => {
     await expect(prisma.guildMember.count({ where: { guildId: forming.guild.id, activeUserKey: { not: null } } }))
       .resolves.toBe(2);
 
-    await seedCharacter(prisma, "expiry-founder", 53_003n, "Тимчасовий", 1_000, { level: 5 });
-    await seedCharacter(prisma, "expiry-reuser", 53_004n, "Новий Писар", 1_000, { level: 5 });
+    await seedCharacter(prisma, "expiry-founder", 53_003n, "Тимчасовий", 1_000, { level: 7 });
+    await seedCharacter(prisma, "expiry-reuser", 53_004n, "Новий Писар", 1_000, { level: 7 });
     const expiring = await createAndConfirm(repository, 53_003n, "expiry-charter", "Вільна Назва", NOW, "вільна назва");
     const charterExpiry = expiring.guild.charterExpiresAt;
     await repository.getHubForTelegramUser(53_003n, new Date(charterExpiry.getTime() + 1));
@@ -184,7 +184,7 @@ describe("PrismaGuildRepository integration", () => {
     await expect(repository.confirmCreateForTelegramUser(53_004n, "reuse-after-hold", afterRelease))
       .resolves.toMatchObject({ state: "created" });
 
-    await seedCharacter(prisma, "disband-founder", 53_005n, "Голова Розпуску", 1_000, { level: 5 });
+    await seedCharacter(prisma, "disband-founder", 53_005n, "Голова Розпуску", 1_000, { level: 7 });
     await seedCharacter(prisma, "disband-joiner", 53_006n, "Друг Розпуску", 0);
     const disbanded = await activateGuild(repository, 53_005n, 53_006n, "disband-guild", "Назва Після Розпуску");
     const joinerHub = await readyHub(repository, 53_006n, NOW);
@@ -192,12 +192,12 @@ describe("PrismaGuildRepository integration", () => {
     const founderHub = await readyHub(repository, 53_005n, NOW);
     await expect(repository.deleteForTelegramUser(53_005n, founderHub.guild.version, NOW))
       .resolves.toMatchObject({ state: "deleted" });
-    await seedCharacter(prisma, "disband-reuser-before", 53_007n, "Ранній Повтор", 1_000, { level: 5 });
+    await seedCharacter(prisma, "disband-reuser-before", 53_007n, "Ранній Повтор", 1_000, { level: 7 });
     const beforeDisbandRelease = new Date(NOW.getTime() + 30 * DAY - 1);
     await createIntent(repository, 53_007n, "disband-reuse-before", "Назва Після Розпуску", beforeDisbandRelease);
     await expect(repository.confirmCreateForTelegramUser(53_007n, "disband-reuse-before", beforeDisbandRelease))
       .resolves.toEqual({ state: "name-taken" });
-    await seedCharacter(prisma, "disband-reuser-after", 53_008n, "Пізній Повтор", 1_000, { level: 5 });
+    await seedCharacter(prisma, "disband-reuser-after", 53_008n, "Пізній Повтор", 1_000, { level: 7 });
     const afterDisbandRelease = new Date(NOW.getTime() + 30 * DAY + 1);
     await createIntent(repository, 53_008n, "disband-reuse-after", "Назва Після Розпуску", afterDisbandRelease);
     await expect(repository.confirmCreateForTelegramUser(53_008n, "disband-reuse-after", afterDisbandRelease))
@@ -208,7 +208,7 @@ describe("PrismaGuildRepository integration", () => {
   it("terminalizes each relevant expired charter behind the bounded cleanup backlog", async () => {
     await seedCharacter(prisma, "lifecycle-cleanup-owner", 53_100n, "Писар Черги", 0);
 
-    await seedCharacter(prisma, "lifecycle-accept-founder", 53_101n, "Голова Прострочення", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-accept-founder", 53_101n, "Голова Прострочення", 1_000, { level: 7 });
     await seedCharacter(prisma, "lifecycle-accept-target", 53_102n, "Пізній Адресат", 42);
     const acceptanceGuild = await createAndConfirm(
       repository,
@@ -276,7 +276,7 @@ describe("PrismaGuildRepository integration", () => {
       where: { guildId: acceptanceGuild.guild.id, eventType: "charter.expired" }
     })).resolves.toBe(1);
 
-    await seedCharacter(prisma, "lifecycle-create-founder", 53_103n, "Голова Нового Запрошення", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-create-founder", 53_103n, "Голова Нового Запрошення", 1_000, { level: 7 });
     await seedCharacter(prisma, "lifecycle-create-target", 53_104n, "Адресат Нового Запрошення", 0);
     const createGuild = await createAndConfirm(
       repository,
@@ -293,7 +293,7 @@ describe("PrismaGuildRepository integration", () => {
     await expect(prisma.guild.findUniqueOrThrow({ where: { id: createGuild.guild.id }, select: { status: true } }))
       .resolves.toEqual({ status: "expired" });
 
-    await seedCharacter(prisma, "lifecycle-hub-founder", 53_105n, "Голова Зачиненого Хабу", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-hub-founder", 53_105n, "Голова Зачиненого Хабу", 1_000, { level: 7 });
     const hubGuild = await createAndConfirm(repository, 53_105n, "lifecycle-hub-charter", "Печатка Зачиненого Хабу");
     const hubAt = new Date(hubGuild.guild.charterExpiresAt.getTime() + 1);
     await seedExpiredGuildBacklog(prisma, "hub", "lifecycle-cleanup-owner", hubAt);
@@ -301,7 +301,7 @@ describe("PrismaGuildRepository integration", () => {
     await expect(prisma.guild.findUniqueOrThrow({ where: { id: hubGuild.guild.id }, select: { status: true } }))
       .resolves.toEqual({ status: "expired" });
 
-    await seedCharacter(prisma, "lifecycle-profile-founder", 53_106n, "Голова Зачиненого Профілю", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-profile-founder", 53_106n, "Голова Зачиненого Профілю", 1_000, { level: 7 });
     const profileGuild = await createAndConfirm(
       repository,
       53_106n,
@@ -325,7 +325,7 @@ describe("PrismaGuildRepository integration", () => {
       description: profileGuild.guild.description
     });
 
-    await seedCharacter(prisma, "lifecycle-live-founder", 53_107n, "Голова Живого Статуту", 1_000, { level: 5 });
+    await seedCharacter(prisma, "lifecycle-live-founder", 53_107n, "Голова Живого Статуту", 1_000, { level: 7 });
     await seedCharacter(prisma, "lifecycle-live-target", 53_108n, "Вчасний Адресат", 0);
     const liveGuild = await createAndConfirm(
       repository,
@@ -345,7 +345,7 @@ describe("PrismaGuildRepository integration", () => {
 
   it("validates the target User membership lifecycle beyond the cleanup backlog", async () => {
     await seedCharacter(prisma, "target-lifecycle-cleanup-owner", 53_120n, "Писар Цільової Черги", 0);
-    await seedCharacter(prisma, "target-lifecycle-inviter", 53_121n, "Голова Цільового Листа", 1_000, { level: 5 });
+    await seedCharacter(prisma, "target-lifecycle-inviter", 53_121n, "Голова Цільового Листа", 1_000, { level: 7 });
     await seedCharacter(prisma, "target-lifecycle-activator", 53_122n, "Чинний Підписант", 0);
     await activateGuild(
       repository,
@@ -355,7 +355,7 @@ describe("PrismaGuildRepository integration", () => {
       "Печатка Цільового Листа"
     );
 
-    await seedCharacter(prisma, "target-lifecycle-expired", 53_123n, "Вільний Після Строку", 1_000, { level: 5 });
+    await seedCharacter(prisma, "target-lifecycle-expired", 53_123n, "Вільний Після Строку", 1_000, { level: 7 });
     const expiredTargetGuild = await createAndConfirm(
       repository,
       53_123n,
@@ -390,7 +390,7 @@ describe("PrismaGuildRepository integration", () => {
       select: { activeUserKey: true, leftAt: true }
     })).resolves.toEqual({ activeUserKey: null, leftAt: inviteAt });
 
-    await seedCharacter(prisma, "target-lifecycle-live", 53_124n, "Ще Чинна Ціль", 1_000, { level: 5 });
+    await seedCharacter(prisma, "target-lifecycle-live", 53_124n, "Ще Чинна Ціль", 1_000, { level: 7 });
     const liveTargetGuild = await createAndConfirm(
       repository,
       53_124n,
@@ -414,7 +414,7 @@ describe("PrismaGuildRepository integration", () => {
 
   it("releases the specific due name owner beyond two cleanup batches and keeps live holds", async () => {
     await seedCharacter(prisma, "name-lifecycle-cleanup-owner", 53_130n, "Писар Іменної Черги", 0);
-    await seedCharacter(prisma, "name-lifecycle-owner", 53_131n, "Старий Власник Назви", 1_000, { level: 5 });
+    await seedCharacter(prisma, "name-lifecycle-owner", 53_131n, "Старий Власник Назви", 1_000, { level: 7 });
     const dueOwner = await createAndConfirm(
       repository,
       53_131n,
@@ -431,7 +431,7 @@ describe("PrismaGuildRepository integration", () => {
       releaseAt,
       GUILD_DOUBLE_CLEANUP_BACKLOG_SIZE
     );
-    await seedCharacter(prisma, "name-lifecycle-reuser", 53_132n, "Новий Власник Назви", 1_000, { level: 5 });
+    await seedCharacter(prisma, "name-lifecycle-reuser", 53_132n, "Новий Власник Назви", 1_000, { level: 7 });
     await createIntent(
       repository,
       53_132n,
@@ -461,7 +461,7 @@ describe("PrismaGuildRepository integration", () => {
       where: { guildId: dueOwner.guild.id, eventType: "charter.expired" }
     })).resolves.toBe(1);
 
-    await seedCharacter(prisma, "name-lifecycle-held-owner", 53_133n, "Власник Живого Утримання", 1_000, { level: 5 });
+    await seedCharacter(prisma, "name-lifecycle-held-owner", 53_133n, "Власник Живого Утримання", 1_000, { level: 7 });
     const heldOwner = await createAndConfirm(
       repository,
       53_133n,
@@ -471,7 +471,7 @@ describe("PrismaGuildRepository integration", () => {
       "назва ще під печаткою"
     );
     const heldAt = new Date(heldOwner.guild.charterExpiresAt.getTime() + 22 * HOUR);
-    await seedCharacter(prisma, "name-lifecycle-held-reuser", 53_134n, "Ранній Шукач Назви", 1_000, { level: 5 });
+    await seedCharacter(prisma, "name-lifecycle-held-reuser", 53_134n, "Ранній Шукач Назви", 1_000, { level: 7 });
     await createIntent(
       repository,
       53_134n,
@@ -493,7 +493,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("enforces opt-in privacy, invite TTL/backlog/rate and the seven-day pair decline cooldown", async () => {
-    await seedCharacter(prisma, "invite-founder", 54_001n, "Запрошувач", 1_000, { level: 5 });
+    await seedCharacter(prisma, "invite-founder", 54_001n, "Запрошувач", 1_000, { level: 7 });
     await seedCharacter(prisma, "invite-activator", 54_002n, "Активатор", 0);
     await activateGuild(repository, 54_001n, 54_002n, "invite-guild", "Запросильна Печатка");
     await seedCharacter(prisma, "invite-target", 54_003n, "Прихована Ціль", 0);
@@ -544,7 +544,7 @@ describe("PrismaGuildRepository integration", () => {
     await createOptIn(repository, 54_020n, "backlog-code", rateNow);
     for (let index = 0; index < 4; index += 1) {
       const leader = 54_030n + BigInt(index);
-      await seedCharacter(prisma, `backlog-leader-${index}`, leader, `Голова ${index}`, 1_000, { level: 5 });
+      await seedCharacter(prisma, `backlog-leader-${index}`, leader, `Голова ${index}`, 1_000, { level: 7 });
       await createAndConfirm(repository, leader, `backlog-guild-${index}`, `Печатка Черги ${index}`, rateNow);
       const invite = await createInvite(repository, leader, `backlog-invite-${index}`, "backlog-code", rateNow);
       expect(invite.state).toBe(index < 3 ? "created" : "too-many-incoming");
@@ -552,7 +552,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("lists only opted-in nonmembers from the leader-provided nearby audience", async () => {
-    await seedCharacter(prisma, "nearby-leader", 54_101n, "Голова Поруч", 1_000, { level: 5 });
+    await seedCharacter(prisma, "nearby-leader", 54_101n, "Голова Поруч", 1_000, { level: 7 });
     await seedCharacter(prisma, "nearby-member", 54_102n, "Учасник Поруч", 0);
     await activateGuild(repository, 54_101n, 54_102n, "nearby-guild", "Печатка Поруч");
     await seedCharacter(prisma, "nearby-target-a", 54_103n, "Адресатка А", 0);
@@ -584,8 +584,8 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("serializes cross-guild accepts and the final roster slot, and caps officers at two", async () => {
-    await seedCharacter(prisma, "accept-a", 55_001n, "Голова А", 1_000, { level: 5 });
-    await seedCharacter(prisma, "accept-b", 55_002n, "Голова Б", 1_000, { level: 5 });
+    await seedCharacter(prisma, "accept-a", 55_001n, "Голова А", 1_000, { level: 7 });
+    await seedCharacter(prisma, "accept-b", 55_002n, "Голова Б", 1_000, { level: 7 });
     await seedCharacter(prisma, "accept-target", 55_003n, "Одна Людина", 0);
     await createAndConfirm(repository, 55_001n, "accept-charter-a", "Статут А");
     await createAndConfirm(repository, 55_002n, "accept-charter-b", "Статут Б");
@@ -600,7 +600,7 @@ describe("PrismaGuildRepository integration", () => {
     await expect(prisma.guildMember.count({ where: { userId: "accept-target", activeUserKey: "accept-target" } }))
       .resolves.toBe(1);
 
-    await seedCharacter(prisma, "cap-founder", 55_010n, "Голова Вісімки", 1_000, { level: 5 });
+    await seedCharacter(prisma, "cap-founder", 55_010n, "Голова Вісімки", 1_000, { level: 7 });
     await seedCharacter(prisma, "cap-activator", 55_011n, "Друг Вісімки", 0);
     const capGuild = await activateGuild(repository, 55_010n, 55_011n, "cap-guild", "Восьма Печатка");
     for (let index = 0; index < 5; index += 1) {
@@ -654,7 +654,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("requires nominee acceptance, refuses voluntary leader succession, and invalidates former inviter cancellation", async () => {
-    await seedCharacter(prisma, "roles-leader", 56_001n, "Чинна Голова", 1_000, { level: 5 });
+    await seedCharacter(prisma, "roles-leader", 56_001n, "Чинна Голова", 1_000, { level: 7 });
     await seedCharacter(prisma, "roles-nominee", 56_002n, "Номінована", 0);
     await seedCharacter(prisma, "roles-member", 56_003n, "Звичайний", 0);
     const guild = await activateGuild(repository, 56_001n, 56_002n, "roles-guild", "Печатка Ролей");
@@ -805,7 +805,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("expires guild-wide hub invitations and scopes cancellation controls to current authority", async () => {
-    await seedCharacter(prisma, "hub-controls-leader", 56_020n, "Голова Кнопок", 1_000, { level: 5 });
+    await seedCharacter(prisma, "hub-controls-leader", 56_020n, "Голова Кнопок", 1_000, { level: 7 });
     await seedCharacter(prisma, "hub-controls-officer-a", 56_021n, "Старшина А", 0);
     await seedCharacter(prisma, "hub-controls-officer-b", 56_022n, "Старшина Б", 0);
     const guild = await activateGuild(
@@ -916,7 +916,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("paginates one stable hub row stream and resolves duplicate names by membership id", async () => {
-    await seedCharacter(prisma, "page-leader", 56_101n, "Голова Сторінки", 1_000, { level: 5 });
+    await seedCharacter(prisma, "page-leader", 56_101n, "Голова Сторінки", 1_000, { level: 7 });
     await seedCharacter(prisma, "page-activator", 56_102n, "Перший Учасник", 0);
     const guild = await activateGuild(repository, 56_101n, 56_102n, "page-guild", "Печатка Сторінок");
     for (let index = 0; index < 2; index += 1) {
@@ -1008,7 +1008,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("pages a real gameplay party picker, revalidates audience races, and never mutates party/combat rows", async () => {
-    await seedCharacter(prisma, "party-leader", 57_001n, "Голова Ватаги", 1_000, { level: 5 });
+    await seedCharacter(prisma, "party-leader", 57_001n, "Голова Ватаги", 1_000, { level: 7 });
     await seedCharacter(prisma, "party-activator", 57_002n, "Перший Учасник", 0);
     const guild = await activateGuild(repository, 57_001n, 57_002n, "party-guild", "Печатка Ватаги");
     for (let index = 0; index < 5; index += 1) {
@@ -1127,7 +1127,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("blocks real restart for recruiting party leader/member and active group combat, then preserves User guild identity after safe recreate", async () => {
-    await seedCharacter(prisma, "restart-leader", 58_001n, "Голова До Рестарту", 1_000, { level: 5 });
+    await seedCharacter(prisma, "restart-leader", 58_001n, "Голова До Рестарту", 1_000, { level: 7 });
     await seedCharacter(prisma, "restart-member", 58_002n, "Учасник До Рестарту", 0);
     await activateGuild(repository, 58_001n, 58_002n, "restart-guild", "Печатка Рестарту");
     await seedParty(prisma, "restart-party", "restart-leader-character", {
@@ -1271,7 +1271,7 @@ describe("PrismaGuildRepository integration", () => {
       where: { status: { in: ["forming", "active"] } },
       data: { status: "disbanded", disbandedAt: NOW, reservationKey: null, updatedAt: NOW }
     });
-    await seedCharacter(prisma, "directory-viewer", 60_001n, "Читачка", 0, { level: 5 });
+    await seedCharacter(prisma, "directory-viewer", 60_001n, "Читачка", 0, { level: 7 });
     await prisma.user.update({
       where: { id: "directory-viewer" },
       data: { lastSeenLocationId: "location.korchma.deep", lastActionAt: NOW }
@@ -1345,7 +1345,7 @@ describe("PrismaGuildRepository integration", () => {
         }
       ]
     });
-    await seedCharacter(prisma, "directory-forming", 60_202n, "Формувальник", 1_000, { level: 5 });
+    await seedCharacter(prisma, "directory-forming", 60_202n, "Формувальник", 1_000, { level: 7 });
     await createAndConfirm(repository, 60_202n, "directoryForming93", "Ще Не Чинна");
 
     const first = await repository.getPublicDirectoryForTelegramUser(
@@ -1414,7 +1414,7 @@ describe("PrismaGuildRepository integration", () => {
   it("reserves catalog crests transactionally across lifecycle and create/edit races", async () => {
     const base = 61_000n;
     for (let index = 1; index <= 12; index += 1) {
-      await seedCharacter(prisma, `crest-race-${index}`, base + BigInt(index), `Гербознавець ${index}`, 1_000, { level: 5 });
+      await seedCharacter(prisma, `crest-race-${index}`, base + BigInt(index), `Гербознавець ${index}`, 1_000, { level: 7 });
     }
 
     const initial = await repository.getCrestPickerForTelegramUser(base + 1n, "creation", NOW);
@@ -1528,8 +1528,8 @@ describe("PrismaGuildRepository integration", () => {
   }, 60_000);
 
   it("reserves a proposed custom emoji transactionally and releases the exact overdue owner", async () => {
-    await seedCharacter(prisma, "emoji-founder-a", 62_101n, "Емоджар А", 1_000, { level: 5 });
-    await seedCharacter(prisma, "emoji-founder-b", 62_102n, "Емоджар Б", 1_000, { level: 5 });
+    await seedCharacter(prisma, "emoji-founder-a", 62_101n, "Емоджар А", 1_000, { level: 7 });
+    await seedCharacter(prisma, "emoji-founder-b", 62_102n, "Емоджар Б", 1_000, { level: 7 });
     for (const [telegramUserId, token, displayName] of [
       [62_101n, "emoji-race-token-a", "Оката Варта"],
       [62_102n, "emoji-race-token-b", "Оката Рада"]
@@ -1574,8 +1574,8 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("preserves selector presentation while equivalent custom emoji aliases have one transactional winner", async () => {
-    await seedCharacter(prisma, "emoji-alias-founder-a", 62_111n, "Сердечник А", 1_000, { level: 5 });
-    await seedCharacter(prisma, "emoji-alias-founder-b", 62_112n, "Сердечник Б", 1_000, { level: 5 });
+    await seedCharacter(prisma, "emoji-alias-founder-a", 62_111n, "Сердечник А", 1_000, { level: 7 });
+    await seedCharacter(prisma, "emoji-alias-founder-b", 62_112n, "Сердечник Б", 1_000, { level: 7 });
     for (const [telegramUserId, token, displayName, crest] of [
       [62_111n, "emoji-alias-token-a", "Щире Серце", "❤"],
       [62_112n, "emoji-alias-token-b", "Червоне Серце", "❤️"]
@@ -1638,7 +1638,7 @@ describe("PrismaGuildRepository integration", () => {
   });
 
   it("persists restart-safe custom crest drafts without exposing Telegram media identifiers", async () => {
-    await seedCharacter(prisma, "custom-founder", 62_001n, "Малярка", 1_000, { level: 5 });
+    await seedCharacter(prisma, "custom-founder", 62_001n, "Малярка", 1_000, { level: 7 });
     await seedCharacter(prisma, "custom-joiner", 62_002n, "Глядач", 0, { level: 1 });
     const uploadToken = "customUploadToken13";
     await expect(repository.beginCrestUploadForTelegramUser(62_001n, {
@@ -1957,7 +1957,7 @@ describe("PrismaGuildRepository integration", () => {
       height: 768,
       fileSize: 93_000
     };
-    await seedCharacter(prisma, userId, telegramUserId, "Перемальовувачка", 1_000, { level: 5 });
+    await seedCharacter(prisma, userId, telegramUserId, "Перемальовувачка", 1_000, { level: 7 });
 
     await repository.beginCrestUploadForTelegramUser(telegramUserId, {
       token: "replaceUploadA13",
@@ -2083,7 +2083,7 @@ describe("PrismaGuildRepository integration", () => {
       height: 1024,
       fileSize: 93_000
     };
-    await seedCharacter(prisma, userId, telegramUserId, "Гербоперемикачка", 1_000, { level: 5 });
+    await seedCharacter(prisma, userId, telegramUserId, "Гербоперемикачка", 1_000, { level: 7 });
 
     await repository.beginCrestUploadForTelegramUser(telegramUserId, {
       token: "switchUploadA13",
@@ -2193,7 +2193,7 @@ describe("PrismaGuildRepository integration", () => {
   }, 60_000);
 
   it("does not mint invite opt-in state for a member and clears stale state on membership creation", async () => {
-    await seedCharacter(prisma, "optin-member", 60_300n, "Учасниця", 1_000, { level: 5 });
+    await seedCharacter(prisma, "optin-member", 60_300n, "Учасниця", 1_000, { level: 7 });
     await expect(createOptIn(repository, 60_300n, "memberOptInToken93")).resolves.toMatchObject({ state: "ready" });
     await createAndConfirm(repository, 60_300n, "memberGuildToken93", "Печатка Учасниці");
     await expect(prisma.guildInviteOptIn.findUnique({ where: { userId: "optin-member" } })).resolves.toBeNull();

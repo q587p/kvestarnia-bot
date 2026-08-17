@@ -180,7 +180,8 @@ PR `#190` готує repository release `0.4.5` із цим shell та окре�
 ґільдійного рядка, а приватне відновлення через `/guild`, адресні посилання й
 картку персонажа працює звідусіль.
 Усе це лишається за default-off `GUILD_FOUNDATION_ENABLED`. Membership належить користувачеві й переживає
-remort, а party/combat лишаються current-life контрактами без Guild foreign key.
+remort; до першого реморту заснування відкривається на 7 рівні, після нього —
+на 3, а вступ не має рівневого gate. Party/combat лишаються current-life контрактами без Guild foreign key.
 `/guild_party` лише показує members для вже чинного real-gameplay recruiting
 `PartySession` і перевикористовує ordinary invite/join/canonical-card flow;
 generic guild lobby немає. PR #190, migration deployment, target flag і ручна

@@ -260,6 +260,9 @@ describe("lore board content", () => {
       canonicalRefs: [{ type: "location", id: "location.korchma.deep" }]
     });
     expect(guild?.body).toContain("587 золота");
+    expect(guild?.body).toContain("7 рівень до першого реморту");
+    expect(guild?.body).toContain("3 після нього");
+    expect(guild?.body).not.toContain("потрібен 5 рівень");
     expect(guild?.body).toContain("🪺 Гнізді ґільдій");
     expect(guild?.body).toContain("картки персонажа");
     expect(guild?.body).not.toContain("🏰 Ґільдії");

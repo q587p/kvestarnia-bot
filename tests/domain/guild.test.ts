@@ -3,8 +3,10 @@ import {
   GUILD_CREST_CATALOG,
   GUILD_CREATION_GOLD,
   GUILD_DESCRIPTION_MAX_GRAPHEMES,
+  GUILD_FOUNDER_MIN_LEVEL,
   GUILD_INITIAL_MEMBER_CAPACITY,
   GUILD_MAX_MEMBER_CAPACITY,
+  GUILD_REMORTED_FOUNDER_MIN_LEVEL,
   isEligibleGuildFounder,
   validateGuildCrest,
   validateGuildIdentity,
@@ -40,13 +42,16 @@ describe("guild identity", () => {
 
   it("keeps the accepted founder, gold and crest boundaries exact", () => {
     expect(GUILD_CREATION_GOLD).toBe(587);
+    expect(GUILD_FOUNDER_MIN_LEVEL).toBe(7);
+    expect(GUILD_REMORTED_FOUNDER_MIN_LEVEL).toBe(3);
     expect(GUILD_CREST_CATALOG).toHaveLength(13);
     expect(GUILD_INITIAL_MEMBER_CAPACITY).toBe(8);
     expect(GUILD_MAX_MEMBER_CAPACITY).toBe(13);
     expect(GUILD_INITIAL_MEMBER_CAPACITY).toBeLessThan(GUILD_MAX_MEMBER_CAPACITY);
-    expect(isEligibleGuildFounder(5, 0)).toBe(true);
+    expect(isEligibleGuildFounder(7, 0)).toBe(true);
+    expect(isEligibleGuildFounder(6, 0)).toBe(false);
+    expect(isEligibleGuildFounder(5, 0)).toBe(false);
     expect(isEligibleGuildFounder(3, 1)).toBe(true);
-    expect(isEligibleGuildFounder(4, 0)).toBe(false);
     expect(isEligibleGuildFounder(2, 42)).toBe(false);
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentGuildCreationPreview,
+  presentGuildCreationStart,
   presentGuildHub,
   presentGuildInviteCreate,
   presentGuildInviteOptIn,
@@ -16,8 +17,10 @@ import {
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 import {
   GUILD_CREST_CATALOG,
+  GUILD_FOUNDER_MIN_LEVEL,
   GUILD_INITIAL_MEMBER_CAPACITY,
-  GUILD_MAX_MEMBER_CAPACITY
+  GUILD_MAX_MEMBER_CAPACITY,
+  GUILD_REMORTED_FOUNDER_MIN_LEVEL
 } from "../../src/domain/guild";
 import { GUILD_INVITE_SHARE_TEXTS } from "../../src/content/guildInviteCopy";
 
@@ -150,7 +153,16 @@ describe("guild crest picker row shape", () => {
 describe("guild presenter privacy", () => {
   it("explains the initial and absolute member-capacity boundaries", () => {
     const text = presentGuildNestRules();
+    const creation = presentGuildCreationStart();
+    const ineligible = presentGuildCreationPreview({ state: "ineligible" }, new Date(0));
 
+    expect(text).toContain(`від ${GUILD_FOUNDER_MIN_LEVEL} рівня до першого реморту`);
+    expect(text).toContain(`від ${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівня після нього`);
+    expect(text).not.toContain("Заснування: 5+");
+    expect(creation).toContain(`<b>${GUILD_FOUNDER_MIN_LEVEL} рівень</b> до першого реморту`);
+    expect(creation).toContain(`<b>${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівень</b> після нього`);
+    expect(ineligible).toContain(`з ${GUILD_FOUNDER_MIN_LEVEL} рівня до першого реморту`);
+    expect(ineligible).toContain(`з ${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівня після нього`);
     expect(text).toContain(`Початкова межа — <b>${GUILD_INITIAL_MEMBER_CAPACITY} учасників</b>`);
     expect(text).toContain(`розширити до <b>${GUILD_MAX_MEMBER_CAPACITY} місць</b>`);
   });

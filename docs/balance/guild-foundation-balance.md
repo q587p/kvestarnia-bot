@@ -5,7 +5,7 @@ reward, weekly-goal or guild-economy promise.
 
 | Boundary | Accepted value | Purpose |
 | --- | ---: | --- |
-| Founder eligibility | level 5+, or level 3+ after one remort | keeps founding deliberate without gating free joins |
+| Founder eligibility | level 7+ before the first remort, or level 3+ after one remort | places first-life founding later in progression without gating free joins or the faster remort route |
 | Creation cost | 587 personal gold, non-refundable | one bounded personal sink; never shared custody |
 | Founder cooldown | rolling 7 days from confirm | prevents charter/name churn across expiry or disband |
 | Creation preview | 13 minutes, one live/User | bounded confirmation and replay window |

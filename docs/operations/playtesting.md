@@ -362,7 +362,8 @@ hard-оказію: мають бути і сольна атака, і збір �
 Ручний результат на фінальній голові pending. У checkout `.env` постав
 `NODE_ENV=development` і `GUILD_FOUNDATION_ENABLED=true`, потім виконай
 `refresh-local-bot.cmd` та `status-local-bot.cmd` і звір точний candidate SHA та
-скопійований прапорець. Перевір create/duplicate confirm, нормалізовану
+скопійований прапорець. Перевір межу заснування на 7 рівні до першого реморту
+й на 3 після нього, create/duplicate confirm, нормалізовану
 унікальність, 587-gold exact-once debit, forming activation, decline/reinvite/
 competing accept, leader-only profile edit, nominee-accepted transfer, remort,
 restart, flag off/on, privacy та leave/kick/delete під час окремих active

@@ -13,8 +13,10 @@ import type {
   GuildPublicProfileRepositoryResult
 } from "../../db/repositories/guildRepository";
 import {
+  GUILD_FOUNDER_MIN_LEVEL,
   GUILD_INITIAL_MEMBER_CAPACITY,
   GUILD_MAX_MEMBER_CAPACITY,
+  GUILD_REMORTED_FOUNDER_MIN_LEVEL,
   type GuildRole
 } from "../../domain/guild";
 import type {
@@ -77,7 +79,7 @@ export function presentGuildNestRules(): string {
     "",
     "• Один обліковий запис — одна ґільдія; членство переживає реморт і звичайну заміну персонажа.",
     "• Вступ безплатний і не має вимоги до рівня чи реморту.",
-    "• Заснування: 5+ рівень або 3+ після першого реморту; ціна — <b>587 золота</b>.",
+    `• Заснування: від ${GUILD_FOUNDER_MIN_LEVEL} рівня до першого реморту або від ${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівня після нього; ціна — <b>587 золота</b>.`,
     "• Статут формується сім днів і оживає, коли долучиться другий окремий гравець.",
     `• Початкова межа — <b>${GUILD_INITIAL_MEMBER_CAPACITY} учасників</b>: один голова і щонайбільше двоє старшин. Згодом статут можна буде розширити до <b>${GUILD_MAX_MEMBER_CAPACITY} місць</b>, не більше.`,
     "• Запрошення приватні й адресні: публічного вступу з переліку немає."
@@ -162,7 +164,7 @@ export function presentGuildCreationPreview(result: GuildCreationPreviewResult, 
     return "Ви вже належите до ґільдії. Друга печатка на одному пригодникові не тримається.";
   }
   if (result.state === "ineligible") {
-    return "Заснувати ґільдію можна з 5 рівня або після першого реморту з 3 рівня. Вступ для запрошених лишається вільним.";
+    return `Заснувати ґільдію можна з ${GUILD_FOUNDER_MIN_LEVEL} рівня до першого реморту або з ${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівня після нього. Вступ для запрошених лишається вільним.`;
   }
   if (result.state === "founder-cooldown") {
     return `Новий статут можна підтвердити за <b>${formatRemaining(result.availableAt, result.now)}</b>. Попередня спроба лишається частиною семиденного засновницького обліку.`;
@@ -187,7 +189,7 @@ export function presentGuildCreationStart(): string {
     "📜 <b>Заснування ґільдії · крок 1 із 4</b>",
     "",
     "Потрібно:",
-    "• <b>5 рівень</b>, або <b>3 рівень</b> після першого реморту;",
+    `• <b>${GUILD_FOUNDER_MIN_LEVEL} рівень</b> до першого реморту, або <b>${GUILD_REMORTED_FOUNDER_MIN_LEVEL} рівень</b> після нього;`,
     "• не належати до іншої ґільдії;",
     "• <b>587 золота</b> й вільний семиденний засновницький облік.",
     "",

@@ -1,4 +1,6 @@
 export const GUILD_CREATION_GOLD = 587;
+export const GUILD_FOUNDER_MIN_LEVEL = 7;
+export const GUILD_REMORTED_FOUNDER_MIN_LEVEL = 3;
 export const GUILD_INITIAL_MEMBER_CAPACITY = 8;
 export const GUILD_MAX_MEMBER_CAPACITY = 13;
 export const GUILD_MAX_OFFICERS = 2;
@@ -180,7 +182,9 @@ export function validateGuildIdentity(input: {
 }
 
 export function isEligibleGuildFounder(level: number, remortCount: number): boolean {
-  return level >= 5 || (remortCount >= 1 && level >= 3);
+  return remortCount >= 1
+    ? level >= GUILD_REMORTED_FOUNDER_MIN_LEVEL
+    : level >= GUILD_FOUNDER_MIN_LEVEL;
 }
 
 export function validateGuildProfile(input: { crest: string; description: string }): GuildProfileValidation {
