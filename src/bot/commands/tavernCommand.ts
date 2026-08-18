@@ -125,6 +125,7 @@ type TavernCommandKeyboard =
   | "yard"
   | { state: "yard"; questMarkers?: QuestMarkerInput | null }
   | "news-corner"
+  | { state: "news-corner"; referralEnabled?: boolean }
   | "fighting-corner"
   | {
       state: "fighting-corner";
@@ -364,7 +365,8 @@ export async function sendKorchmaNewsCorner(
   ctx: Context,
   tavernRaidService: TavernRaidService,
   presenceService: PresenceService,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  options: { referralEnabled?: boolean } = {}
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
 
@@ -393,7 +395,12 @@ export async function sendKorchmaNewsCorner(
   }
 
   await markTavernPlace(ctx, presenceService, PRESENCE_LOCATION_KORCHMA_NEWS_CORNER);
-  await sendText(ctx, mode, presentKorchmaNewsCorner(result.character), "news-corner");
+  await sendText(
+    ctx,
+    mode,
+    presentKorchmaNewsCorner(result.character, options),
+    options.referralEnabled ? { state: "news-corner", referralEnabled: true } : "news-corner"
+  );
 }
 
 export async function sendKorchmaArrivalBoard(
@@ -1217,6 +1224,8 @@ async function sendText(
                 )
             : keyboard === "news-corner"
               ? buildKorchmaNewsCornerKeyboard()
+            : isNewsCornerKeyboard(keyboard)
+              ? buildKorchmaNewsCornerKeyboard({ referralEnabled: keyboard.referralEnabled === true })
             : keyboard === "front"
               ? buildKorchmaFrontKeyboard()
             : keyboard === "arrivals"
@@ -1278,6 +1287,12 @@ function isBarKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<Tav
 
 function isYardKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "yard" }> {
   return typeof keyboard === "object" && keyboard !== null && "state" in keyboard && keyboard.state === "yard";
+}
+
+function isNewsCornerKeyboard(
+  keyboard: TavernCommandKeyboard
+): keyboard is Extract<TavernCommandKeyboard, { state: "news-corner" }> {
+  return typeof keyboard === "object" && keyboard.state === "news-corner";
 }
 
 function isBarrelKeyboard(keyboard: TavernCommandKeyboard): keyboard is Extract<TavernCommandKeyboard, { state: "barrel" }> {

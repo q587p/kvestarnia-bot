@@ -43,6 +43,7 @@ import { PartySessionService } from "../services/partySessionService";
 import { PlayerHintService } from "../services/playerHintService";
 import { PresenceService } from "../services/presenceService";
 import { QuestMarkerReadService } from "../services/questMarkerReadService";
+import { ReferralService } from "../services/referralService";
 import { RemortService } from "../services/remortService";
 import { RestartService } from "../services/restartService";
 import { ShynokService } from "../services/shynokService";
@@ -293,6 +294,17 @@ export function createServices(
     playerHints: new PlayerHintService(repositories.playerHintReceipts),
     presence,
     questMarkerReads: new QuestMarkerReadService(repositories.questMarkerReads),
+    referrals: new ReferralService(
+      repositories.referrals,
+      repositories.characters,
+      {
+        foundationEnabled: config.referralFoundationEnabled,
+        payoutsEnabled: config.referralRewardPayoutsEnabled,
+        devHelpersEnabled: nonProduction,
+        ...(config.botUsername ? { botUsername: config.botUsername } : {})
+      },
+      achievements
+    ),
     remort: new RemortService(repositories.remorts, undefined, achievements),
     restart: new RestartService(repositories.characters),
     shynok: new ShynokService(

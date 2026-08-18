@@ -7,6 +7,7 @@ import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
 import type { GuildService } from "../../services/guildService";
+import type { ReferralService } from "../../services/referralService";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   type PresenceService
@@ -22,6 +23,8 @@ import {
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
+import { buildReferralConsentKeyboard } from "../keyboards/referralKeyboard";
+import { getReferralCaptureResult } from "../middleware/registerReferralMiddleware";
 import {
   presentDuelAccept,
   presentDuelView,
@@ -29,6 +32,10 @@ import {
 } from "../presenters/duelPresenter";
 import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
+import {
+  presentReferralCaptureOutcome,
+  presentReferralConsent
+} from "../presenters/referralPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
 import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
 import { parseStartPayload } from "../startPayload";
@@ -52,6 +59,7 @@ export interface StartCommandOptions {
   groupCombat?: GroupCombatService;
   tavernGames?: TavernGameService;
   guilds?: GuildService;
+  referrals?: ReferralService;
   presence?: PresenceService;
   botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
@@ -77,6 +85,45 @@ export function registerStartCommand(
     if (!player) {
       await ctx.reply("Квестарня не впізнала мандрівника. Спробуйте ще раз із особистого акаунта.");
       return;
+    }
+
+    if (payload.type === "referral" && options.referrals) {
+      const capture = getReferralCaptureResult(ctx);
+      if (capture?.state === "captured" || capture?.state === "pending") {
+        await ctx.reply(presentReferralConsent(capture.consent.inviterName), {
+          parse_mode: "HTML",
+          reply_markup: buildReferralConsentKeyboard(options.referrals.isFoundationEnabled())
+        });
+        return;
+      }
+      const outcome = capture?.state ?? "existing-user";
+      if (
+        outcome === "existing-user" ||
+        outcome === "self" ||
+        outcome === "not-found" ||
+        outcome === "disabled" ||
+        outcome === "accepted" ||
+        outcome === "declined"
+      ) {
+        await ctx.reply(presentReferralCaptureOutcome(outcome));
+      }
+    } else if (
+      payload.type === "unknown" &&
+      payload.safe &&
+      payload.raw.startsWith("ref1_")
+    ) {
+      await ctx.reply(presentReferralCaptureOutcome("not-found"));
+    }
+
+    if (payload.type === "none" && options.referrals) {
+      const pending = await options.referrals.getPendingConsent(player.telegramUserId);
+      if (pending) {
+        await ctx.reply(presentReferralConsent(pending.inviterName), {
+          parse_mode: "HTML",
+          reply_markup: buildReferralConsentKeyboard(options.referrals.isFoundationEnabled())
+        });
+        return;
+      }
     }
 
     if ((payload.type === "party" || payload.type === "left-passage-attack") && options.partySessions) {

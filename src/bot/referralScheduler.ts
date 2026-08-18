@@ -1,0 +1,109 @@
+import type { Bot } from "grammy";
+import type { ReferralService } from "../services/referralService";
+import { presentReferralNotification } from "./presenters/referralPresenter";
+
+const DEFAULT_INTERVAL_MS = 13_000;
+const DEFAULT_BATCH_LIMIT = 13;
+
+export interface ReferralSchedulerMetrics {
+  dueRewards: number;
+  grantedRewards: number;
+  claimedNotifications: number;
+  sentNotifications: number;
+  retriedNotifications: number;
+}
+
+export function createReferralScheduler(
+  service: ReferralService,
+  bot: Bot,
+  options: { intervalMs?: number; limit?: number } = {}
+): { start(): void; stop(): Promise<void>; tick(): Promise<ReferralSchedulerMetrics> } {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight: Promise<ReferralSchedulerMetrics> | null = null;
+  let stopping = false;
+
+  const tick = async (): Promise<ReferralSchedulerMetrics> => {
+    if (stopping || inFlight) {
+      return emptyMetrics();
+    }
+    inFlight = runReferralTick(service, bot, options.limit ?? DEFAULT_BATCH_LIMIT);
+    try {
+      return await inFlight;
+    } finally {
+      inFlight = null;
+    }
+  };
+
+  return {
+    start() {
+      if (timer || stopping) {
+        return;
+      }
+      void tick().catch(logReferralSchedulerError);
+      timer = setInterval(() => void tick().catch(logReferralSchedulerError), options.intervalMs ?? DEFAULT_INTERVAL_MS);
+    },
+    async stop() {
+      stopping = true;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      await inFlight?.catch(() => emptyMetrics());
+    },
+    tick
+  };
+}
+
+async function runReferralTick(
+  service: ReferralService,
+  bot: Bot,
+  limit: number
+): Promise<ReferralSchedulerMetrics> {
+  const rewards = await service.reconcileDue(limit);
+  const metrics: ReferralSchedulerMetrics = {
+    dueRewards: rewards.due,
+    grantedRewards: rewards.granted,
+    claimedNotifications: 0,
+    sentNotifications: 0,
+    retriedNotifications: 0
+  };
+  for (let index = 0; index < limit; index += 1) {
+    const notification = await service.claimNextNotification();
+    if (!notification) {
+      break;
+    }
+    metrics.claimedNotifications += 1;
+    const text = presentReferralNotification(notification.kind, notification.payload);
+    if (!text) {
+      await service.rescheduleNotification(notification);
+      metrics.retriedNotifications += 1;
+      continue;
+    }
+    try {
+      await bot.api.sendMessage(Number(notification.telegramUserId), text, { parse_mode: "HTML" });
+      if (await service.markNotificationSent(notification)) {
+        metrics.sentNotifications += 1;
+      }
+    } catch {
+      await service.rescheduleNotification(notification);
+      metrics.retriedNotifications += 1;
+    }
+  }
+  return metrics;
+}
+
+function emptyMetrics(): ReferralSchedulerMetrics {
+  return {
+    dueRewards: 0,
+    grantedRewards: 0,
+    claimedNotifications: 0,
+    sentNotifications: 0,
+    retriedNotifications: 0
+  };
+}
+
+function logReferralSchedulerError(error: unknown): void {
+  console.error("Квестарня: автоматичні поклики не пройшли чергову звірку.", {
+    errorName: error instanceof Error ? error.name : "unknown"
+  });
+}

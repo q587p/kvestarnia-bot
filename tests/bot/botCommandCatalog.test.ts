@@ -145,6 +145,22 @@ describe("bot command catalog", () => {
     expect(menu.map((entry) => entry.command)).toContain("games");
   });
 
+  it("shows referral help only with the foundation and isolates its dev helper", () => {
+    const hidden = getHelpCommandEntries({ includeDevReset: false });
+    const publicOnly = getHelpCommandEntries({ includeDevReset: false, includeReferral: true });
+    const devOnly = getHelpCommandEntries({ includeDevReset: false, includeReferralDev: true });
+
+    expect(hidden.some((entry) => entry.command === "invite")).toBe(false);
+    expect(publicOnly.find((entry) => entry.command === "invite")).toMatchObject({
+      icon: "📨",
+      includeInMenu: false
+    });
+    expect(publicOnly.some((entry) => entry.command === "dev_referral_reconcile")).toBe(false);
+    expect(devOnly.some((entry) => entry.command === "invite")).toBe(false);
+    expect(devOnly.find((entry) => entry.command === "dev_referral_reconcile"))
+      .toMatchObject({ includeInMenu: false, devOnly: "referral" });
+  });
+
   it("keeps local dev commands available for dev help but not in the side menu", () => {
     for (const command of [
       "dev_help",

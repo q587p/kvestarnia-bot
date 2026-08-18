@@ -52,6 +52,7 @@ Use these docs when changing mechanics, content, authored copy, monsters, quests
 - [`shynok-drinks-and-mantok-sales.md`](shynok-drinks-and-mantok-sales.md) — Shynok drinks and Mantok sales design.
 - [`kvestarnia-lore-board.md`](kvestarnia-lore-board.md) — lore board design if present.
 - [`latest-events-feed.md`](latest-events-feed.md) — latest events feed design if present.
+- [`referral-system.md`](referral-system.md) — 0.4.6 first-touch referral, privacy, lifecycle, payout and Chronicle contract.
 
 ## Raid and party design
 

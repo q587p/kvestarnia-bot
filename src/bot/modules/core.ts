@@ -72,7 +72,8 @@ export function registerCoreBotModule(
     tavernGameService: services.tavernGames,
     fightingCornerQuestService: services.fightingCornerQuest,
     healthRecoveryNotificationService: services.healthRecoveryNotifications,
-    guildService: services.guilds
+    guildService: services.guilds,
+    referralService: services.referrals
   });
   registerNewsCommand(bot);
   registerLoreBoardCommand(bot);
@@ -136,7 +137,9 @@ async function handleMenuCallback(
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
-      includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
+      includeGuild: services.guilds?.areDevHelpersEnabled() ?? false,
+      includeReferral: services.referrals?.isFoundationEnabled() ?? false,
+      includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
     }), {
       reply_markup: buildHelpKeyboard()
     });
@@ -168,7 +171,9 @@ async function handleHelpCallback(
     includeTavernGames: services.tavernGames?.isEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
-    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
+    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false,
+    includeReferral: services.referrals?.isFoundationEnabled() ?? false,
+    includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
   }, page), {
     reply_markup: buildHelpKeyboard(page)
   });

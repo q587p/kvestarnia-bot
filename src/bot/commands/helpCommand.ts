@@ -8,6 +8,7 @@ import type { FightingCornerQuestService } from "../../services/fightingCornerQu
 import type { HealthRecoveryNotificationService } from "../../services/healthRecoveryNotificationService";
 import type { GroupCombatService } from "../../services/groupCombatService";
 import type { GuildService } from "../../services/guildService";
+import type { ReferralService } from "../../services/referralService";
 import { getDevHelpSections } from "../devHelpSections";
 import { buildDevHelpKeyboard } from "../keyboards/devHelpKeyboard";
 import { buildHelpKeyboard } from "../keyboards/helpKeyboard";
@@ -25,6 +26,7 @@ export function registerHelpCommand(
     fightingCornerQuestService?: Pick<FightingCornerQuestService, "isDevHelperEnabled"> | undefined;
     healthRecoveryNotificationService?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled"> | undefined;
     guildService?: Pick<GuildService, "areDevHelpersEnabled"> | undefined;
+    referralService?: Pick<ReferralService, "isFoundationEnabled" | "areDevHelpersEnabled"> | undefined;
   } = {}
 ): void {
   const visibility = {
@@ -38,7 +40,9 @@ export function registerHelpCommand(
       : false,
     includeFightingCornerQuest: options.fightingCornerQuestService?.isDevHelperEnabled() ?? false,
     includeHpRecovery: options.healthRecoveryNotificationService?.areDevHelpersEnabled() ?? false,
-    includeGuild: options.guildService?.areDevHelpersEnabled() ?? false
+    includeGuild: options.guildService?.areDevHelpersEnabled() ?? false,
+    includeReferral: options.referralService?.isFoundationEnabled() ?? false,
+    includeReferralDev: options.referralService?.areDevHelpersEnabled() ?? false
   };
 
   bot.command("help", async (ctx) => {

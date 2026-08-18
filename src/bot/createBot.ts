@@ -5,6 +5,7 @@ import { answerInvalidCallback } from "./callbackRoute";
 import { installMessageFreshnessTracking } from "./messageFreshness";
 import { registerCombatLockMiddleware } from "./middleware/registerCombatLockMiddleware";
 import { registerPresenceMiddleware } from "./middleware/registerPresenceMiddleware";
+import { registerReferralMiddleware } from "./middleware/registerReferralMiddleware";
 import { registerCharacterBotModule } from "./modules/character";
 import { registerCombatBotModule } from "./modules/combat";
 import { registerCoreBotModule } from "./modules/core";
@@ -13,6 +14,7 @@ import { resumeBotNotifications } from "./modules/notifications";
 import { registerQuestBotModule } from "./modules/quest";
 import { registerRaidChatBotModule } from "./modules/raidChat";
 import { registerSocialBotModule } from "./modules/social";
+import { registerReferralBotModule } from "./modules/referral";
 import { registerTavernBotModule } from "./modules/tavern";
 import { registerGuildPassageSearchGuard } from "./modules/passageSearchGuard";
 import {
@@ -33,6 +35,9 @@ export function createBot(token: string, services: BotServices, options: BotOpti
 
   installMessageFreshnessTracking(bot);
   installUpdatePerformanceTracing(bot);
+  if (services.referrals) {
+    registerReferralMiddleware(bot, services.referrals);
+  }
   registerRaidChatBotModule(bot, { services, options });
   registerCombatLockMiddleware(bot, services);
   registerGuildPassageSearchGuard(bot, services);
@@ -40,6 +45,10 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     guildFoundationEnabled: services.guilds?.isEnabled() === true
   });
   registerUpdateRouteBoundary(bot);
+
+  if (services.referrals) {
+    registerReferralBotModule(bot, services.referrals);
+  }
 
   registerCoreBotModule(bot, { services, options });
   registerCharacterBotModule(bot, { services, options });

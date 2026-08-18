@@ -6,6 +6,7 @@ import { makeItemPostalOpenCallbackData } from "../callbacks/itemPostalCallbackD
 import { makeItemUpgradeListCallbackData } from "../callbacks/itemUpgradeCallbackData";
 import { makeMemorialRemortCallbackData } from "../callbacks/memorialCallbackData";
 import { makeLoreMenuCallbackData } from "../callbacks/loreBoardCallbackData";
+import { makeReferralOpenCallbackData } from "../callbacks/referralCallbackData";
 import { makeLatestEventsListCallbackData } from "../callbacks/latestEventsCallbackData";
 import { makeNewsListCallbackData } from "../callbacks/newsCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
@@ -427,9 +428,14 @@ export function buildKorchmaBarKeyboard(
     .text(buildBackToHallLabel(options.questMarkers), makePlaceCallbackData("hall"));
 }
 
-export function buildKorchmaNewsCornerKeyboard(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text("📰 Вісти", makeNewsListCallbackData(0))
+export function buildKorchmaNewsCornerKeyboard(
+  options: { referralEnabled?: boolean } = {}
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (options.referralEnabled) {
+    keyboard.text("📨 Поклик до Квестарні", makeReferralOpenCallbackData()).row();
+  }
+  return keyboard.text("📰 Вісти", makeNewsListCallbackData(0))
     .row()
     .text("📣 Останні події", makeLatestEventsListCallbackData())
     .row()

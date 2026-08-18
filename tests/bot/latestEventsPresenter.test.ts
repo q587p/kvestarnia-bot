@@ -26,6 +26,11 @@ describe("latest events presenter", () => {
           makeEvent("character.created", "2026-07-02T09:00:00.000Z", {
             actorDisplayName: "Арден"
           }),
+          makeEvent("referral.arrived", "2026-07-02T08:30:00.000Z", {
+            actorDisplayName: "<Прибула>",
+            actorGuildCrest: "🚫",
+            subjectName: "Кличко & Друг"
+          }),
           makeEvent("character.level_reached", "2026-07-02T08:00:00.000Z", {
             actorDisplayName: "You®4ik",
             payload: { level: 7, remortCount: 5 }
@@ -82,6 +87,8 @@ describe("latest events presenter", () => {
     expect(text).toContain("Сьогодні");
     expect(text).toContain("Вчора");
     expect(text).toContain("Новий пригодник у Квестарні: Арден!");
+    expect(text).toContain("Новий пригодник у Квестарні: «&lt;Прибула&gt;», за покликом «Кличко &amp; Друг».");
+    expect(text).not.toContain("🚫");
     expect(text).toContain("You®4ik бере 7 рівень (р5)!");
     expect(text).toContain("У Квестарні постала ґільдія «&lt;&amp; &lt;Тиха Печатка&gt;». Писар підкреслив це двічі.");
     expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");

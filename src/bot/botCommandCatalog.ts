@@ -3,8 +3,8 @@ export interface BotCommandCatalogEntry {
   icon: string;
   description: string;
   includeInMenu: boolean;
-  featureOnly?: "tavern-games";
-  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild";
+  featureOnly?: "tavern-games" | "referral";
+  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild" | "referral";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -158,6 +158,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     icon: "🛡️",
     description: "ґільдії",
     includeInMenu: false
+  },
+  {
+    command: "invite",
+    icon: "📨",
+    description: "поклик до Квестарні",
+    includeInMenu: false,
+    featureOnly: "referral"
   },
   {
     command: "restart",
@@ -514,6 +521,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     description: "видати золото для заснування ґільдії локально",
     includeInMenu: false,
     devOnly: "guild"
+  },
+  {
+    command: "dev_referral_reconcile",
+    icon: "🧭",
+    description: "повторити власні виплати за поклик локально",
+    includeInMenu: false,
+    devOnly: "referral"
   }
 ];
 
@@ -527,6 +541,8 @@ export interface DevCommandVisibility {
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
+  includeReferral?: boolean;
+  includeReferralDev?: boolean;
 }
 
 export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility): BotCommandCatalogEntry[] {
@@ -534,7 +550,9 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
   return botCommandCatalog.filter((entry) => {
     if (!entry.devOnly) {
-      return !entry.featureOnly || normalized.includeTavernGames;
+      return !entry.featureOnly
+        || (entry.featureOnly === "tavern-games" && normalized.includeTavernGames)
+        || (entry.featureOnly === "referral" && normalized.includeReferral);
     }
 
     if (entry.devOnly === "reset") {
@@ -559,6 +577,10 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "guild") {
       return normalized.includeGuild;
+    }
+
+    if (entry.devOnly === "referral") {
+      return normalized.includeReferralDev;
     }
 
     return entry.devOnly === "grant"
@@ -592,7 +614,9 @@ function normalizeDevCommandVisibility(
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility,
-      includeGuild: visibility
+      includeGuild: visibility,
+      includeReferral: visibility,
+      includeReferralDev: visibility
     };
   }
 
@@ -605,6 +629,8 @@ function normalizeDevCommandVisibility(
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false,
-    includeGuild: visibility.includeGuild ?? false
+    includeGuild: visibility.includeGuild ?? false,
+    includeReferral: visibility.includeReferral ?? false,
+    includeReferralDev: visibility.includeReferralDev ?? false
   };
 }

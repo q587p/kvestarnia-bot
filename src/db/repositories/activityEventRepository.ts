@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 export const activityEventTypes = [
   "character.created",
+  "referral.arrived",
   "guild.created",
   "character.level_reached",
   "party.raid_won",

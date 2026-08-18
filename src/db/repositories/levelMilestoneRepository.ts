@@ -1,4 +1,8 @@
 import { Prisma } from "@prisma/client";
+import {
+  getReferralPolicy,
+  getReferralStagesCrossed
+} from "../../domain/referral/referralPolicy";
 
 export const LEVEL_MILESTONE_KEY_PREFIX = "milestone.level.";
 export const REMORT_LEVEL_MILESTONE_KEY_PREFIX = "milestone.remort.";
@@ -44,7 +48,13 @@ export interface LevelMilestoneRepository {
   ): Promise<LevelMilestoneBoard>;
 }
 
-type LevelMilestoneWriter = Pick<Prisma.TransactionClient, "dailyAction">;
+type LevelMilestoneWriter = Pick<Prisma.TransactionClient, "dailyAction"> &
+  Partial<
+    Pick<
+      Prisma.TransactionClient,
+      "character" | "referralAttribution" | "referralReward"
+    >
+  >;
 
 export function buildLevelMilestoneKey(level: number): string {
   return `${LEVEL_MILESTONE_KEY_PREFIX}${level}`;
@@ -80,6 +90,85 @@ export async function recordLevelMilestones(
       remortCount: options.remortCount ?? 0,
       provenance: "recorded"
     });
+  }
+
+  await recordReferralRewardMilestones(
+    tx,
+    characterId,
+    oldLevel,
+    newLevel,
+    reachedAt ?? new Date()
+  );
+}
+
+async function recordReferralRewardMilestones(
+  tx: LevelMilestoneWriter,
+  characterId: string,
+  oldLevel: number,
+  newLevel: number,
+  earnedAt: Date
+): Promise<void> {
+  const stages = getReferralStagesCrossed(oldLevel, newLevel);
+  if (
+    stages.length === 0 ||
+    !tx.character ||
+    !tx.referralAttribution ||
+    !tx.referralReward
+  ) {
+    return;
+  }
+  const character = await tx.character.findUnique({
+    where: { id: characterId },
+    select: { userId: true }
+  });
+  if (!character) {
+    return;
+  }
+  const attribution = await tx.referralAttribution.findUnique({
+    where: { inviteeUserId: character.userId },
+    select: {
+      id: true,
+      inviterUserId: true,
+      status: true,
+      rewardPlanVersion: true
+    }
+  });
+  if (
+    attribution?.status !== "ACCEPTED" ||
+    attribution.rewardPlanVersion === null
+  ) {
+    return;
+  }
+  const policy = getReferralPolicy(attribution.rewardPlanVersion);
+  if (!policy) {
+    throw new Error("Accepted referral references an unknown reward plan.");
+  }
+  for (const crossed of stages) {
+    const stage = policy.stages.find((candidate) => candidate.key === crossed.key);
+    if (!stage) {
+      throw new Error("Accepted referral reward plan is missing a stable milestone.");
+    }
+    try {
+      await tx.referralReward.create({
+        data: {
+          attributionId: attribution.id,
+          beneficiaryUserId: attribution.inviterUserId,
+          rewardFamily: policy.rewardFamily,
+          milestoneKey: stage.key,
+          sourceAchievementId: stage.achievementId,
+          rewardPlanVersion: policy.version,
+          rewardGold: stage.gold,
+          rewardItemsJson: stage.itemGrants.map((item) => ({ ...item })),
+          state: "PENDING",
+          earnedAt,
+          nextAttemptAt: earnedAt
+        }
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error;
+      }
+    }
   }
 }
 

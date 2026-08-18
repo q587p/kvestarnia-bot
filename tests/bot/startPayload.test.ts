@@ -6,6 +6,22 @@ describe("start payload parser", () => {
     expect(parseStartPayload("support_thanks")).toEqual({ type: "support-thanks" });
   });
 
+  it("accepts only the exact referral payload shape without shadowing other routes", () => {
+    expect(parseStartPayload("ref1_abCD_123-xyZ7890")).toEqual({
+      type: "referral",
+      token: "abCD_123-xyZ7890"
+    });
+    for (const payload of [
+      "ref1_short",
+      "ref1_abCD_123-xyZ789",
+      "ref1_abCD_123-xyZ78900",
+      "ref1_abCD.123-xyZ7890",
+      "REF1_abCD_123-xyZ7890"
+    ]) {
+      expect(parseStartPayload(payload)).toMatchObject({ type: "unknown" });
+    }
+  });
+
   it("keeps empty and unknown payloads safe", () => {
     expect(parseStartPayload(undefined)).toEqual({ type: "none" });
     const oldSupportPayload = ["barrel", "thanks"].join("_");

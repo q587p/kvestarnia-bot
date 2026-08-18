@@ -3,6 +3,7 @@ export type StartPayload =
   | { type: "duel"; token: string; mode?: "quick" | "turn-based" }
   | { type: "party"; token: string }
   | { type: "guild-invite"; token: string }
+  | { type: "referral"; token: string }
   | { type: "left-passage-attack"; token: string }
   | { type: "tavern-game"; token: string }
   | { type: "support-thanks" }
@@ -27,6 +28,11 @@ export function parseStartPayload(raw: string | undefined): StartPayload {
 
   if (payload === "support_thanks") {
     return { type: "support-thanks" };
+  }
+
+  const referral = payload.match(/^ref1_([A-Za-z0-9_-]{16})$/);
+  if (referral) {
+    return { type: "referral", token: referral[1] ?? "" };
   }
 
   if (payload.startsWith("duel_turnbased_")) {

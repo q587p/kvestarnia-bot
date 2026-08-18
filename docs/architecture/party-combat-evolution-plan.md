@@ -136,7 +136,7 @@ targets.
 The next GroupCombat-owning task must audit every class ability already enabled
 in PartyBoss/Big Barrel. Each ability needs equivalent typed GroupCombat
 semantics and regressions or an explicit raid-only reason with a separately
-scheduled owner; label-level similarity is not parity evidence. `0.4.6` owns
+scheduled owner; label-level similarity is not parity evidence. `0.4.7` owns
 the next audit rather than widening this polish release.
 
 ## Lifecycle and repair
@@ -210,13 +210,15 @@ Telegram's `4,096` UTF-8 bytes and reuse the canonical message.
 - `0.4.4`: Bugfix & Polish for explicit GroupCombat targeting, origin-bound
   left-passage invitations and canonical equipment-requirement locks.
 - `0.4.5`: independent guild membership shell.
-- `0.4.6`: guild weekly objective using the same party/group-combat runtime,
+- `0.4.6`: independent public Referral Foundation with User-level first-touch
+  attribution and no ownership of party, guild or group-combat state.
+- `0.4.7`: guild weekly objective using the same party/group-combat runtime,
   including the next explicit PartyBoss-to-GroupCombat class-ability parity
   audit.
-- `0.4.7`–`0.4.12`: Старий жертовник, nearby greeting, Shynok food,
+- `0.4.8`–`0.4.13`: Старий жертовник, nearby greeting, Shynok food,
   take-away consumables, resale listings and Korchmar recycling remain bounded
   catch-up tasks; none becomes a group-combat runtime owner.
-- `0.4.13`: cosmetic guild progression after observed weekly data.
+- `0.4.14`: cosmetic guild progression after observed weekly data.
 
 ## Explicit non-goals
 

@@ -98,6 +98,48 @@ describe("ActivityEventService", () => {
     });
   });
 
+  it("publishes one normal referral arrival under the shared character-arrival dedupe key", async () => {
+    const repository = new FakeActivityEventRepository();
+    const publisher = makePublicActivityEventPublisher(repository);
+    const occurredAt = new Date("2026-08-19T09:00:00.000Z");
+
+    await publisher.recordReferralArrivedSafely({
+      characterId: "invitee-character",
+      inviteeDisplayName: "Прибула",
+      inviterUserId: "inviter-user",
+      inviterDisplayName: "Кличко",
+      attributionId: "attribution-1",
+      occurredAt
+    });
+    await publisher.recordReferralArrivedSafely({
+      characterId: "invitee-character",
+      inviteeDisplayName: "Прибула",
+      inviterUserId: "inviter-user",
+      inviterDisplayName: "Кличко",
+      attributionId: "attribution-1",
+      occurredAt
+    });
+    await publisher.recordCharacterCreatedSafely({
+      characterId: "invitee-character",
+      actorDisplayName: "Прибула",
+      occurredAt
+    });
+
+    expect(repository.rows).toHaveLength(1);
+    expect(repository.rows[0]).toMatchObject({
+      eventType: "referral.arrived",
+      category: "adventurer",
+      severity: "normal",
+      subjectKind: "referral-inviter",
+      subjectId: "inviter-user",
+      subjectName: "Кличко",
+      sourceType: "referral-attribution",
+      sourceId: "attribution-1",
+      dedupeKey: "character.created:invitee-character",
+      occurredAt
+    });
+  });
+
   it("emits configured level and rare item rows without common-item noise", async () => {
     const repository = new FakeActivityEventRepository();
     const publisher = makePublicActivityEventPublisher(repository);

@@ -1518,7 +1518,9 @@ async function handlePlaceCallback(
     await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
     return;
   }
-  await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
+  await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply", {
+    referralEnabled: services.referrals?.isFoundationEnabled() === true
+  });
   await refreshCurrentMainMenuLocationKeyboard(ctx, services.presence);
 }
 

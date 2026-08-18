@@ -5,6 +5,7 @@ import type { GuildService } from "../../services/guildService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
+import type { ReferralService } from "../../services/referralService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   answerInvalidCallback,
@@ -44,6 +45,7 @@ import {
   buildGenderKeyboard,
   buildRaceKeyboard
 } from "../keyboards/onboardingKeyboard";
+import { buildReferralConsentKeyboard } from "../keyboards/referralKeyboard";
 import { buildRemortKeyboard, buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
@@ -70,6 +72,7 @@ import {
   presentUnavailableChoice,
   presentWelcome
 } from "../presenters/onboardingPresenter";
+import { presentReferralConsent } from "../presenters/referralPresenter";
 import { presentRemortConfirm, presentRemortUpdate } from "../presenters/remortPresenter";
 import {
   presentRestartActiveCombat,
@@ -104,6 +107,7 @@ export function registerCharacterBotModule(
       ...(services.groupCombat ? { groupCombat: services.groupCombat } : {}),
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
       ...(services.guilds ? { guilds: services.guilds } : {}),
+      ...(services.referrals ? { referrals: services.referrals } : {}),
       presence: services.presence,
       botUsername: options.botUsername,
       duelBotUsername: options.botUsername
@@ -137,7 +141,7 @@ export function registerCharacterBotModule(
   }
 
   registerParsedCallbackRoute(bot, /^v1:onb:/, parseOnboardingCallbackData, async (ctx, callback) => {
-    await handleOnboardingCallback(ctx, callback, services.onboarding);
+    await handleOnboardingCallback(ctx, callback, services.onboarding, services.referrals);
   });
 
   registerParsedCallbackRoute(bot, /^v1:bst:/, parseBestiaryCallbackData, async (ctx, callback) => {
@@ -316,7 +320,8 @@ async function handleAchievementCallback(
 async function handleOnboardingCallback(
   ctx: Context,
   callback: OnboardingCallback,
-  onboardingService: OnboardingService
+  onboardingService: OnboardingService,
+  referralService?: ReferralService
 ): Promise<void> {
   if (callback.type === "gender") {
     await safeAnswerCallbackQuery(ctx);
@@ -444,6 +449,20 @@ async function handleOnboardingCallback(
   );
 
   if (!result.ok) {
+    if (result.error.type === "pending-referral-consent" && referralService) {
+      const pending = await referralService.getPendingConsent(player.telegramUserId);
+      if (pending) {
+        await safeAnswerCallbackQuery(ctx, {
+          text: "Спершу виріши, чи приймати поклик.",
+          show_alert: true
+        });
+        await safeEditMessageText(ctx, presentReferralConsent(pending.inviterName), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildReferralConsentKeyboard(referralService.isFoundationEnabled())
+        });
+        return;
+      }
+    }
     const text =
       result.error.type === "unavailable-class" || result.error.type === "unavailable-race"
         ? presentUnavailableChoice(result.error.reason)

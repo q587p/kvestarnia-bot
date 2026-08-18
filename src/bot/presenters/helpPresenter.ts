@@ -13,6 +13,8 @@ export interface HelpVisibility {
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
+  includeReferral?: boolean;
+  includeReferralDev?: boolean;
 }
 
 const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> = {
@@ -20,7 +22,7 @@ const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> =
   adventures: ["adventure", "quest", "fight", "hunt", "bestiary", "monsters", "cellar"],
   items: ["inventory", "items", "bag", "equipment", "gear", "equip"],
   korchma: ["tavern", "raid", "spar", "duel", "online", "games", "look"],
-  news: ["guild", "version", "news", "lore", "chronicles", "help", "support"]
+  news: ["guild", "invite", "version", "news", "lore", "chronicles", "help", "support"]
 };
 
 const HELP_COMMAND_ALIAS_GROUPS = [
@@ -211,7 +213,9 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility,
-      includeGuild: visibility
+      includeGuild: visibility,
+      includeReferral: visibility,
+      includeReferralDev: visibility
     };
   }
 
@@ -224,6 +228,8 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false,
-    includeGuild: visibility.includeGuild ?? false
+    includeGuild: visibility.includeGuild ?? false,
+    includeReferral: visibility.includeReferral ?? false,
+    includeReferralDev: visibility.includeReferralDev ?? false
   };
 }

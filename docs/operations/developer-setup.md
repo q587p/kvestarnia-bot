@@ -63,6 +63,8 @@ HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
 LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
 GUILD_FOUNDATION_ENABLED=false
+REFERRAL_FOUNDATION_ENABLED=false
+REFERRAL_REWARD_PAYOUTS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
@@ -71,6 +73,26 @@ FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
 # SUPPORT_JAR_GOAL_UAH=5000
 # SUPPORT_JAR_STATUS_UPDATED_AT=2026-06-16
 ```
+
+### Referral Foundation local QA
+
+Both referral flags remain `false` in committed deploy examples. For the
+six-account local matrix in
+[`0.4.6-referral-foundation-qa.md`](../qa/0.4.6-referral-foundation-qa.md), set
+these non-secret values in the existing untracked root `.env`:
+
+```env
+REFERRAL_FOUNDATION_ENABLED=true
+REFERRAL_REWARD_PAYOUTS_ENABLED=true
+```
+
+Use `/dev_add_level` to cross the real level milestone writer and
+`/dev_referral_reconcile` only to retry the acting inviter's canonical pending
+delivery. Both commands remain non-production; referral feature flags do not
+register the reconcile helper in production. Toggle only the payout flag off/on
+to test durable pending recovery. The isolated bot snapshot will not see these
+checkout values until an explicitly requested `refresh-local-bot.cmd`; do not
+infer that local `.env` changed a running bot.
 
 ### HP recovery notification rollout
 

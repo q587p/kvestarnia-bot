@@ -14,6 +14,7 @@ Use these docs when changing lore seeds, canon snapshots, content banks, copy pa
 
 - [`korchma-greeting-content.md`](korchma-greeting-content.md) — Korchma greeting copy/content package.
 - [`latest-events-feed-copy.md`](latest-events-feed-copy.md) — latest events feed copy package if present.
+- [`referral-ui-copy.md`](referral-ui-copy.md) — frozen Ukrainian dashboard, consent, share, notification and recovery copy for 0.4.6.
 
 ## Inspiration and safe borrowing
 

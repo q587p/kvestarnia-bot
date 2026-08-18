@@ -28,35 +28,35 @@ Keep each task compact and link to canonical docs instead of copying them.
 
 ## Current release and next task
 
-The current implementation release is `0.4.5` on PR #190:
-[`0.4.5-guild-foundation.md`](0.4.5-guild-foundation.md).
-Its corrected default-off durable guild social shell is under final automated
-verification. Manual three-account Telegram QA, merge, migration deployment,
-target enablement and production availability remain unproven. An audited
-abandoned-leader operator runbook is a production-enable blocker.
+The current implementation release is `0.4.6`:
+[`0.4.6-referral-foundation.md`](0.4.6-referral-foundation.md).
+It branches from merged `0.4.5` Guild Foundation PR #190 and the merged
+activation-Chronicle hotfix PR #193. Referral automated verification belongs to
+the current PR; six-account Telegram QA, deployment, target flags and production
+availability remain unproven.
 
-[`0.4.6-guild-weekly-goal.md`](0.4.6-guild-weekly-goal.md) is the next planned version.
+[`0.4.7-guild-weekly-goal.md`](0.4.7-guild-weekly-goal.md) is the next planned version.
 
 ## Accepted 0.4.x planning
 
-After `0.4.5`, use these accepted task contracts in order unless a later
+After `0.4.6`, use these accepted task contracts in order unless a later
 product decision changes the sequence:
 
-- [`0.4.6-guild-weekly-goal.md`](0.4.6-guild-weekly-goal.md)
-- [`0.4.7-old-altar-blessings-mvp.md`](0.4.7-old-altar-blessings-mvp.md)
-- [`0.4.8-nearby-greeting-buff.md`](0.4.8-nearby-greeting-buff.md)
-- [`0.4.9-shynok-food-buffs-mvp.md`](0.4.9-shynok-food-buffs-mvp.md)
-- [`0.4.10-shynok-takeaway-consumables.md`](0.4.10-shynok-takeaway-consumables.md)
-- [`0.4.11-shynok-resale-listings.md`](0.4.11-shynok-resale-listings.md)
-- [`0.4.12-korchmar-recycling.md`](0.4.12-korchmar-recycling.md)
-- [`0.4.13-guild-cosmetic-progression.md`](0.4.13-guild-cosmetic-progression.md)
+- [`0.4.7-guild-weekly-goal.md`](0.4.7-guild-weekly-goal.md)
+- [`0.4.8-old-altar-blessings-mvp.md`](0.4.8-old-altar-blessings-mvp.md)
+- [`0.4.9-nearby-greeting-buff.md`](0.4.9-nearby-greeting-buff.md)
+- [`0.4.10-shynok-food-buffs-mvp.md`](0.4.10-shynok-food-buffs-mvp.md)
+- [`0.4.11-shynok-takeaway-consumables.md`](0.4.11-shynok-takeaway-consumables.md)
+- [`0.4.12-shynok-resale-listings.md`](0.4.12-shynok-resale-listings.md)
+- [`0.4.13-korchmar-recycling.md`](0.4.13-korchmar-recycling.md)
+- [`0.4.14-guild-cosmetic-progression.md`](0.4.14-guild-cosmetic-progression.md)
 
 These are planned contracts, not merged or deployed features.
 
 ## Shipped records and historical drafts
 
-- `0.4.4` is the latest merged repository release record; `0.4.5` is the active
-  implementation target.
+- `0.4.5` plus its activation-Chronicle hotfix are the merged repository
+  baseline; `0.4.6` is the active implementation target.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.
 - Superseded or consumed drafts live in [`archive/`](archive/).

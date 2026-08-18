@@ -8,6 +8,7 @@ Use these docs when running, testing, smoking, debugging or reviewing Kvestarnia
 - [`local-bot-runtime.md`](local-bot-runtime.md) — isolated local bot runtime and Windows/Prisma process-lock workflow.
 - [`local-bot-runtime-db-prep.md`](local-bot-runtime-db-prep.md) — local bot runtime database preparation notes.
 - [`playtesting.md`](playtesting.md) — manual smoke test for the current playable loop.
+- [`referral-rollout.md`](referral-rollout.md) — default-off referral migration, flag, worker, rollback and privacy-safe observation runbook.
 
 ## QA entry points
 

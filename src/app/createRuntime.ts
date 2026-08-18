@@ -10,6 +10,7 @@ import { createGroupCombatTimeoutScheduler } from "../bot/groupCombatTimeoutSche
 import { createPassageSearchCompletionScheduler } from "../bot/passageSearchCompletionScheduler";
 import { createPartyBossRecruitingStartScheduler } from "../bot/partyBossRecruitingStartScheduler";
 import { createPartyRaidChatDeliveryScheduler } from "../bot/partyRaidChatDeliveryScheduler";
+import { createReferralScheduler } from "../bot/referralScheduler";
 import { classifyPerformanceError } from "../bot/performanceLogger";
 import type { AppConfig } from "../config/env";
 import { startHealthServer } from "../health/server";
@@ -33,6 +34,7 @@ interface RuntimeDependencies {
   createPassageSearchCompletionScheduler: typeof createPassageSearchCompletionScheduler;
   createPartyBossRecruitingStartScheduler: typeof createPartyBossRecruitingStartScheduler;
   createPartyRaidChatDeliveryScheduler: typeof createPartyRaidChatDeliveryScheduler;
+  createReferralScheduler: typeof createReferralScheduler;
   getTelegramMenuCommands: typeof getTelegramMenuCommands;
   startHealthServer: typeof startHealthServer;
 }
@@ -79,6 +81,7 @@ export function createRuntime(input: {
     createPassageSearchCompletionScheduler,
     createPartyBossRecruitingStartScheduler,
     createPartyRaidChatDeliveryScheduler,
+    createReferralScheduler,
     getTelegramMenuCommands,
     startHealthServer,
     ...input.dependencies
@@ -102,6 +105,7 @@ export function createRuntime(input: {
   let passageSearchCompletionScheduler: ReturnType<typeof createPassageSearchCompletionScheduler> | null = null;
   let partyBossRecruitingStartScheduler: ReturnType<typeof createPartyBossRecruitingStartScheduler> | null = null;
   let partyRaidChatDeliveryScheduler: ReturnType<typeof createPartyRaidChatDeliveryScheduler> | null = null;
+  let referralScheduler: ReturnType<typeof createReferralScheduler> | null = null;
   const readiness = createRuntimeReadiness();
   let schedulersStarted = false;
   let schedulersStopped = false;
@@ -121,6 +125,7 @@ export function createRuntime(input: {
     passageSearchCompletionScheduler?.start();
     partyBossRecruitingStartScheduler?.start();
     partyRaidChatDeliveryScheduler?.start();
+    referralScheduler?.start();
     return true;
   };
 
@@ -143,6 +148,7 @@ export function createRuntime(input: {
         () => passageSearchCompletionScheduler?.stop(),
         () => partyBossRecruitingStartScheduler?.stop(),
         () => partyRaidChatDeliveryScheduler?.stop(),
+        () => referralScheduler?.stop(),
         () => healthRecoveryNotificationScheduler?.stop()
       ];
 
@@ -293,6 +299,9 @@ export function createRuntime(input: {
           partyBoss: services.partyBoss
         }, bot, botLinkOptions);
       }
+      if (services.referrals) {
+        referralScheduler = dependencies.createReferralScheduler(services.referrals, bot);
+      }
 
       void services.mantokChest.cleanupExpiredPendingRuns().catch((error) => {
         console.error("Квестарня: старі бланки Дружньої Скрині не прибрались.", error);
@@ -304,7 +313,9 @@ export function createRuntime(input: {
         includePartySessions: services.partySessions?.isEnabled() === true,
         includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() === true,
         includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() === true,
-        includeTavernGames: services.tavernGames?.isEnabled() === true
+        includeTavernGames: services.tavernGames?.isEnabled() === true,
+        includeReferral: services.referrals?.isFoundationEnabled() === true,
+        includeReferralDev: services.referrals?.areDevHelpersEnabled() === true
       })).catch((error) => {
         console.error("Квестарня: бокове меню команд не оновилось.", error);
       });

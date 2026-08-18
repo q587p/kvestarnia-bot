@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.6] - 12026-08-19 - Referral Foundation and Automatic Milestone Rewards
+
+### Added
+- Added a default-off public `📨 Поклик до Квестарні` flow on the Korchma board and `/invite`, with one stable User-level `ref1_*` share link, explicit fresh-player consent, first-touch attribution and five-row inviter history.
+- Added frozen `REFERRAL_POLICY_V1` bundles at invitee levels 3, 5, 8 and 13: dense bandage/Field Kits, 276 total Iskrokamin and 1,830 total ordinary gold across the full track.
+- Added User-level referral code, attribution and stage-entitlement persistence plus a leased notification outbox in additive migration `20260819090000_referral_foundation` with a paired rollback.
+- Added automatic cold-start and interaction-triggered payout reconciliation, whole-bundle CAS delivery to the inviter's current Character and non-production `/dev_referral_reconcile` recovery.
+- Added one consented normal-severity `referral.arrived` Chronicle fact on first Character arrival, using the ordinary Character-arrival dedupe key and appearing only in all/adventurer views.
+
+### Changed
+- Extended the canonical transaction-level level-milestone writer so jumps create every crossed accepted-referral entitlement before Character-bound milestone evidence can be reset.
+- Added `REFERRAL_FOUNDATION_ENABLED` and `REFERRAL_REWARD_PAYOUTS_ENABLED`, both deploy-safe `false` by default; accepted relationships continue recording stages while payouts are paused.
+- Inserted Referral Foundation at `0.4.6` and shifted only the unimplemented forward plan through Guild Cosmetic Progression to `0.4.7`–`0.4.14`.
+
+### Security
+- Referral capture runs before ordinary presence upsert and creates the fresh User plus pending attribution atomically; malformed, unknown, self, existing-user, disabled and rebind attempts fail closed without late attribution.
+- Referral list, outbox and Chronicle projections exclude Telegram identity, presence, quests, inventory, balances, remort and guild identity; dynamic names are control-character bounded and HTML-escaped at presentation.
+
+### Fixed
+- Pending consent now blocks direct or stale Character-creation callbacks until the player accepts or continues without the referral, preventing an unnamed or retroactively bound arrival.
+- Missing/restarted inviter Characters, disabled payouts, transient writes and Telegram delivery failures remain durable pending work rather than producing partial bundles or requiring a claim button.
+
 ## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 
 ### Added
