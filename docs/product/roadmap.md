@@ -266,6 +266,11 @@ guild-period completion receipt, не множиться на participant receip
   abuse review;
 - розширення початкових 8 місць до абсолютної межі 13 через окремо погоджений
   progression/structure контракт;
+- кероване закриття, знищення або видалення ґільдії як окремий lifecycle slice:
+  для багатолюдної ґільдії потрібні явні повноваження й підтвердження, сповіщення
+  учасників, exact-once terminalization, погоджені name/crest holds та рішення
+  щодо Chronicle/moderation; жоден такий шлях не може каскадно видалити чинну
+  ватагу, `PartySession`, `GroupCombatSession` чи історичний receipt;
 - bounded ґільдійний чат і системний журнал подій лише з moderation, retention,
   flood-control та privacy policy;
 - споруди, але бойові HP/attack/defence бонуси — лише після повної перевірки

@@ -221,6 +221,15 @@ other-game UI is product research rather than copy to reproduce verbatim.
    the 0.4.13 direction after weekly-goal evidence. Progression may unlock
    cosmetic identity and carefully reviewed comfort features; it does not imply
    shared combat power, territory or treasury access.
+8. **Guild shutdown, destruction and deletion.** Foundation already permits a
+   sole leader to disband an otherwise empty guild. Any future multi-member
+   shutdown needs an explicit authority and confirmation model, participant
+   notice, a cancellation/grace decision, exact-once membership/invitation
+   closure, name/crest release holds, and an explicit Chronicle/moderation
+   decision. Prefer a terminal historical tombstone over physical deletion;
+   hard deletion belongs to a separate operator/privacy policy. Neither path
+   may cascade into `PartySession`, `GroupCombatSession`, activity history or
+   durable gameplay receipts.
 
 Each item needs its own scoped task, QA matrix, data/rollback plan and player-
 visible menu design. Shipping one item does not implicitly authorize the next.

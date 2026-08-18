@@ -115,6 +115,12 @@ After closing a versioned task:
 tool times out, stop it, verify the file state, and switch immediately to a safe
 alternative patch mechanism. Do not repeat multi-minute waits on the same
 small edit.
+2b. When the user explicitly asks to start, restart, refresh, or restore the
+local bot, perform the appropriate isolated-runtime action immediately. Do not
+replace the requested action with explanatory text, a plan, or another
+permission question. Report a short status only after the attempt. If the first
+attempt fails, continue with safe in-scope recovery; ask only before a
+destructive database reset or another action that needs genuinely new authority.
 3. Do not rewrite architecture unless the task requires it.
 4. Do not add production dependencies without a clear reason.
 5. Do not run global formatters on the whole repo unless explicitly requested.
@@ -197,6 +203,12 @@ PR defaults:
 - Do not give a final implementation summary after only local edits/checks unless the user explicitly asked for local-only work. The final response must include the `main` PR link, or a concrete blocker that prevented creating/updating that PR.
 - Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
 - If an active PR already exists for the current work, add follow-ups to that same branch and PR unless the user explicitly asks for a separate branch or a separate PR. If there is already an open fixes branch/PR for the release or bugfix batch, put the next related fix there instead of creating a new branch/PR for each fix. Before opening any new PR, check whether the current task belongs to an already-open PR and update that PR instead when it does.
+- Treat every correction, rule update, documentation note or future-backlog item
+  requested while working on an explicitly named PR as a follow-up to that same
+  PR. This remains true when the change is docs-only or would invalidate an
+  exact-head CI/QA snapshot: update the existing branch and rerun evidence.
+  Never create a separate branch or PR merely to preserve the old head. A new PR
+  requires an explicit user request for one.
 - If scope expands, update PR title/body and relevant release/docs surfaces honestly.
 - Follow-up fixes that change player-visible behavior must update the task doc, `CHANGELOG.md`, `news.md`, `docs/ai/context.md`, and PR body before the work is called PR-ready.
 - After opening/updating a PR, check that the base is `main` unless explicitly stacked, then check mergeability and conflicts.
