@@ -67,6 +67,7 @@ describe("PrismaActivityEventRepository integration", () => {
   it("lists bounded recent public rows with category and severity filters", async () => {
     const now = new Date("2026-07-02T12:00:00.000Z");
     await repository.record(makeEvent("event-1", "character.created", "adventurer", "normal", "2026-07-02T11:00:00.000Z"));
+    await repository.record(makeEvent("event-guild", "guild.created", "adventurer", "high", "2026-07-02T10:30:00.000Z"));
     await repository.record(makeEvent(
       "event-2",
       "item.rare_received",
@@ -115,6 +116,12 @@ describe("PrismaActivityEventRepository integration", () => {
       now,
       retentionDays: 93
     });
+    const adventurers = await repository.listRecent({
+      categories: ["adventurer", "progression"],
+      pageSize: 5,
+      now,
+      retentionDays: 93
+    });
     const combat = await repository.listRecent({
       categories: ["combat", "raid"],
       pageSize: 5,
@@ -124,14 +131,15 @@ describe("PrismaActivityEventRepository integration", () => {
 
     expect(manatky.events.map((event) => event.dedupeKey)).toEqual(["event-2"]);
     expect(manatky.hasNextPage).toBe(true);
-    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-3", "event-underdog-8"]);
+    expect(adventurers.events.map((event) => event.dedupeKey)).toEqual(["event-1", "event-guild"]);
+    expect(important.events.map((event) => event.dedupeKey)).toEqual(["event-guild", "event-3", "event-underdog-8"]);
     expect(combat.events.map((event) => event.dedupeKey)).toEqual(["event-underdog-7", "event-underdog-8"]);
   });
 });
 
 function makeEvent(
   dedupeKey: string,
-  eventType: "character.created" | "item.rare_received" | "combat.underdog_won",
+  eventType: "character.created" | "guild.created" | "item.rare_received" | "combat.underdog_won",
   category: "adventurer" | "manatky" | "combat",
   severity: "normal" | "high" | "legendary",
   occurredAt: string,

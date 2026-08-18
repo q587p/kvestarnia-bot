@@ -51,7 +51,7 @@ For these changes:
 - Update `CHANGELOG.md` and `news.md` only for release-oriented changes.
 - Release headings must include version, Holocene `1YYYY-MM-DD` date, and short description. If the current entry grows to cover several visible themes, update the heading so it matches the combined release scope rather than the first narrow topic.
 - Use Kyiv time (`Europe/Kyiv`) for release/news/changelog dates, e.g. `12026-06-20`.
-- Before calling a release PR ready, recheck the current Kyiv date against the latest release/news/changelog headings. If the implementation has crossed into a newer Kyiv day, update the release headings to the current release day instead of keeping the task-start date.
+- Before calling a release PR ready, recheck the current Kyiv date against the latest technical release/changelog heading. If implementation crossed into a newer Kyiv day, refresh that technical date. Preserve an existing `news.md` date across technical fixes, review follow-ups, CI reruns and docs-only commits; change it only when the player-facing release promise changes or the news entry is actually republished.
 - PR title starts with version and short changelog description, e.g. `0.0.4 — First Mimic Shawarma Adventure`.
 
 ## Docs-only / presentation changes

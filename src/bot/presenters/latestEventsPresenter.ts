@@ -136,6 +136,11 @@ function renderEventRow(event: ActivityEventRecord): string {
   switch (event.eventType) {
     case "character.created":
       return `👋 ${time} | Новий пригодник у Квестарні: ${actor}!`;
+    case "guild.created": {
+      const crest = readPayloadString(event.payload, "crest");
+      const guild = `${crest ? `${escapeHtml(crest)} ` : ""}${subject}`;
+      return `🏰 ${time} | У Квестарні постала ґільдія «${guild}». Писар підкреслив це двічі.`;
+    }
     case "character.level_reached": {
       const level = readPayloadNumber(event.payload, "level");
       const remort = presentRemortTag(readPayloadNumber(event.payload, "remortCount"));

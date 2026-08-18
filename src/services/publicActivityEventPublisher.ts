@@ -35,6 +35,27 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordGuildCreatedSafely(input: {
+    guildId: string;
+    guildDisplayName: string;
+    guildCrest: string;
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "guild.created",
+      category: "adventurer",
+      severity: "high",
+      subjectKind: "guild",
+      subjectId: input.guildId,
+      subjectName: input.guildDisplayName,
+      sourceType: "guild",
+      sourceId: input.guildId,
+      dedupeKey: `guild.created:${input.guildId}`,
+      payload: { crest: input.guildCrest },
+      occurredAt: input.occurredAt
+    });
+  }
+
   async recordRewardEventsSafely(input: {
     characterId: string;
     actorDisplayName?: string | undefined;

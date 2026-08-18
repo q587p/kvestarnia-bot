@@ -1938,13 +1938,15 @@ export class PrismaGuildRepository implements GuildRepository {
         if (!guild) {
           throw new Error("Accepted guild disappeared before replay view.");
         }
-        const founderCharacter = activating
+        const guildActivatedAt = activationAtForInvite(guild, invite.id);
+        const founderCharacter = guildActivatedAt
           ? await tx.character.findUnique({ where: { userId: invite.guild.founderUserId }, select: { id: true } })
           : null;
         return {
           state: "accepted",
           guild: mapGuildView(guild, actor.id, 0),
           characterId: actor.character.id,
+          guildActivatedAt,
           activatedFounderCharacterId: founderCharacter?.id ?? null,
           notification: inviteResponseNotification(invite)
         };
@@ -2591,13 +2593,15 @@ async function canonicalInviteResult(
     if (!guild || !actor.character || !isLiveGuildStatus(guild.status)) {
       return { state: "not-found" };
     }
-    const founderCharacter = guild.activatedByInviteId === invite.id
+    const guildActivatedAt = activationAtForInvite(guild, invite.id);
+    const founderCharacter = guildActivatedAt
       ? await client.character.findUnique({ where: { userId: guild.founderUserId }, select: { id: true } })
       : null;
     return {
       state: "replayed",
       guild: mapGuildView(guild, actor.id, 0),
       characterId: actor.character.id,
+      guildActivatedAt,
       activatedFounderCharacterId: founderCharacter?.id ?? null
     };
   }
@@ -2610,6 +2614,13 @@ async function canonicalInviteResult(
     return { state: "expired" };
   }
   return membership ? { state: "already-in-guild" } : { state: "not-found" };
+}
+
+function activationAtForInvite(
+  guild: Pick<GuildViewRow, "activatedAt" | "activatedByInviteId">,
+  inviteId: string
+): Date | null {
+  return guild.activatedByInviteId === inviteId ? guild.activatedAt : null;
 }
 
 function inviteResponseNotification(invite: IncomingInviteRow) {

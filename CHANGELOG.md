@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.5] - 12026-08-17 - Guild Foundation, Emoji Crests and Invitation Cards
+## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 
 ### Added
 - Added `🪺 Гніздо ґільдій` as a dedicated side chamber off `Спуск до Низу`, with a compact landing, separate rules card, viewer-aware actions and an explicit return route while deliberately sharing the canonical Spusk presence location.
@@ -36,6 +36,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Personal invitation cards now carry their actionable private deep link in the body. Acceptance and create/join achievement notices retain guild recovery controls, and activation delivers the founder achievement as well as the joiner's achievement.
 
 ### Fixed
+- Activating a forming guild with its second distinct User now records one replay-safe public Chronicle event under both `👥 Пригодники` and `⭐ Важливе`; the private forming charter remains undisclosed before activation. The durable activation timestamp survives founder `/restart` and later callback replay, while founder achievement delivery still requires a current founder Character.
 - Disabled presence reads now omit the guild membership relation entirely, while enabled reads select only the active-guild crest. This preserves the pre-guild query shape for a default-off deploy or rollback.
 - The canonical persistent `👀 Хто поруч` route now receives the guild service like `/online`, so an eligible leader sees the same-location opted-in invitation action without exposing the private opt-in token in Telegram markup.
 - All founding-unavailable guidance now uses the canonical level-7 first-life and level-3 post-remort constants.

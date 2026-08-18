@@ -2,7 +2,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { presentLatestEventsPage } from "../../src/bot/presenters/latestEventsPresenter";
+import { PrismaActivityEventRepository } from "../../src/db/repositories/prismaActivityEventRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PrismaGuildRepository } from "../../src/db/repositories/prismaGuildRepository";
 import {
@@ -11,7 +13,10 @@ import {
   GUILD_CREST_MAX_FILE_SIZE
 } from "../../src/domain/guild";
 import { GuildService } from "../../src/services/guildService";
+import { ActivityEventService } from "../../src/services/activityEventService";
+import type { AchievementService } from "../../src/services/achievementService";
 import type { PartySessionService } from "../../src/services/partySessionService";
+import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 
 const MIGRATION = "20260802230000_guild_foundation";
 const CREST_MIGRATION = "20260806120000_guild_custom_crests";
@@ -156,10 +161,15 @@ describe("PrismaGuildRepository integration", () => {
       .resolves.toMatchObject({ state: "created" });
     const accepted = await repository.acceptInviteForTelegramUser(53_002n, "activation-invite", NOW);
     expect(accepted).toMatchObject({ state: "accepted", guild: { status: "active", memberCount: 2 } });
+    expect(accepted.state === "accepted" ? accepted.guildActivatedAt : null).toEqual(NOW);
     expect(accepted.state === "accepted" ? accepted.activatedFounderCharacterId : null)
       .toBe("activation-founder-character");
     await expect(repository.acceptInviteForTelegramUser(53_002n, "activation-invite", NOW))
-      .resolves.toMatchObject({ state: "replayed", activatedFounderCharacterId: "activation-founder-character" });
+      .resolves.toMatchObject({
+        state: "replayed",
+        guildActivatedAt: NOW,
+        activatedFounderCharacterId: "activation-founder-character"
+      });
     await expect(prisma.guildAudit.count({ where: { guildId: forming.guild.id, eventType: "guild.created" } }))
       .resolves.toBe(1);
     await expect(prisma.guildMember.count({ where: { guildId: forming.guild.id, activeUserKey: { not: null } } }))
@@ -203,6 +213,120 @@ describe("PrismaGuildRepository integration", () => {
     await expect(repository.confirmCreateForTelegramUser(53_008n, "disband-reuse-after", afterDisbandRelease))
       .resolves.toMatchObject({ state: "created" });
     expect(disbanded.guild.id).toBeTruthy();
+  });
+
+  it("publishes one original-timestamp Chronicle fact after the forming founder restarts", async () => {
+    const founderTelegramUserId = 53_020n;
+    const joinerTelegramUserId = 53_021n;
+    const activationAt = new Date(NOW.getTime() + HOUR);
+    const replayAt = new Date(activationAt.getTime() + HOUR);
+    await seedCharacter(prisma, "chronicle-founder", founderTelegramUserId, "Таємний Засновник", 1_000, { level: 7 });
+    await seedCharacter(prisma, "chronicle-joiner", joinerTelegramUserId, "Таємний Учасник", 0);
+    const forming = await createAndConfirm(
+      repository,
+      founderTelegramUserId,
+      "chronicle-charter",
+      "Печатка Хронік"
+    );
+    await createOptIn(repository, joinerTelegramUserId, "chronicle-opt-in", NOW);
+    await createInvite(
+      repository,
+      founderTelegramUserId,
+      "chronicle-invite",
+      "chronicle-opt-in",
+      NOW
+    );
+    await prisma.guild.update({
+      where: { id: forming.guild.id },
+      data: { displayName: "<Жива & Печатка>", crest: "<&" }
+    });
+
+    const activityEvents = new ActivityEventService(new PrismaActivityEventRepository(prisma, true));
+    await expect(activityEvents.listRecent("adv", { now: activationAt })).resolves.toMatchObject({ events: [] });
+    await expect(activityEvents.listRecent("imp", { now: activationAt })).resolves.toMatchObject({ events: [] });
+
+    const characters = new PrismaCharacterRepository(prisma);
+    await expect(characters.restartByTelegramUserId(founderTelegramUserId)).resolves.toBe("deleted");
+    await expect(prisma.character.findUnique({ where: { userId: "chronicle-founder" } })).resolves.toBeNull();
+    await expect(prisma.guildMember.count({
+      where: { guildId: forming.guild.id, userId: "chronicle-founder", activeUserKey: "chronicle-founder" }
+    })).resolves.toBe(1);
+
+    const trackEventSafely = vi.fn().mockResolvedValue([]);
+    const service = new GuildService(
+      new PrismaGuildRepository(prisma),
+      {} as PartySessionService,
+      { enabled: true },
+      () => activationAt,
+      { trackEventSafely } as unknown as AchievementService,
+      new PublicActivityEventPublisher(activityEvents)
+    );
+    const accepted = await service.acceptInviteForTelegramUser(joinerTelegramUserId, "chronicle-invite");
+    expect(accepted).toMatchObject({
+      state: "accepted",
+      guildActivatedAt: activationAt,
+      activatedFounderCharacterId: null,
+      guild: { status: "active", memberCount: 2 }
+    });
+    expect(trackEventSafely).toHaveBeenCalledOnce();
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "guild.joined",
+      characterId: "chronicle-joiner-character",
+      occurredAt: activationAt,
+      sourceId: forming.guild.id
+    });
+
+    const adventurers = await activityEvents.listRecent("adv", { now: activationAt });
+    const important = await activityEvents.listRecent("imp", { now: activationAt });
+    expect(adventurers.events).toHaveLength(1);
+    expect(important.events).toHaveLength(1);
+    expect(adventurers.events[0]).toMatchObject({
+      id: important.events[0]?.id,
+      eventType: "guild.created",
+      category: "adventurer",
+      severity: "high",
+      actorCharacterId: null,
+      actorDisplayName: null,
+      subjectKind: "guild",
+      subjectId: forming.guild.id,
+      subjectName: "<Жива & Печатка>",
+      dedupeKey: `guild.created:${forming.guild.id}`,
+      payload: { crest: "<&" },
+      occurredAt: activationAt
+    });
+    const rendered = presentLatestEventsPage({ page: adventurers, filter: "adv", now: activationAt });
+    const importantRendered = presentLatestEventsPage({ page: important, filter: "imp", now: activationAt });
+    expect(rendered).toContain("У Квестарні постала ґільдія «&lt;&amp; &lt;Жива &amp; Печатка&gt;».");
+    expect(importantRendered).toContain("У Квестарні постала ґільдія «&lt;&amp; &lt;Жива &amp; Печатка&gt;».");
+    const publicEvidence = JSON.stringify({ adventurers, important, rendered, importantRendered });
+    expect(publicEvidence).not.toContain("Таємний Засновник");
+    expect(publicEvidence).not.toContain("Таємний Учасник");
+    expect(publicEvidence).not.toContain("chronicle-invite");
+    expect(publicEvidence).not.toContain(String(founderTelegramUserId));
+    expect(publicEvidence).not.toContain(String(joinerTelegramUserId));
+
+    const recreatedActivityEvents = new ActivityEventService(new PrismaActivityEventRepository(prisma, true));
+    const recreatedService = new GuildService(
+      new PrismaGuildRepository(prisma),
+      {} as PartySessionService,
+      { enabled: true },
+      () => replayAt,
+      undefined,
+      new PublicActivityEventPublisher(recreatedActivityEvents)
+    );
+    await expect(recreatedService.acceptInviteForTelegramUser(joinerTelegramUserId, "chronicle-invite"))
+      .resolves.toMatchObject({
+        state: "replayed",
+        guildActivatedAt: activationAt,
+        activatedFounderCharacterId: null
+      });
+    await expect(prisma.activityEvent.count({
+      where: { dedupeKey: `guild.created:${forming.guild.id}` }
+    })).resolves.toBe(1);
+    await expect(prisma.activityEvent.findUniqueOrThrow({
+      where: { dedupeKey: `guild.created:${forming.guild.id}` },
+      select: { occurredAt: true }
+    })).resolves.toEqual({ occurredAt: activationAt });
   });
 
   it("terminalizes each relevant expired charter behind the bounded cleanup backlog", async () => {
@@ -2541,6 +2665,26 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE activity_events (
+      id TEXT NOT NULL PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      visibility TEXT NOT NULL DEFAULT 'public',
+      actor_character_id TEXT,
+      actor_display_name TEXT,
+      related_character_ids_json JSONB,
+      subject_kind TEXT,
+      subject_id TEXT,
+      subject_name TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      dedupe_key TEXT UNIQUE,
+      payload_json JSONB,
+      occurred_at DATETIME NOT NULL,
+      published_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE character_remorts (
       id TEXT PRIMARY KEY,

@@ -30,6 +30,10 @@ describe("latest events presenter", () => {
             actorDisplayName: "You®4ik",
             payload: { level: 7, remortCount: 5 }
           }),
+          makeEvent("guild.created", "2026-07-02T07:30:00.000Z", {
+            subjectName: "<Тиха Печатка>",
+            payload: { crest: "<&" }
+          }),
           makeEvent("party.raid_won", "2026-07-02T07:00:00.000Z", {
             subjectName: "Старший Брат Бочки",
             payload: { participantCount: 5 }
@@ -79,6 +83,7 @@ describe("latest events presenter", () => {
     expect(text).toContain("Вчора");
     expect(text).toContain("Новий пригодник у Квестарні: Арден!");
     expect(text).toContain("You®4ik бере 7 рівень (р5)!");
+    expect(text).toContain("У Квестарні постала ґільдія «&lt;&amp; &lt;Тиха Печатка&gt;». Писар підкреслив це двічі.");
     expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");
     expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
     expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");
