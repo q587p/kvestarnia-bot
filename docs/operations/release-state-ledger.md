@@ -8,7 +8,7 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-17)
+## Current repository baseline (repository evidence, 12026-08-18)
 
 The repository baseline is package `0.4.5`, merged through Guild Foundation PR
 `#190` at `a3945b1f11d313f842aa108c5b1abb9f42b43b44`. The unnumbered

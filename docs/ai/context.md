@@ -213,7 +213,7 @@
 ## Product guardrails
 
 - No pay-to-win. Economy changes need explicit balance scope.
-- New player-visible actions require an achievement decision; achievements are rewardless and ordinary news/lore should not spoil their hooks.
+- New player-visible actions require an achievement decision. Visible milestones/lifecycle outcomes also require an explicit Chronicle decision covering intended filters, authoritative timing, replay-safe deduplication, privacy and focused regressions; intentional omission belongs in the task/PR. Achievements remain rewardless and ordinary news/lore should not spoil their hooks.
 - New quest-visible state must update `🗺️ Квести`. Location/lore concepts must review `📖 Перекази` and `src/content/loreBoard.ts`.
 - Long keyboard candidate lists need pagination/filter/search; never silently make eligible rows unreachable.
 - Every visible timer/wait blocker should show remaining time derived from canonical timestamps.

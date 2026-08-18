@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.5] - 12026-08-17 - Guild Foundation, Emoji Crests and Invitation Cards
+## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 
 ### Added
 - Added `🪺 Гніздо ґільдій` as a dedicated side chamber off `Спуск до Низу`, with a compact landing, separate rules card, viewer-aware actions and an explicit return route while deliberately sharing the canonical Spusk presence location.
