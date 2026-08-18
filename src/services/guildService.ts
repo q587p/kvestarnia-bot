@@ -383,11 +383,11 @@ export class GuildService {
     if (result.state !== "accepted" && result.state !== "replayed") {
       return result;
     }
-    const founderAchievementUnlocks = result.activatedFounderCharacterId
+    const founderAchievementUnlocks = result.guildActivatedAt && result.activatedFounderCharacterId
       ? await this.achievements?.trackEventSafely({
         type: "guild.created",
         characterId: result.activatedFounderCharacterId,
-        occurredAt: now,
+        occurredAt: result.guildActivatedAt,
         sourceId: result.guild.id
       }) ?? []
       : [];
@@ -397,12 +397,12 @@ export class GuildService {
       occurredAt: now,
       sourceId: result.guild.id
     }) ?? [];
-    if (result.activatedFounderCharacterId) {
+    if (result.guildActivatedAt) {
       await this.activityEvents?.recordGuildCreatedSafely({
         guildId: result.guild.id,
         guildDisplayName: result.guild.displayName,
         guildCrest: result.guild.crest,
-        occurredAt: now
+        occurredAt: result.guildActivatedAt
       });
     }
     return { ...result, achievementUnlocks, founderAchievementUnlocks };

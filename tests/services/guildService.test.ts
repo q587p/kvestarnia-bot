@@ -186,6 +186,7 @@ describe("GuildService rollout isolation", () => {
       state: "accepted",
       guild,
       characterId: "joiner-character",
+      guildActivatedAt: now,
       activatedFounderCharacterId: "founder-character"
     });
     const service = new GuildService(
@@ -226,6 +227,7 @@ describe("GuildService rollout isolation", () => {
 
   it("re-emits the same activation fact on repository replay so the chronicle dedupe can recover", async () => {
     const now = new Date("2026-08-17T10:00:00.000Z");
+    const guildActivatedAt = new Date("2026-08-02T20:00:00.000Z");
     const guild = {
       id: "guild-id",
       displayName: "Тиха Печатка",
@@ -235,6 +237,7 @@ describe("GuildService rollout isolation", () => {
       state: "replayed",
       guild,
       characterId: "joiner-character",
+      guildActivatedAt,
       activatedFounderCharacterId: "founder-character"
     });
     const recordGuildCreatedSafely = vi.fn().mockResolvedValue(null);
@@ -255,13 +258,52 @@ describe("GuildService rollout isolation", () => {
       guildId: "guild-id",
       guildDisplayName: "Тиха Печатка",
       guildCrest: "🛡️",
-      occurredAt: now
+      occurredAt: guildActivatedAt
     });
     expect(recordGuildCreatedSafely).toHaveBeenNthCalledWith(2, {
       guildId: "guild-id",
       guildDisplayName: "Тиха Печатка",
       guildCrest: "🛡️",
-      occurredAt: now
+      occurredAt: guildActivatedAt
+    });
+  });
+
+  it("publishes durable activation without a current founder Character", async () => {
+    const now = new Date("2026-08-17T10:00:00.000Z");
+    const guildActivatedAt = new Date("2026-08-02T20:00:00.000Z");
+    const trackEventSafely = vi.fn().mockResolvedValue([]);
+    const recordGuildCreatedSafely = vi.fn().mockResolvedValue(null);
+    const service = new GuildService(
+      {
+        acceptInviteForTelegramUser: vi.fn().mockResolvedValue({
+          state: "accepted",
+          guild: { id: "guild-id", displayName: "Тиха Печатка", crest: "🛡️" },
+          characterId: "joiner-character",
+          guildActivatedAt,
+          activatedFounderCharacterId: null
+        })
+      } as unknown as GuildRepository,
+      {} as PartySessionService,
+      { enabled: true },
+      () => now,
+      { trackEventSafely } as unknown as AchievementService,
+      { recordGuildCreatedSafely } as unknown as PublicActivityEventPublisher
+    );
+
+    await service.acceptInviteForTelegramUser(42n, "invite-token");
+
+    expect(trackEventSafely).toHaveBeenCalledOnce();
+    expect(trackEventSafely).toHaveBeenCalledWith({
+      type: "guild.joined",
+      characterId: "joiner-character",
+      occurredAt: now,
+      sourceId: "guild-id"
+    });
+    expect(recordGuildCreatedSafely).toHaveBeenCalledWith({
+      guildId: "guild-id",
+      guildDisplayName: "Тиха Печатка",
+      guildCrest: "🛡️",
+      occurredAt: guildActivatedAt
     });
   });
 

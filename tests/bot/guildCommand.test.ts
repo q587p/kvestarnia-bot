@@ -1182,6 +1182,7 @@ describe("guild command routes", () => {
           state: "accepted",
           guild: { crest: "🛡️", displayName: "Тиха Печатка" },
           characterId: "character-42",
+          guildActivatedAt: new Date("2026-08-17T20:00:00.000Z"),
           activatedFounderCharacterId: "founder-character",
           founderAchievementUnlocks: [{
             id: "achievement.guild.created",

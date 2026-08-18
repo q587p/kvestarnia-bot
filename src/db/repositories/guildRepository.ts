@@ -137,6 +137,7 @@ export type GuildInviteRespondRepositoryResult =
       state: "accepted" | "replayed";
       guild: GuildViewRecord;
       characterId: string;
+      guildActivatedAt: Date | null;
       activatedFounderCharacterId: string | null;
       notification?: GuildInviteResponseNotification;
     };
