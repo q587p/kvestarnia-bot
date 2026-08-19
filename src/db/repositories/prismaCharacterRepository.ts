@@ -14,6 +14,7 @@ import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 import { isAuthoritativeLivePartySession } from "./partySessionRepository";
 import { readLiveGuildCrest } from "./guildIdentityRead";
+import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -406,13 +407,18 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         referralAttribution?.status === "ACCEPTED" &&
         referralAttribution.arrivedAt === null
       ) {
+        const inviteeNameSnapshot = sanitizeReferralName(input.name);
         const arrived = await tx.referralAttribution.updateMany({
           where: {
             id: referralAttribution.id,
             status: "ACCEPTED",
             arrivedAt: null
           },
-          data: { arrivedAt }
+          data: {
+            arrivedAt,
+            arrivedCharacterId: character.id,
+            inviteeNameSnapshot
+          }
         });
         if (arrived.count === 1) {
           await tx.referralNotificationOutbox.create({
@@ -422,7 +428,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
               recipientUserId: referralAttribution.inviterUserId,
               payloadJson: {
                 attributionId: referralAttribution.id,
-                inviteeName: input.name
+                inviteeName: inviteeNameSnapshot
               },
               state: "PENDING",
               nextAttemptAt: arrivedAt
@@ -432,7 +438,7 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
             attributionId: referralAttribution.id,
             inviterUserId: referralAttribution.inviterUserId,
             inviterNameSnapshot: referralAttribution.inviteCode.inviterNameSnapshot,
-            inviteeNameSnapshot: input.name,
+            inviteeNameSnapshot,
             arrivedAt
           };
         }

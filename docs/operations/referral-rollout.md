@@ -29,6 +29,7 @@ Neither flag deletes, rebinds, changes the frozen payload of or reissues an exis
   - level 5 achievement → `120` gold, `1 × item.field-kit`, `13 × item.iskrokamin`;
   - level 8 achievement → `760` gold, `2 × item.field-kit`, `65 × item.iskrokamin`;
   - level 13 achievement → `900` gold, `3 × item.field-kit`, `193 × item.iskrokamin`.
+- [ ] Before the link is shared, the private inviter dashboard discloses all four exact bundles and the totals `1/6/276/1830`; invitee consent, lore and `news.md` remain spoiler-light.
 - [ ] There are no click, signup, elapsed-time, daily-action, purchase or volume gates.
 - [ ] The additive migration succeeds on an empty database and a production-like 0.4.5 database; backup restore is tested.
 - [ ] Focused referral tests, full `npm run check`, `npm run db:validate`, migration/rollback smoke and `git diff --check` pass at the release SHA.
@@ -39,7 +40,7 @@ Neither flag deletes, rebinds, changes the frozen payload of or reissues an exis
 - [ ] The deployment owner can flip both global flags and verify bounded cold-start/interaction recovery of pending entitlements through the canonical payout service.
 - [ ] V1 links are stable public identifiers with no per-code rotation/disable surface; the global foundation flag is the acquisition circuit breaker.
 - [ ] Public copy does not promise availability before production smoke passes.
-- [ ] Accepted first Character arrival emits one sanitized normal-severity `referral.arrived` row instead of generic `character.created`, sharing its dedupe key; it appears in `all`/`adv`, not `imp`/`itm`. Progress/payout emits no additional referral-specific row, ordinary level rows remain, and merged `guild.created` still appears once under both intended filters after authoritative activation.
+- [ ] Accepted first Character arrival durably freezes original Character ID/name/time and emits one sanitized normal-severity `referral.arrived` row instead of generic `character.created`, sharing its dedupe key; it appears in `all`/`adv`, not `imp`/`itm`. Injected ActivityEvent failure after arrival commit is recovered by a later scheduler/service instance exactly once. Progress/payout emits no additional referral-specific row, ordinary level rows remain, and merged `guild.created` still appears once under both intended filters after authoritative activation.
 
 ## Phase 0 — dark deployment
 

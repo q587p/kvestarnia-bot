@@ -432,6 +432,9 @@ existing-user attribution і multi-level tree не дозволені.
 - Dashboard показує тільки consented current Character name/level, історичні
   етапи й aggregate counts; Telegram identity, presence, quests, inventory,
   balance, remort і guild identity приватні.
+- Перед поширенням dashboard показує точну таблицю чотирьох bundle-нагород і
+  totals `1/6/276/1830`; це owner-approved referral-only виняток, який не
+  переноситься в consent, lore чи `news.md`.
 - Після згоди й першого Character arrival Хроніки публікують один нейтральний
   факт `referral.arrived` у `👥 Пригодники`; progress і payout details публічно
   не показуються.

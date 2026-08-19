@@ -15,6 +15,7 @@ import {
 } from "../domain/referral/referralPolicy";
 import { sanitizeReferralName } from "../domain/referral/referralIdentity";
 import type { AchievementService } from "./achievementService";
+import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
 const TOKEN_RETRIES = 5;
 const REFERRAL_PAGE_SIZE = 5;
@@ -45,6 +46,7 @@ export class ReferralService {
       botUsername?: string | undefined;
     },
     private readonly achievements?: AchievementService,
+    private readonly activityEvents?: PublicActivityEventPublisher,
     private readonly now: () => Date = () => new Date(),
     private readonly tokenFactory: () => string = () => randomBytes(12).toString("base64url")
   ) {}
@@ -174,13 +176,53 @@ export class ReferralService {
     const ids = await this.referrals.listDueRewardIds(now, limit);
     let granted = 0;
     for (const id of ids) {
-      const result = await this.referrals.grantPendingReward(id, now);
-      if (result.state === "granted") {
-        granted += 1;
-        await this.trackGrantAchievements(result.grant);
+      try {
+        const result = await this.referrals.grantPendingReward(id, now);
+        if (result.state === "granted") {
+          granted += 1;
+          await this.trackGrantAchievements(result.grant);
+        }
+      } catch (error) {
+        try {
+          await this.referrals.reschedulePendingReward(id, now);
+        } catch (rescheduleError) {
+          console.error("Квестарня: відкладення помилкової виплати теж не завершилось.", {
+            errorName: rescheduleError instanceof Error ? rescheduleError.name : "unknown"
+          });
+        }
+        console.error("Квестарня: одна виплата за поклик відкладена після неочікуваної помилки.", {
+          errorName: error instanceof Error ? error.name : "unknown"
+        });
       }
     }
     return { due: ids.length, granted };
+  }
+
+  async reconcileArrivalChronicles(limit = DEFAULT_BATCH_LIMIT): Promise<{ due: number; recorded: number }> {
+    if (!this.activityEvents) {
+      return { due: 0, recorded: 0 };
+    }
+    const rows = await this.referrals.listUnrecordedArrivalChronicles(limit);
+    let recorded = 0;
+    for (const row of rows) {
+      const event = await this.activityEvents.recordReferralArrivedSafely({
+        characterId: row.characterId,
+        inviteeDisplayName: row.inviteeName,
+        inviterUserId: row.inviterUserId,
+        inviterDisplayName: row.inviterName,
+        attributionId: row.attributionId,
+        occurredAt: row.arrivedAt
+      });
+      if (
+        event?.eventType === "referral.arrived" &&
+        event.dedupeKey === `character.created:${row.characterId}`
+      ) {
+        if (await this.referrals.markArrivalChronicleRecorded(row.attributionId, row.characterId, this.now())) {
+          recorded += 1;
+        }
+      }
+    }
+    return { due: rows.length, recorded };
   }
 
   claimNextNotification(leaseMs = 42_000): Promise<ClaimedReferralNotification | null> {

@@ -70,12 +70,16 @@ model ReferralAttribution {
   acceptedAt        DateTime?          @map("accepted_at")
   declinedAt        DateTime?          @map("declined_at")
   arrivedAt         DateTime?          @map("arrived_at")
+  arrivedCharacterId String?           @map("arrived_character_id")
+  inviteeNameSnapshot String?          @map("invitee_name_snapshot")
+  chronicleRecordedAt DateTime?        @map("chronicle_recorded_at")
   rewardPlanVersion Int?               @map("reward_plan_version")
   rewards           ReferralReward[]
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
 
   @@index([inviterUserId, status, arrivedAt, id])
+  @@index([status, chronicleRecordedAt, arrivedAt, id])
   @@map("referral_attributions")
 }
 

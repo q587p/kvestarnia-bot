@@ -81,6 +81,9 @@ six-account local matrix in
 [`0.4.6-referral-foundation-qa.md`](../qa/0.4.6-referral-foundation-qa.md), set
 these non-secret values in the existing untracked root `.env`:
 
+The inviter dashboard must expose the exact four-stage reward table before
+sharing; the invitee consent card and `news.md` deliberately remain concise.
+
 ```env
 REFERRAL_FOUNDATION_ENABLED=true
 REFERRAL_REWARD_PAYOUTS_ENABLED=true

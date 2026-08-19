@@ -1,17 +1,23 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaReferralRepository } from "../../src/db/repositories/prismaReferralRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
 import { PendingReferralConsentError } from "../../src/db/repositories/characterRepository";
 import { recordLevelMilestones } from "../../src/db/repositories/levelMilestoneRepository";
 import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import { ReferralService } from "../../src/services/referralService";
+import { PrismaActivityEventRepository } from "../../src/db/repositories/prismaActivityEventRepository";
+import { ActivityEventService } from "../../src/services/activityEventService";
+import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
+import { createReferralScheduler } from "../../src/bot/referralScheduler";
+import type { Bot } from "grammy";
 
 const MIGRATION = "20260819090000_referral_foundation";
 const NOW = new Date("2026-08-19T09:00:00.000Z");
+const RECOVERY_NOW = new Date("2030-08-19T09:00:00.000Z");
 const INVITER_ID = 64_001n;
 const INVITEE_ID = 64_002n;
 const TOKEN = "abCD_123-xyZ7890";
@@ -74,6 +80,41 @@ describe("PrismaReferralRepository integration", () => {
       .resolves.toEqual({ state: "already-accepted" });
   });
 
+  it("leaves exhausted fresh capture eligibility untouched and classifies a real concurrent User", async () => {
+    const freshTelegramId = 64_004n;
+    const conflict = new Prisma.PrismaClientKnownRequestError("write conflict", {
+      code: "P2034",
+      clientVersion: Prisma.prismaVersion.client
+    });
+    const failingPrisma = {
+      $transaction: vi.fn().mockRejectedValue(conflict),
+      user: prisma.user
+    } as unknown as PrismaClient;
+    const failingRepository = new PrismaReferralRepository(failingPrisma);
+
+    await expect(failingRepository.captureFreshReferral(
+      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true
+    )).resolves.toEqual({ state: "retry" });
+    await expect(prisma.user.count({ where: { telegramUserId: freshTelegramId } })).resolves.toBe(0);
+    await expect(prisma.referralAttribution.count({
+      where: { inviteeUser: { telegramUserId: freshTelegramId } }
+    })).resolves.toBe(0);
+
+    await expect(repository.captureFreshReferral(
+      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true
+    )).resolves.toMatchObject({ state: "captured" });
+    await expect(prisma.user.count({ where: { telegramUserId: freshTelegramId } })).resolves.toBe(1);
+    await expect(prisma.referralAttribution.count({
+      where: { inviteeUser: { telegramUserId: freshTelegramId } }
+    })).resolves.toBe(1);
+
+    const concurrentTelegramId = 64_005n;
+    await prisma.user.create({ data: { telegramUserId: concurrentTelegramId, displayName: "Паралельна" } });
+    await expect(failingRepository.captureFreshReferral(
+      { telegramUserId: concurrentTelegramId }, TOKEN, NOW, true
+    )).resolves.toEqual({ state: "existing-user" });
+  });
+
   it("records a 1-to-13 jump, grants complete bundles once under replay, and survives service recreation", async () => {
     const created = await new PrismaCharacterRepository(prisma).createForTelegramUserIfMissing(
       { telegramUserId: INVITEE_ID, displayName: "Прибула" },
@@ -87,6 +128,43 @@ describe("PrismaReferralRepository integration", () => {
         inviteeNameSnapshot: "Прибула"
       }
     });
+    const failedPublisher = new PublicActivityEventPublisher(new ActivityEventService({
+      record: vi.fn().mockRejectedValue(new Error("first ActivityEvent write failed")),
+      listRecent: vi.fn()
+    }));
+    await expect(failedPublisher.recordReferralArrivedSafely({
+      characterId: created.character.id,
+      inviteeDisplayName: created.referralArrival!.inviteeNameSnapshot,
+      inviterUserId: created.referralArrival!.inviterUserId,
+      inviterDisplayName: created.referralArrival!.inviterNameSnapshot,
+      attributionId: created.referralArrival!.attributionId,
+      occurredAt: created.referralArrival!.arrivedAt
+    })).resolves.toBeNull();
+    await expect(prisma.activityEvent.count()).resolves.toBe(0);
+
+    const publisher = new PublicActivityEventPublisher(new ActivityEventService(
+      new PrismaActivityEventRepository(prisma)
+    ));
+    const chronicleService = makeService(new PrismaReferralRepository(prisma), publisher);
+    await expect(chronicleService.reconcileArrivalChronicles()).resolves.toEqual({ due: 1, recorded: 1 });
+    await expect(makeService(new PrismaReferralRepository(prisma), publisher).reconcileArrivalChronicles())
+      .resolves.toEqual({ due: 0, recorded: 0 });
+    await expect(prisma.activityEvent.findMany()).resolves.toEqual([
+      expect.objectContaining({
+        eventType: "referral.arrived",
+        category: "adventurer",
+        severity: "normal",
+        actorCharacterId: created.character.id,
+        actorDisplayName: "Прибула",
+        subjectKind: "referral-inviter",
+        subjectId: "inviter-user",
+        subjectName: "Кличко",
+        sourceType: "referral-attribution",
+        dedupeKey: `character.created:${created.character.id}`,
+        occurredAt: created.referralArrival!.arrivedAt
+      })
+    ]);
+    await expect(prisma.activityEvent.count({ where: { eventType: "character.created" } })).resolves.toBe(0);
     const inviteeUserId = created.character.userId;
     const attribution = await prisma.referralAttribution.findUniqueOrThrow({
       where: { inviteeUserId }
@@ -118,10 +196,20 @@ describe("PrismaReferralRepository integration", () => {
     ]);
     expect(raced.filter((result) => result.state === "granted")).toHaveLength(1);
 
-    const firstService = makeService(new PrismaReferralRepository(prisma));
-    await expect(firstService.reconcileForTelegramUser(INVITER_ID)).resolves.toEqual({ granted: 3, pending: 0 });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const restartedScheduler = createReferralScheduler(
+      makeService(new PrismaReferralRepository(prisma), undefined, RECOVERY_NOW),
+      { api: { sendMessage } } as unknown as Bot
+    );
+    await expect(restartedScheduler.tick()).resolves.toMatchObject({
+      dueRewards: 3,
+      grantedRewards: 3,
+      claimedNotifications: 5,
+      sentNotifications: 5
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(5);
 
-    const restartedService = makeService(new PrismaReferralRepository(prisma));
+    const restartedService = makeService(new PrismaReferralRepository(prisma), undefined, RECOVERY_NOW);
     await expect(restartedService.reconcileForTelegramUser(INVITER_ID)).resolves.toEqual({ granted: 0, pending: 0 });
     await expect(prisma.character.findUniqueOrThrow({ where: { id: "inviter-remort-character" }, select: { gold: true } }))
       .resolves.toEqual({ gold: 1_830 });
@@ -172,7 +260,11 @@ describe("PrismaReferralRepository integration", () => {
   });
 });
 
-function makeService(referrals: PrismaReferralRepository): ReferralService {
+function makeService(
+  referrals: PrismaReferralRepository,
+  publisher?: PublicActivityEventPublisher,
+  now = NOW
+): ReferralService {
   const characters = {
     findByTelegramUserId: () => Promise.resolve(null)
   } as unknown as CharacterRepository;
@@ -181,7 +273,7 @@ function makeService(referrals: PrismaReferralRepository): ReferralService {
     payoutsEnabled: true,
     devHelpersEnabled: false,
     botUsername: "kvestarnia_bot"
-  }, undefined, () => NOW);
+  }, undefined, publisher, () => now);
 }
 
 function makeCharacterInput(name: string) {
@@ -268,7 +360,14 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
       spent_gold INTEGER NOT NULL DEFAULT 0, result_json JSONB,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`
+    `CREATE UNIQUE INDEX daily_actions_character_id_key_local_date_key ON daily_actions(character_id, key, local_date)`,
+    `CREATE TABLE activity_events (
+      id TEXT PRIMARY KEY, event_type TEXT NOT NULL, category TEXT NOT NULL, severity TEXT NOT NULL,
+      visibility TEXT NOT NULL DEFAULT 'public', actor_character_id TEXT, actor_display_name TEXT,
+      related_character_ids_json JSONB, subject_kind TEXT, subject_id TEXT, subject_name TEXT,
+      source_type TEXT, source_id TEXT, dedupe_key TEXT UNIQUE, payload_json JSONB,
+      occurred_at DATETIME NOT NULL, published_at DATETIME, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
   ]) {
     await prisma.$executeRawUnsafe(statement);
   }

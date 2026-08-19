@@ -20,10 +20,14 @@ const dashboard = {
 };
 
 describe("referral Telegram surfaces", () => {
-  it("keeps future rewards qualitative, preserves privacy disclosure, and escapes names", () => {
-    expect(presentReferralDashboard(dashboard)).toContain("Пізніші етапи щедріші");
-    expect(presentReferralDashboard(dashboard)).not.toContain("1830");
-    expect(presentReferralDashboard(dashboard)).not.toContain("Щільний бинт");
+  it("discloses the owner-approved exact dashboard track while preserving invitee privacy", () => {
+    const text = presentReferralDashboard(dashboard);
+    expect(text).toContain("3 рівень — 1 × item.dense-bandage · 5 × item.iskrokamin · 50 золота");
+    expect(text).toContain("5 рівень — 1 × item.field-kit · 13 × item.iskrokamin · 120 золота");
+    expect(text).toContain("8 рівень — 2 × item.field-kit · 65 × item.iskrokamin · 760 золота");
+    expect(text).toContain("13 рівень — 3 × item.field-kit · 193 × item.iskrokamin · 900 золота");
+    expect(text).toContain("1 × item.dense-bandage · 6 × item.field-kit · 276 × item.iskrokamin · 1830 золота");
+    expect(text).not.toContain("після її досягнення");
     expect(presentReferralDashboard(dashboard)).toContain("⏳ Автоматичної доставки чекає: <b>1</b>");
     const consent = presentReferralConsent("<Марта>\u0000");
     expect(consent).toContain("«&lt;Марта&gt;»");

@@ -6,6 +6,8 @@ const DEFAULT_INTERVAL_MS = 13_000;
 const DEFAULT_BATCH_LIMIT = 13;
 
 export interface ReferralSchedulerMetrics {
+  dueArrivalChronicles: number;
+  recordedArrivalChronicles: number;
   dueRewards: number;
   grantedRewards: number;
   claimedNotifications: number;
@@ -60,7 +62,10 @@ async function runReferralTick(
   limit: number
 ): Promise<ReferralSchedulerMetrics> {
   const rewards = await service.reconcileDue(limit);
+  const chronicles = await service.reconcileArrivalChronicles(limit);
   const metrics: ReferralSchedulerMetrics = {
+    dueArrivalChronicles: chronicles.due,
+    recordedArrivalChronicles: chronicles.recorded,
     dueRewards: rewards.due,
     grantedRewards: rewards.granted,
     claimedNotifications: 0,
@@ -76,6 +81,7 @@ async function runReferralTick(
     const text = presentReferralNotification(notification.kind, notification.payload);
     if (!text) {
       await service.rescheduleNotification(notification);
+      logReferralDeliveryRetry("invalid-payload", notification.kind, notification.attemptCount);
       metrics.retriedNotifications += 1;
       continue;
     }
@@ -84,8 +90,13 @@ async function runReferralTick(
       if (await service.markNotificationSent(notification)) {
         metrics.sentNotifications += 1;
       }
-    } catch {
+    } catch (error) {
       await service.rescheduleNotification(notification);
+      logReferralDeliveryRetry(
+        error instanceof Error ? error.name : "telegram-error",
+        notification.kind,
+        notification.attemptCount
+      );
       metrics.retriedNotifications += 1;
     }
   }
@@ -94,12 +105,22 @@ async function runReferralTick(
 
 function emptyMetrics(): ReferralSchedulerMetrics {
   return {
+    dueArrivalChronicles: 0,
+    recordedArrivalChronicles: 0,
     dueRewards: 0,
     grantedRewards: 0,
     claimedNotifications: 0,
     sentNotifications: 0,
     retriedNotifications: 0
   };
+}
+
+function logReferralDeliveryRetry(reason: string, kind: string, attemptCount: number): void {
+  console.warn("Квестарня: доставку сповіщення про поклик безпечно відкладено.", {
+    reason,
+    kind,
+    attemptCount: Math.min(Math.max(attemptCount, 0), 93)
+  });
 }
 
 function logReferralSchedulerError(error: unknown): void {

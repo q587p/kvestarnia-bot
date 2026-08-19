@@ -97,7 +97,7 @@ While attribution is `PENDING`, plain `/start` and stale onboarding callbacks re
 
 Current `0.4.5` registration installs presence middleware before the ordinary start handler, and presence upserts `User`. Referral freshness therefore cannot be decided inside the existing late `/start` handler.
 
-Recognize exact-shape `ref1_*` before presence middleware and run one short serializable capture transaction. It first resolves a stored code and checks the global flag, self-referral and absence of a canonical User for the incoming Telegram ID. Only that eligible path creates the User and its `PENDING` attribution together. Unknown, malformed, foundation-disabled, self or existing-user paths create no attribution and continue ordinary start/presence handling. A concurrent presence/onboarding `User.upsert` or second referral capture is resolved through the unique Telegram ID and invitee-attribution keys: retry, re-read, and treat an independently created User as existing rather than backfilling it. The ordinary presence middleware then sees the same User. This avoids both the late-freshness bug and an impossible attribution foreign key without a parent User.
+Recognize exact-shape `ref1_*` before presence middleware and run one short serializable capture transaction. It first resolves a stored code and checks the global flag, self-referral and absence of a canonical User for the incoming Telegram ID. Only that eligible path creates the User and its `PENDING` attribution together. Unknown, malformed, foundation-disabled, self or genuinely existing-user paths create no attribution and continue ordinary start/presence handling. A concurrent presence/onboarding `User.upsert` or second referral capture is resolved through the unique Telegram ID and invitee-attribution keys: retry and re-read the persisted winner. If bounded write-conflict retries end while both User and attribution remain absent, return a neutral retry card without calling presence or onboarding; the same valid link stays eligible for an atomic retry. Never manufacture `existing-user` from an absent User.
 
 The User insert and attribution insert are one atomic unit: an injected failure between them rolls both back, so retry cannot mistake an orphan capture-created User for a pre-existing player.
 
@@ -322,7 +322,7 @@ dedupeKey: character.created:<inviteeCharacterId>
 occurredAt: attribution.arrivedAt
 ```
 
-The shared dedupe key is deliberate: a referred Character gets one arrival row, not generic `character.created` plus a second referral row. The canonical onboarding service must choose the event with returned referral context before either publisher is called. The renderer uses a gender-neutral structure, escapes each name exactly once and deliberately ignores guild-aware identity decoration:
+The shared dedupe key is deliberate: a referred Character gets one arrival row, not generic `character.created` plus a second referral row. The authoritative Character/arrival transaction freezes the original Character ID, sanitized invitee name and arrival time on the attribution. The canonical onboarding service chooses the referral event before either publisher is called, while a bounded scheduler scans persisted arrivals without a Chronicle completion mark, republishes with the same dedupe key after failure/restart and marks completion only after the correct `referral.arrived` row exists. The renderer uses a gender-neutral structure, escapes each name exactly once and deliberately ignores guild-aware identity decoration:
 
 ```text
 🤝 12:34 | Новий пригодник у Квестарні: «INVITEE», за покликом «INVITER».
@@ -335,6 +335,8 @@ Telegram cannot provide end-to-end exactly-once delivery. The outbox may very ra
 ## Dashboard projection
 
 Aggregate from accepted attributions and durable reward rows:
+
+Before the stable share link, show the exact four-stage reward table and its totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; consent, lore and news do not inherit it.
 
 ```text
 arrivedTotal

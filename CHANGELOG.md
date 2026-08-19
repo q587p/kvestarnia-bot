@@ -28,6 +28,9 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Pending consent now blocks direct or stale Character-creation callbacks until the player accepts or continues without the referral, preventing an unnamed or retroactively bound arrival.
 - Missing/restarted inviter Characters, disabled payouts, transient writes and Telegram delivery failures remain durable pending work rather than producing partial bundles or requiring a claim button.
+- The private inviter dashboard now shows the owner-approved exact four-stage reward table and complete totals before sharing, while consent, lore and news stay concise.
+- Exhausted fresh-capture conflicts now stop before presence without consuming eligibility; referral arrivals persist frozen Chronicle evidence and reconcile the single `referral.arrived` row after write failure or process restart.
+- Referral scheduling now proves immediate non-overlapping startup, clean in-flight shutdown, flag-aware recovery and per-row failure isolation so one corrupt or unexpected reward cannot starve later due work.
 
 ## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 

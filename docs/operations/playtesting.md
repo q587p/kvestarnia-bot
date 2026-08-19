@@ -28,7 +28,8 @@ Release-critical referral QA uses the six-account matrix in
 compact smoke:
 
 1. With both referral flags enabled locally, open `📰 Дошка корчми` →
-   `📨 Поклик до Квестарні` as an existing Character and share the stable link.
+   `📨 Поклик до Квестарні` as an existing Character. Before sharing, verify the
+   exact `3/5/8/13` bundles and totals `1/6/276/1830`, then share the stable link.
 2. Open it with a fresh Telegram account. Verify the explicit accept/continue
    choice appears before Character creation and discloses the one public
    Chronicle arrival relation plus the private-data boundary.

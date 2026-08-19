@@ -15,6 +15,7 @@ import type {
   ReferralInviteCodeResult,
   ReferralInviteePage,
   ReferralInviteeRow,
+  ReferralArrivalChronicleRecord,
   ReferralRepository,
   RespondReferralResult
 } from "./referralRepository";
@@ -621,7 +622,53 @@ export class PrismaReferralRepository implements ReferralRepository {
         }
       }
     });
-    return user ? existingCaptureResult(user.referralAttributionReceived) : { state: "existing-user" };
+    return user ? existingCaptureResult(user.referralAttributionReceived) : { state: "retry" };
+  }
+
+  async listUnrecordedArrivalChronicles(limit: number): Promise<ReferralArrivalChronicleRecord[]> {
+    const rows = await this.prisma.referralAttribution.findMany({
+      where: {
+        status: "ACCEPTED",
+        arrivedAt: { not: null },
+        arrivedCharacterId: { not: null },
+        inviteeNameSnapshot: { not: null },
+        chronicleRecordedAt: null
+      },
+      orderBy: [{ arrivedAt: "asc" }, { id: "asc" }],
+      take: limit,
+      select: {
+        id: true,
+        arrivedAt: true,
+        arrivedCharacterId: true,
+        inviteeNameSnapshot: true,
+        inviterUserId: true,
+        inviteCode: { select: { inviterNameSnapshot: true } }
+      }
+    });
+    return rows.map((row) => ({
+      attributionId: row.id,
+      characterId: row.arrivedCharacterId!,
+      inviteeName: row.inviteeNameSnapshot!,
+      inviterUserId: row.inviterUserId,
+      inviterName: row.inviteCode.inviterNameSnapshot,
+      arrivedAt: row.arrivedAt!
+    }));
+  }
+
+  async markArrivalChronicleRecorded(
+    attributionId: string,
+    characterId: string,
+    recordedAt: Date
+  ): Promise<boolean> {
+    const result = await this.prisma.referralAttribution.updateMany({
+      where: { id: attributionId, arrivedCharacterId: characterId, chronicleRecordedAt: null },
+      data: { chronicleRecordedAt: recordedAt }
+    });
+    return result.count === 1;
+  }
+
+  reschedulePendingReward(rewardId: string, now: Date): Promise<void> {
+    return this.markTransientRewardFailure(rewardId, now);
   }
 
   private async markTransientRewardFailure(rewardId: string, now: Date): Promise<void> {

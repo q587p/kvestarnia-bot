@@ -303,7 +303,8 @@ export function createServices(
         devHelpersEnabled: nonProduction,
         ...(config.botUsername ? { botUsername: config.botUsername } : {})
       },
-      achievements
+      achievements,
+      publicActivityEvents
     ),
     remort: new RemortService(repositories.remorts, undefined, achievements),
     restart: new RestartService(repositories.characters),

@@ -20,6 +20,9 @@ CREATE TABLE "referral_attributions" (
     "accepted_at" DATETIME,
     "declined_at" DATETIME,
     "arrived_at" DATETIME,
+    "arrived_character_id" TEXT,
+    "invitee_name_snapshot" TEXT,
+    "chronicle_recorded_at" DATETIME,
     "reward_plan_version" INTEGER,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME NOT NULL,
@@ -86,6 +89,7 @@ CREATE UNIQUE INDEX "referral_invite_codes_inviter_user_id_key" ON "referral_inv
 CREATE UNIQUE INDEX "referral_invite_codes_token_key" ON "referral_invite_codes"("token");
 CREATE UNIQUE INDEX "referral_attributions_invitee_user_id_key" ON "referral_attributions"("invitee_user_id");
 CREATE INDEX "referral_attributions_inviter_user_id_status_arrived_at_id_idx" ON "referral_attributions"("inviter_user_id", "status", "arrived_at", "id");
+CREATE INDEX "referral_attributions_status_chronicle_recorded_at_arrived_at_id_idx" ON "referral_attributions"("status", "chronicle_recorded_at", "arrived_at", "id");
 CREATE UNIQUE INDEX "referral_rewards_attribution_id_beneficiary_user_id_reward_family_milestone_key_key" ON "referral_rewards"("attribution_id", "beneficiary_user_id", "reward_family", "milestone_key");
 CREATE INDEX "referral_rewards_state_next_attempt_at_earned_at_id_idx" ON "referral_rewards"("state", "next_attempt_at", "earned_at", "id");
 CREATE INDEX "referral_rewards_beneficiary_user_id_state_next_attempt_at_earned_at_id_idx" ON "referral_rewards"("beneficiary_user_id", "state", "next_attempt_at", "earned_at", "id");

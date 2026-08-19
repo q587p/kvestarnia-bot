@@ -33,9 +33,9 @@ export function presentReferralDashboard(result: ReferralDashboardResult): strin
       ? [
         "📨 <b>Поклик до Квестарні</b>",
         "",
-        "Поклич нового пригодника. За чотири ранні рівневі звитяги Квестарня автоматично видаватиме тобі перевʼязувальні припаси, Іскрокамені та золото.",
+        "Поклич нового пригодника. За чотири ранні рівневі звитяги Квестарня автоматично видаватиме тобі ці нагороди:",
         "",
-        "Пізніші етапи щедріші. Точний склад кожної нагороди побачиш після її досягнення."
+        ...presentDashboardRewardTrackLines()
       ]
     : [
         "📨 <b>Поклик до Квестарні</b>",
@@ -59,6 +59,13 @@ export function presentReferralDashboard(result: ReferralDashboardResult): strin
         ]
       : [])
   ].join("\n");
+}
+
+export function presentReferralCaptureRetry(): string {
+  return [
+    "Писар не зміг надійно звірити цей поклик.",
+    "Спробуй відкрити те саме посилання ще раз — звичайний вхід поки не розпочато й поклик не втрачено."
+  ].join("\n\n");
 }
 
 export function presentReferralConsent(inviterName: string): string {
@@ -227,6 +234,17 @@ function presentRewardTrackLines(): string[] {
     "5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота",
     "8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота",
     "13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота"
+  ];
+}
+
+function presentDashboardRewardTrackLines(): string[] {
+  return [
+    "3 рівень — 1 × item.dense-bandage · 5 × item.iskrokamin · 50 золота",
+    "5 рівень — 1 × item.field-kit · 13 × item.iskrokamin · 120 золота",
+    "8 рівень — 2 × item.field-kit · 65 × item.iskrokamin · 760 золота",
+    "13 рівень — 3 × item.field-kit · 193 × item.iskrokamin · 900 золота",
+    "",
+    "Разом — 1 × item.dense-bandage · 6 × item.field-kit · 276 × item.iskrokamin · 1830 золота"
   ];
 }
 

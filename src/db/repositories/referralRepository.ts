@@ -21,7 +21,17 @@ export type CaptureReferralResult =
   | { state: "existing-user" }
   | { state: "self" }
   | { state: "not-found" }
-  | { state: "disabled" };
+  | { state: "disabled" }
+  | { state: "retry" };
+
+export interface ReferralArrivalChronicleRecord {
+  attributionId: string;
+  characterId: string;
+  inviteeName: string;
+  inviterUserId: string;
+  inviterName: string;
+  arrivedAt: Date;
+}
 
 export type RespondReferralResult =
   | { state: "accepted" }
@@ -124,4 +134,7 @@ export interface ReferralRepository {
   countRewardStatesForTelegramUser(
     telegramUserId: bigint
   ): Promise<{ pending: number; granted: number }>;
+  listUnrecordedArrivalChronicles(limit: number): Promise<ReferralArrivalChronicleRecord[]>;
+  markArrivalChronicleRecorded(attributionId: string, characterId: string, recordedAt: Date): Promise<boolean>;
+  reschedulePendingReward(rewardId: string, now: Date): Promise<void>;
 }
