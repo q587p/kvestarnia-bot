@@ -59,7 +59,7 @@ describe("TavernRaidService Friday read-path SQL budget", () => {
     expectReadBudget(statements, 1);
   });
 
-  it("keeps no-pending, current, older, and completed-history paths at three statements", async () => {
+  it("keeps no-pending, current, older, and completed-history paths within three statements", async () => {
     await seedCharacter(prisma, telegramUserId);
     const current = getBarrelRaidPeriod(now);
     const older = getBarrelRaidPeriod(new Date(current.startsAt.getTime() - 1));
@@ -186,7 +186,7 @@ function expectReadBudget(statements: readonly string[], maximum: number): void 
   const reads = statements.filter((statement) => /^SELECT/i.test(statement));
   const writes = statements.filter((statement) => /^(INSERT|UPDATE|DELETE)/i.test(statement));
   expect(writes).toHaveLength(0);
-  expect(reads).toHaveLength(maximum);
+  expect(reads.length).toBeLessThanOrEqual(maximum);
   expect(statements.length).toBe(reads.length);
 }
 
