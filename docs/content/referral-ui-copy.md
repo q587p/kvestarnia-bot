@@ -34,12 +34,12 @@
 
 Поклич нового пригодника. За чотири ранні рівневі звитяги Квестарня автоматично видаватиме тобі ці нагороди:
 
-3 рівень — 1 × item.dense-bandage · 5 × item.iskrokamin · 50 золота
-5 рівень — 1 × item.field-kit · 13 × item.iskrokamin · 120 золота
-8 рівень — 2 × item.field-kit · 65 × item.iskrokamin · 760 золота
-13 рівень — 3 × item.field-kit · 193 × item.iskrokamin · 900 золота
+3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота
+5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота
+8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота
+13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота
 
-Разом — 1 × item.dense-bandage · 6 × item.field-kit · 276 × item.iskrokamin · 1830 золота
+Разом — 🩹 Щільний бинт ×1 · ⚕️ Польова аптечка ×6 · ✨ 276 Іскрокаменів · 💰 1830 золота
 
 🔗 <b>Твоє посилання:</b>
 https://t.me/BOT_USERNAME?start=ref1_TOKEN
@@ -363,6 +363,7 @@ Do not expose an error stack or ask for manual claim. Dashboard line:
 ## Copy invariants
 
 - Exact bundles are always `3→dense×1 + iskro×5 + gold50`, `5→kit×1 + iskro×13 + gold120`, `8→kit×2 + iskro×65 + gold760`, `13→kit×3 + iskro×193 + gold900`.
+- The dashboard uses canonical Ukrainian item names and never exposes technical `item.*` identifiers.
 - The level-13 explanation says `193` covers the most expensive current single `+4 → +5` attempt, not the preceding steps; it never says or implies `+6`.
 - Use `автоматично` in the join notice and reward contract.
 - Use `видано/отримано` only after committed grant.

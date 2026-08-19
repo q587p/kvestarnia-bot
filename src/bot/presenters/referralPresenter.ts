@@ -1,5 +1,6 @@
 import { REFERRAL_POLICY_V1, type ReferralRewardItem } from "../../domain/referral/referralPolicy";
 import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
+import { findItemContent } from "../../content/itemLookup";
 import type { ReferralInviteePage } from "../../db/repositories/referralRepository";
 import type { ReferralDashboardResult } from "../../services/referralService";
 import { escapeHtml } from "./telegramHtml";
@@ -229,22 +230,26 @@ export function presentReferralNotification(kind: string, payload: unknown): str
 }
 
 function presentRewardTrackLines(): string[] {
-  return [
-    "3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота",
-    "5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота",
-    "8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота",
-    "13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота"
-  ];
+  return REFERRAL_POLICY_V1.stages.map((stage) =>
+    `${stage.level} рівень — ${stage.itemGrants.map(presentReferralRewardItem).join(" · ")} · 💰 ${stage.gold} золота`
+  );
 }
 
 function presentDashboardRewardTrackLines(): string[] {
+  const itemTotals = new Map<string, number>();
+  const goldTotal = REFERRAL_POLICY_V1.stages.reduce((total, stage) => {
+    for (const item of stage.itemGrants) {
+      itemTotals.set(item.itemId, (itemTotals.get(item.itemId) ?? 0) + item.quantity);
+    }
+    return total + stage.gold;
+  }, 0);
+  const totalItems = ["item.dense-bandage", "item.field-kit", "item.iskrokamin"]
+    .map((itemId) => ({ itemId, quantity: itemTotals.get(itemId) ?? 0 }))
+    .filter((item) => item.quantity > 0);
   return [
-    "3 рівень — 1 × item.dense-bandage · 5 × item.iskrokamin · 50 золота",
-    "5 рівень — 1 × item.field-kit · 13 × item.iskrokamin · 120 золота",
-    "8 рівень — 2 × item.field-kit · 65 × item.iskrokamin · 760 золота",
-    "13 рівень — 3 × item.field-kit · 193 × item.iskrokamin · 900 золота",
+    ...presentRewardTrackLines(),
     "",
-    "Разом — 1 × item.dense-bandage · 6 × item.field-kit · 276 × item.iskrokamin · 1830 золота"
+    `Разом — ${totalItems.map(presentReferralRewardItem).join(" · ")} · 💰 ${goldTotal} золота`
   ];
 }
 
@@ -271,13 +276,30 @@ function parseNotificationItems(value: unknown[]): ReferralRewardItem[] | null {
 }
 
 function presentGrantedItems(items: ReferralRewardItem[]): string {
-  return items.map((item) => {
-    if (item.itemId === "item.dense-bandage") {
-      return `🩹 Щільний бинт ×${item.quantity}`;
-    }
-    if (item.itemId === "item.field-kit") {
-      return `⚕️ Польова аптечка ×${item.quantity}`;
-    }
-    return `✨ ${item.quantity} ${item.quantity === 193 ? "Іскрокамені" : "Іскрокаменів"}`;
-  }).join(", ");
+  return items.map(presentReferralRewardItem).join(", ");
+}
+
+function presentReferralRewardItem(item: ReferralRewardItem): string {
+  const name = findItemContent(item.itemId)?.name ?? "Манатка";
+  if (item.itemId === "item.iskrokamin") {
+    return `✨ ${item.quantity} ${pluralizeUk(item.quantity, name, "Іскрокамені", "Іскрокаменів")}`;
+  }
+  const icon = item.itemId === "item.dense-bandage" ? "🩹" : "⚕️";
+  return `${icon} ${name} ×${item.quantity}`;
+}
+
+function pluralizeUk(count: number, one: string, few: string, many: string): string {
+  const absolute = Math.abs(count);
+  const lastTwo = absolute % 100;
+  if (lastTwo >= 11 && lastTwo <= 14) {
+    return many;
+  }
+  const last = absolute % 10;
+  if (last === 1) {
+    return one;
+  }
+  if (last >= 2 && last <= 4) {
+    return few;
+  }
+  return many;
 }

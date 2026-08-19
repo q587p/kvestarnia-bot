@@ -22,11 +22,12 @@ const dashboard = {
 describe("referral Telegram surfaces", () => {
   it("discloses the owner-approved exact dashboard track while preserving invitee privacy", () => {
     const text = presentReferralDashboard(dashboard);
-    expect(text).toContain("3 рівень — 1 × item.dense-bandage · 5 × item.iskrokamin · 50 золота");
-    expect(text).toContain("5 рівень — 1 × item.field-kit · 13 × item.iskrokamin · 120 золота");
-    expect(text).toContain("8 рівень — 2 × item.field-kit · 65 × item.iskrokamin · 760 золота");
-    expect(text).toContain("13 рівень — 3 × item.field-kit · 193 × item.iskrokamin · 900 золота");
-    expect(text).toContain("1 × item.dense-bandage · 6 × item.field-kit · 276 × item.iskrokamin · 1830 золота");
+    expect(text).toContain("3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота");
+    expect(text).toContain("5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота");
+    expect(text).toContain("8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота");
+    expect(text).toContain("13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота");
+    expect(text).toContain("Разом — 🩹 Щільний бинт ×1 · ⚕️ Польова аптечка ×6 · ✨ 276 Іскрокаменів · 💰 1830 золота");
+    expect(text).not.toContain("item.");
     expect(text).not.toContain("після її досягнення");
     expect(presentReferralDashboard(dashboard)).toContain("⏳ Автоматичної доставки чекає: <b>1</b>");
     const consent = presentReferralConsent("<Марта>\u0000");
@@ -86,6 +87,8 @@ describe("referral Telegram surfaces", () => {
       ]
     });
     expect(text).toContain("«&lt;Лада&gt;»");
+    expect(text).toContain("🩹 Щільний бинт ×1, ✨ 5 Іскрокаменів");
+    expect(text).not.toContain("item.");
     expect(text).not.toContain("telegram");
   });
 });
