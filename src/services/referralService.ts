@@ -258,9 +258,6 @@ export class ReferralService {
       ),
       ...(dashboard.inviterIdentity.guildCrest
         ? { guildCrest: dashboard.inviterIdentity.guildCrest }
-        : {}),
-      ...(dashboard.inviterIdentity.guildName
-        ? { guildName: dashboard.inviterIdentity.guildName }
         : {})
     };
     return {

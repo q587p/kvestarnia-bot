@@ -54,7 +54,6 @@ export interface ReferralDashboardRecord {
     name: string;
     activeCosmeticTitleGrantId: string | null;
     guildCrest?: string;
-    guildName?: string;
   };
   hasCharacter: boolean;
   arrivedTotal: number;

@@ -72,14 +72,15 @@ describe("PrismaReferralRepository integration", () => {
   it("captures only a fresh User atomically, requires one consent, and never rebinds", async () => {
     await expect(repository.getOrCreateInviteCode(INVITER_ID, TOKEN, "Кличко"))
       .resolves.toMatchObject({ state: "ready", token: TOKEN });
-    await expect(repository.getDashboard(INVITER_ID, NOW)).resolves.toMatchObject({
+    const projectedDashboard = await repository.getDashboard(INVITER_ID, NOW);
+    expect(projectedDashboard).toMatchObject({
       inviterIdentity: {
         name: "Кличко",
         activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk",
-        guildCrest: "🐉",
-        guildName: "Лускаті рахівники"
+        guildCrest: "🐉"
       }
     });
+    expect(projectedDashboard?.inviterIdentity).not.toHaveProperty("guildName");
 
     await expect(repository.captureFreshReferral({
       telegramUserId: INVITEE_ID,

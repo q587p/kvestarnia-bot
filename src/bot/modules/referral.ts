@@ -154,7 +154,7 @@ async function handleReferralCallback(
     });
     await safeEditMessageText(ctx, presentReferralShareDraft(dashboard, action.variant), {
       ...HTML_OPTIONS,
-      reply_markup: buildReferralShareKeyboard(dashboard, action.variant)
+      reply_markup: buildReferralShareKeyboard(action.variant)
     });
     return;
   }

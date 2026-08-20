@@ -8,15 +8,14 @@ import { ReferralService } from "../../src/services/referralService";
 const NOW = new Date("2026-08-19T13:00:00.000Z");
 
 describe("ReferralService recovery", () => {
-  it("projects the current title and live guild into every share variant", async () => {
+  it("projects the current title and live guild crest into every share variant", async () => {
     const getDashboard = vi.fn().mockResolvedValue({
       token: "abCD_123-xyZ7890",
       inviterName: "Архівне імʼя",
       inviterIdentity: {
         name: "Shannar de Kassal",
         activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk",
-        guildCrest: "🐉",
-        guildName: "Лускаті рахівники"
+        guildCrest: "🐉"
       },
       hasCharacter: true,
       arrivedTotal: 0,
@@ -36,15 +35,14 @@ describe("ReferralService recovery", () => {
       inviterIdentity: {
         name: "Shannar de Kassal",
         activeCosmeticTitle: "Перший писар",
-        guildCrest: "🐉",
-        guildName: "Лускаті рахівники"
+        guildCrest: "🐉"
       }
     });
     if (result.state !== "ready") throw new Error("Expected ready referral dashboard.");
     expect(result.shareTexts).toHaveLength(13);
     expect(result.shareTexts.every((text) =>
-      text.includes("Титул: «Перший писар»") &&
-      text.includes("Ґільдія: 🐉 Лускаті рахівники")
+      text.includes("🐉 Shannar de Kassal («Перший писар»)") &&
+      !text.includes("Ґільдія:")
     )).toBe(true);
     expect(getDashboard).toHaveBeenCalledWith(42n, NOW);
   });

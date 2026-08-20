@@ -8,7 +8,10 @@ import {
 import type { ReferralInviteePage } from "../../db/repositories/referralRepository";
 import type { ReferralDashboardResult } from "../../services/referralService";
 import { escapeHtml } from "./telegramHtml";
-import { presentForwardableSocialInvite } from "./socialInvitePresenter";
+import {
+  presentForwardableSocialInvite,
+  presentSocialInviteIdentity
+} from "./socialInvitePresenter";
 
 export function presentReferralBoardEntry(): string {
   return [
@@ -72,11 +75,12 @@ export function presentReferralShareDraft(
   variant: number
 ): string {
   const normalized = normalizeReferralInviteShareTextIndex(variant);
-  const safeName = escapeHtml(result.inviterIdentity.name);
   return presentForwardableSocialInvite({
     heading: "📨 Поклик до Квестарні",
-    bodyHtml: referralInviteShareBody(normalized, `<b>${safeName}</b>`),
-    inviterIdentity: result.inviterIdentity,
+    bodyHtml: referralInviteShareBody(
+      normalized,
+      presentSocialInviteIdentity(result.inviterIdentity)
+    ),
     inviteUrl: result.inviteUrl
   });
 }

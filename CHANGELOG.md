@@ -16,7 +16,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added automatic cold-start and interaction-triggered payout reconciliation, whole-bundle CAS delivery to the inviter's current Character and non-production `/dev_referral_reconcile` recovery.
 - Added one consented normal-severity `referral.arrived` Chronicle fact on first Character arrival, using the ordinary Character-arrival dedupe key and appearing only in all/adventurer views.
 - Added production-unregistered `/dev_delete_account` with explicit confirmation and transactional cleanup of one isolated QA identity so referral freshness scenarios can restart from a true pre-User state.
-- Referral invitation drafts are now forward-ready cards with the stable deep link inside the message, a bold current inviter name, and optional active title/live guild identity; generator-only variant counters and explanatory footers are omitted.
+- Referral invitation drafts now match raid share cards: the stable deep link stays inside the message, the optional live guild crest prefixes the bold inviter name, the active title follows canonical identity presentation, and the only inline control is `🎲 Інший текст`; guild names, name quotes, share/copy/back controls, variant counters and generator footers are omitted.
 
 ### Changed
 - Extended the canonical transaction-level level-milestone writer so jumps create every crossed accepted-referral entitlement before Character-bound milestone evidence can be reset.

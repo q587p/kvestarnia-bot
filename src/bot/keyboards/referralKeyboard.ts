@@ -39,23 +39,13 @@ export function buildReferralDashboardKeyboard(result: ReferralDashboardResult):
 }
 
 export function buildReferralShareKeyboard(
-  result: Extract<ReferralDashboardResult, { state: "ready" }>,
   variant: number
 ): InlineKeyboard {
   const normalized = normalizeReferralInviteShareTextIndex(variant);
-  const shareText = result.shareTexts[normalized] ?? result.shareText;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(result.inviteUrl)}&text=${encodeURIComponent(shareText)}`;
-  return new InlineKeyboard()
-    .url("📨 Поділитися запрошенням", shareUrl)
-    .row()
-    .text(
-      "🎲 Перегенерувати текст",
-      makeReferralShareCallbackData((normalized + 1) % REFERRAL_INVITE_SHARE_TEXT_COUNT)
-    )
-    .row()
-    .copyText("🔗 Скопіювати посилання", result.inviteUrl)
-    .row()
-    .text("↩️ До поклику", makeReferralRefreshCallbackData());
+  return new InlineKeyboard().text(
+    "🎲 Інший текст",
+    makeReferralShareCallbackData((normalized + 1) % REFERRAL_INVITE_SHARE_TEXT_COUNT)
+  );
 }
 
 export function buildReferralInviteeListKeyboard(page: ReferralInviteePage): InlineKeyboard {

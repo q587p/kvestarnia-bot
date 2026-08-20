@@ -19,7 +19,7 @@ import type {
   ReferralRepository,
   RespondReferralResult
 } from "./referralRepository";
-import { readLiveGuildIdentity } from "./guildIdentityRead";
+import { readLiveGuildCrest } from "./guildIdentityRead";
 
 const TRANSACTION_OPTIONS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -282,7 +282,6 @@ export class PrismaReferralRepository implements ReferralRepository {
             guild: {
               select: {
                 crest: true,
-                displayName: true,
                 status: true,
                 charterExpiresAt: true,
                 disbandedAt: true
@@ -321,15 +320,14 @@ export class PrismaReferralRepository implements ReferralRepository {
         earnedByMilestone[row.milestoneKey] = row._count._all;
       }
     }
-    const guildIdentity = readLiveGuildIdentity(user.guildMemberships, now);
+    const guildCrest = readLiveGuildCrest(user.guildMemberships, now);
     return {
       token: user.referralInviteCode.token,
       inviterName: user.referralInviteCode.inviterNameSnapshot,
       inviterIdentity: {
         name: user.character?.name ?? user.referralInviteCode.inviterNameSnapshot,
         activeCosmeticTitleGrantId: user.character?.activeCosmeticTitleGrantId ?? null,
-        ...(guildIdentity?.crest ? { guildCrest: guildIdentity.crest } : {}),
-        ...(guildIdentity?.displayName ? { guildName: guildIdentity.displayName } : {})
+        ...(guildCrest ? { guildCrest } : {})
       },
       hasCharacter: Boolean(user.character),
       arrivedTotal,

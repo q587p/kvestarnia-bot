@@ -22,22 +22,19 @@ const dashboard = {
   inviterIdentity: {
     name: "Shannar de Kassal",
     activeCosmeticTitle: "Перший писар",
-    guildCrest: "🐉",
-    guildName: "Лускаті рахівники"
+    guildCrest: "🐉"
   },
   shareText: referralInviteShareText(0, {
     name: "Shannar de Kassal",
     activeCosmeticTitle: "Перший писар",
-    guildCrest: "🐉",
-    guildName: "Лускаті рахівники"
+    guildCrest: "🐉"
   }),
   shareTexts: Array.from(
     { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
     (_, index) => referralInviteShareText(index, {
       name: "Shannar de Kassal",
       activeCosmeticTitle: "Перший писар",
-      guildCrest: "🐉",
-      guildName: "Лускаті рахівники"
+      guildCrest: "🐉"
     })
   ),
   hasCharacter: true,
@@ -78,24 +75,21 @@ describe("referral Telegram surfaces", () => {
     }));
     expect(dashboardButtons.some((button) => "url" in button)).toBe(false);
     const renderedShareTexts = dashboard.shareTexts.map((expectedText, variant) => {
-      const buttons = buildReferralShareKeyboard(dashboard, variant).inline_keyboard.flat();
-      const share = buttons.find((button) => "url" in button && button.url.startsWith("https://t.me/share/url?"));
-      expect(share && "url" in share ? new URL(share.url).searchParams.get("url") : null)
-        .toBe(dashboard.inviteUrl);
-      expect(share && "url" in share ? new URL(share.url).searchParams.get("text") : null)
-        .toBe(expectedText);
-      expect(buttons).toContainEqual(expect.objectContaining({
-        text: "🎲 Перегенерувати текст",
+      const buttons = buildReferralShareKeyboard(variant).inline_keyboard.flat();
+      expect(buttons).toEqual([expect.objectContaining({
+        text: "🎲 Інший текст",
         callback_data: `v1:ref:s:${((variant + 1) % REFERRAL_INVITE_SHARE_TEXT_COUNT).toString(36)}`
-      }));
+      })]);
+      expect(buttons.some((button) => "url" in button || "copy_text" in button)).toBe(false);
       const draft = presentReferralShareDraft(dashboard, variant);
       expect(draft).toContain("<b>📨 Поклик до Квестарні</b>");
-      expect(draft).toContain("«<b>Shannar de Kassal</b>»");
-      expect(draft).toContain("Титул: <i>«Перший писар»</i>");
-      expect(draft).toContain("Ґільдія: 🐉 <b>Лускаті рахівники</b>");
-      expect(draft).toContain(
-        `🔗 <a href="${dashboard.inviteUrl}">${dashboard.inviteUrl}</a>`
-      );
+      expect(draft).toContain("🐉 <b>Shannar de Kassal</b> (<i>«Перший писар»</i>)");
+      expect(draft).not.toContain("«<b>Shannar de Kassal</b>»");
+      expect(draft).not.toContain("Ґільдія:");
+      expect(draft).not.toContain("Лускаті рахівники");
+      expect(draft).toContain(`\n\n${dashboard.inviteUrl}`);
+      expect(draft).not.toContain("🔗");
+      expect(draft).not.toContain("<a href=");
       expect(draft).not.toContain("Варіянт");
       expect(draft).not.toContain("Перегенеровується лише текст");
       expect(draft).not.toContain("<blockquote>");

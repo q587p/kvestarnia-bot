@@ -10,8 +10,7 @@ describe("referral bot module", () => {
     const inviterIdentity = {
       name: "Кличко",
       activeCosmeticTitle: "Перший писар",
-      guildCrest: "🐉",
-      guildName: "Лускаті рахівники"
+      guildCrest: "🐉"
     };
     const shareTexts = Array.from(
       { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
@@ -55,21 +54,18 @@ describe("referral bot module", () => {
       text: "Інший текст готовий; посилання не змінилося."
     }));
     expect(edits).toHaveLength(1);
-    expect(edits[0]?.text).toContain("«<b>Кличко</b>» кличе тебе до Квестарні");
-    expect(edits[0]?.text).toContain("Титул: <i>«Перший писар»</i>");
-    expect(edits[0]?.text).toContain("Ґільдія: 🐉 <b>Лускаті рахівники</b>");
+    expect(edits[0]?.text).toContain("🐉 <b>Кличко</b> (<i>«Перший писар»</i>) кличе тебе до Квестарні");
+    expect(edits[0]?.text).not.toContain("«<b>Кличко</b>»");
+    expect(edits[0]?.text).not.toContain("Ґільдія:");
     expect(edits[0]?.text).toContain(inviteUrl);
     expect(edits[0]?.text).not.toContain("Варіянт");
     const buttons = (edits[0]?.reply_markup as {
       inline_keyboard: Array<Array<{ text: string; url?: string; callback_data?: string }>>;
     }).inline_keyboard.flat();
-    const share = buttons.find((button) => button.url?.startsWith("https://t.me/share/url?"));
-    expect(share?.url ? new URL(share.url).searchParams.get("url") : null).toBe(inviteUrl);
-    expect(share?.url ? new URL(share.url).searchParams.get("text") : null).toBe(shareTexts[1]);
-    expect(buttons).toContainEqual(expect.objectContaining({
-      text: "🎲 Перегенерувати текст",
+    expect(buttons).toEqual([expect.objectContaining({
+      text: "🎲 Інший текст",
       callback_data: "v1:ref:s:2"
-    }));
+    })]);
   });
 });
 
