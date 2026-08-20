@@ -89,7 +89,8 @@ describe("referral scheduler", () => {
     const service = {
       reconcileDue,
       reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 0, recorded: 0 }),
-      claimNextNotification: vi.fn().mockResolvedValue(null)
+      claimNextNotification: vi.fn().mockResolvedValue(null),
+      onWorkAvailable: vi.fn(() => vi.fn())
     } as unknown as ReferralService;
     const scheduler = createReferralScheduler(service, { api: { sendMessage: vi.fn() } } as unknown as Bot, {
       intervalMs: 1_000
@@ -112,5 +113,30 @@ describe("referral scheduler", () => {
 
     await vi.advanceTimersByTimeAsync(3_000);
     expect(reconcileDue).toHaveBeenCalledOnce();
+  });
+
+  it("runs a non-overlapping tick immediately when Telegram work becomes available", async () => {
+    let wake: (() => void) | undefined;
+    const reconcileDue = vi.fn().mockResolvedValue({ due: 1, granted: 1 });
+    const service = {
+      reconcileDue,
+      reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 0, recorded: 0 }),
+      claimNextNotification: vi.fn().mockResolvedValue(null),
+      onWorkAvailable: vi.fn((listener: () => void) => {
+        wake = listener;
+        return vi.fn();
+      })
+    } as unknown as ReferralService;
+    const scheduler = createReferralScheduler(
+      service,
+      { api: { sendMessage: vi.fn() } } as unknown as Bot,
+      { intervalMs: 93_000 }
+    );
+
+    scheduler.start();
+    await vi.waitFor(() => expect(reconcileDue).toHaveBeenCalledOnce());
+    wake?.();
+    await vi.waitFor(() => expect(reconcileDue).toHaveBeenCalledTimes(2));
+    await scheduler.stop();
   });
 });

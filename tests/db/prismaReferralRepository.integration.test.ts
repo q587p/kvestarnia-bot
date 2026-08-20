@@ -5,7 +5,6 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaReferralRepository } from "../../src/db/repositories/prismaReferralRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
-import { PendingReferralConsentError } from "../../src/db/repositories/characterRepository";
 import { recordLevelMilestones } from "../../src/db/repositories/levelMilestoneRepository";
 import type { CharacterRepository } from "../../src/db/repositories/characterRepository";
 import { ReferralService } from "../../src/services/referralService";
@@ -69,7 +68,7 @@ describe("PrismaReferralRepository integration", () => {
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
 
-  it("captures only a fresh User atomically, requires one consent, and never rebinds", async () => {
+  it("captures and accepts only a fresh User atomically without rebinding", async () => {
     await expect(repository.getOrCreateInviteCode(INVITER_ID, TOKEN, "Кличко"))
       .resolves.toMatchObject({ state: "ready", token: TOKEN });
     const projectedDashboard = await repository.getDashboard(INVITER_ID, NOW);
@@ -87,31 +86,23 @@ describe("PrismaReferralRepository integration", () => {
       username: "private-profile",
       displayName: "Нова гравчиня",
       languageCode: "uk"
-    }, TOKEN, NOW, true)).resolves.toMatchObject({
-      state: "captured",
-      consent: { inviterName: "Кличко", status: "PENDING" }
-    });
+    }, TOKEN, NOW, true, 1)).resolves.toEqual({ state: "captured" });
     await expect(prisma.user.count({ where: { telegramUserId: INVITEE_ID } })).resolves.toBe(1);
-    await expect(repository.getPendingConsent(INVITEE_ID)).resolves.toMatchObject({ status: "PENDING" });
-    await expect(new PrismaCharacterRepository(prisma).createForTelegramUserIfMissing(
-      { telegramUserId: INVITEE_ID, displayName: "Прибула" },
-      makeCharacterInput("Прибула")
-    )).rejects.toBeInstanceOf(PendingReferralConsentError);
-    await expect(prisma.character.count({ where: { user: { telegramUserId: INVITEE_ID } } }))
-      .resolves.toBe(0);
+    await expect(prisma.referralAttribution.findFirstOrThrow({
+      where: { inviteeUser: { telegramUserId: INVITEE_ID } },
+      select: { status: true, acceptedAt: true, rewardPlanVersion: true }
+    })).resolves.toEqual({ status: "ACCEPTED", acceptedAt: NOW, rewardPlanVersion: 1 });
 
     await seedCharacter(prisma, "other-user", "other-character", 64_003n, "Інший");
     await repository.getOrCreateInviteCode(64_003n, "ZYXW_987-vut6543", "Інший");
-    await expect(repository.captureFreshReferral({ telegramUserId: INVITEE_ID }, "ZYXW_987-vut6543", NOW, true))
-      .resolves.toMatchObject({ state: "pending", consent: { inviterName: "Кличко" } });
+    await expect(repository.captureFreshReferral({ telegramUserId: INVITEE_ID }, "ZYXW_987-vut6543", NOW, true, 1))
+      .resolves.toEqual({ state: "accepted" });
     const invitee = await prisma.user.findUniqueOrThrow({ where: { telegramUserId: INVITEE_ID } });
     await expect(prisma.referralAttribution.findUniqueOrThrow({
       where: { inviteeUserId: invitee.id },
       select: { inviterUserId: true }
     })).resolves.toEqual({ inviterUserId: "inviter-user" });
-    await expect(repository.respondToConsent(INVITEE_ID, "accept", NOW, 1, true))
-      .resolves.toEqual({ state: "accepted" });
-    await expect(repository.respondToConsent(INVITEE_ID, "decline", NOW, 1, true))
+    await expect(repository.resolvePendingReferral(INVITEE_ID, NOW, 1, true))
       .resolves.toEqual({ state: "already-accepted" });
   });
 
@@ -128,7 +119,7 @@ describe("PrismaReferralRepository integration", () => {
     const failingRepository = new PrismaReferralRepository(failingPrisma);
 
     await expect(failingRepository.captureFreshReferral(
-      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true
+      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true, 1
     )).resolves.toEqual({ state: "retry" });
     await expect(prisma.user.count({ where: { telegramUserId: freshTelegramId } })).resolves.toBe(0);
     await expect(prisma.referralAttribution.count({
@@ -136,7 +127,7 @@ describe("PrismaReferralRepository integration", () => {
     })).resolves.toBe(0);
 
     await expect(repository.captureFreshReferral(
-      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true
+      { telegramUserId: freshTelegramId, displayName: "Повторна" }, TOKEN, NOW, true, 1
     )).resolves.toMatchObject({ state: "captured" });
     await expect(prisma.user.count({ where: { telegramUserId: freshTelegramId } })).resolves.toBe(1);
     await expect(prisma.referralAttribution.count({
@@ -146,7 +137,7 @@ describe("PrismaReferralRepository integration", () => {
     const concurrentTelegramId = 64_005n;
     await prisma.user.create({ data: { telegramUserId: concurrentTelegramId, displayName: "Паралельна" } });
     await expect(failingRepository.captureFreshReferral(
-      { telegramUserId: concurrentTelegramId }, TOKEN, NOW, true
+      { telegramUserId: concurrentTelegramId }, TOKEN, NOW, true, 1
     )).resolves.toEqual({ state: "existing-user" });
   });
 
@@ -267,6 +258,58 @@ describe("PrismaReferralRepository integration", () => {
       pendingStageTotal: 0,
       earnedByMilestone: { LEVEL_3: 1, LEVEL_5: 1, LEVEL_8: 1, LEVEL_13: 1 }
     });
+  });
+
+  it("wakes automatic payout delivery after a level milestone without opening the dashboard", async () => {
+    const inviterTelegramId = 64_010n;
+    const inviteeTelegramId = 64_011n;
+    const token = "auto_12345678901";
+    await seedCharacter(prisma, "auto-inviter-user", "auto-inviter-character", inviterTelegramId, "Будильник");
+    await repository.getOrCreateInviteCode(inviterTelegramId, token, "Будильник");
+    await expect(repository.captureFreshReferral(
+      { telegramUserId: inviteeTelegramId, displayName: "Сходинка" },
+      token,
+      NOW,
+      true,
+      1
+    )).resolves.toEqual({ state: "captured" });
+    const created = await new PrismaCharacterRepository(prisma).createForTelegramUserIfMissing(
+      { telegramUserId: inviteeTelegramId, displayName: "Сходинка" },
+      makeCharacterInput("Сходинка")
+    );
+    const service = makeService(new PrismaReferralRepository(prisma), undefined, RECOVERY_NOW);
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const scheduler = createReferralScheduler(
+      service,
+      { api: { sendMessage } } as unknown as Bot,
+      { intervalMs: 93_000 }
+    );
+    scheduler.start();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(
+      Number(inviterTelegramId),
+      expect.stringContaining("Новий поклик прийнято"),
+      { parse_mode: "HTML" }
+    ));
+    sendMessage.mockClear();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.character.update({ where: { id: created.character.id }, data: { level: 3 } });
+      await recordLevelMilestones(tx, created.character.id, 1, 3, RECOVERY_NOW);
+    });
+    service.requestReconciliation();
+
+    await vi.waitFor(async () => {
+      await expect(prisma.referralReward.findFirstOrThrow({
+        where: { attribution: { inviteeUser: { telegramUserId: inviteeTelegramId } } },
+        select: { state: true }
+      })).resolves.toEqual({ state: "GRANTED" });
+      expect(sendMessage).toHaveBeenCalledWith(
+        Number(inviterTelegramId),
+        expect.stringContaining("Нагорода за поклик"),
+        { parse_mode: "HTML" }
+      );
+    });
+    await scheduler.stop();
   });
 
   it("rolls the referral migration back without removing pre-existing player data", async () => {

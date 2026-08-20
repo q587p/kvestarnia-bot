@@ -31,12 +31,8 @@ export function registerReferralMiddleware(bot: Bot, service: ReferralService): 
 
     await next();
 
-    if (player && service.arePayoutsEnabled()) {
-      void service.reconcileForTelegramUser(player.telegramUserId).catch((error) => {
-        console.error("Квестарня: автоматична виплата за поклик не завершилась.", {
-          errorName: error instanceof Error ? error.name : "unknown"
-        });
-      });
+    if (player) {
+      service.requestReconciliation?.();
     }
   });
 }

@@ -23,7 +23,6 @@ import {
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
-import { buildReferralConsentKeyboard } from "../keyboards/referralKeyboard";
 import { getReferralCaptureResult } from "../middleware/registerReferralMiddleware";
 import {
   presentDuelAccept,
@@ -34,7 +33,7 @@ import { presentHero } from "../presenters/heroPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import {
   presentReferralCaptureOutcome,
-  presentReferralConsent
+  presentReferralCaptureRetry
 } from "../presenters/referralPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
 import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
@@ -89,12 +88,17 @@ export function registerStartCommand(
 
     if (payload.type === "referral" && options.referrals) {
       const capture = getReferralCaptureResult(ctx);
-      if (capture?.state === "captured" || capture?.state === "pending") {
-        await ctx.reply(presentReferralConsent(capture.consent.inviterName), {
-          parse_mode: "HTML",
-          reply_markup: buildReferralConsentKeyboard(options.referrals.isFoundationEnabled())
-        });
-        return;
+      if (capture?.state === "pending") {
+        try {
+          const resolved = await options.referrals.resolvePendingReferral(player.telegramUserId);
+          if (resolved.state === "not-found") {
+            await ctx.reply(presentReferralCaptureRetry());
+            return;
+          }
+        } catch {
+          await ctx.reply(presentReferralCaptureRetry());
+          return;
+        }
       }
       const outcome = capture?.state ?? "existing-user";
       if (
@@ -116,12 +120,10 @@ export function registerStartCommand(
     }
 
     if (payload.type === "none" && options.referrals) {
-      const pending = await options.referrals.getPendingConsent(player.telegramUserId);
-      if (pending) {
-        await ctx.reply(presentReferralConsent(pending.inviterName), {
-          parse_mode: "HTML",
-          reply_markup: buildReferralConsentKeyboard(options.referrals.isFoundationEnabled())
-        });
+      try {
+        await options.referrals.resolvePendingReferral(player.telegramUserId);
+      } catch {
+        await ctx.reply(presentReferralCaptureRetry());
         return;
       }
     }

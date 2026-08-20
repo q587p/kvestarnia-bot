@@ -10,16 +10,16 @@ import type {
   CaptureReferralResult,
   ClaimedReferralNotification,
   GrantReferralRewardResult,
-  ReferralConsentView,
   ReferralDashboardRecord,
   ReferralInviteCodeResult,
   ReferralInviteePage,
   ReferralInviteeRow,
   ReferralArrivalChronicleRecord,
   ReferralRepository,
-  RespondReferralResult
+  ResolvePendingReferralResult
 } from "./referralRepository";
 import { readLiveGuildCrest } from "./guildIdentityRead";
+import { getAchievementDefinition } from "../../content/achievements";
 
 const TRANSACTION_OPTIONS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -99,7 +99,8 @@ export class PrismaReferralRepository implements ReferralRepository {
     player: TelegramUserProfile,
     token: string,
     now: Date,
-    enabled: boolean
+    enabled: boolean,
+    rewardPlanVersion: number
   ): Promise<CaptureReferralResult> {
     try {
       return await this.serializable(async (tx) => {
@@ -124,6 +125,7 @@ export class PrismaReferralRepository implements ReferralRepository {
         const existingUser = await tx.user.findUnique({
           where: { telegramUserId: player.telegramUserId },
           select: {
+            character: { select: { id: true } },
             referralAttributionReceived: {
               select: {
                 id: true,
@@ -134,7 +136,13 @@ export class PrismaReferralRepository implements ReferralRepository {
           }
         });
         if (existingUser) {
-          return existingCaptureResult(existingUser.referralAttributionReceived);
+          return resolveExistingCapture(
+            tx,
+            existingUser.referralAttributionReceived,
+            Boolean(existingUser.character),
+            now,
+            rewardPlanVersion
+          );
         }
         const user = await tx.user.create({
           data: {
@@ -150,19 +158,15 @@ export class PrismaReferralRepository implements ReferralRepository {
             inviterUserId: code.inviterUserId,
             inviteeUserId: user.id,
             inviteCodeId: code.id,
-            status: "PENDING",
-            capturedAt: now
+            status: "ACCEPTED",
+            capturedAt: now,
+            acceptedAt: now,
+            rewardPlanVersion
           },
-          select: { id: true, status: true }
+          select: { id: true }
         });
-        return {
-          state: "captured",
-          consent: {
-            attributionId: attribution.id,
-            status: "PENDING",
-            inviterName: code.inviterNameSnapshot
-          }
-        };
+        void attribution;
+        return { state: "captured" };
       });
     } catch (error) {
       if (!isUniqueConflict(error) && !isWriteConflict(error)) {
@@ -172,31 +176,12 @@ export class PrismaReferralRepository implements ReferralRepository {
     }
   }
 
-  async getPendingConsent(telegramUserId: bigint): Promise<ReferralConsentView | null> {
-    const row = await this.prisma.referralAttribution.findFirst({
-      where: { inviteeUser: { telegramUserId }, status: "PENDING" },
-      select: {
-        id: true,
-        status: true,
-        inviteCode: { select: { inviterNameSnapshot: true } }
-      }
-    });
-    return row
-      ? {
-          attributionId: row.id,
-          status: "PENDING",
-          inviterName: row.inviteCode.inviterNameSnapshot
-        }
-      : null;
-  }
-
-  async respondToConsent(
+  async resolvePendingReferral(
     telegramUserId: bigint,
-    action: "accept" | "decline",
     now: Date,
     rewardPlanVersion: number,
     foundationEnabled: boolean
-  ): Promise<RespondReferralResult> {
+  ): Promise<ResolvePendingReferralResult> {
     return this.serializable(async (tx) => {
       const user = await tx.user.findUnique({
         where: { telegramUserId },
@@ -205,8 +190,7 @@ export class PrismaReferralRepository implements ReferralRepository {
           referralAttributionReceived: {
             select: {
               id: true,
-              status: true,
-              inviteCode: { select: { inviterNameSnapshot: true } }
+              status: true
             }
           }
         }
@@ -221,42 +205,34 @@ export class PrismaReferralRepository implements ReferralRepository {
       if (attribution.status === "DECLINED") {
         return { state: "already-declined" };
       }
-      if (action === "accept" && !foundationEnabled) {
-        return {
-          state: "disabled",
-          consent: {
-            attributionId: attribution.id,
-            status: "PENDING",
-            inviterName: attribution.inviteCode.inviterNameSnapshot
-          }
-        };
-      }
-      if (action === "accept" && user?.character) {
-        await tx.referralAttribution.updateMany({
+      if (!foundationEnabled || user?.character) {
+        const updated = await tx.referralAttribution.updateMany({
           where: { id: attribution.id, status: "PENDING" },
           data: { status: "DECLINED", declinedAt: now }
         });
-        return { state: "legacy-character" };
+        if (updated.count !== 1) {
+          return classifyResolvedPendingReferral(
+            await tx.referralAttribution.findUnique({
+              where: { id: attribution.id },
+              select: { status: true }
+            })
+          );
+        }
+        return { state: user?.character ? "legacy-character" : "declined" };
       }
       const updated = await tx.referralAttribution.updateMany({
         where: { id: attribution.id, status: "PENDING" },
-        data:
-          action === "accept"
-            ? { status: "ACCEPTED", acceptedAt: now, rewardPlanVersion }
-            : { status: "DECLINED", declinedAt: now }
+        data: { status: "ACCEPTED", acceptedAt: now, rewardPlanVersion }
       });
       if (updated.count !== 1) {
-        const current = await tx.referralAttribution.findUnique({
-          where: { id: attribution.id },
-          select: { status: true }
-        });
-        return current?.status === "ACCEPTED"
-          ? { state: "already-accepted" }
-          : current?.status === "DECLINED"
-            ? { state: "already-declined" }
-            : { state: "not-found" };
+        return classifyResolvedPendingReferral(
+          await tx.referralAttribution.findUnique({
+            where: { id: attribution.id },
+            select: { status: true }
+          })
+        );
       }
-      return { state: action === "accept" ? "accepted" : "declined" };
+      return { state: "accepted" };
     });
   }
 
@@ -322,6 +298,7 @@ export class PrismaReferralRepository implements ReferralRepository {
     }
     const guildCrest = readLiveGuildCrest(user.guildMemberships, now);
     return {
+      inviterUserId: user.id,
       token: user.referralInviteCode.token,
       inviterName: user.referralInviteCode.inviterNameSnapshot,
       inviterIdentity: {
@@ -537,7 +514,9 @@ export class PrismaReferralRepository implements ReferralRepository {
     payoutsEnabled: boolean
   ): Promise<ClaimedReferralNotification | null> {
     return this.serializable(async (tx) => {
-      const kindWhere = payoutsEnabled ? {} : { kind: "REFERRAL_JOINED" };
+      const kindWhere = payoutsEnabled
+        ? {}
+        : { kind: { in: ["REFERRAL_JOINED", "REFERRAL_ACHIEVEMENT_UNLOCKED"] } };
       const dueWhere = {
         ...kindWhere,
         OR: [
@@ -578,7 +557,9 @@ export class PrismaReferralRepository implements ReferralRepository {
       });
       if (
         !current?.claimToken ||
-        (current.kind !== "REFERRAL_JOINED" && current.kind !== "REFERRAL_PAYOUT_GRANTED")
+        current.kind !== "REFERRAL_JOINED" &&
+        current.kind !== "REFERRAL_PAYOUT_GRANTED" &&
+        current.kind !== "REFERRAL_ACHIEVEMENT_UNLOCKED"
       ) {
         return null;
       }
@@ -697,6 +678,57 @@ export class PrismaReferralRepository implements ReferralRepository {
     return result.count === 1;
   }
 
+  countArrivedForInviterUserId(inviterUserId: string): Promise<number> {
+    return this.prisma.referralAttribution.count({
+      where: { inviterUserId, status: "ACCEPTED", arrivedAt: { not: null } }
+    });
+  }
+
+  async enqueueReferralAchievementNotifications(
+    inviterUserId: string,
+    achievementIds: readonly string[],
+    now: Date
+  ): Promise<number> {
+    const character = await this.prisma.character.findUnique({
+      where: { userId: inviterUserId },
+      select: {
+        id: true,
+        achievements: {
+          where: { achievementId: { in: [...achievementIds] } },
+          select: { achievementId: true }
+        }
+      }
+    });
+    if (!character) {
+      return 0;
+    }
+    let created = 0;
+    for (const achievement of character.achievements) {
+      const definition = getAchievementDefinition(achievement.achievementId);
+      if (!definition) {
+        continue;
+      }
+      try {
+        await this.prisma.referralNotificationOutbox.create({
+          data: {
+            logicalKey: `REFERRAL_ACHIEVEMENT:${character.id}:${achievement.achievementId}`,
+            kind: "REFERRAL_ACHIEVEMENT_UNLOCKED",
+            recipientUserId: inviterUserId,
+            payloadJson: { achievementId: achievement.achievementId, title: definition.title },
+            state: "PENDING",
+            nextAttemptAt: now
+          }
+        });
+        created += 1;
+      } catch (error) {
+        if (!isUniqueConflict(error)) {
+          throw error;
+        }
+      }
+    }
+    return created;
+  }
+
   reschedulePendingReward(rewardId: string, now: Date): Promise<void> {
     return this.markTransientRewardFailure(rewardId, now);
   }
@@ -742,16 +774,80 @@ function existingCaptureResult(
     return { state: "existing-user" };
   }
   if (attribution.status === "PENDING") {
-    return {
-      state: "pending",
-      consent: {
-        attributionId: attribution.id,
-        status: "PENDING",
-        inviterName: attribution.inviteCode.inviterNameSnapshot
-      }
-    };
+    return { state: "pending" };
   }
   return attribution.status === "ACCEPTED" ? { state: "accepted" } : { state: "declined" };
+}
+
+async function resolveExistingCapture(
+  tx: Prisma.TransactionClient,
+  attribution: { id: string; status: string; inviteCode: { inviterNameSnapshot: string } } | null,
+  hasCharacter: boolean,
+  now: Date,
+  rewardPlanVersion: number
+): Promise<CaptureReferralResult> {
+  if (!attribution || attribution.status !== "PENDING") {
+    return existingCaptureResult(attribution);
+  }
+  if (hasCharacter) {
+    const updated = await tx.referralAttribution.updateMany({
+      where: { id: attribution.id, status: "PENDING" },
+      data: { status: "DECLINED", declinedAt: now }
+    });
+    if (updated.count === 1) {
+      return { state: "existing-user" };
+    }
+    return classifyExistingCapture(
+      await tx.referralAttribution.findUnique({
+        where: { id: attribution.id },
+        select: { status: true }
+      }),
+      true
+    );
+  }
+  const updated = await tx.referralAttribution.updateMany({
+    where: { id: attribution.id, status: "PENDING" },
+    data: { status: "ACCEPTED", acceptedAt: now, rewardPlanVersion }
+  });
+  if (updated.count === 1) {
+    return { state: "accepted" };
+  }
+  return classifyExistingCapture(
+    await tx.referralAttribution.findUnique({
+      where: { id: attribution.id },
+      select: { status: true }
+    }),
+    false
+  );
+}
+
+function classifyResolvedPendingReferral(
+  attribution: { status: string } | null
+): ResolvePendingReferralResult {
+  if (!attribution) {
+    return { state: "not-found" };
+  }
+  return attribution.status === "ACCEPTED"
+    ? { state: "already-accepted" }
+    : attribution.status === "DECLINED"
+      ? { state: "already-declined" }
+      : { state: "not-found" };
+}
+
+function classifyExistingCapture(
+  attribution: { status: string } | null,
+  hasCharacter: boolean
+): CaptureReferralResult {
+  if (!attribution) {
+    return hasCharacter ? { state: "existing-user" } : { state: "retry" };
+  }
+  if (attribution.status === "ACCEPTED") {
+    return { state: "accepted" };
+  }
+  if (attribution.status === "DECLINED") {
+    return { state: "declined" };
+  }
+  return hasCharacter ? { state: "existing-user" } : { state: "retry" };
 }
 
 async function markRewardFailure(

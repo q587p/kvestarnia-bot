@@ -82,7 +82,7 @@ six-account local matrix in
 these non-secret values in the existing untracked root `.env`:
 
 The inviter dashboard must expose the exact four-stage reward table before
-sharing; the invitee consent card and `news.md` deliberately remain concise.
+sharing; invitees continue directly into ordinary onboarding, and `news.md` deliberately remains concise.
 
 ```env
 REFERRAL_FOUNDATION_ENABLED=true

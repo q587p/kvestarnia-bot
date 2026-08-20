@@ -18,12 +18,6 @@ const PREFIX = "v1:ref:";
 export function makeReferralOpenCallbackData(): string {
   return `${PREFIX}o`;
 }
-export function makeReferralAcceptCallbackData(): string {
-  return `${PREFIX}a`;
-}
-export function makeReferralDeclineCallbackData(): string {
-  return `${PREFIX}d`;
-}
 export function makeReferralCreateCallbackData(): string {
   return `${PREFIX}c`;
 }

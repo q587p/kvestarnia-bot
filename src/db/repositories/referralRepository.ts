@@ -7,15 +7,9 @@ import type {
 
 export type ReferralAttributionStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 
-export interface ReferralConsentView {
-  attributionId: string;
-  status: ReferralAttributionStatus;
-  inviterName: string;
-}
-
 export type CaptureReferralResult =
-  | { state: "captured"; consent: ReferralConsentView }
-  | { state: "pending"; consent: ReferralConsentView }
+  | { state: "captured" }
+  | { state: "pending" }
   | { state: "accepted" }
   | { state: "declined" }
   | { state: "existing-user" }
@@ -33,12 +27,11 @@ export interface ReferralArrivalChronicleRecord {
   arrivedAt: Date;
 }
 
-export type RespondReferralResult =
+export type ResolvePendingReferralResult =
   | { state: "accepted" }
   | { state: "declined" }
   | { state: "already-accepted" }
   | { state: "already-declined" }
-  | { state: "disabled"; consent: ReferralConsentView }
   | { state: "legacy-character" }
   | { state: "not-found" };
 
@@ -48,6 +41,7 @@ export type ReferralInviteCodeResult =
   | { state: "token-collision" };
 
 export interface ReferralDashboardRecord {
+  inviterUserId: string;
   token: string;
   inviterName: string;
   inviterIdentity: {
@@ -97,7 +91,7 @@ export type GrantReferralRewardResult =
 export interface ClaimedReferralNotification {
   id: string;
   claimToken: string;
-  kind: "REFERRAL_JOINED" | "REFERRAL_PAYOUT_GRANTED";
+  kind: "REFERRAL_JOINED" | "REFERRAL_PAYOUT_GRANTED" | "REFERRAL_ACHIEVEMENT_UNLOCKED";
   telegramUserId: bigint;
   payload: unknown;
   attemptCount: number;
@@ -113,16 +107,15 @@ export interface ReferralRepository {
     player: TelegramUserProfile,
     token: string,
     now: Date,
-    enabled: boolean
+    enabled: boolean,
+    rewardPlanVersion: number
   ): Promise<CaptureReferralResult>;
-  getPendingConsent(telegramUserId: bigint): Promise<ReferralConsentView | null>;
-  respondToConsent(
+  resolvePendingReferral(
     telegramUserId: bigint,
-    action: "accept" | "decline",
     now: Date,
     rewardPlanVersion: number,
     foundationEnabled: boolean
-  ): Promise<RespondReferralResult>;
+  ): Promise<ResolvePendingReferralResult>;
   getDashboard(telegramUserId: bigint, now?: Date): Promise<ReferralDashboardRecord | null>;
   listInvitees(telegramUserId: bigint, page: number, pageSize: number): Promise<ReferralInviteePage | null>;
   listDueRewardIds(now: Date, limit: number): Promise<string[]>;
@@ -141,5 +134,11 @@ export interface ReferralRepository {
   ): Promise<{ pending: number; granted: number }>;
   listUnrecordedArrivalChronicles(limit: number): Promise<ReferralArrivalChronicleRecord[]>;
   markArrivalChronicleRecorded(attributionId: string, characterId: string, recordedAt: Date): Promise<boolean>;
+  countArrivedForInviterUserId(inviterUserId: string): Promise<number>;
+  enqueueReferralAchievementNotifications(
+    inviterUserId: string,
+    achievementIds: readonly string[],
+    now: Date
+  ): Promise<number>;
   reschedulePendingReward(rewardId: string, now: Date): Promise<void>;
 }

@@ -23,9 +23,15 @@ export function createReferralScheduler(
   let timer: ReturnType<typeof setInterval> | null = null;
   let inFlight: Promise<ReferralSchedulerMetrics> | null = null;
   let stopping = false;
+  let rerunRequested = false;
+  let unsubscribeFromWork: (() => void) | null = null;
 
   const tick = async (): Promise<ReferralSchedulerMetrics> => {
-    if (stopping || inFlight) {
+    if (stopping) {
+      return emptyMetrics();
+    }
+    if (inFlight) {
+      rerunRequested = true;
       return emptyMetrics();
     }
     inFlight = runReferralTick(service, bot, options.limit ?? DEFAULT_BATCH_LIMIT);
@@ -33,6 +39,10 @@ export function createReferralScheduler(
       return await inFlight;
     } finally {
       inFlight = null;
+      if (rerunRequested && !stopping) {
+        rerunRequested = false;
+        queueMicrotask(() => void tick().catch(logReferralSchedulerError));
+      }
     }
   };
 
@@ -41,15 +51,21 @@ export function createReferralScheduler(
       if (timer || stopping) {
         return;
       }
+      unsubscribeFromWork = service.onWorkAvailable?.(() => {
+        void tick().catch(logReferralSchedulerError);
+      }) ?? null;
       void tick().catch(logReferralSchedulerError);
       timer = setInterval(() => void tick().catch(logReferralSchedulerError), options.intervalMs ?? DEFAULT_INTERVAL_MS);
     },
     async stop() {
       stopping = true;
+      rerunRequested = false;
       if (timer) {
         clearInterval(timer);
         timer = null;
       }
+      unsubscribeFromWork?.();
+      unsubscribeFromWork = null;
       await inFlight?.catch(() => emptyMetrics());
     },
     tick

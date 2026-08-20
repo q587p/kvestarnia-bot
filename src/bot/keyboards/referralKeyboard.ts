@@ -6,22 +6,12 @@ import {
   normalizeReferralInviteShareTextIndex
 } from "../../content/referralInviteCopy";
 import {
-  makeReferralAcceptCallbackData,
   makeReferralCreateCallbackData,
-  makeReferralDeclineCallbackData,
   makeReferralListCallbackData,
   makeReferralRefreshCallbackData,
   makeReferralShareCallbackData
 } from "../callbacks/referralCallbackData";
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
-
-export function buildReferralConsentKeyboard(acceptEnabled = true): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
-  if (acceptEnabled) {
-    keyboard.text("✅ Прийняти поклик", makeReferralAcceptCallbackData()).row();
-  }
-  return keyboard.text("Продовжити без поклику", makeReferralDeclineCallbackData());
-}
 
 export function buildReferralDashboardKeyboard(result: ReferralDashboardResult): InlineKeyboard {
   const keyboard = new InlineKeyboard();

@@ -106,7 +106,7 @@ describe("health server", () => {
     expect(text).toContain("У грі вже:");
     expect(text).toContain("Корчмар дозволив лишати друзям справжні поклики");
     expect(text).toContain("чинний пригодник може отримати постійне посилання");
-    expect(text).toContain("новий гравець бачить чесний вибір");
+    expect(text).toContain("новий гравець за чинним покликом одразу переходить до звичайного створення пригодника");
     expect(text).toContain("заслужені припаси, Іскрокамені та золото приходять автоматично");
     expect(text).toContain("Хроніки записують, хто прибув за чиїм покликом");
     expect(text).not.toContain("вміст збірки");

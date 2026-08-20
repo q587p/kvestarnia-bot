@@ -7,17 +7,13 @@ import {
 } from "../callbacks/referralCallbackData";
 import { playerFromContext } from "../context";
 import {
-  buildReferralConsentKeyboard,
   buildReferralDashboardKeyboard,
   buildReferralInviteeListKeyboard,
   buildReferralShareKeyboard
 } from "../keyboards/referralKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import {
-  presentReferralAccepted,
-  presentReferralConsent,
   presentReferralDashboard,
-  presentReferralDeclined,
   presentReferralInvitees,
   presentReferralShareDraft
 } from "../presenters/referralPresenter";
@@ -69,18 +65,7 @@ async function handleReferralCallback(
     return;
   }
   if (action.type === "accept" || action.type === "decline") {
-    const result = await service.respondToConsent(telegramUserId, action.type);
-    if (result.state === "disabled") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Нові поклики тимчасово не записують. Продовж без поклику.",
-        show_alert: true
-      });
-      await safeEditMessageText(ctx, presentReferralConsent(result.consent.inviterName), {
-        ...HTML_OPTIONS,
-        reply_markup: buildReferralConsentKeyboard(false)
-      });
-      return;
-    }
+    const result = await service.resolvePendingReferral(telegramUserId);
     if (result.state === "not-found") {
       await safeAnswerCallbackQuery(ctx, {
         text: "Цей запис уже змінився. Онови сторінку.",
@@ -93,29 +78,18 @@ async function handleReferralCallback(
         text: "Пригодник уже існує, тому цей поклик не можна прийняти. Продовжуй без нього.",
         show_alert: true
       });
-      await safeEditMessageText(ctx, presentReferralDeclined(), HTML_OPTIONS);
       return;
     }
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(
-      ctx,
-      result.state === "accepted" || result.state === "already-accepted"
-        ? presentReferralAccepted()
-        : presentReferralDeclined(),
-      { ...HTML_OPTIONS, reply_markup: buildGenderKeyboard() }
-    );
+    await safeEditMessageText(ctx, presentWelcome(), {
+      ...HTML_OPTIONS,
+      reply_markup: buildGenderKeyboard()
+    });
     return;
   }
   if (action.type === "create") {
-    const pending = await service.getPendingConsent(telegramUserId);
+    await service.resolvePendingReferral(telegramUserId);
     await safeAnswerCallbackQuery(ctx);
-    if (pending) {
-      await safeEditMessageText(ctx, presentReferralConsent(pending.inviterName), {
-        ...HTML_OPTIONS,
-        reply_markup: buildReferralConsentKeyboard(service.isFoundationEnabled())
-      });
-      return;
-    }
     await safeEditMessageText(ctx, presentWelcome(), {
       ...HTML_OPTIONS,
       reply_markup: buildGenderKeyboard()

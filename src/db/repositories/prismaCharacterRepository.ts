@@ -15,6 +15,7 @@ import type { RestartCharacterResult, RestartRepository } from "./restartReposit
 import { isAuthoritativeLivePartySession } from "./partySessionRepository";
 import { readLiveGuildCrest } from "./guildIdentityRead";
 import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
+import { findClass, findRace, getComboTitle, isPronoun } from "../../content/characterOptions";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -383,6 +384,13 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
       }
 
       const arrivedAt = new Date();
+      const raceName = findRace(input.raceId)?.name ?? input.raceId;
+      const className = findClass(input.classId)?.name ?? input.classId;
+      const title = getComboTitle(
+        input.raceId,
+        input.classId,
+        isPronoun(input.pronoun) ? input.pronoun : "they"
+      );
       const character = await tx.character.create({
         data: {
           userId: user.id,
@@ -428,7 +436,10 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
               recipientUserId: referralAttribution.inviterUserId,
               payloadJson: {
                 attributionId: referralAttribution.id,
-                inviteeName: inviteeNameSnapshot
+                inviteeName: inviteeNameSnapshot,
+                raceName,
+                className,
+                title
               },
               state: "PENDING",
               nextAttemptAt: arrivedAt

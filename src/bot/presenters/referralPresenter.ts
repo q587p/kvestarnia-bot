@@ -12,6 +12,7 @@ import {
   presentForwardableSocialInvite,
   presentSocialInviteIdentity
 } from "./socialInvitePresenter";
+import { presentAchievementUnlockNotification } from "./achievementPresenter";
 
 export function presentReferralBoardEntry(): string {
   return [
@@ -92,41 +93,6 @@ export function presentReferralCaptureRetry(): string {
   ].join("\n\n");
 }
 
-export function presentReferralConsent(inviterName: string): string {
-  const name = escapeHtml(sanitizeReferralName(inviterName));
-  return [
-    `🤝 <b>Поклик від «${name}»</b>`,
-    "",
-    "Можеш прийняти цей поклик або продовжити самостійно — створення пригодника доступне в обох випадках.",
-    "",
-    "Якщо приймеш, запрошувач автоматично отримає припаси, Іскрокамені та золото, коли ти вперше досягнеш 3, 5, 8 і 13 рівня.",
-    "",
-    "Запрошувач бачитиме лише імʼя твого чинного пригодника, поточний рівень і позначки цих чотирьох етапів. Telegram-профіль, місце, справи, речі, золото та ґільдія лишаться приватними.",
-    "",
-    "Після створення пригодника Хроніки Квестарні публічно запишуть імʼя нового пригодника, імʼя запрошувача й сам факт поклику в розділі «Пригодники». Посилання, Telegram-дані, рівні та нагороди туди не потраплять.",
-    "",
-    "Вибір одноразовий: якщо продовжиш без поклику, інше посилання пізніше не привʼяже цей облік до запрошувача."
-  ].join("\n");
-}
-
-export function presentReferralAccepted(): string {
-  return [
-    "🤝 Поклик прийнято.",
-    "",
-    "Квестарня запамʼятала, хто кого сюди привів. Тепер час створити пригодника.",
-    "",
-    "Після створення персонажа Хроніки запишуть обидва імена та факт поклику в розділі «Пригодники»."
-  ].join("\n");
-}
-
-export function presentReferralDeclined(): string {
-  return [
-    "Гаразд. Поклик не прийнято. Запрошувач тебе не побачить і нагород не отримає; інше посилання вже не змінить цього вибору.",
-    "",
-    "Звичайне створення пригодника триває."
-  ].join("\n");
-}
-
 export function presentReferralCaptureOutcome(
   state: "existing-user" | "self" | "not-found" | "disabled" | "accepted" | "declined"
 ): string {
@@ -183,20 +149,40 @@ export function presentReferralNotification(kind: string, payload: unknown): str
     return null;
   }
   if (kind === "REFERRAL_JOINED") {
-    const inviteeName = (payload as { inviteeName?: unknown }).inviteeName;
+    const record = payload as Record<string, unknown>;
+    const inviteeName = record.inviteeName;
     if (typeof inviteeName !== "string") {
       return null;
     }
-    return [
+    const identityValues = [record.raceName, record.className, record.title];
+    const hasIdentity = identityValues.some((value) => value !== undefined);
+    if (hasIdentity && identityValues.some((value) => typeof value !== "string")) {
+      return null;
+    }
+    const lines = [
       "🤝 <b>Новий поклик прийнято!</b>",
       "",
-      `У журналі зʼявилося імʼя: <b>«${escapeHtml(sanitizeReferralName(inviteeName))}»</b>.`,
-      "",
-      "Нагороди прийдуть автоматично:",
-      ...presentRewardTrackLines(),
-      "",
-      "Уся шкала дає золото на базові кроки від +1 до +5, а останній етап — каміння навіть на найдорожчу чинну спробу з +4 до +5. Не на +6."
-    ].join("\n");
+      `У журналі зʼявилося імʼя: <b>«${escapeHtml(sanitizeReferralName(inviteeName))}»</b>.`
+    ];
+    if (hasIdentity) {
+      lines.push(
+        `Раса: <b>${escapeHtml(String(record.raceName))}</b> · Клас: <b>${escapeHtml(String(record.className))}</b>.`,
+        `Титул: <b>«${escapeHtml(String(record.title))}»</b>.`
+      );
+    }
+    return lines.join("\n");
+  }
+  if (kind === "REFERRAL_ACHIEVEMENT_UNLOCKED") {
+    const record = payload as Record<string, unknown>;
+    if (typeof record.achievementId !== "string" || typeof record.title !== "string") {
+      return null;
+    }
+    return presentAchievementUnlockNotification([{
+      id: record.achievementId,
+      title: record.title,
+      cosmeticTitleGrantId: null,
+      unlockedAt: new Date(0)
+    }]);
   }
   if (kind !== "REFERRAL_PAYOUT_GRANTED") {
     return null;
@@ -242,13 +228,7 @@ export function presentReferralNotification(kind: string, payload: unknown): str
     "🎁 <b>Нагорода за поклик!</b>",
     "",
     stageLine,
-    rewardLine,
-    ...(level === 13
-      ? [
-          "",
-          "193 Іскрокамені останнього етапу покривають найдорожчу чинну спробу покращення з +4 до +5: для легендарного предмета потрібно 180. Загальне золото чотирьох етапів покриває базові кроки від +1 до +5. Це не відкриває та не обіцяє +6."
-        ]
-      : [])
+    rewardLine
   ].join("\n");
 }
 

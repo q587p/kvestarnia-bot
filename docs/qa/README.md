@@ -21,7 +21,7 @@ Use these docs for manual QA scripts, smoke matrices, release gates and feature-
 - [`0.4.2-left-passage-party-attack-qa.md`](0.4.2-left-passage-party-attack-qa.md) — reservation, recruitment, authoritative roster, production settlement, flag and replay matrix for the default-off left-passage party attack; manual Telegram evidence remains pending.
 - [`0.4.3-consumable-manatka-uses-qa.md`](0.4.3-consumable-manatka-uses-qa.md) — exhaustive twenty-item catalog, caps, reservations, replay, quest-bottle and default-off rollout matrix; manual Telegram evidence remains pending.
 - [`0.4.5-guild-foundation-qa.md`](0.4.5-guild-foundation-qa.md) — three-account Nest, directory, creation, invitations, roles, remort, restart, privacy, party/combat isolation, flag and rollback matrix; manual Telegram evidence remains pending.
-- [`0.4.6-referral-foundation-qa.md`](0.4.6-referral-foundation-qa.md) — six-account first-touch, consent, reward, restart/remort, outbox, privacy, Chronicle and rollout matrix; manual Telegram evidence remains pending.
+- [`0.4.6-referral-foundation-qa.md`](0.4.6-referral-foundation-qa.md) — six-account automatic first-touch, reward, restart/remort, outbox, privacy, Chronicle and rollout matrix; manual Telegram evidence remains pending.
 
 ## Historical smoke records
 

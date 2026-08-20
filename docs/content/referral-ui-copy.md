@@ -10,8 +10,6 @@
 - Список: `👥 Мої покликані`
 - Generate: `📝 Згенерувати запрошення`
 - Regenerate: `🎲 Інший текст`
-- Accept: `✅ Прийняти поклик`
-- Decline without blocking onboarding: `Продовжити без поклику`
 - Refresh: `🔄 Оновити`
 - Back: `↩️ До Дошки`
 - Pagination: `⬅️` / `➡️`
@@ -129,48 +127,11 @@ https://t.me/BOT_USERNAME?start=ref1_TOKEN
 
 Це перший із 13 канонічних варіянтів. Герб стоїть тільки перед імʼям і зникає без живої ґільдії; назва ґільдії не показується. Титул зникає, якщо його не обрано. Як і рейдову share-картку, повідомлення можна переслати цілком; єдина inline-кнопка `🎲 Інший текст` циклічно замінює текст, не змінюючи посилання.
 
-## Landing і consent
+## Landing і автоматичне прийняття
 
-```html
-🤝 <b>Поклик від «ІМʼЯ ПЕРСОНАЖА»</b>
+Чинний `ref1_*` поклик для справді нового User атомарно записується як перший зв’язок і відразу продовжує canonical onboarding. Окремої інформаційної картки, кнопок прийняття/відмови чи reward screen немає. Malformed, unknown, disabled, self і genuinely existing-user routes показують лише короткий відповідний результат та продовжують ordinary onboarding.
 
-Можеш прийняти цей поклик або продовжити самостійно — створення пригодника доступне в обох випадках.
-
-Якщо приймеш, запрошувач автоматично отримає припаси, Іскрокамені та золото, коли ти вперше досягнеш 3, 5, 8 і 13 рівня.
-
-Запрошувач бачитиме лише імʼя твого чинного пригодника, поточний рівень і позначки цих чотирьох етапів. Telegram-профіль, місце, справи, речі, золото та ґільдія лишаться приватними.
-
-Після створення пригодника Хроніки Квестарні публічно запишуть імʼя нового пригодника, імʼя запрошувача й сам факт поклику в розділі «Пригодники». Посилання, Telegram-дані, рівні та нагороди туди не потраплять.
-
-Вибір одноразовий: якщо продовжиш без поклику, інше посилання пізніше не привʼяже цей облік до запрошувача.
-```
-
-Keyboard:
-
-```text
-✅ Прийняти поклик
-Продовжити без поклику
-```
-
-### Invitee accepted
-
-```html
-🤝 Поклик прийнято.
-
-Квестарня запамʼятала, хто кого сюди привів. Тепер час створити пригодника.
-
-Після створення персонажа Хроніки запишуть обидва імена та факт поклику в розділі «Пригодники».
-```
-
-Продовжити canonical onboarding без окремого reward screen.
-
-### Continued without referral
-
-```html
-Гаразд. Поклик не прийнято. Запрошувач тебе не побачить і нагород не отримає; інше посилання вже не змінить цього вибору.
-
-Звичайне створення пригодника триває.
-```
+Старі `v1:ref:a` / `v1:ref:d` callback-и не відновлюють стару картку: обидва проходять через automatic legacy-pending resolver і відкривають ordinary onboarding. `PENDING + current Character` ніколи не приймається заднім числом.
 
 ## Inviter join notification
 
@@ -178,17 +139,11 @@ Keyboard:
 🤝 <b>Новий поклик прийнято!</b>
 
 У журналі зʼявилося імʼя: <b>«Книжкова Оркиня»</b>.
-
-Нагороди прийдуть автоматично:
-3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота
-5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота
-8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота
-13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота
-
-Уся шкала дає золото на базові кроки від +1 до +5, а останній етап — каміння навіть на найдорожчу чинну спробу з +4 до +5. Не на +6.
+Раса: <b>Людисько</b> · Клас: <b>Воїн</b>.
+Титул: <b>«Пересічна Пригодниця»</b>.
 ```
 
-Лише після committed `ACCEPTED` **і** першого створення Character з безпечним імʼям. Не надсилати, якщо сталася лише одна з цих подій, а також за link open, pending capture чи decline.
+Лише після committed `ACCEPTED` **і** першого створення Character. Імʼя очищується, а раса, клас і canonical combo title заморожуються з code-owned каталогу в authoritative arrival transaction. Повідомлення не містить reward track, золота, Telegram-даних, посилання чи пояснення економіки.
 
 ## Automatic payout notifications
 
@@ -228,8 +183,6 @@ Keyboard:
 
 🎉 Етап пригодника <b>«Книжкова Оркиня»</b>: <b>13 рівень</b>.
 Тобі автоматично видано: ⚕️ Польова аптечка ×3, ✨ 193 Іскрокамені й 💰 900 золота.
-
-193 Іскрокамені останнього етапу покривають найдорожчу чинну спробу покращення з +4 до +5: для легендарного предмета потрібно 180. Загальне золото чотирьох етапів покриває базові кроки від +1 до +5. Це не відкриває та не обіцяє +6.
 ```
 
 Не намагатися граматично відмінювати довільне Character name автоматично. Production presenter використовує цю нейтральну конструкцію:
@@ -252,11 +205,11 @@ Keyboard:
 Тобі автоматично видано: ⚕️ Польова аптечка ×2, ✨ 65 Іскрокаменів і 💰 760 золота.
 ```
 
-Це параметризований fallback для всіх чотирьох stages: level, усі item grants та gold беруться з frozen reward bundle. Він не створює нового name snapshot. Для 13 рівня після bundle presenter додає той самий точний абзац про найдорожчу чинну спробу `+4 → +5`, повну базову золоту драбину й відсутність `+6`, що й у named template.
+Це параметризований fallback для всіх чотирьох stages: level, усі item grants та gold беруться з frozen reward bundle. Він не створює нового name snapshot. Жоден payout notice не додає пояснень про покращення, сумарне золото чи майбутні рівні манаток.
 
 ## Хроніки Квестарні
 
-Лише після явної згоди та підтвердженого створення першого персонажа. Цей рядок замінює звичайний `character.created` для цього персонажа, а не дублює його:
+Лише після автоматично прийнятого first-touch поклику та підтвердженого створення першого персонажа. Цей рядок замінює звичайний `character.created` для цього персонажа, а не дублює його:
 
 ```html
 🤝 12:34 | Новий пригодник у Квестарні: «Книжкова Оркиня», за покликом «Zhe Baykov».
@@ -317,13 +270,13 @@ Never erase earned checks or infer that they are invalid because current level i
 Корчмар звірив підписи. Покликати до Квестарні самого себе цим папірцем не вийде.
 ```
 
-### Pending, opened another link
+### Legacy pending row
 
 ```html
-Перший поклик уже чекає твого рішення. Інше посилання його не замінить.
+Писар завершує старий запис поклику й відкриває звичайне створення пригодника. Інше посилання не змінює першого звʼязку.
 ```
 
-Кнопка: `↩️ До першого поклику` — відкрити consent із canonical attribution, без raw token у callback.
+Старі accept/decline callback-и проходять через automatic resolver; нової consent-картки чи кнопок не зʼявляється.
 
 ### Already accepted, opened another link
 
@@ -349,7 +302,7 @@ Never erase earned checks or infer that they are invalid because current level i
 Нові поклики тимчасово не записують. Можна продовжити звичайне створення пригодника.
 ```
 
-Показати `Продовжити без поклику`; ця дія остаточно закриває pending-поклик і лише тоді продовжує onboarding.
+Продовжити ordinary onboarding без referral-кнопок.
 
 ### Stale/wrong-owner callback
 
@@ -373,11 +326,11 @@ Do not expose an error stack or ask for manual claim. Dashboard line:
 - The dashboard uses canonical Ukrainian item names and never exposes technical `item.*` identifiers.
 - The dashboard does not render a separate aggregate `Разом — …` reward line; economic totals remain policy/test evidence only.
 - The stable referral URL has 13 distinct reachable share-copy variants; regenerating copy never rotates the token.
-- The level-13 explanation says `193` covers the most expensive current single `+4 → +5` attempt, not the preceding steps; it never says or implies `+6`.
-- Use `автоматично` in the join notice and reward contract.
+- Arrival and payout notifications contain no upgrade-cost, track-total or future-stage explanation.
+- Automatic delivery is behavior, not an extra explanatory paragraph in the concise arrival notice.
 - Use `видано/отримано` only after committed grant.
 - No promise of a reward for the invitee merely joining.
 - No hidden time or activity condition in prose.
 - No claim button.
-- No guild icon/name in any referral identity.
+- Only the forward-ready share draft may show the live guild crest before the inviter name; it never shows the guild name.
 - No technical explanation of alt farming in player copy.

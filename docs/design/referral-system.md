@@ -6,8 +6,8 @@ Canonical source: `../../CONTRACT.md`.
 
 Add one public, player-initiated invitation loop that is worth using:
 
-- a fresh player accepts one first-touch referral;
-- the inviter can see a small, consented level-progress card;
+- a valid link atomically records one first-touch referral for a fresh player;
+- the inviter can see a small level-progress card for arrived invitees;
 - existing level achievements `3/5/8/13` create exact item, Iskrokamin and ordinary-gold bundle entitlements;
 - the bot delivers each whole bundle automatically and sends one stage notification;
 - replay, restart, remort and concurrency cannot duplicate or split economic grants.
@@ -76,7 +76,7 @@ Snapshot-test the entire array, canonical `itemId` ordering and absence of dupli
 1. Open `📰 Дошка корчми → 📨 Поклик до Квестарні` or `/invite`.
 2. See exact per-stage rewards, stable link, accepted-and-arrived count and stage counters; no separate aggregate reward-total line is rendered.
 3. Press `📝 Згенерувати запрошення`, cycle through 13 distinct texts with `🎲 Перегенерувати текст`, then open Telegram’s user-controlled share chooser without rotating the stable URL.
-4. Receive a private join notice after the fresh player accepts and creates the first Character.
+4. Receive a concise private join notice with the new Character name, race, class and title after first Character creation.
 5. Receive one private payout notice after each automatic item-and-gold bundle commits.
 6. Open `👥 Мої покликані` to see five accepted-and-arrived players per page.
 
@@ -85,19 +85,16 @@ There is no ordinary claim action.
 ### Invitee
 
 1. Open a `ref1_*` deep link.
-2. See the inviter’s separately sanitized current Character name or sanitized code-generation snapshot, all four stages, the fact that the inviter gets supplies, Iskrokamin and gold, the limited progress disclosure, and the explicit notice that first Character arrival will publish both Character names plus the referral relationship in `👥 Пригодники`.
-3. Choose `✅ Прийняти поклик` or `Продовжити без поклику`.
-4. Continue the ordinary onboarding path in either case.
+2. The eligible first-touch relation is accepted in the same transaction that creates the fresh User and freezes the reward policy.
+3. Continue directly into the ordinary onboarding path without a consent card or referral buttons.
 
-The invitation must not trap onboarding. An unavailable, invalid, disabled, existing-user or declined referral falls through to ordinary `/start` with a short explanation.
-
-While attribution is `PENDING`, plain `/start` and stale onboarding callbacks resume the consent card. The authoritative create-if-missing Character operation rejects unresolved referral state. Accept/decline and Character creation serialize; only `ACCEPTED` or `DECLINED` may proceed. If the global foundation flag is off, acceptance is unavailable but `Продовжити без поклику` atomically declines and proceeds.
+The invitation must not trap onboarding. An unavailable, invalid, disabled, self or existing-user referral falls through to ordinary `/start` with a short explanation. Legacy `PENDING` rows resolve automatically before Character creation; foundation-off converts such rows to ordinary non-referral onboarding, and an inconsistent `PENDING + current Character` never binds retroactively.
 
 ## Start routing
 
 Current `0.4.5` registration installs presence middleware before the ordinary start handler, and presence upserts `User`. Referral freshness therefore cannot be decided inside the existing late `/start` handler.
 
-Recognize exact-shape `ref1_*` before presence middleware and run one short serializable capture transaction. It first resolves a stored code and checks the global flag, self-referral and absence of a canonical User for the incoming Telegram ID. Only that eligible path creates the User and its `PENDING` attribution together. Unknown, malformed, foundation-disabled, self or genuinely existing-user paths create no attribution and continue ordinary start/presence handling. A concurrent presence/onboarding `User.upsert` or second referral capture is resolved through the unique Telegram ID and invitee-attribution keys: retry and re-read the persisted winner. If bounded write-conflict retries end while both User and attribution remain absent, return a neutral retry card without calling presence or onboarding; the same valid link stays eligible for an atomic retry. Never manufacture `existing-user` from an absent User.
+Recognize exact-shape `ref1_*` before presence middleware and run one short serializable capture transaction. It first resolves a stored code and checks the global flag, self-referral and absence of a canonical User for the incoming Telegram ID. Only that eligible path creates the User and its `ACCEPTED` attribution, acceptance timestamp and reward-plan version together. Unknown, malformed, foundation-disabled, self or genuinely existing-user paths create no attribution and continue ordinary start/presence handling. A concurrent presence/onboarding `User.upsert` or second referral capture is resolved through the unique Telegram ID and invitee-attribution keys: retry and re-read the persisted winner. If bounded write-conflict retries end while both User and attribution remain absent, return a neutral retry card without calling presence or onboarding; the same valid link stays eligible for an atomic retry. Never manufacture `existing-user` from an absent User.
 
 The User insert and attribution insert are one atomic unit: an injected failure between them rolls both back, so retry cannot mistake an orphan capture-created User for a pre-existing player.
 
@@ -151,13 +148,13 @@ Required constraints:
 
 - inviter and invitee must differ;
 - invitee uniqueness enforces first touch;
-- only `PENDING → ACCEPTED` or `PENDING → DECLINED`;
+- fresh rows are created `ACCEPTED`; only legacy `PENDING → ACCEPTED` or `PENDING → DECLINED` remains;
 - no rebind, reopen or status reset;
 - User relations survive Character deletion and remort.
 
-The acceptance transaction rechecks capture evidence, attribution ownership/state, self-referral and the global foundation flag, then freezes the current reward-plan version on the attribution. Every later stage resolves through that frozen plan. First Character creation then sets `arrivedAt` idempotently and creates one deduplicated join-notification event from the current safe Character name. It also returns the frozen referral-arrival context to the canonical onboarding publication path, which emits `referral.arrived` instead of ordinary `character.created` under the same `character.created:<characterId>` dedupe key. Integrate this with the canonical create-if-missing transaction or an equivalent durable operation; do not emit a named join notice or public referral relationship before a Character exists.
+The capture transaction freezes the current reward-plan version on the attribution. Every later stage resolves through that frozen plan. First Character creation then sets `arrivedAt` idempotently and creates one deduplicated join-notification event from the current safe Character name plus canonical race, class and combo title. It also returns the frozen referral-arrival context to the canonical onboarding publication path, which emits `referral.arrived` instead of ordinary `character.created` under the same `character.created:<characterId>` dedupe key. Integrate this with the canonical create-if-missing transaction or an equivalent durable operation; do not emit a named join notice or public referral relationship before a Character exists.
 
-Accept/decline callbacks bind the invitee User and current `PENDING` state; dashboard, refresh and pagination callbacks bind the inviter User. A wrong actor or stale state returns the canonical stale alert and changes/exposes nothing.
+Legacy accept/decline callbacks bind the invitee User and converge through automatic pending resolution; dashboard, refresh and pagination callbacks bind the inviter User. A wrong actor or stale state returns the canonical stale alert and changes/exposes nothing.
 
 An impossible legacy conflict—`PENDING` attribution with an existing current Character—fails referral acceptance closed. Mark/resolve it as declined through an audited idempotent path, preserve the Character and never backfill stage rewards.
 
@@ -213,7 +210,7 @@ Keep ordinary flag-off reads free of referral joins. Verify SQLite query plans f
 ```text
 id
 logicalKey unique
-kind                   // REFERRAL_JOINED | REFERRAL_PAYOUT_GRANTED
+kind                   // REFERRAL_JOINED | REFERRAL_PAYOUT_GRANTED | REFERRAL_ACHIEVEMENT_UNLOCKED
 recipientUserId
 payloadJson
 state                  // PENDING | PROCESSING | SENT
@@ -228,9 +225,10 @@ createdAt
 Logical event keys:
 
 - `REFERRAL_JOINED:<attributionId>`;
-- `REFERRAL_PAYOUT_GRANTED:<rewardId>`.
+- `REFERRAL_PAYOUT_GRANTED:<rewardId>`;
+- `REFERRAL_ACHIEVEMENT:<characterId>:<achievementId>`.
 
-The outbox stores a sanitized plain-text current name when safely available (otherwise null for the neutral payout variant) and the exact frozen gold plus complete item-grant array. Escape the name exactly once in the Telegram presenter; never store pre-escaped markup. No raw token, Telegram username, guild identity or share destination enters payloads.
+The outbox stores a sanitized plain-text current name when safely available (otherwise null for the neutral payout variant), the canonical arrival race/class/title, and the exact frozen payout gold plus complete item-grant array. Escape dynamic text exactly once in the Telegram presenter; never store pre-escaped markup. No raw token, Telegram username, guild identity or share destination enters payloads. Arrival and payout presenters stay concise: no reward ladder on arrival and no upgrade-cost or total-track explanation after payout.
 
 A bounded due worker runs on cold start and its normal schedule. It atomically leases one due `PENDING` row—or an expired `PROCESSING` row—by CAS to `PROCESSING` with a random `claimToken`, bounded `claimedUntil` and incremented attempt count. It commits that lease before calling Telegram. Only the lease holder may CAS its token to `SENT`; a known failure reschedules with capped backoff, while a crashed worker is recovered after lease expiry. Join rows remain eligible for already accepted/arrived relations when foundation entry is off. Payout rows are queried/leased only while `REFERRAL_REWARD_PAYOUTS_ENABLED=true`; a flag flip after grant leaves their outbox rows due, not falsely sent. Two healthy workers therefore do not routinely send the same event. A crash after Telegram accepted the message but before `SENT` remains the documented rare at-least-once duplicate gap; it never touches inventory or reward state. Wire this scheduler and the bounded pending-payout reconciler through the actual `src/app/createRuntime.ts` start/stop lifecycle with an immediate startup tick, non-overlap guard, clean stop and factory/runtime tests; bot construction alone is not runtime delivery.
 
@@ -248,11 +246,13 @@ Rules:
 6. Foundation-entry flag state must not suppress progress for already accepted relations.
 7. Persisting the entitlement is part of the canonical database transaction; Telegram and achievement presentation are not.
 
+The inviter also receives rewardless visible achievements for the first and thirteenth arrived invitees. Their progress comes from the authoritative count of `ACCEPTED` rows with `arrivedAt`, not callback or notification delivery. Achievement rows and their uniquely keyed private notifications reconcile before the durable arrival row is marked complete, so failure remains recoverable on a later scheduler tick or service recreation without duplicating an unlock.
+
 Tests must enumerate every level-changing repository/service path. Do not use a CharacterAchievement row as the receipt: `/restart` deletes it, and best-effort achievement tracking may fail after gameplay commit.
 
 ## Automatic delivery
 
-After the level transaction commits, wake the payout service for newly inserted rewards. A bounded worker and the inviter’s next ordinary interaction provide recovery.
+After the level transaction commits, the post-update referral middleware wakes the shared non-overlapping scheduler for newly inserted rewards. If a tick is already in flight, queue exactly one follow-up tick. The normal interval, cold start and later interaction remain recovery paths; opening the inviter dashboard is never required.
 
 For each pending row, in deterministic order:
 
@@ -297,7 +297,7 @@ A retry never changes any frozen component. Missing content IDs or invalid gold/
 
 ### Join
 
-Sent once after acceptance and first Character creation. Use the exact `Inviter join notification` template in `../../copy/ukrainian-ui-copy.md`; it names the separately sanitized current Character and lists the frozen four-stage ladder. Do not infer gender from Telegram profile data.
+Sent once after automatic first-touch acceptance and first Character creation. Use the exact `Inviter join notification` template in `../content/referral-ui-copy.md`; it contains only the separately sanitized Character name, race, class and title. It does not repeat the reward ladder or explain payout rules. Do not infer gender from Telegram profile data.
 
 ### Payout
 
@@ -305,7 +305,7 @@ Sent once logically after the committed full bundle. Use the exact neutral `Auto
 
 ## Public Chronicle arrival
 
-The accepted relation is public only at first Character arrival, after the consent card has disclosed it. Extend the ActivityEvent union and presenter with `referral.arrived`:
+The accepted relation is public only at first Character arrival. The shared invitation copy states that opening a valid fresh-player link binds the referral automatically; no separate consent card is shown. Extend the ActivityEvent union and presenter with `referral.arrived`:
 
 ```text
 eventType: referral.arrived
@@ -336,7 +336,7 @@ Telegram cannot provide end-to-end exactly-once delivery. The outbox may very ra
 
 Aggregate from accepted attributions and durable reward rows:
 
-Before the stable share link, show the exact four-stage reward table without a separate aggregate `Разом — …` line. Policy and economic evidence still verify the totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; consent, lore and news do not inherit it. Invitation-copy regeneration cycles through 13 distinct Ukrainian texts and never replaces the stable referral token.
+Before the stable share link, show the exact four-stage reward table without a separate aggregate `Разом — …` line. Policy and economic evidence still verify the totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; invitation copy, lore and news do not inherit it. Invitation-copy regeneration cycles through 13 distinct Ukrainian texts and never replaces the stable referral token.
 
 ```text
 arrivedTotal
@@ -357,7 +357,7 @@ Use page size `5`, deterministic acceptedAt/id order, owner-bound callbacks and 
 
 ## Privacy and escaping
 
-In the private referral dashboard, the inviter may see only what the invitee accepted. The separately consented public Chronicle arrival relation is governed by the section above:
+In the private referral dashboard, the inviter may see only the automatically bound relation after Character arrival. The public Chronicle arrival relation is governed by the section above:
 
 - sanitized Character name;
 - current numeric level;
@@ -413,7 +413,7 @@ Never label metrics with token, Telegram ID, Character name, guild or destinatio
 - invitee item package;
 - multi-level referral tree;
 - IP/device identity, CAPTCHA or automated fraud scoring;
-- public referral leaderboard, public payout details or public names beyond the single consented Chronicle arrival relation;
+- public referral leaderboard, public payout details or public names beyond the single Chronicle arrival relation;
 - guild auto-join or guild contribution;
 - cosmetic aggregate title track;
 - retroactive attribution of existing Users;

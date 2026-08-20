@@ -3,11 +3,10 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type {
   CaptureReferralResult,
   ClaimedReferralNotification,
-  ReferralConsentView,
   ReferralDashboardRecord,
   ReferralInviteePage,
   ReferralRepository,
-  RespondReferralResult
+  ResolvePendingReferralResult
 } from "../db/repositories/referralRepository";
 import type { TelegramUserProfile } from "../db/repositories/userRepository";
 import {
@@ -45,6 +44,7 @@ export type ReferralDashboardResult =
     };
 
 export class ReferralService {
+  private readonly workListeners = new Set<() => void>();
   constructor(
     private readonly referrals: ReferralRepository,
     private readonly characters: CharacterRepository,
@@ -77,25 +77,29 @@ export class ReferralService {
       player,
       token,
       this.now(),
-      this.options.foundationEnabled
+      this.options.foundationEnabled,
+      REFERRAL_POLICY_V1.version
     );
   }
 
-  getPendingConsent(telegramUserId: bigint): Promise<ReferralConsentView | null> {
-    return this.referrals.getPendingConsent(telegramUserId);
-  }
-
-  respondToConsent(
-    telegramUserId: bigint,
-    action: "accept" | "decline"
-  ): Promise<RespondReferralResult> {
-    return this.referrals.respondToConsent(
+  resolvePendingReferral(telegramUserId: bigint): Promise<ResolvePendingReferralResult> {
+    return this.referrals.resolvePendingReferral(
       telegramUserId,
-      action,
       this.now(),
       REFERRAL_POLICY_V1.version,
       this.options.foundationEnabled
     );
+  }
+
+  onWorkAvailable(listener: () => void): () => void {
+    this.workListeners.add(listener);
+    return () => this.workListeners.delete(listener);
+  }
+
+  requestReconciliation(): void {
+    for (const listener of this.workListeners) {
+      listener();
+    }
   }
 
   async getDashboard(telegramUserId: bigint): Promise<ReferralDashboardResult> {
@@ -104,6 +108,7 @@ export class ReferralService {
     }
     const existing = await this.referrals.getDashboard(telegramUserId, this.now());
     if (existing) {
+      await this.reconcileReferralAchievementsForUserSafely(existing, this.now());
       return this.buildDashboardResult(existing);
     }
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -126,6 +131,7 @@ export class ReferralService {
       if (!dashboard) {
         throw new Error("Referral code creation did not yield a dashboard projection.");
       }
+      await this.reconcileReferralAchievementsForUserSafely(dashboard, this.now());
       return this.buildDashboardResult(dashboard);
     }
     throw new Error("Referral token collision retry limit exhausted.");
@@ -196,6 +202,18 @@ export class ReferralService {
     const rows = await this.referrals.listUnrecordedArrivalChronicles(limit);
     let recorded = 0;
     for (const row of rows) {
+      try {
+        await this.reconcileReferralAchievementsForInviter(
+          row.inviterUserId,
+          row.attributionId,
+          row.arrivedAt
+        );
+      } catch (error) {
+        console.error("Квестарня: ачивки за поклики не пройшли чергову звірку.", {
+          errorName: error instanceof Error ? error.name : "unknown"
+        });
+        continue;
+      }
       const event = await this.activityEvents.recordReferralArrivedSafely({
         characterId: row.characterId,
         inviteeDisplayName: row.inviteeName,
@@ -312,5 +330,62 @@ export class ReferralService {
       occurredAt: grant.grantedAt,
       sourceId: `referral-payout:${grant.rewardId}`
     });
+  }
+
+  private async reconcileReferralAchievementsForUser(
+    dashboard: ReferralDashboardRecord,
+    occurredAt: Date
+  ): Promise<void> {
+    await this.reconcileReferralAchievementsForInviter(
+      dashboard.inviterUserId,
+      dashboard.token,
+      occurredAt
+    );
+  }
+
+  private async reconcileReferralAchievementsForUserSafely(
+    dashboard: ReferralDashboardRecord,
+    occurredAt: Date
+  ): Promise<void> {
+    try {
+      await this.reconcileReferralAchievementsForUser(dashboard, occurredAt);
+    } catch (error) {
+      console.error("Квестарня: ачивки за поклики не пройшли фонову звірку.", {
+        errorName: error instanceof Error ? error.name : "unknown"
+      });
+    }
+  }
+
+  private async reconcileReferralAchievementsForInviter(
+    inviterUserId: string,
+    sourceId: string,
+    occurredAt: Date
+  ): Promise<void> {
+    if (!this.achievements) {
+      return;
+    }
+    const character = await this.characters.findByUserId(inviterUserId);
+    if (!character) {
+      return;
+    }
+    const count = await this.referrals.countArrivedForInviterUserId(inviterUserId);
+    await this.achievements.trackEvent({
+      type: "referral.arrivals",
+      characterId: character.id,
+      count,
+      occurredAt,
+      sourceId
+    });
+    const achievementIds = [
+      ...(count >= 1 ? ["achievement.referral.first-arrival"] : []),
+      ...(count >= 13 ? ["achievement.referral.thirteen-arrivals"] : [])
+    ];
+    if (achievementIds.length > 0) {
+      await this.referrals.enqueueReferralAchievementNotifications(
+        inviterUserId,
+        achievementIds,
+        this.now()
+      );
+    }
   }
 }

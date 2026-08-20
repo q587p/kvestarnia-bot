@@ -29,12 +29,12 @@ Neither flag deletes, rebinds, changes the frozen payload of or reissues an exis
   - level 5 achievement → `120` gold, `1 × item.field-kit`, `13 × item.iskrokamin`;
   - level 8 achievement → `760` gold, `2 × item.field-kit`, `65 × item.iskrokamin`;
   - level 13 achievement → `900` gold, `3 × item.field-kit`, `193 × item.iskrokamin`.
-- [ ] Before the link is shared, the private inviter dashboard discloses all four exact bundles with canonical Ukrainian item names, no technical IDs and no separate aggregate totals line; policy evidence remains `1/6/276/1830`, while invitee consent, lore and `news.md` stay spoiler-light.
+- [ ] Before the link is shared, the private inviter dashboard discloses all four exact bundles with canonical Ukrainian item names, no technical IDs and no separate aggregate totals line; policy evidence remains `1/6/276/1830`, while invitation copy, lore and `news.md` stay spoiler-light.
 - [ ] The dashboard opens a 13-variant invitation-copy generator; every text is reachable, the share URL encodes it correctly and regeneration never rotates the stable referral token.
 - [ ] There are no click, signup, elapsed-time, daily-action, purchase or volume gates.
 - [ ] The additive migration succeeds on an empty database and a production-like 0.4.5 database; backup restore is tested.
 - [ ] Focused referral tests, full `npm run check`, `npm run db:validate`, migration/rollback smoke and `git diff --check` pass at the release SHA.
-- [ ] The pre-presence capture transaction creates the fresh canonical User and `PENDING` attribution atomically; all pre-existing guild, party, duel, tavern-game, `support_thanks` and `nyz_left_attack_*` payload tests pass.
+- [ ] The pre-presence capture transaction creates the fresh canonical User and `ACCEPTED` attribution atomically; all pre-existing guild, party, duel, tavern-game, `support_thanks` and `nyz_left_attack_*` payload tests pass.
 - [ ] Each row freezes exact `rewardGold` and strict `rewardItemsJson`; automatic gold plus all-item payout, `PENDING → GRANTED`, `actualGrantJson` and the uniquely keyed payout-notification outbox insert use one exact-once transaction with no partial grants or manual claim endpoint.
 - [ ] A cold-start/scheduled outbox worker CAS-leases due or expired join/payout rows before Telegram I/O; healthy concurrent workers do not routinely double-send.
 - [ ] Six-account Telegram QA passes in an isolated environment. Production debug/time/level helpers remain fail closed.
@@ -55,7 +55,7 @@ Neither flag deletes, rebinds, changes the frozen payload of or reissues an exis
 ## Phase 1 — acquisition on, payouts paused
 
 1. Set `REFERRAL_FOUNDATION_ENABLED=true` and keep payouts false.
-2. With approved production smoke accounts, create a link, share it, complete fresh-user first-touch acceptance and create the invitee Character.
+2. With approved production smoke accounts, create a link, share it, open it as a fresh User and create the invitee Character; the eligible relation is accepted automatically without a consent card.
 3. Verify one inviter join notification, one immutable attribution and dashboard visibility.
 4. Reach the level-3 achievement through ordinary gameplay. Verify one frozen pending entitlement for `50` gold, one dense bandage and five Iskrokamin stones, zero economy delta and no payout notification.
 5. Exercise invalid, self, existing-user and second-link/rebind attempts. Verify ordinary onboarding remains available.
@@ -83,7 +83,7 @@ There is no natural 24-hour or multi-day safety window in this design. Keep payo
 
 For at least one normal release observation window, monitor:
 
-- capture → accept → Character-arrived conversion;
+- fresh-link capture → Character-arrived conversion;
 - milestones earned and payout outcomes by the four bounded milestone keys;
 - current and oldest `PENDING` entitlement age;
 - unique/CAS conflicts and retry exhaustion;

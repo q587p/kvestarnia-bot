@@ -2,8 +2,10 @@ import { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { registerReferralMiddleware } from "../../src/bot/middleware/registerReferralMiddleware";
 import { registerPresenceMiddleware } from "../../src/bot/middleware/registerPresenceMiddleware";
+import { registerStartCommand } from "../../src/bot/commands/startCommand";
 import type { ReferralService } from "../../src/services/referralService";
 import type { PresenceService } from "../../src/services/presenceService";
+import type { OnboardingService } from "../../src/services/onboardingService";
 
 describe("referral capture middleware", () => {
   it("fails a valid unresolved capture closed before presence and start routing", async () => {
@@ -24,6 +26,26 @@ describe("referral capture middleware", () => {
     expect(calls.sends).toEqual([expect.stringContaining("Спробуй відкрити те саме посилання ще раз")]);
   });
 
+  it("automatically accepts a valid fresh link and continues straight to ordinary onboarding", async () => {
+    const captureFromStart = vi.fn().mockResolvedValue({ state: "captured" });
+    const requestReconciliation = vi.fn();
+    const start = vi.fn().mockResolvedValue({ state: "needs-gender-selection" });
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    const referrals = referralService({ captureFromStart, requestReconciliation });
+    registerReferralMiddleware(bot, referrals);
+    registerStartCommand(bot, { start } as unknown as OnboardingService, { referrals });
+
+    await bot.handleUpdate(startUpdate("ref1_abCD_123-xyZ7890"));
+
+    expect(start).toHaveBeenCalledOnce();
+    expect(calls.sends).toHaveLength(1);
+    expect(calls.sends[0]).toContain("Квестарні");
+    expect(calls.sends[0]).not.toContain("Прийняти поклик");
+    expect(calls.sends[0]).not.toContain("Продовжити без поклику");
+    expect(requestReconciliation).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["disabled", "ref1_abCD_123-xyZ7890"],
     ["malformed", "ref1_bad"]
@@ -33,7 +55,8 @@ describe("referral capture middleware", () => {
     const start = vi.fn();
     const calls = apiCalls();
     const bot = testBot(calls.middleware);
-    registerReferralMiddleware(bot, referralService({ captureFromStart }));
+    const requestReconciliation = vi.fn();
+    registerReferralMiddleware(bot, referralService({ captureFromStart, requestReconciliation }));
     registerPresenceMiddleware(bot, { markAction } as unknown as PresenceService);
     bot.command("start", start);
 
@@ -42,13 +65,17 @@ describe("referral capture middleware", () => {
     expect(markAction).toHaveBeenCalledOnce();
     expect(start).toHaveBeenCalledOnce();
     expect(captureFromStart).toHaveBeenCalledTimes(kind === "disabled" ? 1 : 0);
+    expect(requestReconciliation).toHaveBeenCalledOnce();
   });
 });
 
-function referralService(overrides: { captureFromStart: ReturnType<typeof vi.fn> }): ReferralService {
+function referralService(overrides: {
+  captureFromStart: ReturnType<typeof vi.fn>;
+  requestReconciliation?: ReturnType<typeof vi.fn>;
+}): ReferralService {
   return {
     ...overrides,
-    arePayoutsEnabled: () => false
+    requestReconciliation: overrides.requestReconciliation ?? vi.fn()
   } as unknown as ReferralService;
 }
 

@@ -9,7 +9,6 @@ import {
   referralInviteShareText
 } from "../../src/content/referralInviteCopy";
 import {
-  presentReferralConsent,
   presentReferralDashboard,
   presentReferralInvitees,
   presentReferralNotification,
@@ -45,7 +44,7 @@ const dashboard = {
 };
 
 describe("referral Telegram surfaces", () => {
-  it("discloses the owner-approved exact dashboard track while preserving invitee privacy", () => {
+  it("discloses the owner-approved exact dashboard track without internal item ids", () => {
     const text = presentReferralDashboard(dashboard);
     expect(text).toContain("3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота");
     expect(text).toContain("5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота");
@@ -55,10 +54,6 @@ describe("referral Telegram surfaces", () => {
     expect(text).not.toContain("item.");
     expect(text).not.toContain("після її досягнення");
     expect(presentReferralDashboard(dashboard)).toContain("⏳ Автоматичної доставки чекає: <b>1</b>");
-    const consent = presentReferralConsent("<Марта>\u0000");
-    expect(consent).toContain("«&lt;Марта&gt;»");
-    expect(consent).toContain("Telegram-профіль, місце, справи, речі, золото та ґільдія лишаться приватними");
-    expect(consent).toContain("Хроніки Квестарні публічно запишуть");
   });
 
   it("keeps callback data token-free, bounded, and rejects malformed pages", () => {
@@ -119,7 +114,23 @@ describe("referral Telegram surfaces", () => {
     expect(text).toContain("3:✅ · 5:⏳ · 8:▫️ · 13:▫️");
   });
 
-  it("rejects corrupt notification payloads and renders only safe grant details", () => {
+  it("renders concise arrival identity and safe grant details without explanatory infodumps", () => {
+    const arrival = presentReferralNotification("REFERRAL_JOINED", {
+      inviteeName: "<Лада>",
+      raceName: "Людисько",
+      className: "Воїн",
+      title: "Пересічна Пригодниця"
+    });
+    expect(arrival).toBe([
+      "🤝 <b>Новий поклик прийнято!</b>",
+      "",
+      "У журналі зʼявилося імʼя: <b>«&lt;Лада&gt;»</b>.",
+      "Раса: <b>Людисько</b> · Клас: <b>Воїн</b>.",
+      "Титул: <b>«Пересічна Пригодниця»</b>."
+    ].join("\n"));
+    expect(arrival).not.toContain("Нагороди");
+    expect(arrival).not.toContain("золота");
+    expect(arrival).not.toContain("item.");
     expect(presentReferralNotification("REFERRAL_PAYOUT_GRANTED", { level: 3, gold: 50, items: "bad" })).toBeNull();
     expect(presentReferralNotification("REFERRAL_PAYOUT_GRANTED", {
       milestoneKey: "LEVEL_3",
@@ -141,5 +152,19 @@ describe("referral Telegram surfaces", () => {
     expect(text).toContain("🩹 Щільний бинт ×1, ✨ 5 Іскрокаменів");
     expect(text).not.toContain("item.");
     expect(text).not.toContain("telegram");
+    expect(text).not.toContain("+4");
+    expect(text).not.toContain("+6");
+    const finalText = presentReferralNotification("REFERRAL_PAYOUT_GRANTED", {
+      milestoneKey: "LEVEL_13",
+      inviteeName: "Лада",
+      level: 13,
+      gold: 900,
+      items: [
+        { itemId: "item.field-kit", quantity: 3 },
+        { itemId: "item.iskrokamin", quantity: 193 }
+      ]
+    });
+    expect(finalText).not.toContain("покращення");
+    expect(finalText).not.toContain("Загальне золото");
   });
 });

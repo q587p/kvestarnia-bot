@@ -45,7 +45,6 @@ import {
   buildGenderKeyboard,
   buildRaceKeyboard
 } from "../keyboards/onboardingKeyboard";
-import { buildReferralConsentKeyboard } from "../keyboards/referralKeyboard";
 import { buildRemortKeyboard, buildRemortResultKeyboard } from "../keyboards/remortKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
 import {
@@ -72,7 +71,6 @@ import {
   presentUnavailableChoice,
   presentWelcome
 } from "../presenters/onboardingPresenter";
-import { presentReferralConsent } from "../presenters/referralPresenter";
 import { presentRemortConfirm, presentRemortUpdate } from "../presenters/remortPresenter";
 import {
   presentRestartActiveCombat,
@@ -441,28 +439,32 @@ async function handleOnboardingCallback(
     return;
   }
 
-  const result = await onboardingService.complete(
+  let result = await onboardingService.complete(
     player,
     callback.pronoun,
     callback.raceId,
     callback.classId
   );
 
-  if (!result.ok) {
-    if (result.error.type === "pending-referral-consent" && referralService) {
-      const pending = await referralService.getPendingConsent(player.telegramUserId);
-      if (pending) {
-        await safeAnswerCallbackQuery(ctx, {
-          text: "Спершу виріши, чи приймати поклик.",
-          show_alert: true
-        });
-        await safeEditMessageText(ctx, presentReferralConsent(pending.inviterName), {
-          ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildReferralConsentKeyboard(referralService.isFoundationEnabled())
-        });
-        return;
-      }
+  if (!result.ok && result.error.type === "pending-referral-consent" && referralService) {
+    try {
+      await referralService.resolvePendingReferral(player.telegramUserId);
+      result = await onboardingService.complete(
+        player,
+        callback.pronoun,
+        callback.raceId,
+        callback.classId
+      );
+    } catch {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Писар не завершив запис поклику. Спробуй ще раз.",
+        show_alert: true
+      });
+      return;
     }
+  }
+
+  if (!result.ok) {
     const text =
       result.error.type === "unavailable-class" || result.error.type === "unavailable-race"
         ? presentUnavailableChoice(result.error.reason)

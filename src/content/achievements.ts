@@ -17,6 +17,7 @@ export const achievementTriggerTypes = [
   "latest-events.opened",
   "cosmetic-title.selected",
   "character.created",
+  "referral.arrivals",
   "gold.balance",
   "level.reached",
   "remort.completed",
@@ -142,6 +143,30 @@ export const achievements = [
     sortOrder: 10.5,
     status: "enabled",
     trigger: { type: "achievement.list.opened" }
+  },
+  {
+    id: "achievement.referral.first-arrival",
+    category: "onboarding",
+    title: "Один кухоль уже зайнято",
+    description: "покликати першого пригодника, який справді дістався Квестарні.",
+    hidden: false,
+    lockedDescription: "покликати першого пригодника до Квестарні.",
+    sortOrder: 10.52,
+    status: "enabled",
+    trigger: { type: "referral.arrivals", threshold: 1 },
+    progressTarget: 1
+  },
+  {
+    id: "achievement.referral.thirteen-arrivals",
+    category: "onboarding",
+    title: "Тринадцятий кухоль напоготові",
+    description: "покликати тринадцятьох пригодників, які справді дісталися Квестарні.",
+    hidden: false,
+    lockedDescription: "покликати тринадцятьох пригодників до Квестарні.",
+    sortOrder: 10.53,
+    status: "enabled",
+    trigger: { type: "referral.arrivals", threshold: 13 },
+    progressTarget: 13
   },
   {
     id: "achievement.journey.latest-events-opened",
