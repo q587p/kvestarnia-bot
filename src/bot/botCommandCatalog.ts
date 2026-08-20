@@ -3,7 +3,7 @@ export interface BotCommandCatalogEntry {
   icon: string;
   description: string;
   includeInMenu: boolean;
-  featureOnly?: "tavern-games" | "referral";
+  featureOnly?: "tavern-games" | "raid-chat" | "guild" | "referral";
   devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild" | "referral";
 }
 
@@ -154,10 +154,94 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     includeInMenu: false
   },
   {
+    command: "cancel_raid_chat",
+    icon: "✋",
+    description: "скасувати написання в рейд-чаті",
+    includeInMenu: false,
+    featureOnly: "raid-chat"
+  },
+  {
     command: "guild",
     icon: "🛡️",
     description: "ґільдії",
     includeInMenu: false
+  },
+  {
+    command: "guild_create",
+    icon: "🏗️",
+    description: "заснувати ґільдію",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_invite_code",
+    icon: "🔖",
+    description: "відкрити власний код для запрошення",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_invite",
+    icon: "✉️",
+    description: "запросити за особистим кодом",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_party",
+    icon: "🪢",
+    description: "зібрати ґільдійну ватагу",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_edit",
+    icon: "✏️",
+    description: "змінити профіль ґільдії",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_leave",
+    icon: "🚶",
+    description: "вийти з ґільдії",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_delete",
+    icon: "🧨",
+    description: "розпустити власну ґільдію",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_transfer",
+    icon: "👑",
+    description: "передати провід учасникові",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_promote",
+    icon: "⬆️",
+    description: "підвищити учасника",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_demote",
+    icon: "⬇️",
+    description: "понизити учасника",
+    includeInMenu: false,
+    featureOnly: "guild"
+  },
+  {
+    command: "guild_kick",
+    icon: "🥾",
+    description: "виключити учасника",
+    includeInMenu: false,
+    featureOnly: "guild"
   },
   {
     command: "invite",
@@ -537,10 +621,12 @@ export interface DevCommandVisibility {
   includePartySessions?: boolean;
   includeGroupCombat?: boolean;
   includeRaidChat?: boolean;
+  includeRaidChatDev?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
+  includeGuildDev?: boolean;
   includeReferral?: boolean;
   includeReferralDev?: boolean;
 }
@@ -552,6 +638,8 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
     if (!entry.devOnly) {
       return !entry.featureOnly
         || (entry.featureOnly === "tavern-games" && normalized.includeTavernGames)
+        || (entry.featureOnly === "raid-chat" && normalized.includeRaidChat)
+        || (entry.featureOnly === "guild" && normalized.includeGuild)
         || (entry.featureOnly === "referral" && normalized.includeReferral);
     }
 
@@ -568,7 +656,7 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
     }
 
     if (entry.devOnly === "raid-chat") {
-      return normalized.includeRaidChat;
+      return normalized.includeRaidChatDev;
     }
 
     if (entry.devOnly === "group-combat") {
@@ -576,7 +664,7 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
     }
 
     if (entry.devOnly === "guild") {
-      return normalized.includeGuild;
+      return normalized.includeGuildDev;
     }
 
     if (entry.devOnly === "referral") {
@@ -611,10 +699,12 @@ function normalizeDevCommandVisibility(
       includePartySessions: visibility,
       includeGroupCombat: visibility,
       includeRaidChat: visibility,
+      includeRaidChatDev: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility,
       includeGuild: visibility,
+      includeGuildDev: visibility,
       includeReferral: visibility,
       includeReferralDev: visibility
     };
@@ -626,10 +716,12 @@ function normalizeDevCommandVisibility(
     includePartySessions: visibility.includePartySessions ?? false,
     includeGroupCombat: visibility.includeGroupCombat ?? false,
     includeRaidChat: visibility.includeRaidChat ?? false,
+    includeRaidChatDev: visibility.includeRaidChatDev ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false,
     includeGuild: visibility.includeGuild ?? false,
+    includeGuildDev: visibility.includeGuildDev ?? false,
     includeReferral: visibility.includeReferral ?? false,
     includeReferralDev: visibility.includeReferralDev ?? false
   };

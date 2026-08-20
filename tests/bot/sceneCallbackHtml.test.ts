@@ -7498,7 +7498,7 @@ describe("scene callback HTML options", () => {
     );
     const edit = calls.find((call) => call.method === "editMessageText");
 
-    expect(String(edit?.payload.text)).toContain("⚔️ Пригоди й бої · 2/5");
+    expect(String(edit?.payload.text)).toContain("⚔️ Пригоди й бої · 2/6");
     expect(String(edit?.payload.text)).toContain("/adventure");
     expect(String(edit?.payload.text)).toContain("/cellar");
     expect(String(edit?.payload.text)).not.toContain("/inventory");

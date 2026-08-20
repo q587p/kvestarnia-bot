@@ -8,7 +8,9 @@
 
 - Поверхня: `📨 Поклик до Квестарні`
 - Список: `👥 Мої покликані`
-- Share: `📣 Поділитися покликом`
+- Generate: `📝 Згенерувати запрошення`
+- Regenerate: `🎲 Перегенерувати текст`
+- Share: `📨 Поділитися запрошенням`
 - Accept: `✅ Прийняти поклик`
 - Decline without blocking onboarding: `Продовжити без поклику`
 - Refresh: `🔄 Оновити`
@@ -39,8 +41,6 @@
 8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота
 13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота
 
-Разом — 🩹 Щільний бинт ×1 · ⚕️ Польова аптечка ×6 · ✨ 276 Іскрокаменів · 💰 1830 золота
-
 🔗 <b>Твоє посилання:</b>
 https://t.me/BOT_USERNAME?start=ref1_TOKEN
 
@@ -54,13 +54,26 @@ https://t.me/BOT_USERNAME?start=ref1_TOKEN
 Keyboard:
 
 ```text
-📣 Поділитися покликом
+📝 Згенерувати запрошення
 👥 Мої покликані
 🔄 Оновити
 ↩️ До Дошки
 ```
 
 Немає кнопки `Забрати нагороду`.
+
+### Генератор тексту запрошення
+
+Окремий екран показує один із 13 різних коротких українських текстів із безпечним імʼям запрошувача. Кнопка `🎲 Перегенерувати текст` переходить до наступного варіянта, а стабільне referral-посилання при цьому не змінюється.
+
+```text
+📨 Поділитися запрошенням
+🎲 Перегенерувати текст
+🔗 Скопіювати посилання
+↩️ До поклику
+```
+
+Усі 13 текстів мають бути досяжні послідовними натисканнями; callback не містить referral-токена.
 
 ### Є pending-виплати
 
@@ -98,7 +111,7 @@ Keyboard:
 Keyboard:
 
 ```text
-📣 Поділитися покликом
+📝 Згенерувати запрошення
 🪶 Створити персонажа
 ```
 
@@ -108,19 +121,15 @@ Keyboard:
 Писар тимчасово не приймає нових покликів. Уже записані пригодники й зароблені етапи не зникнуть.
 ```
 
-## Forwardable share card
+## Forwardable share draft
 
 ```html
 📨 <b>Поклик до Квестарні</b>
 
-«ІМʼЯ ПЕРСОНАЖА» лишає тобі поклик до української текстової RPG у Telegram.
-
-Створи пригодника, заходь до Корчми й перевір, скільки дрібних проблем уміщається в одному журналі.
-
-🔗 https://t.me/BOT_USERNAME?start=ref1_TOKEN
+«ІМʼЯ ПЕРСОНАЖА» лишає тобі поклик до Квестарні. Створи пригодника — корчма вже сперечається, який кухоль вважати вітальним.
 ```
 
-Кнопка `📣 Поділитися покликом` використовує Telegram Share URL. Гравець сам обирає чат/групу/канал і може змінити текст. Бот не зберігає destination.
+Це перший із 13 канонічних варіянтів. Кнопка `📨 Поділитися запрошенням` використовує Telegram Share URL і окремо передає стабільне referral-посилання. Гравець сам обирає чат/групу/канал і може змінити текст. Бот не зберігає destination.
 
 ## Landing і consent
 
@@ -364,6 +373,8 @@ Do not expose an error stack or ask for manual claim. Dashboard line:
 
 - Exact bundles are always `3→dense×1 + iskro×5 + gold50`, `5→kit×1 + iskro×13 + gold120`, `8→kit×2 + iskro×65 + gold760`, `13→kit×3 + iskro×193 + gold900`.
 - The dashboard uses canonical Ukrainian item names and never exposes technical `item.*` identifiers.
+- The dashboard does not render a separate aggregate `Разом — …` reward line; economic totals remain policy/test evidence only.
+- The stable referral URL has 13 distinct reachable share-copy variants; regenerating copy never rotates the token.
 - The level-13 explanation says `193` covers the most expensive current single `+4 → +5` attempt, not the preceding steps; it never says or implies `+6`.
 - Use `автоматично` in the join notice and reward contract.
 - Use `видано/отримано` only after committed grant.

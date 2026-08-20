@@ -13,7 +13,7 @@ Canonical source: `../../CONTRACT.md`.
 
 Each accepted direct invitee has all four stages. Gold and every item are one frozen automatic payout for that stage. There is no payout for level 2 or 10, signup, acceptance, purchases or a second referral generation.
 
-The private inviter dashboard shows this exact table before the link is shared, plus totals of `1 × item.dense-bandage`, `6 × item.field-kit`, `276 × item.iskrokamin` and `1830` gold. This owner-approved disclosure is referral-dashboard-only and does not change the spoiler-light consent card, lore or `news.md`.
+The private inviter dashboard shows this exact per-stage table before the link is shared, but no separate aggregate totals line. Policy/economic checks still verify `1 × item.dense-bandage`, `6 × item.field-kit`, `276 × item.iskrokamin` and `1830` gold. This owner-approved disclosure is referral-dashboard-only and does not change the spoiler-light consent card, lore or `news.md`.
 
 ## Live catalog facts
 

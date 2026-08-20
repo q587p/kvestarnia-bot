@@ -9,7 +9,8 @@ import { playerFromContext } from "../context";
 import {
   buildReferralConsentKeyboard,
   buildReferralDashboardKeyboard,
-  buildReferralInviteeListKeyboard
+  buildReferralInviteeListKeyboard,
+  buildReferralShareKeyboard
 } from "../keyboards/referralKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import {
@@ -17,7 +18,8 @@ import {
   presentReferralConsent,
   presentReferralDashboard,
   presentReferralDeclined,
-  presentReferralInvitees
+  presentReferralInvitees,
+  presentReferralShareDraft
 } from "../presenters/referralPresenter";
 import { presentWelcome } from "../presenters/onboardingPresenter";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
@@ -133,6 +135,26 @@ async function handleReferralCallback(
     await safeEditMessageText(ctx, presentReferralInvitees(page), {
       ...HTML_OPTIONS,
       reply_markup: buildReferralInviteeListKeyboard(page)
+    });
+    return;
+  }
+  if (action.type === "share") {
+    const dashboard = await service.getDashboard(telegramUserId);
+    if (dashboard.state !== "ready") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Посилання зараз недоступне. Повернися до поклику й онови сторінку.",
+        show_alert: true
+      });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx, {
+      text: action.variant === 0
+        ? "Текст запрошення готовий."
+        : "Інший текст готовий; посилання не змінилося."
+    });
+    await safeEditMessageText(ctx, presentReferralShareDraft(dashboard, action.variant), {
+      ...HTML_OPTIONS,
+      reply_markup: buildReferralShareKeyboard(dashboard, action.variant)
     });
     return;
   }

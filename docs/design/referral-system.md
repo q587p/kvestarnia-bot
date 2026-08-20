@@ -74,8 +74,8 @@ Snapshot-test the entire array, canonical `itemId` ordering and absence of dupli
 ### Inviter
 
 1. Open `📰 Дошка корчми → 📨 Поклик до Квестарні` or `/invite`.
-2. See exact rewards, stable link, accepted-and-arrived count and stage totals.
-3. Press `📣 Поділитися покликом` to open Telegram’s user-controlled share chooser.
+2. See exact per-stage rewards, stable link, accepted-and-arrived count and stage counters; no separate aggregate reward-total line is rendered.
+3. Press `📝 Згенерувати запрошення`, cycle through 13 distinct texts with `🎲 Перегенерувати текст`, then open Telegram’s user-controlled share chooser without rotating the stable URL.
 4. Receive a private join notice after the fresh player accepts and creates the first Character.
 5. Receive one private payout notice after each automatic item-and-gold bundle commits.
 6. Open `👥 Мої покликані` to see five accepted-and-arrived players per page.
@@ -336,7 +336,7 @@ Telegram cannot provide end-to-end exactly-once delivery. The outbox may very ra
 
 Aggregate from accepted attributions and durable reward rows:
 
-Before the stable share link, show the exact four-stage reward table and its totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; consent, lore and news do not inherit it.
+Before the stable share link, show the exact four-stage reward table without a separate aggregate `Разом — …` line. Policy and economic evidence still verify the totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; consent, lore and news do not inherit it. Invitation-copy regeneration cycles through 13 distinct Ukrainian texts and never replaces the stable referral token.
 
 ```text
 arrivedTotal

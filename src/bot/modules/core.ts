@@ -133,11 +133,13 @@ async function handleMenuCallback(
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
       includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
-      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+      includeRaidChat: services.partyRaidChat !== undefined,
+      includeRaidChatDev: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
-      includeGuild: services.guilds?.areDevHelpersEnabled() ?? false,
+      includeGuild: services.guilds !== undefined,
+      includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
       includeReferral: services.referrals?.isFoundationEnabled() ?? false,
       includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
     }), {
@@ -167,11 +169,13 @@ async function handleHelpCallback(
     includeDevGrant: services.devGrant?.isEnabled() ?? false,
     includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
     includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
-    includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+    includeRaidChat: services.partyRaidChat !== undefined,
+    includeRaidChatDev: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeTavernGames: services.tavernGames?.isEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
-    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false,
+    includeGuild: services.guilds !== undefined,
+    includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
     includeReferral: services.referrals?.isFoundationEnabled() ?? false,
     includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
   }, page), {

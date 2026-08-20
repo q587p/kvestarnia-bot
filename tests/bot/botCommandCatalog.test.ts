@@ -1,4 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import ts from "typescript";
 import {
   botCommandCatalog,
   getHelpCommandEntries,
@@ -6,6 +9,17 @@ import {
 } from "../../src/bot/botCommandCatalog";
 
 describe("bot command catalog", () => {
+  it("requires every directly registered command to be represented in the help catalog", () => {
+    const registrations = collectBotCommandRegistrations();
+    const catalogCommands = new Set(botCommandCatalog.map((entry) => entry.command));
+
+    expect(registrations.commands.filter((command) => !catalogCommands.has(command))).toEqual([]);
+    expect(registrations.dynamic).toEqual([
+      "src/bot/commands/guildCommand.ts:command",
+      "src/bot/commands/plannedCommand.ts:command"
+    ]);
+  });
+
   it("uses a unique icon for player-facing commands", () => {
     const icons = botCommandCatalog
       .filter((entry) => !entry.devOnly)
@@ -161,6 +175,27 @@ describe("bot command catalog", () => {
       .toMatchObject({ includeInMenu: false, devOnly: "referral" });
   });
 
+  it("shows registered guild action commands only with the guild runtime", () => {
+    const hidden = getHelpCommandEntries({ includeDevReset: false });
+    const visible = getHelpCommandEntries({ includeDevReset: false, includeGuild: true });
+    const commands = [
+      "guild_create",
+      "guild_invite_code",
+      "guild_invite",
+      "guild_party",
+      "guild_edit",
+      "guild_leave",
+      "guild_delete",
+      "guild_transfer",
+      "guild_promote",
+      "guild_demote",
+      "guild_kick"
+    ];
+
+    expect(commands.every((command) => !hidden.some((entry) => entry.command === command))).toBe(true);
+    expect(commands.every((command) => visible.some((entry) => entry.command === command))).toBe(true);
+  });
+
   it("keeps local dev commands available for dev help but not in the side menu", () => {
     for (const command of [
       "dev_help",
@@ -199,7 +234,7 @@ describe("bot command catalog", () => {
     const raidChatOnly = getHelpCommandEntries({
       includeDevReset: false,
       includeDevGrant: false,
-      includeRaidChat: true
+      includeRaidChatDev: true
     });
 
     expect(resetOnly.some((entry) => entry.command === "dev_help")).toBe(true);
@@ -303,3 +338,57 @@ describe("bot command catalog", () => {
     }
   });
 });
+
+function collectBotCommandRegistrations(): { commands: string[]; dynamic: string[] } {
+  const root = join(process.cwd(), "src", "bot");
+  const commands = new Set<string>();
+  const dynamic: string[] = [];
+
+  for (const path of typescriptFiles(root)) {
+    const source = ts.createSourceFile(
+      path,
+      readFileSync(path, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS
+    );
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node)
+        && ts.isPropertyAccessExpression(node.expression)
+        && node.expression.name.text === "command"
+      ) {
+        const argument = node.arguments[0];
+        if (argument && ts.isStringLiteral(argument)) {
+          commands.add(argument.text);
+        } else if (argument && ts.isArrayLiteralExpression(argument)) {
+          for (const element of argument.elements) {
+            if (ts.isStringLiteral(element)) {
+              commands.add(element.text);
+            }
+          }
+        } else {
+          dynamic.push(`${relative(process.cwd(), path).replace(/\\/g, "/")}:${argument?.getText(source) ?? "missing"}`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+
+  return {
+    commands: [...commands].sort(),
+    dynamic: dynamic.sort()
+  };
+}
+
+function typescriptFiles(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    return entry.isDirectory()
+      ? typescriptFiles(path)
+      : entry.isFile() && entry.name.endsWith(".ts")
+        ? [path]
+        : [];
+  });
+}

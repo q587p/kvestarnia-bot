@@ -34,13 +34,15 @@ export function registerHelpCommand(
     includeDevGrant: devGrantService?.isEnabled() ?? false,
     includePartySessions: options.partySessionService?.areDevHelpersEnabled() ?? false,
     includeGroupCombat: options.groupCombatService?.areDevHelpersEnabled() ?? false,
-    includeRaidChat: options.partyRaidChatService?.areDevHelpersEnabled() ?? false,
+    includeRaidChat: options.partyRaidChatService !== undefined,
+    includeRaidChatDev: options.partyRaidChatService?.areDevHelpersEnabled() ?? false,
     includeTavernGames: typeof options.tavernGameService?.isEnabled === "function"
       ? options.tavernGameService.isEnabled()
       : false,
     includeFightingCornerQuest: options.fightingCornerQuestService?.isDevHelperEnabled() ?? false,
     includeHpRecovery: options.healthRecoveryNotificationService?.areDevHelpersEnabled() ?? false,
-    includeGuild: options.guildService?.areDevHelpersEnabled() ?? false,
+    includeGuild: options.guildService !== undefined,
+    includeGuildDev: options.guildService?.areDevHelpersEnabled() ?? false,
     includeReferral: options.referralService?.isFoundationEnabled() ?? false,
     includeReferralDev: options.referralService?.areDevHelpersEnabled() ?? false
   };

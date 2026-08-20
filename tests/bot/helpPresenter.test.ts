@@ -12,6 +12,7 @@ describe("help presenter", () => {
     expect(text).toContain("⚔️ Пригоди й бої — справи, монстри та Низ.");
     expect(text).toContain("🎒 Манатки — торба, спорядження й гачки.");
     expect(text).toContain("🍺 Корчма й люди — місця, Бочка та дозвілля.");
+    expect(text).toContain("🛡️ Ґільдії — дім, учасники та ватага.");
     expect(text).toContain("📰 Довідки й вісті — дошка, Перекази й підтримка.");
     expect(text).toContain("Оберіть розділ кнопкою нижче.");
     expect(text).not.toContain("Команди:");
@@ -20,8 +21,14 @@ describe("help presenter", () => {
   });
 
   it("places every available public command on exactly one focused page", () => {
-    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "news"];
-    const visibility = { includeDevReset: true, includeDevGrant: true, includeTavernGames: true };
+    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "guild", "news"];
+    const visibility = {
+      includeDevReset: true,
+      includeDevGrant: true,
+      includeTavernGames: true,
+      includeGuild: true,
+      includeReferral: true
+    };
     const commandRows = pages.flatMap((page) =>
       presentHelp(visibility, page).match(/^\S+ \/[a-z_]+(?:, \/[a-z_]+)* — .+$/gmu) ?? []
     );
@@ -36,6 +43,32 @@ describe("help presenter", () => {
     expect(new Set(renderedCommands).size).toBe(renderedCommands.length);
     expect(presentHelp(visibility, "items")).toContain("Воїн може тримати по зброї в кожній руці.");
     expect(presentHelp(visibility, "news")).toContain("Крамниці й ремесло ще готуються.");
+  });
+
+  it("shows enabled referral and every registered guild command in focused help sections", () => {
+    expect(presentHelp({ includeDevReset: false, includeReferral: true }, "news"))
+      .toContain("📨 /invite — поклик до Квестарні");
+    const guild = presentHelp({ includeDevReset: false, includeGuild: true }, "guild");
+    for (const command of [
+      "guild",
+      "guild_create",
+      "guild_invite_code",
+      "guild_invite",
+      "guild_party",
+      "guild_edit",
+      "guild_leave",
+      "guild_delete",
+      "guild_transfer",
+      "guild_promote",
+      "guild_demote",
+      "guild_kick"
+    ]) {
+      expect(guild).toContain(`/${command}`);
+    }
+    expect(presentHelp({ includeDevReset: false, includeRaidChat: true }, "korchma"))
+      .toContain("✋ /cancel_raid_chat — скасувати написання в рейд-чаті");
+    expect(presentHelp({ includeDevReset: false }, "korchma"))
+      .not.toContain("/cancel_raid_chat");
   });
 
   it("keeps related command aliases on shared compact rows", () => {
@@ -59,7 +92,7 @@ describe("help presenter", () => {
   });
 
   it("keeps dev commands out of player help even when local gates are enabled", () => {
-    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "news"];
+    const pages: Array<Exclude<HelpPage, "menu">> = ["hero", "adventures", "items", "korchma", "guild", "news"];
     const resetOnly = pages.map((page) => presentHelp({ includeDevReset: true }, page)).join("\n");
     const grantsEnabled = pages.map((page) => presentHelp({
       includeDevReset: true,
@@ -161,12 +194,12 @@ describe("help presenter", () => {
     }, "combat");
     const guildEnabled = presentDevHelp({
       includeDevReset: false,
-      includeGuild: true
+      includeGuildDev: true
     }, "resources");
     const raidChatEnabled = presentDevHelp({
       includeDevReset: false,
       includeDevGrant: false,
-      includeRaidChat: true
+      includeRaidChatDev: true
     }, "combat");
     const disabled = presentDevHelp({ includeDevReset: false, includeDevGrant: false });
 

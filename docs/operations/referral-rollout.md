@@ -29,7 +29,8 @@ Neither flag deletes, rebinds, changes the frozen payload of or reissues an exis
   - level 5 achievement → `120` gold, `1 × item.field-kit`, `13 × item.iskrokamin`;
   - level 8 achievement → `760` gold, `2 × item.field-kit`, `65 × item.iskrokamin`;
   - level 13 achievement → `900` gold, `3 × item.field-kit`, `193 × item.iskrokamin`.
-- [ ] Before the link is shared, the private inviter dashboard discloses all four exact bundles and the totals `1/6/276/1830`; invitee consent, lore and `news.md` remain spoiler-light.
+- [ ] Before the link is shared, the private inviter dashboard discloses all four exact bundles with canonical Ukrainian item names, no technical IDs and no separate aggregate totals line; policy evidence remains `1/6/276/1830`, while invitee consent, lore and `news.md` stay spoiler-light.
+- [ ] The dashboard opens a 13-variant invitation-copy generator; every text is reachable, the share URL encodes it correctly and regeneration never rotates the stable referral token.
 - [ ] There are no click, signup, elapsed-time, daily-action, purchase or volume gates.
 - [ ] The additive migration succeeds on an empty database and a production-like 0.4.5 database; backup restore is tested.
 - [ ] Focused referral tests, full `npm run check`, `npm run db:validate`, migration/rollback smoke and `git diff --check` pass at the release SHA.

@@ -1,6 +1,10 @@
 import { REFERRAL_POLICY_V1, type ReferralRewardItem } from "../../domain/referral/referralPolicy";
 import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
 import { findItemContent } from "../../content/itemLookup";
+import {
+  REFERRAL_INVITE_SHARE_TEXT_COUNT,
+  normalizeReferralInviteShareTextIndex
+} from "../../content/referralInviteCopy";
 import type { ReferralInviteePage } from "../../db/repositories/referralRepository";
 import type { ReferralDashboardResult } from "../../services/referralService";
 import { escapeHtml } from "./telegramHtml";
@@ -59,6 +63,21 @@ export function presentReferralDashboard(result: ReferralDashboardResult): strin
           "Нагороди, які вже чекають автоматичної доставки, не зникнуть. Коли зʼявиться чинний персонаж і доставка буде доступна, Квестарня повторить спробу. Забирати вручну нічого не треба."
         ]
       : [])
+  ].join("\n");
+}
+
+export function presentReferralShareDraft(
+  result: Extract<ReferralDashboardResult, { state: "ready" }>,
+  variant: number
+): string {
+  const normalized = normalizeReferralInviteShareTextIndex(variant);
+  const shareText = result.shareTexts[normalized] ?? result.shareText;
+  return [
+    "📝 <b>Запрошення до Квестарні</b>",
+    "",
+    `<blockquote>${escapeHtml(shareText)}</blockquote>`,
+    "",
+    `Варіянт <b>${normalized + 1}/${REFERRAL_INVITE_SHARE_TEXT_COUNT}</b>. Перегенеровується лише текст — твоє посилання лишається тим самим.`
   ].join("\n");
 }
 
@@ -236,21 +255,7 @@ function presentRewardTrackLines(): string[] {
 }
 
 function presentDashboardRewardTrackLines(): string[] {
-  const itemTotals = new Map<string, number>();
-  const goldTotal = REFERRAL_POLICY_V1.stages.reduce((total, stage) => {
-    for (const item of stage.itemGrants) {
-      itemTotals.set(item.itemId, (itemTotals.get(item.itemId) ?? 0) + item.quantity);
-    }
-    return total + stage.gold;
-  }, 0);
-  const totalItems = ["item.dense-bandage", "item.field-kit", "item.iskrokamin"]
-    .map((itemId) => ({ itemId, quantity: itemTotals.get(itemId) ?? 0 }))
-    .filter((item) => item.quantity > 0);
-  return [
-    ...presentRewardTrackLines(),
-    "",
-    `Разом — ${totalItems.map(presentReferralRewardItem).join(" · ")} · 💰 ${goldTotal} золота`
-  ];
+  return presentRewardTrackLines();
 }
 
 function parseNotificationItems(value: unknown[]): ReferralRewardItem[] | null {

@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.6] - 12026-08-19 - Referral Foundation and Automatic Milestone Rewards
+## [0.4.6] - 12026-08-20 - Referral Foundation and Automatic Milestone Rewards
 
 ### Added
 - Added a default-off public `📨 Поклик до Квестарні` flow on the Korchma board and `/invite`, with one stable User-level `ref1_*` share link, explicit fresh-player consent, first-touch attribution and five-row inviter history.
@@ -28,7 +28,8 @@ This project follows a simple pre-1.0 versioning policy:
 ### Fixed
 - Pending consent now blocks direct or stale Character-creation callbacks until the player accepts or continues without the referral, preventing an unnamed or retroactively bound arrival.
 - Missing/restarted inviter Characters, disabled payouts, transient writes and Telegram delivery failures remain durable pending work rather than producing partial bundles or requiring a claim button.
-- The private inviter dashboard now shows the owner-approved exact four-stage reward table and complete totals before sharing, while consent, lore and news stay concise.
+- The private inviter dashboard now shows the owner-approved exact four-stage reward table with canonical Ukrainian names but no separate aggregate totals line; a stable-link generator offers 13 distinct invitation texts, while consent, lore and news stay concise.
+- Player help now lists every enabled production command in one focused section, including referral and the full guild command family, with a catalog regression preventing silent omissions.
 - Exhausted fresh-capture conflicts now stop before presence without consuming eligibility; referral arrivals persist frozen Chronicle evidence and reconcile the single `referral.arrived` row after write failure or process restart.
 - Referral scheduling now proves immediate non-overlapping startup, clean in-flight shutdown, flag-aware recovery and per-row failure isolation so one corrupt or unexpected reward cannot starve later due work.
 

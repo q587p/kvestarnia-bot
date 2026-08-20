@@ -14,6 +14,10 @@ import {
   type ReferralRewardItem
 } from "../domain/referral/referralPolicy";
 import { sanitizeReferralName } from "../domain/referral/referralIdentity";
+import {
+  REFERRAL_INVITE_SHARE_TEXT_COUNT,
+  referralInviteShareText
+} from "../content/referralInviteCopy";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
@@ -28,6 +32,7 @@ export type ReferralDashboardResult =
       state: "ready";
       inviteUrl: string;
       shareText: string;
+      shareTexts: readonly string[];
       hasCharacter: boolean;
       arrivedTotal: number;
       grantedStageTotal: number;
@@ -99,6 +104,7 @@ export class ReferralService {
         state: "ready",
         inviteUrl: this.buildInviteUrl(existing.token),
         shareText: this.buildShareText(existing.inviterName),
+        shareTexts: this.buildShareTexts(existing.inviterName),
         hasCharacter: existing.hasCharacter,
         arrivedTotal: existing.arrivedTotal,
         grantedStageTotal: existing.grantedStageTotal,
@@ -130,6 +136,7 @@ export class ReferralService {
         state: "ready",
         inviteUrl: this.buildInviteUrl(dashboard.token),
         shareText: this.buildShareText(dashboard.inviterName),
+        shareTexts: this.buildShareTexts(dashboard.inviterName),
         hasCharacter: dashboard.hasCharacter,
         arrivedTotal: dashboard.arrivedTotal,
         grantedStageTotal: dashboard.grantedStageTotal,
@@ -258,13 +265,15 @@ export class ReferralService {
   }
 
   private buildShareText(inviterName: string): string {
-    return [
-      "📨 Поклик до Квестарні",
-      "",
-      `«${sanitizeReferralName(inviterName)}» лишає тобі поклик до української текстової RPG у Telegram.`,
-      "",
-      "Створи пригодника, заходь до Корчми й перевір, скільки дрібних проблем уміщається в одному журналі."
-    ].join("\n");
+    return referralInviteShareText(0, sanitizeReferralName(inviterName));
+  }
+
+  private buildShareTexts(inviterName: string): readonly string[] {
+    const safeName = sanitizeReferralName(inviterName);
+    return Array.from(
+      { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
+      (_, index) => referralInviteShareText(index, safeName)
+    );
   }
 
   private async trackGrantAchievements(grant: {
