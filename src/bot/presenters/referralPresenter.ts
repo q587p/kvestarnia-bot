@@ -2,12 +2,13 @@ import { REFERRAL_POLICY_V1, type ReferralRewardItem } from "../../domain/referr
 import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
 import { findItemContent } from "../../content/itemLookup";
 import {
-  REFERRAL_INVITE_SHARE_TEXT_COUNT,
-  normalizeReferralInviteShareTextIndex
+  normalizeReferralInviteShareTextIndex,
+  referralInviteShareBody
 } from "../../content/referralInviteCopy";
 import type { ReferralInviteePage } from "../../db/repositories/referralRepository";
 import type { ReferralDashboardResult } from "../../services/referralService";
 import { escapeHtml } from "./telegramHtml";
+import { presentForwardableSocialInvite } from "./socialInvitePresenter";
 
 export function presentReferralBoardEntry(): string {
   return [
@@ -71,14 +72,13 @@ export function presentReferralShareDraft(
   variant: number
 ): string {
   const normalized = normalizeReferralInviteShareTextIndex(variant);
-  const shareText = result.shareTexts[normalized] ?? result.shareText;
-  return [
-    "📝 <b>Запрошення до Квестарні</b>",
-    "",
-    `<blockquote>${escapeHtml(shareText)}</blockquote>`,
-    "",
-    `Варіянт <b>${normalized + 1}/${REFERRAL_INVITE_SHARE_TEXT_COUNT}</b>. Перегенеровується лише текст — твоє посилання лишається тим самим.`
-  ].join("\n");
+  const safeName = escapeHtml(result.inviterIdentity.name);
+  return presentForwardableSocialInvite({
+    heading: "📨 Поклик до Квестарні",
+    bodyHtml: referralInviteShareBody(normalized, `<b>${safeName}</b>`),
+    inviterIdentity: result.inviterIdentity,
+    inviteUrl: result.inviteUrl
+  });
 }
 
 export function presentReferralCaptureRetry(): string {

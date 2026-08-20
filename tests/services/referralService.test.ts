@@ -8,6 +8,47 @@ import { ReferralService } from "../../src/services/referralService";
 const NOW = new Date("2026-08-19T13:00:00.000Z");
 
 describe("ReferralService recovery", () => {
+  it("projects the current title and live guild into every share variant", async () => {
+    const getDashboard = vi.fn().mockResolvedValue({
+      token: "abCD_123-xyZ7890",
+      inviterName: "Архівне імʼя",
+      inviterIdentity: {
+        name: "Shannar de Kassal",
+        activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk",
+        guildCrest: "🐉",
+        guildName: "Лускаті рахівники"
+      },
+      hasCharacter: true,
+      arrivedTotal: 0,
+      grantedStageTotal: 0,
+      pendingStageTotal: 0,
+      earnedByMilestone: { LEVEL_3: 0, LEVEL_5: 0, LEVEL_8: 0, LEVEL_13: 0 }
+    });
+    const repository = referralRepository({
+      getDashboard
+    });
+    const service = makeService(repository, { foundationEnabled: true, payoutsEnabled: true });
+
+    const result = await service.getDashboard(42n);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      inviterIdentity: {
+        name: "Shannar de Kassal",
+        activeCosmeticTitle: "Перший писар",
+        guildCrest: "🐉",
+        guildName: "Лускаті рахівники"
+      }
+    });
+    if (result.state !== "ready") throw new Error("Expected ready referral dashboard.");
+    expect(result.shareTexts).toHaveLength(13);
+    expect(result.shareTexts.every((text) =>
+      text.includes("Титул: «Перший писар»") &&
+      text.includes("Ґільдія: 🐉 Лускаті рахівники")
+    )).toBe(true);
+    expect(getDashboard).toHaveBeenCalledWith(42n, NOW);
+  });
+
   it("isolates and reschedules one unexpected due reward failure without starving the batch", async () => {
     const grantPendingReward = vi.fn()
       .mockRejectedValueOnce(new Error("unexpected row failure"))

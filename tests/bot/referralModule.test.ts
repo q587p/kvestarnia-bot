@@ -7,15 +7,22 @@ import type { ReferralService } from "../../src/services/referralService";
 describe("referral bot module", () => {
   it("opens and regenerates owner-bound share drafts without rotating the stable URL", async () => {
     const inviteUrl = "https://t.me/kvestarnia_bot?start=ref1_abCD_123-xyZ7890";
+    const inviterIdentity = {
+      name: "Кличко",
+      activeCosmeticTitle: "Перший писар",
+      guildCrest: "🐉",
+      guildName: "Лускаті рахівники"
+    };
     const shareTexts = Array.from(
       { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
-      (_, index) => referralInviteShareText(index, "Кличко")
+      (_, index) => referralInviteShareText(index, inviterIdentity)
     );
     const getDashboard = vi.fn().mockResolvedValue({
       state: "ready",
       inviteUrl,
       shareText: shareTexts[0],
       shareTexts,
+      inviterIdentity,
       hasCharacter: true,
       arrivedTotal: 0,
       grantedStageTotal: 0,
@@ -48,8 +55,11 @@ describe("referral bot module", () => {
       text: "Інший текст готовий; посилання не змінилося."
     }));
     expect(edits).toHaveLength(1);
-    expect(edits[0]?.text).toContain("Варіянт <b>2/13</b>");
-    expect(edits[0]?.text).toContain("«Кличко» кличе тебе до Квестарні");
+    expect(edits[0]?.text).toContain("«<b>Кличко</b>» кличе тебе до Квестарні");
+    expect(edits[0]?.text).toContain("Титул: <i>«Перший писар»</i>");
+    expect(edits[0]?.text).toContain("Ґільдія: 🐉 <b>Лускаті рахівники</b>");
+    expect(edits[0]?.text).toContain(inviteUrl);
+    expect(edits[0]?.text).not.toContain("Варіянт");
     const buttons = (edits[0]?.reply_markup as {
       inline_keyboard: Array<Array<{ text: string; url?: string; callback_data?: string }>>;
     }).inline_keyboard.flat();

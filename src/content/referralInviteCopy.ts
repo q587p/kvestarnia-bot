@@ -16,12 +16,31 @@ export const REFERRAL_INVITE_SHARE_TEXT_TEMPLATES = [
 
 export const REFERRAL_INVITE_SHARE_TEXT_COUNT = REFERRAL_INVITE_SHARE_TEXT_TEMPLATES.length;
 
-export function referralInviteShareText(index: number, inviterName: string): string {
+export interface ReferralInviteShareIdentity {
+  name: string;
+  activeCosmeticTitle?: string | null;
+  guildCrest?: string | null;
+  guildName?: string | null;
+}
+
+export function referralInviteShareBody(index: number, inviterName: string): string {
   const template = REFERRAL_INVITE_SHARE_TEXT_TEMPLATES[normalizeReferralInviteShareTextIndex(index)]!;
+  return template(inviterName);
+}
+
+export function referralInviteShareText(
+  index: number,
+  inviter: string | ReferralInviteShareIdentity
+): string {
+  const identity = typeof inviter === "string" ? { name: inviter } : inviter;
   return [
     "📨 Поклик до Квестарні",
     "",
-    template(inviterName)
+    referralInviteShareBody(index, identity.name),
+    ...(identity.activeCosmeticTitle ? [`Титул: «${identity.activeCosmeticTitle}»`] : []),
+    ...(identity.guildName
+      ? [`Ґільдія: ${identity.guildCrest ? `${identity.guildCrest} ` : ""}${identity.guildName}`]
+      : [])
   ].join("\n");
 }
 

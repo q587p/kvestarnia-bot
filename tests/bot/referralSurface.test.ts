@@ -19,10 +19,26 @@ import {
 const dashboard = {
   state: "ready" as const,
   inviteUrl: "https://t.me/kvestarnia_bot?start=ref1_abCD_123-xyZ7890",
-  shareText: "📨 Поклик до Квестарні\n\n«Кличко» лишає тобі поклик.",
+  inviterIdentity: {
+    name: "Shannar de Kassal",
+    activeCosmeticTitle: "Перший писар",
+    guildCrest: "🐉",
+    guildName: "Лускаті рахівники"
+  },
+  shareText: referralInviteShareText(0, {
+    name: "Shannar de Kassal",
+    activeCosmeticTitle: "Перший писар",
+    guildCrest: "🐉",
+    guildName: "Лускаті рахівники"
+  }),
   shareTexts: Array.from(
     { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
-    (_, index) => referralInviteShareText(index, "Кличко")
+    (_, index) => referralInviteShareText(index, {
+      name: "Shannar de Kassal",
+      activeCosmeticTitle: "Перший писар",
+      guildCrest: "🐉",
+      guildName: "Лускаті рахівники"
+    })
   ),
   hasCharacter: true,
   arrivedTotal: 1,
@@ -72,9 +88,17 @@ describe("referral Telegram surfaces", () => {
         text: "🎲 Перегенерувати текст",
         callback_data: `v1:ref:s:${((variant + 1) % REFERRAL_INVITE_SHARE_TEXT_COUNT).toString(36)}`
       }));
-      expect(presentReferralShareDraft(dashboard, variant)).toContain(
-        `Варіянт <b>${variant + 1}/${REFERRAL_INVITE_SHARE_TEXT_COUNT}</b>`
+      const draft = presentReferralShareDraft(dashboard, variant);
+      expect(draft).toContain("<b>📨 Поклик до Квестарні</b>");
+      expect(draft).toContain("«<b>Shannar de Kassal</b>»");
+      expect(draft).toContain("Титул: <i>«Перший писар»</i>");
+      expect(draft).toContain("Ґільдія: 🐉 <b>Лускаті рахівники</b>");
+      expect(draft).toContain(
+        `🔗 <a href="${dashboard.inviteUrl}">${dashboard.inviteUrl}</a>`
       );
+      expect(draft).not.toContain("Варіянт");
+      expect(draft).not.toContain("Перегенеровується лише текст");
+      expect(draft).not.toContain("<blockquote>");
       return expectedText;
     });
     expect(new Set(renderedShareTexts).size).toBe(13);

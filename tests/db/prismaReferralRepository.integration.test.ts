@@ -36,6 +36,32 @@ describe("PrismaReferralRepository integration", () => {
     await applySqlFile(prisma, `prisma/migrations/${MIGRATION}/migration.sql`);
     repository = new PrismaReferralRepository(prisma);
     await seedCharacter(prisma, "inviter-user", "inviter-character", INVITER_ID, "Кличко");
+    await prisma.character.update({
+      where: { id: "inviter-character" },
+      data: { activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk" }
+    });
+    await prisma.guild.create({
+      data: {
+        id: "inviter-guild",
+        normalizedName: "лускаті рахівники",
+        displayName: "Лускаті рахівники",
+        crest: "🐉",
+        description: "Рахують луску й пригоди.",
+        founderUserId: "inviter-user",
+        leaderUserId: "inviter-user",
+        status: "active",
+        charterExpiresAt: new Date("2030-08-19T09:00:00.000Z"),
+        members: {
+          create: {
+            id: "inviter-guild-member",
+            userId: "inviter-user",
+            activeUserKey: "inviter-user",
+            role: "leader",
+            joinedAt: NOW
+          }
+        }
+      }
+    });
   }, 60_000);
 
   afterAll(async () => {
@@ -46,6 +72,14 @@ describe("PrismaReferralRepository integration", () => {
   it("captures only a fresh User atomically, requires one consent, and never rebinds", async () => {
     await expect(repository.getOrCreateInviteCode(INVITER_ID, TOKEN, "Кличко"))
       .resolves.toMatchObject({ state: "ready", token: TOKEN });
+    await expect(repository.getDashboard(INVITER_ID, NOW)).resolves.toMatchObject({
+      inviterIdentity: {
+        name: "Кличко",
+        activeCosmeticTitleGrantId: "cosmetic-title.first-problem-clerk",
+        guildCrest: "🐉",
+        guildName: "Лускаті рахівники"
+      }
+    });
 
     await expect(repository.captureFreshReferral({
       telegramUserId: INVITEE_ID,
@@ -340,6 +374,30 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
       hp_regen_at DATETIME, mana_regen_at DATETIME, active_cosmetic_title_grant_id TEXT,
       stats_json JSONB NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE guilds (
+      id TEXT PRIMARY KEY, normalized_name TEXT NOT NULL, reservation_key TEXT UNIQUE,
+      display_name TEXT NOT NULL, crest TEXT NOT NULL, crest_kind TEXT NOT NULL DEFAULT 'catalog',
+      crest_reservation_key TEXT UNIQUE, crest_file_id TEXT, crest_file_unique_id TEXT,
+      crest_width INTEGER, crest_height INTEGER, crest_file_size INTEGER,
+      description TEXT NOT NULL, founder_user_id TEXT NOT NULL, leader_user_id TEXT NOT NULL,
+      leadership_nominee_user_id TEXT, leadership_offered_at DATETIME,
+      status TEXT NOT NULL DEFAULT 'forming', version INTEGER NOT NULL DEFAULT 1,
+      charter_expires_at DATETIME NOT NULL, activated_at DATETIME, activated_by_invite_id TEXT,
+      disbanded_at DATETIME, name_release_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (founder_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+      FOREIGN KEY (leader_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+      FOREIGN KEY (leadership_nominee_user_id) REFERENCES users(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE guild_members (
+      id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      active_user_key TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'member', joined_at DATETIME NOT NULL,
+      left_at DATETIME, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE character_items (

@@ -8,13 +8,24 @@ import {
 
 describe("referral invitation copy", () => {
   it("provides thirteen distinct compact Ukrainian variants", () => {
+    const identity = {
+      name: "Кличко",
+      activeCosmeticTitle: "Перший писар",
+      guildCrest: "🐉",
+      guildName: "Лускаті рахівники"
+    };
     const texts = REFERRAL_INVITE_SHARE_TEXT_TEMPLATES.map((_, index) =>
-      referralInviteShareText(index, "Кличко")
+      referralInviteShareText(index, identity)
     );
 
     expect(REFERRAL_INVITE_SHARE_TEXT_COUNT).toBe(13);
     expect(new Set(texts).size).toBe(13);
-    expect(texts.every((text) => text.includes("«Кличко»") && text.length <= 240)).toBe(true);
+    expect(texts.every((text) =>
+      text.includes("«Кличко»") &&
+      text.includes("Титул: «Перший писар»") &&
+      text.includes("Ґільдія: 🐉 Лускаті рахівники") &&
+      text.length <= 320
+    )).toBe(true);
     expect(texts.join(" ")).not.toContain("item.");
   });
 

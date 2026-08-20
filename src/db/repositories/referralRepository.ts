@@ -50,6 +50,12 @@ export type ReferralInviteCodeResult =
 export interface ReferralDashboardRecord {
   token: string;
   inviterName: string;
+  inviterIdentity: {
+    name: string;
+    activeCosmeticTitleGrantId: string | null;
+    guildCrest?: string;
+    guildName?: string;
+  };
   hasCharacter: boolean;
   arrivedTotal: number;
   grantedStageTotal: number;
@@ -118,7 +124,7 @@ export interface ReferralRepository {
     rewardPlanVersion: number,
     foundationEnabled: boolean
   ): Promise<RespondReferralResult>;
-  getDashboard(telegramUserId: bigint): Promise<ReferralDashboardRecord | null>;
+  getDashboard(telegramUserId: bigint, now?: Date): Promise<ReferralDashboardRecord | null>;
   listInvitees(telegramUserId: bigint, page: number, pageSize: number): Promise<ReferralInviteePage | null>;
   listDueRewardIds(now: Date, limit: number): Promise<string[]>;
   listPendingRewardIdsForTelegramUser(telegramUserId: bigint, limit: number): Promise<string[]>;

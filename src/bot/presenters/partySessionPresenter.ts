@@ -33,6 +33,7 @@ import {
   supportsPartyReadiness
 } from "./partyPreparationPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
+import { presentSocialInviteIdentityLine } from "./socialInvitePresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -2159,7 +2160,6 @@ export function presentPartyInviteShare(
     throw new Error("Party invite templates must not be empty.");
   }
 
-  const leaderName = presentCharacterDisplayName(session.leader);
   const participantCount = session.participants.filter((participant) => participant.status === "joined").length;
 
   const leftPassage = isLeftPassageParty(session);
@@ -2171,7 +2171,7 @@ export function presentPartyInviteShare(
     "",
     ...template.body.flatMap((line) => [line, ""]).slice(0, -1),
     "",
-    `Ватажок: ${leaderName}`,
+    presentSocialInviteIdentityLine("Ватажок", session.leader),
     `Учасників: <b>${participantCount}/${session.participantCap}</b>`,
     leftPassage
       ? "Формат: справжня гуртова атака в лівому проході Низу."

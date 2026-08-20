@@ -5,16 +5,22 @@ export interface GuildIdentityMembershipRead {
   activeUserKey: string | null;
   guild?: {
     crest: string;
+    displayName?: string;
     status: string;
     charterExpiresAt: Date;
     disbandedAt: Date | null;
   };
 }
 
-export function readLiveGuildCrest(
+export interface LiveGuildIdentity {
+  crest: string;
+  displayName?: string;
+}
+
+export function readLiveGuildIdentity(
   memberships: readonly GuildIdentityMembershipRead[] | null | undefined,
   now: Date
-): string | undefined {
+): LiveGuildIdentity | undefined {
   const membership = (memberships ?? []).find((candidate) =>
     candidate.leftAt === null &&
     candidate.activeUserKey !== null &&
@@ -29,7 +35,19 @@ export function readLiveGuildCrest(
     )
   );
 
-  return membership?.guild?.crest;
+  return membership?.guild
+    ? {
+        crest: membership.guild.crest,
+        ...(membership.guild.displayName ? { displayName: membership.guild.displayName } : {})
+      }
+    : undefined;
+}
+
+export function readLiveGuildCrest(
+  memberships: readonly GuildIdentityMembershipRead[] | null | undefined,
+  now: Date
+): string | undefined {
+  return readLiveGuildIdentity(memberships, now)?.crest;
 }
 
 export async function readLiveGuildCrestsByCharacterIds(

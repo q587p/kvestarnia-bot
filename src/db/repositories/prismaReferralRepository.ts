@@ -19,6 +19,7 @@ import type {
   ReferralRepository,
   RespondReferralResult
 } from "./referralRepository";
+import { readLiveGuildIdentity } from "./guildIdentityRead";
 
 const TRANSACTION_OPTIONS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -259,12 +260,36 @@ export class PrismaReferralRepository implements ReferralRepository {
     });
   }
 
-  async getDashboard(telegramUserId: bigint): Promise<ReferralDashboardRecord | null> {
+  async getDashboard(
+    telegramUserId: bigint,
+    now = new Date()
+  ): Promise<ReferralDashboardRecord | null> {
     const user = await this.prisma.user.findUnique({
       where: { telegramUserId },
       select: {
         id: true,
-        character: { select: { id: true } },
+        character: {
+          select: {
+            id: true,
+            name: true,
+            activeCosmeticTitleGrantId: true
+          }
+        },
+        guildMemberships: {
+          select: {
+            leftAt: true,
+            activeUserKey: true,
+            guild: {
+              select: {
+                crest: true,
+                displayName: true,
+                status: true,
+                charterExpiresAt: true,
+                disbandedAt: true
+              }
+            }
+          }
+        },
         referralInviteCode: { select: { token: true, inviterNameSnapshot: true } }
       }
     });
@@ -296,9 +321,16 @@ export class PrismaReferralRepository implements ReferralRepository {
         earnedByMilestone[row.milestoneKey] = row._count._all;
       }
     }
+    const guildIdentity = readLiveGuildIdentity(user.guildMemberships, now);
     return {
       token: user.referralInviteCode.token,
       inviterName: user.referralInviteCode.inviterNameSnapshot,
+      inviterIdentity: {
+        name: user.character?.name ?? user.referralInviteCode.inviterNameSnapshot,
+        activeCosmeticTitleGrantId: user.character?.activeCosmeticTitleGrantId ?? null,
+        ...(guildIdentity?.crest ? { guildCrest: guildIdentity.crest } : {}),
+        ...(guildIdentity?.displayName ? { guildName: guildIdentity.displayName } : {})
+      },
       hasCharacter: Boolean(user.character),
       arrivedTotal,
       grantedStageTotal,

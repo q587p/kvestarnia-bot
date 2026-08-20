@@ -4,6 +4,7 @@ import type {
   CaptureReferralResult,
   ClaimedReferralNotification,
   ReferralConsentView,
+  ReferralDashboardRecord,
   ReferralInviteePage,
   ReferralRepository,
   RespondReferralResult
@@ -16,8 +17,10 @@ import {
 import { sanitizeReferralName } from "../domain/referral/referralIdentity";
 import {
   REFERRAL_INVITE_SHARE_TEXT_COUNT,
-  referralInviteShareText
+  referralInviteShareText,
+  type ReferralInviteShareIdentity
 } from "../content/referralInviteCopy";
+import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
 import type { AchievementService } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 
@@ -33,6 +36,7 @@ export type ReferralDashboardResult =
       inviteUrl: string;
       shareText: string;
       shareTexts: readonly string[];
+      inviterIdentity: ReferralInviteShareIdentity;
       hasCharacter: boolean;
       arrivedTotal: number;
       grantedStageTotal: number;
@@ -98,19 +102,9 @@ export class ReferralService {
     if (!this.options.foundationEnabled) {
       return { state: "disabled" };
     }
-    const existing = await this.referrals.getDashboard(telegramUserId);
+    const existing = await this.referrals.getDashboard(telegramUserId, this.now());
     if (existing) {
-      return {
-        state: "ready",
-        inviteUrl: this.buildInviteUrl(existing.token),
-        shareText: this.buildShareText(existing.inviterName),
-        shareTexts: this.buildShareTexts(existing.inviterName),
-        hasCharacter: existing.hasCharacter,
-        arrivedTotal: existing.arrivedTotal,
-        grantedStageTotal: existing.grantedStageTotal,
-        pendingStageTotal: existing.pendingStageTotal,
-        earnedByMilestone: existing.earnedByMilestone
-      };
+      return this.buildDashboardResult(existing);
     }
     const character = await this.characters.findByTelegramUserId(telegramUserId);
     if (!character) {
@@ -128,21 +122,11 @@ export class ReferralService {
       if (created.state === "token-collision") {
         continue;
       }
-      const dashboard = await this.referrals.getDashboard(telegramUserId);
+      const dashboard = await this.referrals.getDashboard(telegramUserId, this.now());
       if (!dashboard) {
         throw new Error("Referral code creation did not yield a dashboard projection.");
       }
-      return {
-        state: "ready",
-        inviteUrl: this.buildInviteUrl(dashboard.token),
-        shareText: this.buildShareText(dashboard.inviterName),
-        shareTexts: this.buildShareTexts(dashboard.inviterName),
-        hasCharacter: dashboard.hasCharacter,
-        arrivedTotal: dashboard.arrivedTotal,
-        grantedStageTotal: dashboard.grantedStageTotal,
-        pendingStageTotal: dashboard.pendingStageTotal,
-        earnedByMilestone: dashboard.earnedByMilestone
-      };
+      return this.buildDashboardResult(dashboard);
     }
     throw new Error("Referral token collision retry limit exhausted.");
   }
@@ -264,15 +248,43 @@ export class ReferralService {
     return `https://t.me/${username}?start=ref1_${token}`;
   }
 
-  private buildShareText(inviterName: string): string {
-    return referralInviteShareText(0, sanitizeReferralName(inviterName));
+  private buildDashboardResult(
+    dashboard: ReferralDashboardRecord
+  ): Extract<ReferralDashboardResult, { state: "ready" }> {
+    const inviterIdentity: ReferralInviteShareIdentity = {
+      name: sanitizeReferralName(dashboard.inviterIdentity.name),
+      activeCosmeticTitle: resolveActiveCosmeticTitleLabel(
+        dashboard.inviterIdentity.activeCosmeticTitleGrantId
+      ),
+      ...(dashboard.inviterIdentity.guildCrest
+        ? { guildCrest: dashboard.inviterIdentity.guildCrest }
+        : {}),
+      ...(dashboard.inviterIdentity.guildName
+        ? { guildName: dashboard.inviterIdentity.guildName }
+        : {})
+    };
+    return {
+      state: "ready",
+      inviteUrl: this.buildInviteUrl(dashboard.token),
+      shareText: this.buildShareText(inviterIdentity),
+      shareTexts: this.buildShareTexts(inviterIdentity),
+      inviterIdentity,
+      hasCharacter: dashboard.hasCharacter,
+      arrivedTotal: dashboard.arrivedTotal,
+      grantedStageTotal: dashboard.grantedStageTotal,
+      pendingStageTotal: dashboard.pendingStageTotal,
+      earnedByMilestone: dashboard.earnedByMilestone
+    };
   }
 
-  private buildShareTexts(inviterName: string): readonly string[] {
-    const safeName = sanitizeReferralName(inviterName);
+  private buildShareText(inviterIdentity: ReferralInviteShareIdentity): string {
+    return referralInviteShareText(0, inviterIdentity);
+  }
+
+  private buildShareTexts(inviterIdentity: ReferralInviteShareIdentity): readonly string[] {
     return Array.from(
       { length: REFERRAL_INVITE_SHARE_TEXT_COUNT },
-      (_, index) => referralInviteShareText(index, safeName)
+      (_, index) => referralInviteShareText(index, inviterIdentity)
     );
   }
 
