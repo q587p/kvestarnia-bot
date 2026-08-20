@@ -13,6 +13,8 @@ import { ActivityEventService } from "../../src/services/activityEventService";
 import { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
 import { createReferralScheduler } from "../../src/bot/referralScheduler";
 import type { Bot } from "grammy";
+import { AchievementService } from "../../src/services/achievementService";
+import { PrismaAchievementRepository } from "../../src/db/repositories/prismaAchievementRepository";
 
 const MIGRATION = "20260819090000_referral_foundation";
 const NOW = new Date("2026-08-19T09:00:00.000Z");
@@ -32,6 +34,7 @@ describe("PrismaReferralRepository integration", () => {
       datasources: { db: { url: `file:${join(directory, "test.db").replace(/\\/g, "/")}` } }
     });
     await createBaseSchema(prisma);
+    await applySqlFile(prisma, "prisma/migrations/20260628090000_add_achievements/migration.sql");
     await applySqlFile(prisma, `prisma/migrations/${MIGRATION}/migration.sql`);
     repository = new PrismaReferralRepository(prisma);
     await seedCharacter(prisma, "inviter-user", "inviter-character", INVITER_ID, "Кличко");
@@ -310,6 +313,146 @@ describe("PrismaReferralRepository integration", () => {
       );
     });
     await scheduler.stop();
+  });
+
+  it("reprojects User-level referral achievements after repeated Character replacement without Chronicle or notification replay", async () => {
+    const inviterUserId = "achievement-inviter-user";
+    const inviterTelegramId = 64_020n;
+    await seedCharacter(
+      prisma,
+      inviterUserId,
+      "achievement-inviter-original",
+      inviterTelegramId,
+      "Тринадцятий Кличко"
+    );
+    const code = await prisma.referralInviteCode.create({
+      data: {
+        id: "achievement-invite-code",
+        inviterUserId,
+        token: "achv_12345678901",
+        inviterNameSnapshot: "Тринадцятий Кличко"
+      }
+    });
+    for (let index = 1; index <= 13; index += 1) {
+      const inviteeUserId = `achievement-invitee-user-${index}`;
+      const characterId = `achievement-invitee-character-${index}`;
+      const arrivedAt = new Date(NOW.getTime() + index * 1_000);
+      await prisma.user.create({
+        data: { id: inviteeUserId, telegramUserId: 64_020n + BigInt(index) }
+      });
+      await prisma.referralAttribution.create({
+        data: {
+          id: `achievement-attribution-${index}`,
+          inviterUserId,
+          inviteeUserId,
+          inviteCodeId: code.id,
+          status: "ACCEPTED",
+          capturedAt: NOW,
+          acceptedAt: NOW,
+          arrivedAt,
+          arrivedCharacterId: characterId,
+          inviteeNameSnapshot: `Прибула ${index}`,
+          chronicleRecordedAt: arrivedAt,
+          rewardPlanVersion: 1
+        }
+      });
+      await prisma.activityEvent.create({
+        data: {
+          id: `achievement-arrival-event-${index}`,
+          eventType: "referral.arrived",
+          category: "adventurer",
+          severity: "normal",
+          actorCharacterId: characterId,
+          actorDisplayName: `Прибула ${index}`,
+          subjectKind: "referral-inviter",
+          subjectId: inviterUserId,
+          subjectName: "Тринадцятий Кличко",
+          sourceType: "referral-attribution",
+          sourceId: `achievement-attribution-${index}`,
+          dedupeKey: `character.created:${characterId}`,
+          occurredAt: arrivedAt
+        }
+      });
+    }
+    const originalChronicleCount = await prisma.activityEvent.count({
+      where: { subjectId: inviterUserId, eventType: "referral.arrived" }
+    });
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 1 });
+    const makeAchievementService = () => new ReferralService(
+      new PrismaReferralRepository(prisma),
+      new PrismaCharacterRepository(prisma),
+      {
+        foundationEnabled: true,
+        payoutsEnabled: true,
+        devHelpersEnabled: false,
+        botUsername: "kvestarnia_bot"
+      },
+      new AchievementService(new PrismaAchievementRepository(prisma)),
+      new PublicActivityEventPublisher(new ActivityEventService(new PrismaActivityEventRepository(prisma))),
+      () => RECOVERY_NOW
+    );
+
+    const firstTick = await createReferralScheduler(
+      makeAchievementService(),
+      { api: { sendMessage } } as unknown as Bot
+    ).tick();
+    expect(firstTick.dueAchievementProjections).toBeGreaterThanOrEqual(1);
+    expect(firstTick.reconciledAchievementProjections).toBeGreaterThanOrEqual(1);
+    expect(sendMessage.mock.calls.filter(([chatId]) => chatId === Number(inviterTelegramId)))
+      .toHaveLength(2);
+
+    for (const [oldCharacterId, newCharacterId] of [
+      ["achievement-inviter-original", "achievement-inviter-replacement"],
+      ["achievement-inviter-replacement", "achievement-inviter-replacement-again"]
+    ] as const) {
+      await prisma.character.delete({ where: { id: oldCharacterId } });
+      await seedCharacter(
+        prisma,
+        inviterUserId,
+        newCharacterId,
+        inviterTelegramId,
+        "Тринадцятий Кличко"
+      );
+      await expect(createReferralScheduler(
+        makeAchievementService(),
+        { api: { sendMessage } } as unknown as Bot
+      ).tick()).resolves.toMatchObject({
+        dueAchievementProjections: 1,
+        reconciledAchievementProjections: 1,
+        dueArrivalChronicles: 0,
+        claimedNotifications: 0,
+        sentNotifications: 0
+      });
+      await expect(prisma.characterAchievement.count({
+        where: {
+          characterId: newCharacterId,
+          achievementId: { in: [
+            "achievement.referral.first-arrival",
+            "achievement.referral.thirteen-arrivals"
+          ] }
+        }
+      })).resolves.toBe(2);
+    }
+
+    await expect(prisma.referralNotificationOutbox.findMany({
+      where: { recipientUserId: inviterUserId, kind: "REFERRAL_ACHIEVEMENT_UNLOCKED" },
+      orderBy: { logicalKey: "asc" },
+      select: { logicalKey: true, state: true }
+    })).resolves.toEqual([
+      {
+        logicalKey: `REFERRAL_ACHIEVEMENT:${inviterUserId}:achievement.referral.first-arrival`,
+        state: "SENT"
+      },
+      {
+        logicalKey: `REFERRAL_ACHIEVEMENT:${inviterUserId}:achievement.referral.thirteen-arrivals`,
+        state: "SENT"
+      }
+    ]);
+    expect(sendMessage.mock.calls.filter(([chatId]) => chatId === Number(inviterTelegramId)))
+      .toHaveLength(2);
+    await expect(prisma.activityEvent.count({
+      where: { subjectId: inviterUserId, eventType: "referral.arrived" }
+    })).resolves.toBe(originalChronicleCount);
   });
 
   it("rolls the referral migration back without removing pre-existing player data", async () => {

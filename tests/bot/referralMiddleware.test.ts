@@ -24,6 +24,41 @@ describe("referral capture middleware", () => {
     expect(markAction).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
     expect(calls.sends).toEqual([expect.stringContaining("Спробуй відкрити те саме посилання ще раз")]);
+    expect(calls.payloads).toEqual([expect.objectContaining({
+      reply_markup: {
+        inline_keyboard: [[{
+          text: "🔄 Спробувати ще раз",
+          url: "https://t.me/kvestarnia_bot?start=ref1_abCD_123-xyZ7890"
+        }]]
+      }
+    })]);
+    expect(calls.sends[0]).not.toContain("abCD_123-xyZ7890");
+  });
+
+  it("keeps the retry button and routing fail-closed when capture throws", async () => {
+    const captureFromStart = vi.fn().mockRejectedValue(new Error("transient capture failure"));
+    const markAction = vi.fn();
+    const start = vi.fn();
+    const calls = apiCalls();
+    const bot = testBot(calls.middleware);
+    registerReferralMiddleware(bot, referralService({ captureFromStart }));
+    registerPresenceMiddleware(bot, { markAction } as unknown as PresenceService);
+    bot.command("start", start);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await bot.handleUpdate(startUpdate("ref1_abCD_123-xyZ7890"));
+
+    expect(markAction).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+    expect(calls.payloads[0]).toMatchObject({
+      reply_markup: {
+        inline_keyboard: [[{
+          text: "🔄 Спробувати ще раз",
+          url: "https://t.me/kvestarnia_bot?start=ref1_abCD_123-xyZ7890"
+        }]]
+      }
+    });
+    expect(calls.sends[0]).not.toContain("abCD_123-xyZ7890");
   });
 
   it("automatically accepts a valid fresh link and continues straight to ordinary onboarding", async () => {
@@ -75,6 +110,7 @@ function referralService(overrides: {
 }): ReferralService {
   return {
     ...overrides,
+    getReferralRetryUrl: (token: string) => `https://t.me/kvestarnia_bot?start=ref1_${token}`,
     requestReconciliation: overrides.requestReconciliation ?? vi.fn()
   } as unknown as ReferralService;
 }
@@ -89,11 +125,14 @@ function testBot(middleware: Parameters<Bot["api"]["config"]["use"]>[0]): Bot {
 
 function apiCalls() {
   const sends: string[] = [];
+  const payloads: Array<Record<string, unknown>> = [];
   return {
     sends,
+    payloads,
     middleware: ((_prev, method, payload) => {
       if (method === "sendMessage") {
         sends.push(String(payload.text));
+        payloads.push(payload);
         return Promise.resolve({
           ok: true,
           result: { message_id: 93, date: 0, chat: { id: Number(payload.chat_id), type: "private" } }

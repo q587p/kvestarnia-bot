@@ -56,6 +56,22 @@ describe("referral Telegram surfaces", () => {
     expect(presentReferralDashboard(dashboard)).toContain("⏳ Автоматичної доставки чекає: <b>1</b>");
   });
 
+  it("keeps the exact track and every recovery control after Character replacement", () => {
+    const withoutCharacter = { ...dashboard, hasCharacter: false };
+    const text = presentReferralDashboard(withoutCharacter);
+    expect(text).toContain("3 рівень — 🩹 Щільний бинт ×1 · ✨ 5 Іскрокаменів · 💰 50 золота");
+    expect(text).toContain("5 рівень — ⚕️ Польова аптечка ×1 · ✨ 13 Іскрокаменів · 💰 120 золота");
+    expect(text).toContain("8 рівень — ⚕️ Польова аптечка ×2 · ✨ 65 Іскрокаменів · 💰 760 золота");
+    expect(text).toContain("13 рівень — ⚕️ Польова аптечка ×3 · ✨ 193 Іскрокамені · 💰 900 золота");
+    expect(text).toContain(withoutCharacter.inviteUrl);
+    expect(text).not.toContain("Разом —");
+    expect(buildReferralDashboardKeyboard(withoutCharacter).inline_keyboard.flat())
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ text: "📝 Згенерувати запрошення" }),
+        expect.objectContaining({ text: "🪶 Створити персонажа" })
+      ]));
+  });
+
   it("keeps callback data token-free, bounded, and rejects malformed pages", () => {
     expect(parseReferralCallbackData("v1:ref:l:93")).toEqual({ ok: true, value: { type: "list", page: 93 } });
     expect(parseReferralCallbackData("v1:ref:s:c")).toEqual({ ok: true, value: { type: "share", variant: 12 } });

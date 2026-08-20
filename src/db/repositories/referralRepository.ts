@@ -27,6 +27,12 @@ export interface ReferralArrivalChronicleRecord {
   arrivedAt: Date;
 }
 
+export interface ReferralAchievementReconciliationRecord {
+  inviterUserId: string;
+  sourceId: string;
+  occurredAt: Date;
+}
+
 export type ResolvePendingReferralResult =
   | { state: "accepted" }
   | { state: "declined" }
@@ -135,6 +141,9 @@ export interface ReferralRepository {
   listUnrecordedArrivalChronicles(limit: number): Promise<ReferralArrivalChronicleRecord[]>;
   markArrivalChronicleRecorded(attributionId: string, characterId: string, recordedAt: Date): Promise<boolean>;
   countArrivedForInviterUserId(inviterUserId: string): Promise<number>;
+  listReferralAchievementReconciliationRecords(
+    limit: number
+  ): Promise<ReferralAchievementReconciliationRecord[]>;
   enqueueReferralAchievementNotifications(
     inviterUserId: string,
     achievementIds: readonly string[],

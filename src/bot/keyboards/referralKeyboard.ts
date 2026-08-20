@@ -38,6 +38,10 @@ export function buildReferralShareKeyboard(
   );
 }
 
+export function buildReferralCaptureRetryKeyboard(inviteUrl: string): InlineKeyboard {
+  return new InlineKeyboard().url("🔄 Спробувати ще раз", inviteUrl);
+}
+
 export function buildReferralInviteeListKeyboard(page: ReferralInviteePage): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (page.totalPages > 1) {

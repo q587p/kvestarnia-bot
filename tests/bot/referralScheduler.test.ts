@@ -22,6 +22,7 @@ describe("referral scheduler", () => {
     const rescheduleNotification = vi.fn().mockResolvedValue(true);
     const service = {
       reconcileDue: vi.fn().mockResolvedValue({ due: 4, granted: 3 }),
+      reconcileReferralAchievements: vi.fn().mockResolvedValue({ due: 1, reconciled: 1 }),
       reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 1, recorded: 1 }),
       claimNextNotification: vi.fn()
         .mockResolvedValueOnce(notification)
@@ -33,6 +34,8 @@ describe("referral scheduler", () => {
     const scheduler = createReferralScheduler(service, { api: { sendMessage } } as unknown as Bot);
 
     await expect(scheduler.tick()).resolves.toEqual({
+      dueAchievementProjections: 1,
+      reconciledAchievementProjections: 1,
       dueArrivalChronicles: 1,
       recordedArrivalChronicles: 1,
       dueRewards: 4,
@@ -59,6 +62,7 @@ describe("referral scheduler", () => {
     const rescheduleNotification = vi.fn().mockResolvedValue(true);
     const service = {
       reconcileDue: vi.fn().mockResolvedValue({ due: 0, granted: 0 }),
+      reconcileReferralAchievements: vi.fn().mockResolvedValue({ due: 0, reconciled: 0 }),
       reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 0, recorded: 0 }),
       claimNextNotification: vi.fn()
         .mockResolvedValueOnce(corrupt)
@@ -88,6 +92,7 @@ describe("referral scheduler", () => {
     }));
     const service = {
       reconcileDue,
+      reconcileReferralAchievements: vi.fn().mockResolvedValue({ due: 0, reconciled: 0 }),
       reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 0, recorded: 0 }),
       claimNextNotification: vi.fn().mockResolvedValue(null),
       onWorkAvailable: vi.fn(() => vi.fn())
@@ -120,6 +125,7 @@ describe("referral scheduler", () => {
     const reconcileDue = vi.fn().mockResolvedValue({ due: 1, granted: 1 });
     const service = {
       reconcileDue,
+      reconcileReferralAchievements: vi.fn().mockResolvedValue({ due: 0, reconciled: 0 }),
       reconcileArrivalChronicles: vi.fn().mockResolvedValue({ due: 0, recorded: 0 }),
       claimNextNotification: vi.fn().mockResolvedValue(null),
       onWorkAvailable: vi.fn((listener: () => void) => {

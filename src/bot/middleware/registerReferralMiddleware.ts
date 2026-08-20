@@ -4,6 +4,7 @@ import type { ReferralService } from "../../services/referralService";
 import { playerFromContext } from "../context";
 import { parseStartPayload } from "../startPayload";
 import { presentReferralCaptureRetry } from "../presenters/referralPresenter";
+import { buildReferralCaptureRetryKeyboard } from "../keyboards/referralKeyboard";
 
 const captureResults = new WeakMap<Context, CaptureReferralResult>();
 
@@ -16,7 +17,11 @@ export function registerReferralMiddleware(bot: Bot, service: ReferralService): 
       try {
         const result = await service.captureFromStart(player, payload.token);
         if (result.state === "retry") {
-          await ctx.reply(presentReferralCaptureRetry());
+          await ctx.reply(presentReferralCaptureRetry(), {
+            reply_markup: buildReferralCaptureRetryKeyboard(
+              service.getReferralRetryUrl(payload.token)
+            )
+          });
           return;
         }
         captureResults.set(ctx, result);
@@ -24,7 +29,11 @@ export function registerReferralMiddleware(bot: Bot, service: ReferralService): 
         console.error("Квестарня: поклик не вдалося перевірити до оновлення присутности.", {
           errorName: error instanceof Error ? error.name : "unknown"
         });
-        await ctx.reply(presentReferralCaptureRetry());
+        await ctx.reply(presentReferralCaptureRetry(), {
+          reply_markup: buildReferralCaptureRetryKeyboard(
+            service.getReferralRetryUrl(payload.token)
+          )
+        });
         return;
       }
     }

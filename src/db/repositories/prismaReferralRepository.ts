@@ -15,6 +15,7 @@ import type {
   ReferralInviteePage,
   ReferralInviteeRow,
   ReferralArrivalChronicleRecord,
+  ReferralAchievementReconciliationRecord,
   ReferralRepository,
   ResolvePendingReferralResult
 } from "./referralRepository";
@@ -684,6 +685,71 @@ export class PrismaReferralRepository implements ReferralRepository {
     });
   }
 
+  async listReferralAchievementReconciliationRecords(
+    limit: number
+  ): Promise<ReferralAchievementReconciliationRecord[]> {
+    const rows = await this.prisma.$queryRaw<Array<{
+      inviterUserId: string;
+      sourceId: string;
+      occurredAt: bigint | Date;
+    }>>(Prisma.sql`
+      SELECT
+        character."user_id" AS "inviterUserId",
+        (
+          SELECT first_arrival."id"
+          FROM "referral_attributions" AS first_arrival
+          WHERE first_arrival."inviter_user_id" = character."user_id"
+            AND first_arrival."status" = 'ACCEPTED'
+            AND first_arrival."arrived_at" IS NOT NULL
+          ORDER BY first_arrival."arrived_at" ASC, first_arrival."id" ASC
+          LIMIT 1
+        ) AS "sourceId",
+        MIN(arrival."arrived_at") AS "occurredAt"
+      FROM "characters" AS character
+      INNER JOIN "referral_attributions" AS arrival
+        ON arrival."inviter_user_id" = character."user_id"
+        AND arrival."status" = 'ACCEPTED'
+        AND arrival."arrived_at" IS NOT NULL
+      GROUP BY character."id", character."user_id"
+      HAVING (
+        COUNT(*) >= 1 AND (
+          NOT EXISTS (
+            SELECT 1 FROM "character_achievements" AS achievement
+            WHERE achievement."character_id" = character."id"
+              AND achievement."achievement_id" = 'achievement.referral.first-arrival'
+          ) OR NOT EXISTS (
+            SELECT 1 FROM "referral_notification_outbox" AS notification
+            WHERE notification."recipient_user_id" = character."user_id"
+              AND notification."kind" = 'REFERRAL_ACHIEVEMENT_UNLOCKED'
+              AND notification."logical_key" LIKE 'REFERRAL_ACHIEVEMENT:%:achievement.referral.first-arrival'
+          )
+        )
+      ) OR (
+        COUNT(*) >= 13 AND (
+          NOT EXISTS (
+            SELECT 1 FROM "character_achievements" AS achievement
+            WHERE achievement."character_id" = character."id"
+              AND achievement."achievement_id" = 'achievement.referral.thirteen-arrivals'
+          ) OR NOT EXISTS (
+            SELECT 1 FROM "referral_notification_outbox" AS notification
+            WHERE notification."recipient_user_id" = character."user_id"
+              AND notification."kind" = 'REFERRAL_ACHIEVEMENT_UNLOCKED'
+              AND notification."logical_key" LIKE 'REFERRAL_ACHIEVEMENT:%:achievement.referral.thirteen-arrivals'
+          )
+        )
+      )
+      ORDER BY MIN(arrival."arrived_at") ASC, character."user_id" ASC
+      LIMIT ${limit}
+    `);
+    return rows.map((row) => ({
+      inviterUserId: row.inviterUserId,
+      sourceId: row.sourceId,
+      occurredAt: row.occurredAt instanceof Date
+        ? row.occurredAt
+        : new Date(Number(row.occurredAt))
+    }));
+  }
+
   async enqueueReferralAchievementNotifications(
     inviterUserId: string,
     achievementIds: readonly string[],
@@ -708,10 +774,25 @@ export class PrismaReferralRepository implements ReferralRepository {
       if (!definition) {
         continue;
       }
+      const logicalKey = `REFERRAL_ACHIEVEMENT:${inviterUserId}:${achievement.achievementId}`;
+      const existing = await this.prisma.referralNotificationOutbox.findFirst({
+        where: {
+          recipientUserId: inviterUserId,
+          kind: "REFERRAL_ACHIEVEMENT_UNLOCKED",
+          OR: [
+            { logicalKey },
+            { logicalKey: { endsWith: `:${achievement.achievementId}` } }
+          ]
+        },
+        select: { id: true }
+      });
+      if (existing) {
+        continue;
+      }
       try {
         await this.prisma.referralNotificationOutbox.create({
           data: {
-            logicalKey: `REFERRAL_ACHIEVEMENT:${character.id}:${achievement.achievementId}`,
+            logicalKey,
             kind: "REFERRAL_ACHIEVEMENT_UNLOCKED",
             recipientUserId: inviterUserId,
             payloadJson: { achievementId: achievement.achievementId, title: definition.title },

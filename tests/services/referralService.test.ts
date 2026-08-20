@@ -89,7 +89,7 @@ describe("ReferralService recovery", () => {
     );
   });
 
-  it("keeps the durable arrival row pending until achievement recovery succeeds", async () => {
+  it("publishes the durable arrival row independently from achievement recovery", async () => {
     const row = {
       attributionId: "attribution-1",
       characterId: "invitee-character",
@@ -114,7 +114,7 @@ describe("ReferralService recovery", () => {
     });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const failed = new ReferralService(
+    const service = new ReferralService(
       repository,
       characters,
       { foundationEnabled: true, payoutsEnabled: true, devHelpersEnabled: false },
@@ -122,25 +122,36 @@ describe("ReferralService recovery", () => {
       { recordReferralArrivedSafely } as never,
       () => NOW
     );
-    await expect(failed.reconcileArrivalChronicles()).resolves.toEqual({ due: 1, recorded: 0 });
-    expect(recordReferralArrivedSafely).not.toHaveBeenCalled();
-    expect(markArrivalChronicleRecorded).not.toHaveBeenCalled();
-
-    const recovered = new ReferralService(
-      repository,
-      characters,
-      { foundationEnabled: true, payoutsEnabled: true, devHelpersEnabled: false },
-      { trackEvent: vi.fn().mockResolvedValue([]) } as unknown as AchievementService,
-      { recordReferralArrivedSafely } as never,
-      () => NOW
-    );
-    await expect(recovered.reconcileArrivalChronicles()).resolves.toEqual({ due: 1, recorded: 1 });
+    await expect(service.reconcileArrivalChronicles()).resolves.toEqual({ due: 1, recorded: 1 });
     expect(recordReferralArrivedSafely).toHaveBeenCalledTimes(1);
     expect(markArrivalChronicleRecorded).toHaveBeenCalledWith(
       "attribution-1",
       "invitee-character",
       NOW
     );
+
+    const listReferralAchievementReconciliationRecords = vi.fn().mockResolvedValue([{
+      inviterUserId: "inviter-user",
+      sourceId: "attribution-1",
+      occurredAt: NOW
+    }]);
+    const achievementService = new ReferralService(
+      referralRepository({
+        listReferralAchievementReconciliationRecords,
+        countArrivedForInviterUserId: vi.fn().mockResolvedValue(1),
+        enqueueReferralAchievementNotifications: vi.fn()
+      }),
+      characters,
+      { foundationEnabled: true, payoutsEnabled: true, devHelpersEnabled: false },
+      { trackEvent: vi.fn().mockRejectedValue(new Error("achievement write failed")) } as unknown as AchievementService,
+      undefined,
+      () => NOW
+    );
+    await expect(achievementService.reconcileReferralAchievements()).resolves.toEqual({
+      due: 1,
+      reconciled: 0
+    });
+    expect(listReferralAchievementReconciliationRecords).toHaveBeenCalledWith(13);
   });
 
   it("isolates and reschedules one unexpected due reward failure without starving the batch", async () => {
@@ -168,6 +179,7 @@ describe("ReferralService recovery", () => {
     const listDueRewardIds = vi.fn();
     const repository = referralRepository({
       listUnrecordedArrivalChronicles,
+      listReferralAchievementReconciliationRecords: vi.fn().mockResolvedValue([]),
       claimDueNotification,
       listDueRewardIds
     });
@@ -180,6 +192,8 @@ describe("ReferralService recovery", () => {
       { api: { sendMessage: vi.fn() } } as unknown as Bot
     );
     await expect(scheduler.tick()).resolves.toEqual({
+      dueAchievementProjections: 0,
+      reconciledAchievementProjections: 0,
       dueArrivalChronicles: 0,
       recordedArrivalChronicles: 0,
       dueRewards: 0,

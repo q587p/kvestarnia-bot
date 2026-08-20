@@ -82,6 +82,10 @@ export class ReferralService {
     );
   }
 
+  getReferralRetryUrl(token: string): string {
+    return this.buildInviteUrl(token);
+  }
+
   resolvePendingReferral(telegramUserId: bigint): Promise<ResolvePendingReferralResult> {
     return this.referrals.resolvePendingReferral(
       telegramUserId,
@@ -202,18 +206,6 @@ export class ReferralService {
     const rows = await this.referrals.listUnrecordedArrivalChronicles(limit);
     let recorded = 0;
     for (const row of rows) {
-      try {
-        await this.reconcileReferralAchievementsForInviter(
-          row.inviterUserId,
-          row.attributionId,
-          row.arrivedAt
-        );
-      } catch (error) {
-        console.error("Квестарня: ачивки за поклики не пройшли чергову звірку.", {
-          errorName: error instanceof Error ? error.name : "unknown"
-        });
-        continue;
-      }
       const event = await this.activityEvents.recordReferralArrivedSafely({
         characterId: row.characterId,
         inviteeDisplayName: row.inviteeName,
@@ -232,6 +224,31 @@ export class ReferralService {
       }
     }
     return { due: rows.length, recorded };
+  }
+
+  async reconcileReferralAchievements(
+    limit = DEFAULT_BATCH_LIMIT
+  ): Promise<{ due: number; reconciled: number }> {
+    if (!this.achievements) {
+      return { due: 0, reconciled: 0 };
+    }
+    const rows = await this.referrals.listReferralAchievementReconciliationRecords(limit);
+    let reconciled = 0;
+    for (const row of rows) {
+      try {
+        await this.reconcileReferralAchievementsForInviter(
+          row.inviterUserId,
+          row.sourceId,
+          row.occurredAt
+        );
+        reconciled += 1;
+      } catch (error) {
+        console.error("Квестарня: ачивки за поклики не пройшли чергову звірку.", {
+          errorName: error instanceof Error ? error.name : "unknown"
+        });
+      }
+    }
+    return { due: rows.length, reconciled };
   }
 
   claimNextNotification(leaseMs = 42_000): Promise<ClaimedReferralNotification | null> {

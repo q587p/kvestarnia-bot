@@ -22,6 +22,7 @@ import {
   buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
+import { buildReferralCaptureRetryKeyboard } from "../keyboards/referralKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { getReferralCaptureResult } from "../middleware/registerReferralMiddleware";
 import {
@@ -92,11 +93,19 @@ export function registerStartCommand(
         try {
           const resolved = await options.referrals.resolvePendingReferral(player.telegramUserId);
           if (resolved.state === "not-found") {
-            await ctx.reply(presentReferralCaptureRetry());
+            await ctx.reply(presentReferralCaptureRetry(), {
+              reply_markup: buildReferralCaptureRetryKeyboard(
+                options.referrals.getReferralRetryUrl(payload.token)
+              )
+            });
             return;
           }
         } catch {
-          await ctx.reply(presentReferralCaptureRetry());
+          await ctx.reply(presentReferralCaptureRetry(), {
+            reply_markup: buildReferralCaptureRetryKeyboard(
+              options.referrals.getReferralRetryUrl(payload.token)
+            )
+          });
           return;
         }
       }

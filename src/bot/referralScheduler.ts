@@ -6,6 +6,8 @@ const DEFAULT_INTERVAL_MS = 13_000;
 const DEFAULT_BATCH_LIMIT = 13;
 
 export interface ReferralSchedulerMetrics {
+  dueAchievementProjections: number;
+  reconciledAchievementProjections: number;
   dueArrivalChronicles: number;
   recordedArrivalChronicles: number;
   dueRewards: number;
@@ -78,8 +80,14 @@ async function runReferralTick(
   limit: number
 ): Promise<ReferralSchedulerMetrics> {
   const rewards = await service.reconcileDue(limit);
+  const achievements = await service.reconcileReferralAchievements(limit).catch((error) => {
+    logReferralSchedulerError(error);
+    return { due: 0, reconciled: 0 };
+  });
   const chronicles = await service.reconcileArrivalChronicles(limit);
   const metrics: ReferralSchedulerMetrics = {
+    dueAchievementProjections: achievements.due,
+    reconciledAchievementProjections: achievements.reconciled,
     dueArrivalChronicles: chronicles.due,
     recordedArrivalChronicles: chronicles.recorded,
     dueRewards: rewards.due,
@@ -121,6 +129,8 @@ async function runReferralTick(
 
 function emptyMetrics(): ReferralSchedulerMetrics {
   return {
+    dueAchievementProjections: 0,
+    reconciledAchievementProjections: 0,
     dueArrivalChronicles: 0,
     recordedArrivalChronicles: 0,
     dueRewards: 0,

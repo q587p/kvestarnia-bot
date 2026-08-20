@@ -75,7 +75,7 @@ Snapshot-test the entire array, canonical `itemId` ordering and absence of dupli
 
 1. Open `📰 Дошка корчми → 📨 Поклик до Квестарні` or `/invite`.
 2. See exact per-stage rewards, stable link, accepted-and-arrived count and stage counters; no separate aggregate reward-total line is rendered.
-3. Press `📝 Згенерувати запрошення`, cycle through 13 distinct texts with `🎲 Перегенерувати текст`, then open Telegram’s user-controlled share chooser without rotating the stable URL.
+3. Press `📝 Згенерувати запрошення`, cycle through 13 distinct forward-ready texts with the sole `🎲 Інший текст` button, then manually forward the bot message without rotating the stable URL. There is no programmatic share chooser or share button.
 4. Receive a concise private join notice with the new Character name, race, class and title after first Character creation.
 5. Receive one private payout notice after each automatic item-and-gold bundle commits.
 6. Open `👥 Мої покликані` to see five accepted-and-arrived players per page.
@@ -336,7 +336,7 @@ Telegram cannot provide end-to-end exactly-once delivery. The outbox may very ra
 
 Aggregate from accepted attributions and durable reward rows:
 
-Before the stable share link, show the exact four-stage reward table without a separate aggregate `Разом — …` line. Policy and economic evidence still verify the totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; invitation copy, lore and news do not inherit it. Invitation-copy regeneration cycles through 13 distinct Ukrainian texts and never replaces the stable referral token.
+Before the stable share link, show the exact four-stage reward table without a separate aggregate `Разом — …` line, including while the stable User-level link survives without a current Character. Policy and economic evidence still verify the totals. This private inviter dashboard is the owner-approved referral-only exception to the general hidden-future-reward rule; invitation copy, invitee onboarding, lore and news do not inherit it. Invitation-copy regeneration cycles through 13 distinct Ukrainian texts with the sole `🎲 Інший текст` control and never replaces the stable referral token; the player manually forwards the ready bot message because no programmatic share chooser/button is rendered.
 
 ```text
 arrivedTotal

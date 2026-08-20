@@ -35,6 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Player help now lists every enabled production command in one focused section, including referral and the full guild command family, with a catalog regression preventing silent omissions.
 - Exhausted fresh-capture conflicts now stop before presence without consuming eligibility; referral arrivals persist frozen Chronicle evidence and reconcile the single `referral.arrived` row after write failure or process restart.
 - Referral scheduling now proves immediate non-overlapping startup, queued wake-ups after Telegram actions, clean in-flight shutdown, flag-aware recovery and per-row failure isolation so newly earned rewards do not wait for dashboard refresh and one corrupt or unexpected reward cannot starve later due work.
+- Referral-achievement recovery now runs independently from the Chronicle backlog, reprojects authoritative first/thirteenth-arrival achievements onto replacement Characters, and keeps each unlock notice unique at User level; fail-closed fresh-capture replies now retain a controlled same-link retry button without exposing the token in text or callbacks.
 
 ## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 
