@@ -219,6 +219,7 @@ describe("help presenter", () => {
     expect(grantMenu.match(/\/dev_add_level/gu)).toHaveLength(1);
     expect(resetGeneral).toContain("🧰 /dev_help");
     expect(resetGeneral).toContain("🧪 /dev_reset_me");
+    expect(resetGeneral).toContain("🕳️ /dev_delete_account");
     expect(resetCombat).toContain("⏹️ /dev_raid_stop");
     expect(resetCombat).toContain("🔁 /dev_raid_reset");
     expect(resetCombat).toContain("🏁 /dev_raid_win");

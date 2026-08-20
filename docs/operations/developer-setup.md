@@ -97,6 +97,13 @@ to test durable pending recovery. The isolated bot snapshot will not see these
 checkout values until an explicitly requested `refresh-local-bot.cmd`; do not
 infer that local `.env` changed a running bot.
 
+Use `/dev_delete_account` only when a Telegram QA account must become truly
+fresh again. The first call shows the destructive scope; only the exact
+`/dev_delete_account ПІДТВЕРДЖУЮ` form atomically deletes that Telegram User,
+its Character, referral relations/outbox rows, founded or led guilds and related
+local Chronicle evidence. The helper is not registered in production and never
+touches a hosted database.
+
 ### HP recovery notification rollout
 
 Keep `HP_RECOVERY_NOTIFICATIONS_ENABLED=false` for deploy and migration. Before any production enablement:
@@ -199,6 +206,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
+- `/dev_delete_account` — після окремого точного підтвердження повністю стирає власний User, персонажа й пов’язаний стан лише з ізольованої локальної бази; наступний `/start` починає onboarding з нуля. У production команда не реєструється, не показується й не мутує стан.
 - `/dev_party` — збирає тимчасову локальну ватагу; коли GroupCombat proof увімкнений, створює окремий збір на 2–3 учасників із автоматичним стартом через три хвилини. Без proof зберігає звичайний party/session контракт. У production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
 - `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.

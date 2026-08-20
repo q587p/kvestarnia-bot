@@ -11,6 +11,7 @@ import { PrismaCombatLeaseReadRepository } from "../db/repositories/prismaCombat
 import { PrismaCooldownRepository } from "../db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "../db/repositories/prismaDevGrantRepository";
+import { PrismaDevAccountResetRepository } from "../db/repositories/prismaDevAccountResetRepository";
 import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChallengeRepository";
 import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTournamentRepository";
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
@@ -77,6 +78,7 @@ export function createRepositories(
     combatLeaseReads: new PrismaCombatLeaseReadRepository(prisma),
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
+    devAccountReset: new PrismaDevAccountResetRepository(prisma),
     devGrants: new PrismaDevGrantRepository(prisma),
     duelChallenges: new PrismaDuelChallengeRepository(
       prisma,

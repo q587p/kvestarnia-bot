@@ -203,7 +203,11 @@ export function createServices(
       undefined,
       achievements
     ),
-    devReset: new DevResetService(repositories.characters, config.nodeEnv),
+    devReset: new DevResetService(
+      repositories.characters,
+      config.nodeEnv,
+      repositories.devAccountReset
+    ),
     duel: new DuelChallengeService(
       repositories.duelChallenges,
       repositories.characters,

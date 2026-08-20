@@ -15,6 +15,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Added User-level referral code, attribution and stage-entitlement persistence plus a leased notification outbox in additive migration `20260819090000_referral_foundation` with a paired rollback.
 - Added automatic cold-start and interaction-triggered payout reconciliation, whole-bundle CAS delivery to the inviter's current Character and non-production `/dev_referral_reconcile` recovery.
 - Added one consented normal-severity `referral.arrived` Chronicle fact on first Character arrival, using the ordinary Character-arrival dedupe key and appearing only in all/adventurer views.
+- Added production-unregistered `/dev_delete_account` with explicit confirmation and transactional cleanup of one isolated QA identity so referral freshness scenarios can restart from a true pre-User state.
 
 ### Changed
 - Extended the canonical transaction-level level-milestone writer so jumps create every crossed accepted-referral entitlement before Character-bound milestone evidence can be reset.

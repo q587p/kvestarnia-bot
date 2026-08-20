@@ -341,6 +341,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "reset"
   },
   {
+    command: "dev_delete_account",
+    icon: "🕳️",
+    description: "стерти власний акаунт і весь локальний стан",
+    includeInMenu: false,
+    devOnly: "reset"
+  },
+  {
     command: "dev_adventure_reset",
     icon: "⏱️",
     description: "скинути вибір пригоди локально",

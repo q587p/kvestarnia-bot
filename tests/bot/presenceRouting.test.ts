@@ -232,6 +232,7 @@ describe("presence routing", () => {
     ["duel", {}],
     ["support", {}],
     ["restart", {}],
+    ["dev_delete_account", {}],
     ["dev_raid_stop", {}],
     ["dev_raid_reset", {}],
     ["dev_raid_win", {}],

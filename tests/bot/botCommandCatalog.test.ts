@@ -202,6 +202,7 @@ describe("bot command catalog", () => {
       "dev_party",
       "dev_raid_chat",
       "dev_reset_me",
+      "dev_delete_account",
       "dev_adventure_reset",
       "dev_reset_korchma_round",
       "dev_raid_stop",
@@ -240,6 +241,7 @@ describe("bot command catalog", () => {
     expect(resetOnly.some((entry) => entry.command === "dev_help")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_me")).toBe(true);
+    expect(resetOnly.some((entry) => entry.command === "dev_delete_account")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(true);
     expect(resetOnly.some((entry) => entry.command === "dev_raid_stop")).toBe(true);
@@ -251,6 +253,7 @@ describe("bot command catalog", () => {
     expect(grantsOnly.some((entry) => entry.command === "dev_help")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_party")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_me")).toBe(false);
+    expect(grantsOnly.some((entry) => entry.command === "dev_delete_account")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_adventure_reset")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_reset_korchma_round")).toBe(false);
     expect(grantsOnly.some((entry) => entry.command === "dev_raid_stop")).toBe(false);

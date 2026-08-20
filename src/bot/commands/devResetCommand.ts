@@ -17,6 +17,10 @@ import {
   presentDevRaidResetResult,
   presentDevMonsterRestResetResult,
   presentDevRaidStopResult,
+  presentDevAccountResetDeleted,
+  presentDevAccountResetNoAccount,
+  presentDevAccountResetPrompt,
+  presentDevAccountResetUnavailable,
   presentDevResetDisabled,
   presentDevResetPrompt
 } from "../presenters/devResetPresenter";
@@ -45,6 +49,32 @@ export function registerDevResetCommand(
     "markVisitedBarrelForTelegramUser" | "markBarrelRaidCompletedForTelegramUser"
   >
 ): void {
+  if (devResetService.isEnabled()) {
+    bot.command("dev_delete_account", async (ctx) => {
+      const confirmation = (ctx as DevResetCommandContext).match?.trim();
+      if (confirmation !== "ПІДТВЕРДЖУЮ") {
+        await ctx.reply(presentDevAccountResetPrompt());
+        return;
+      }
+
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (!telegramUserId) {
+        await ctx.reply(presentDevAccountResetNoAccount());
+        return;
+      }
+
+      const result = await devResetService.resetEntireAccount(telegramUserId);
+      const message = result.state === "deleted"
+        ? presentDevAccountResetDeleted()
+        : result.state === "no-account"
+          ? presentDevAccountResetNoAccount()
+          : result.state === "unavailable"
+            ? presentDevAccountResetUnavailable()
+            : presentDevResetDisabled();
+      await ctx.reply(message);
+    });
+  }
+
   bot.command("dev_reset_me", async (ctx) => {
     if (!devResetService.isEnabled()) {
       await ctx.reply(presentDevResetDisabled());
