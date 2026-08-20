@@ -17,6 +17,7 @@ import { AchievementService } from "../../src/services/achievementService";
 import { PrismaAchievementRepository } from "../../src/db/repositories/prismaAchievementRepository";
 
 const MIGRATION = "20260819090000_referral_foundation";
+const ACHIEVEMENT_NOTIFICATION_MIGRATION = "20260820131500_referral_achievement_notifications";
 const NOW = new Date("2026-08-19T09:00:00.000Z");
 const RECOVERY_NOW = new Date("2030-08-19T09:00:00.000Z");
 const INVITER_ID = 64_001n;
@@ -36,6 +37,10 @@ describe("PrismaReferralRepository integration", () => {
     await createBaseSchema(prisma);
     await applySqlFile(prisma, "prisma/migrations/20260628090000_add_achievements/migration.sql");
     await applySqlFile(prisma, `prisma/migrations/${MIGRATION}/migration.sql`);
+    await applySqlFile(
+      prisma,
+      `prisma/migrations/${ACHIEVEMENT_NOTIFICATION_MIGRATION}/migration.sql`
+    );
     repository = new PrismaReferralRepository(prisma);
     await seedCharacter(prisma, "inviter-user", "inviter-character", INVITER_ID, "Кличко");
     await prisma.character.update({
@@ -464,8 +469,16 @@ describe("PrismaReferralRepository integration", () => {
       await createBaseSchema(rollbackPrisma);
       await seedCharacter(rollbackPrisma, "rollback-user", "rollback-character", 64_093n, "Незворушна");
       await applySqlFile(rollbackPrisma, `prisma/migrations/${MIGRATION}/migration.sql`);
+      await applySqlFile(
+        rollbackPrisma,
+        `prisma/migrations/${ACHIEVEMENT_NOTIFICATION_MIGRATION}/migration.sql`
+      );
       await expect(tableNames(rollbackPrisma)).resolves.toContain("referral_rewards");
 
+      await applySqlFile(
+        rollbackPrisma,
+        `prisma/migrations/${ACHIEVEMENT_NOTIFICATION_MIGRATION}/rollback.sql`
+      );
       await applySqlFile(rollbackPrisma, `prisma/migrations/${MIGRATION}/rollback.sql`);
       const tables = await tableNames(rollbackPrisma);
       expect(tables).not.toContain("referral_invite_codes");

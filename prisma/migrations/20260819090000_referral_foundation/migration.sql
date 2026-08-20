@@ -80,7 +80,7 @@ CREATE TABLE "referral_notification_outbox" (
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME NOT NULL,
     CONSTRAINT "referral_notification_outbox_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "users" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "referral_notification_outbox_kind_check" CHECK ("kind" IN ('REFERRAL_JOINED', 'REFERRAL_PAYOUT_GRANTED', 'REFERRAL_ACHIEVEMENT_UNLOCKED')),
+    CONSTRAINT "referral_notification_outbox_kind_check" CHECK ("kind" IN ('REFERRAL_JOINED', 'REFERRAL_PAYOUT_GRANTED')),
     CONSTRAINT "referral_notification_outbox_state_check" CHECK ("state" IN ('PENDING', 'PROCESSING', 'SENT')),
     CONSTRAINT "referral_notification_outbox_attempt_check" CHECK ("attempt_count" >= 0)
 );

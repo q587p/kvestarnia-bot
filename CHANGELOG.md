@@ -12,7 +12,7 @@ This project follows a simple pre-1.0 versioning policy:
 ### Added
 - Added a default-off public `📨 Поклик до Квестарні` flow on the Korchma board and `/invite`, with one stable User-level `ref1_*` share link, atomic fresh-player first-touch attribution and five-row inviter history; an eligible link now continues directly into ordinary onboarding without a consent card.
 - Added frozen `REFERRAL_POLICY_V1` bundles at invitee levels 3, 5, 8 and 13: dense bandage/Field Kits, 276 total Iskrokamin and 1,830 total ordinary gold across the full track.
-- Added User-level referral code, attribution and stage-entitlement persistence plus a leased notification outbox in additive migration `20260819090000_referral_foundation` with a paired rollback.
+- Added User-level referral code, attribution and stage-entitlement persistence plus a leased notification outbox in additive migration `20260819090000_referral_foundation`; additive migration `20260820131500_referral_achievement_notifications` extends the outbox to User-level referral-achievement notices. Both have paired rollbacks.
 - Added automatic cold-start and interaction-triggered payout reconciliation, whole-bundle CAS delivery to the inviter's current Character and non-production `/dev_referral_reconcile` recovery.
 - Added rewardless achievements for the first and thirteenth actually arrived invitees, reprojected from the authoritative referral count and delivered through the durable referral outbox.
 - Added one normal-severity `referral.arrived` Chronicle fact on first Character arrival, using the ordinary Character-arrival dedupe key and appearing only in all/adventurer views.
