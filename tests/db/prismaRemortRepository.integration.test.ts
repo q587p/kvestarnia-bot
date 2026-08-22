@@ -22,6 +22,11 @@ import {
   VARENYK_SATED_STATUS_KEY,
   type VarenykSatedPayloadV1
 } from "../../src/domain/noncombat/varenykSatedSupport";
+import {
+  DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY,
+  DAILY_KORCHMA_ROUND_STEP_KEY
+} from "../../src/services/dailyActionKeys";
 
 describe("PrismaRemortRepository integration", () => {
   let dir: string;
@@ -104,6 +109,76 @@ describe("PrismaRemortRepository integration", () => {
       where: { id: "character-remort-guild-leader" },
       select: { level: true }
     })).resolves.toEqual({ level: 1 });
+  });
+
+  it("preserves exact Daily Korchma ledgers while removing generic daily state in a real remort", async () => {
+    const now = new Date("2026-08-22T10:00:00.000Z");
+    const characterId = "character-remort-korchma-ledger";
+    await seedCharacter(prisma, {
+      userId: "user-remort-korchma-ledger",
+      characterId,
+      telegramUserId: 9351n
+    });
+    await seedDraft(prisma, characterId, "token-remort-korchma-ledger", now);
+    await prisma.dailyAction.createMany({
+      data: [
+        {
+          id: "daily-remort-korchma-offer",
+          characterId,
+          key: DAILY_KORCHMA_ROUND_OFFER_KEY,
+          localDate: "2026-08-22",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: 0,
+          resultJson: { kind: "offer" }
+        },
+        {
+          id: "daily-remort-korchma-step",
+          characterId,
+          key: DAILY_KORCHMA_ROUND_STEP_KEY,
+          localDate: "2026-08-22:scene-1",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: 0,
+          resultJson: { kind: "step" }
+        },
+        {
+          id: "daily-remort-korchma-reward",
+          characterId,
+          key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+          localDate: "2026-08-22",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: 0,
+          resultJson: { kind: "reward", appliedItemGrants: [] }
+        },
+        {
+          id: "daily-remort-generic",
+          characterId,
+          key: "generic.remort-reset",
+          localDate: "2026-08-22",
+          rewardXp: 0,
+          rewardGold: 0,
+          spentGold: 0,
+          resultJson: { kind: "generic" }
+        }
+      ]
+    });
+
+    await expect(repository.completeDraftForTelegramUser(
+      9351n,
+      makeCompletionInput("token-remort-korchma-ledger", now)
+    )).resolves.toMatchObject({ state: "completed" });
+
+    await expect(prisma.dailyAction.findMany({
+      where: { characterId },
+      orderBy: [{ key: "asc" }, { localDate: "asc" }],
+      select: { key: true, localDate: true }
+    })).resolves.toEqual([
+      { key: DAILY_KORCHMA_ROUND_OFFER_KEY, localDate: "2026-08-22" },
+      { key: DAILY_KORCHMA_ROUND_REWARD_KEY, localDate: "2026-08-22" },
+      { key: DAILY_KORCHMA_ROUND_STEP_KEY, localDate: "2026-08-22:scene-1" }
+    ]);
   });
 
   afterAll(async () => {

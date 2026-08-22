@@ -723,38 +723,6 @@ export function resolvePartyBossRound(input: {
     );
   }
 
-  for (const summary of actionSummaries) {
-    const participant = next.participants.find((entry) => entry.characterId === summary.characterId);
-    const statistics = participant?.statistics;
-    if (!statistics) continue;
-    const supportHealing = (summary.supportTargets ?? []).reduce(
-      (sum, target) => sum + Math.max(0, Math.floor(target.healing ?? 0)),
-      0
-    );
-    const actorHealingAlreadyIncluded = (summary.supportTargets ?? []).some(
-      (target) => target.characterId === summary.characterId && (target.healing ?? 0) > 0
-    );
-    statistics.healing += supportHealing
-      + (actorHealingAlreadyIncluded ? 0 : Math.max(0, Math.floor(summary.healing ?? 0)));
-    const committedForStatistics = summary.outcome !== "not-enough-mana" &&
-      summary.outcome !== "skill-on-cooldown" &&
-      summary.outcome !== "item-not-used" &&
-      summary.outcome !== "taunt-failed";
-    if (summary.origin === "manual" && committedForStatistics) statistics.actions += 1;
-    if (
-      summary.origin === "manual" &&
-      committedForStatistics &&
-      (summary.action === "skill" || summary.action === "race" || summary.action === "gear")
-    ) {
-      statistics.specialActions += 1;
-    }
-    if (
-      summary.origin === "manual" &&
-      summary.action === "defend" &&
-      summary.outcome === "defended"
-    ) statistics.guardedTurns += 1;
-  }
-
   if (next.boss.hp > 0) {
     const committedTaunt = actionSummaries.find((summary) =>
       summary.action === "taunt" && tryActivateWarriorRaidTaunt(next, summary.characterId)
@@ -766,7 +734,6 @@ export function resolvePartyBossRound(input: {
       const statistics = next.participants.find(
         (participant) => participant.characterId === committedTaunt.characterId
       )?.statistics;
-      if (statistics && committedTaunt.origin === "manual") statistics.actions += 1;
       if (statistics) statistics.control = (statistics.control ?? 0) + 1;
     }
   }
@@ -821,6 +788,37 @@ export function resolvePartyBossRound(input: {
     }
     recordPartyBossCombatItemUse(pending.participant, pending.item.id);
     pending.participant.contribution.itemUses = (pending.participant.contribution.itemUses ?? 0) + 1;
+  }
+  for (const summary of actionSummaries) {
+    const participant = next.participants.find((entry) => entry.characterId === summary.characterId);
+    const statistics = participant?.statistics;
+    if (!statistics) continue;
+    const supportHealing = (summary.supportTargets ?? []).reduce(
+      (sum, target) => sum + Math.max(0, Math.floor(target.healing ?? 0)),
+      0
+    );
+    const actorHealingAlreadyIncluded = (summary.supportTargets ?? []).some(
+      (target) => target.characterId === summary.characterId && (target.healing ?? 0) > 0
+    );
+    statistics.healing += supportHealing
+      + (actorHealingAlreadyIncluded ? 0 : Math.max(0, Math.floor(summary.healing ?? 0)));
+    const committedForStatistics = summary.outcome !== "not-enough-mana" &&
+      summary.outcome !== "skill-on-cooldown" &&
+      summary.outcome !== "item-not-used" &&
+      summary.outcome !== "taunt-failed";
+    if (summary.origin === "manual" && committedForStatistics) statistics.actions += 1;
+    if (
+      summary.origin === "manual" &&
+      committedForStatistics &&
+      (summary.action === "skill" || summary.action === "race" || summary.action === "gear")
+    ) {
+      statistics.specialActions += 1;
+    }
+    if (
+      summary.origin === "manual" &&
+      summary.action === "defend" &&
+      summary.outcome === "defended"
+    ) statistics.guardedTurns += 1;
   }
   if (retaliationResolution.warriorTaunt) {
     if (retaliationResolution.warriorTaunt.expiredCharacterId) {

@@ -7,6 +7,7 @@ import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpReco
 import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
 import { FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import {
+  ITEM_DISMANTLE_RULES_VERSION,
   ITEM_UPGRADE_LOCATION_ID,
   ITEM_UPGRADE_UNLOCK_KEY,
   ITEM_UPGRADE_UNLOCK_LOCAL_DATE
@@ -411,6 +412,55 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectCharacterResources({ gold: 995, manaCurrent: 80 });
     await expect(repository.dismantleForTelegramUser(telegramUserId, input))
       .resolves.toMatchObject({ state: "replayed", yield: preview.item.yield });
+  });
+
+  it("fails closed on a forged durable dismantling receipt without spending or consuming", async () => {
+    await seedUnlock();
+    await seedItem(panPlusTwoItemId, 2);
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panPlusTwoItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    await prisma.dailyAction.create({
+      data: {
+        characterId,
+        key: `item-dismantle.receipt:${preview.guard}`,
+        localDate: "persistent",
+        rewardXp: 0,
+        rewardGold: 0,
+        spentGold: 0,
+        resultJson: {
+          version: 1,
+          rulesVersion: ITEM_DISMANTLE_RULES_VERSION,
+          remortCount: preview.expectedRemortCount,
+          itemId: preview.item.itemId,
+          baseItemId: panItemId,
+          enhancementLevel: preview.item.enhancementLevel,
+          baseRarity: preview.item.rarity,
+          isSetPiece: preview.item.isSetPiece,
+          quantityBefore: preview.item.quantity,
+          yield: preview.item.yield,
+          iskrokaminAfter: preview.item.yield,
+          payment: preview.payment,
+          paymentAmount: preview.paymentAmount,
+          rulesFingerprint: preview.rulesFingerprint,
+          guard: preview.guard
+        }
+      }
+    });
+
+    await expect(repository.dismantleForTelegramUser(telegramUserId, {
+      itemId: preview.item.itemId,
+      expectedQuantity: preview.item.quantity,
+      expectedRemortCount: preview.expectedRemortCount,
+      expectedYield: preview.item.yield,
+      payment: preview.payment,
+      rulesFingerprint: preview.rulesFingerprint,
+      guard: preview.guard,
+      now: now()
+    })).resolves.toEqual({ state: "stale" });
+    await expectItemQuantity(panPlusTwoItemId, 2);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+    await expectCharacterResources({ gold: 1_000, manaCurrent: 80 });
   });
 
   it("rechecks reservations and equipment atomically after dismantling preview", async () => {

@@ -222,33 +222,37 @@ export interface LootExpansionIdentityRoll {
   match: { axis: "class" | "race" | "title"; kind: "affinity" | "hard-requirement" };
 }
 
+export interface LootExpansionIdentityCandidate extends LootCandidate {
+  match: LootExpansionIdentityRoll["match"];
+}
+
+export function getLootExpansionBaseIdentityCandidates(input: {
+  profile: LootExpansionProfile;
+  sourceId: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+}): LootExpansionIdentityCandidate[] {
+  return getLootExpansionCandidates({
+    profile: input.profile,
+    sourceId: input.sourceId,
+    ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
+  }).flatMap((candidate) => {
+    const variant = findLootExpansionVariantByItemId(candidate.item.id);
+    if (!variant || variant.enhancement !== 0) return [];
+    const base = findLootExpansionBaseItem(variant.baseId);
+    const match = base ? getLootExpansionIdentityMatch(base, input.profile) : null;
+    return match ? [{ ...candidate, match }] : [];
+  });
+}
+
 export function rollLootExpansionBaseIdentityItem(input: {
   profile: LootExpansionProfile;
   sourceId: LootExpansionSourceId;
   sourceTags?: readonly string[];
   rng: RandomSource;
 }): LootExpansionIdentityRoll | null {
-  const candidates = getLootExpansionCandidates({
-    profile: input.profile,
-    sourceId: input.sourceId,
-    ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
-  }).filter((candidate) => {
-    const variant = findLootExpansionVariantByItemId(candidate.item.id);
-    if (!variant || variant.enhancement !== 0) return false;
-    const base = findLootExpansionBaseItem(variant.baseId);
-    if (!base) return false;
-    const hasAffinity = getLootExpansionAffinityMultiplier(base, input.profile) > 1;
-    const hasIdentityRequirement = base.requirements.classes.length > 0
-      || base.requirements.races.length > 0
-      || base.requirements.titles.length > 0;
-    return hasAffinity || hasIdentityRequirement;
-  });
+  const candidates = getLootExpansionBaseIdentityCandidates(input);
   const selected = selectWeightedCandidate(candidates, input.rng);
-  if (!selected) return null;
-  const variant = findLootExpansionVariantByItemId(selected.item.id);
-  const base = variant ? findLootExpansionBaseItem(variant.baseId) : undefined;
-  const match = base ? getLootExpansionIdentityMatch(base, input.profile) : null;
-  return match ? { item: selected.item, match } : null;
+  return selected ? { item: selected.item, match: selected.match } : null;
 }
 
 function getLootExpansionIdentityMatch(
@@ -397,10 +401,10 @@ function selectCandidatesForRarity(
   return [...candidates];
 }
 
-function selectWeightedCandidate(
-  candidates: readonly LootCandidate[],
+function selectWeightedCandidate<TCandidate extends LootCandidate>(
+  candidates: readonly TCandidate[],
   rng: RandomSource
-): LootCandidate | undefined {
+): TCandidate | undefined {
   if (candidates.length === 0) {
     return undefined;
   }

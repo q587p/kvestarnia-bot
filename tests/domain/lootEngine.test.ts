@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { items as contentItems, monsterLoot as contentMonsterLoot } from "../../src/content";
-import { checkLootExpansionEquipRequirement } from "../../src/content/lootExpansionV1";
+import {
+  checkLootExpansionEquipRequirement,
+  findLootExpansionBaseItem,
+  findLootExpansionVariantByItemId,
+  normalizeLootExpansionClassId,
+  normalizeLootExpansionRaceId,
+  normalizeLootExpansionTitleIds
+} from "../../src/content/lootExpansionV1";
 import {
   MONSTER_TROPHY_FALLBACK_ITEM_IDS,
   MONSTER_TROPHY_TARGET_SHARE
@@ -10,6 +17,7 @@ import {
   BANDAGE_DROP_QUANTITY_WEIGHTS,
   getIskrokaminReplacementChance,
   getItemDropChance,
+  getLootExpansionBaseIdentityCandidates,
   getLootExpansionCandidates,
   getLootCandidates,
   getLuckUpgradeChance,
@@ -345,24 +353,93 @@ describe("loot engine", () => {
     expect(first).toEqual(second);
   });
 
-  it("rolls only equippable base identity manatky through tavern-event weights", () => {
+  it("keeps the complete equippable identity matrix on canonical base tavern-event weights", () => {
     const profiles = [
-      { level: 13, classId: "class.mage", raceId: "race.human-ish", title: "Кімнатогрій" },
+      { level: 13, classId: "class.mage", raceId: "race.human-ish", title: "Архівний Щур" },
       { level: 13, classId: "class.warrior", raceId: "race.dwarf", title: "Прямопланник" },
-      { level: 13, classId: "class.bard", raceId: "race.elf", title: "Куплетник" }
+      { level: 13, classId: "class.bard", raceId: "race.elf", title: "Куплетник" },
+      { level: 13, classId: "class.bureaucramancer", raceId: "race.domovyk", title: "Писар печатки" },
+      { level: 13, classId: "class.rogue", raceId: "race.bisyny", title: "Тінь полиці" }
     ];
-    for (const [index, profile] of profiles.entries()) {
-      const result = rollLootExpansionBaseIdentityItem({
+    const observedKinds = new Set<string>();
+    const observedAxes = new Set<string>();
+    for (const profile of profiles) {
+      const input = {
         profile,
-        sourceId: "tavern_event",
-        sourceTags: ["authored_quest", "daily_korchma_round"],
-        rng: new SeededRandomSource(`daily-identity-matrix:${index}`)
-      });
-      expect(result).not.toBeNull();
-      expect(result?.item.id).not.toMatch(/(?:\.plus-|-plus-)[1-5]$/);
-      expect(result?.match.axis).toMatch(/^(class|race|title)$/);
-      expect(checkLootExpansionEquipRequirement(result!.item.id, profile)).toMatchObject({ canEquip: true });
+        sourceId: "tavern_event" as const,
+        sourceTags: ["authored_quest", "daily_korchma_round"]
+      };
+      const canonical = new Map(
+        getLootExpansionCandidates(input).map((candidate) => [candidate.item.id, candidate.weight])
+      );
+      const identityCandidates = getLootExpansionBaseIdentityCandidates(input);
+      const classId = normalizeLootExpansionClassId(profile.classId);
+      const raceId = normalizeLootExpansionRaceId(profile.raceId);
+      const titleIds = normalizeLootExpansionTitleIds(profile);
+
+      expect(identityCandidates.length).toBeGreaterThan(0);
+      for (const candidate of identityCandidates) {
+        const variant = findLootExpansionVariantByItemId(candidate.item.id);
+        const base = variant ? findLootExpansionBaseItem(variant.baseId) : undefined;
+        expect(variant?.enhancement).toBe(0);
+        expect(base).toBeDefined();
+        expect(checkLootExpansionEquipRequirement(candidate.item.id, profile)).toMatchObject({ canEquip: true });
+        expect(candidate.weight).toBe(canonical.get(candidate.item.id));
+
+        let expectedMatch: typeof candidate.match | null = null;
+        if (classId && base?.requirements.classes.includes(classId)) {
+          expectedMatch = { axis: "class", kind: "hard-requirement" };
+        } else if (raceId && base?.requirements.races.includes(raceId)) {
+          expectedMatch = { axis: "race", kind: "hard-requirement" };
+        } else if (base?.requirements.titles.some((id) => titleIds.has(id))) {
+          expectedMatch = { axis: "title", kind: "hard-requirement" };
+        } else if (classId && base?.affinity.classes.some((entry) => entry.id === classId)) {
+          expectedMatch = { axis: "class", kind: "affinity" };
+        } else if (raceId && base?.affinity.races.some((entry) => entry.id === raceId)) {
+          expectedMatch = { axis: "race", kind: "affinity" };
+        } else if (base?.affinity.titles.some((entry) => titleIds.has(entry.id))) {
+          expectedMatch = { axis: "title", kind: "affinity" };
+        }
+        expect(candidate.match).toEqual(expectedMatch);
+        observedKinds.add(candidate.match.kind);
+        observedAxes.add(candidate.match.axis);
+      }
+
+      const totalWeight = identityCandidates.reduce(
+        (sum, candidate) => sum + Math.max(0, candidate.weight ?? 1),
+        0
+      );
+      const boundaryIndexes = [...new Set([
+        0,
+        Math.floor(identityCandidates.length / 2),
+        identityCandidates.length - 1
+      ])];
+      for (const index of boundaryIndexes) {
+        const candidate = identityCandidates[index]!;
+        const cursor = identityCandidates.slice(0, index).reduce(
+          (sum, entry) => sum + Math.max(0, entry.weight ?? 1),
+          0
+        );
+        const weight = Math.max(0, candidate.weight ?? 1);
+        const target = (cursor + weight / 2) / totalWeight;
+        const selected = rollLootExpansionBaseIdentityItem({
+          ...input,
+          rng: new FakeRandomSource([target])
+        });
+        expect(selected).toEqual({ item: candidate.item, match: candidate.match });
+      }
+      expect(identityCandidates.every((candidate) => (candidate.weight ?? 0) > 0)).toBe(true);
+      expect(identityCandidates.map((candidate) => candidate.item.id)).toEqual(
+        [...new Set(identityCandidates.map((candidate) => candidate.item.id))]
+      );
+      expect(identityCandidates.every((candidate) => !candidate.item.id.match(/(?:\.plus-|-plus-)[1-5]$/))).toBe(true);
+      expect(rollLootExpansionBaseIdentityItem({
+        ...input,
+        rng: new SeededRandomSource(`daily-identity-matrix:${profile.classId}:${profile.raceId}:${profile.title}`)
+      })).not.toBeNull();
     }
+    expect([...observedKinds].sort()).toEqual(["affinity", "hard-requirement"]);
+    expect([...observedAxes].sort()).toEqual(["class", "race", "title"]);
   });
 
   it("lets LUCK influence guaranteed expansion item rarity", () => {

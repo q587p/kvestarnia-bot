@@ -1353,6 +1353,7 @@ describe("party boss reducer", () => {
       ...(committed ? {} : { itemUnavailableReason: "effect-unavailable" })
     });
     expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(committed ? 1 : 0);
+    expect(result.state.participants[0]?.statistics?.actions ?? 0).toBe(committed ? 1 : 0);
     expect(result.round.bossRetaliations[0]).toMatchObject({
       damage: expectedDamage,
       ...(committed
@@ -1408,6 +1409,7 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations[0]).toMatchObject({ damage: 0 });
     expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
     expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(0);
+    expect(result.state.participants[0]?.statistics?.actions ?? 0).toBe(0);
   });
 
   it.each([
@@ -1445,6 +1447,8 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations[0]?.characterId).toBe("leader");
     expect(result.round.bossRetaliations[0]?.itemResponseKind).toBe(targeted ? "evade" : undefined);
     expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.contribution.itemUses ?? 0).toBe(targeted ? 1 : 0);
+    expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.statistics?.actions ?? 0)
+      .toBe(targeted ? 1 : 0);
   });
 
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {

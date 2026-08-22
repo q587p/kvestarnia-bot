@@ -420,7 +420,7 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
             }
           }
         });
-        const replay = parseDismantleReceipt(existingReceipt, character);
+        const replay = parseDismantleReceipt(existingReceipt, character, input);
         if (replay) return replay;
 
         const gate = await getUpgradeGateResult(tx, character);
@@ -1105,20 +1105,77 @@ function mapPity(row: Pick<DailyAction, "key" | "resultJson"> | null): Array<{
 
 function parseDismantleReceipt(
   row: DailyAction | null,
-  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } },
+  input: ItemDismantleConfirmInput
 ): (ItemDismantleConfirmResult & { state: "replayed" }) | null {
   if (!row || !isRecord(row.resultJson)) return null;
   const value = row.resultJson;
+  const baseRarity = value.baseRarity;
   if (
+    row.key !== `${DISMANTLE_RECEIPT_KEY_PREFIX}${input.guard}` ||
+    row.localDate !== DISMANTLE_RECEIPT_LOCAL_DATE ||
     value.version !== 1 ||
     value.rulesVersion !== ITEM_DISMANTLE_RULES_VERSION ||
+    !Number.isInteger(value.remortCount) ||
     typeof value.itemId !== "string" ||
+    typeof value.baseItemId !== "string" ||
+    !Number.isInteger(value.enhancementLevel) ||
+    !isItemDismantleRarity(baseRarity) ||
+    typeof value.isSetPiece !== "boolean" ||
     !Number.isInteger(value.quantityBefore) ||
     !Number.isInteger(value.yield) ||
     (value.payment !== "gold" && value.payment !== "mana") ||
     !Number.isInteger(value.paymentAmount) ||
     !Number.isInteger(value.iskrokaminAfter) ||
-    typeof value.guard !== "string"
+    typeof value.rulesFingerprint !== "string" ||
+    typeof value.guard !== "string" ||
+    Number(value.remortCount) !== getIncludedRemortCount(character) ||
+    Number(value.remortCount) !== input.expectedRemortCount ||
+    value.itemId !== input.itemId ||
+    Number(value.quantityBefore) !== input.expectedQuantity ||
+    Number(value.yield) !== input.expectedYield ||
+    value.payment !== input.payment ||
+    value.rulesFingerprint !== input.rulesFingerprint ||
+    value.guard !== input.guard
+  ) {
+    return null;
+  }
+  const expectedPaymentAmount = value.payment === "mana"
+    ? ITEM_DISMANTLE_MANA_COST
+    : ITEM_DISMANTLE_GOLD_COST;
+  const rulesFingerprint = buildItemDismantleRulesFingerprint({
+    baseItemId: value.baseItemId,
+    enhancementLevel: Number(value.enhancementLevel),
+    baseRarity,
+    isSetPiece: value.isSetPiece,
+    yield: Number(value.yield)
+  });
+  const guard = buildItemDismantleGuard({
+    characterId: character.id,
+    remortCount: Number(value.remortCount),
+    itemId: value.itemId,
+    baseItemId: value.baseItemId,
+    enhancementLevel: Number(value.enhancementLevel),
+    baseRarity,
+    isSetPiece: value.isSetPiece,
+    expectedQuantity: Number(value.quantityBefore),
+    yield: Number(value.yield),
+    payment: value.payment,
+    paymentAmount: Number(value.paymentAmount),
+    rulesFingerprint: value.rulesFingerprint
+  });
+  if (
+    Number(value.remortCount) < 0 ||
+    Number(value.enhancementLevel) !== normalizeItemUpgradeLevel(Number(value.enhancementLevel)) ||
+    Number(value.quantityBefore) <= 0 ||
+    Number(value.yield) <= 0 ||
+    Number(value.paymentAmount) !== expectedPaymentAmount ||
+    Number(value.iskrokaminAfter) < Number(value.yield) ||
+    row.rewardXp !== 0 ||
+    row.rewardGold !== 0 ||
+    row.spentGold !== (value.payment === "gold" ? expectedPaymentAmount : 0) ||
+    rulesFingerprint !== value.rulesFingerprint ||
+    guard !== value.guard
   ) {
     return null;
   }
@@ -1151,7 +1208,11 @@ async function getDismantleReplay(
       }
     }
   });
-  return parseDismantleReceipt(row, character);
+  return parseDismantleReceipt(row, character, input);
+}
+
+function isItemDismantleRarity(value: unknown): value is "common" | "uncommon" | "rare" | "epic" | "legendary" {
+  return value === "common" || value === "uncommon" || value === "rare" || value === "epic" || value === "legendary";
 }
 
 const characterInclude = {
