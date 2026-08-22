@@ -587,6 +587,13 @@ export async function handlePartySessionCallback(
   }
 
   if (callback.type === "boss-statistics") {
+    if (ctx.chat?.type !== "private") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
+        show_alert: true
+      });
+      return;
+    }
     if (!options.partyBoss?.isEnabled()) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;

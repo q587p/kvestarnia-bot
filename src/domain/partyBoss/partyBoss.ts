@@ -411,7 +411,7 @@ export function createPartyBossState(input: {
           damage: 0,
           healing: 0,
           guardPrevented: 0,
-          control: null,
+          control: 0,
           damageTaken: 0,
           actions: 0,
           specialActions: 0,
@@ -603,6 +603,7 @@ export function resolvePartyBossRound(input: {
         ? Math.min(next.boss.hp, Math.max(0, Math.floor(resolvedEffect.amount)))
         : 0;
       next.boss.hp = Math.max(0, next.boss.hp - itemDamage);
+      if (participant.statistics) participant.statistics.damage += itemDamage;
       if (resolvedEffect.kind === "reduce-cooldowns") participant.resources = reducePartyBossCooldowns(participant.resources, resolvedEffect.turns);
       const responseItem = resolvedEffect.kind === "guard-response" || resolvedEffect.kind === "evade-response";
       if (!responseItem) recordPartyBossCombatItemUse(participant, committed.item.id);
@@ -646,6 +647,7 @@ export function resolvePartyBossRound(input: {
 
     const combatAction: Extract<PlayerCombatActionType, "attack" | "defend" | "skill" | "race" | "gear"> =
       action === "item" ? "defend" : action;
+    const bossHpBeforeAction = next.boss.hp;
     const result = resolveActorCombatAction({
       actorState: participant.resources,
       defenderState: {
@@ -668,6 +670,9 @@ export function resolvePartyBossRound(input: {
     participant.resources = result.actorState;
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
+    if (participant.statistics) {
+      participant.statistics.damage += Math.max(0, bossHpBeforeAction - next.boss.hp);
+    }
     participant.contribution.damageDealt += result.summary.actorDamage;
     bossDamage += result.summary.actorDamage;
     if (origin === "manual") {
@@ -712,9 +717,15 @@ export function resolvePartyBossRound(input: {
     const participant = next.participants.find((entry) => entry.characterId === summary.characterId);
     const statistics = participant?.statistics;
     if (!statistics) continue;
-    statistics.damage += Math.max(0, Math.floor(summary.damage));
-    statistics.healing += Math.max(0, Math.floor(summary.healing ?? 0))
-      + (summary.supportTargets ?? []).reduce((sum, target) => sum + Math.max(0, Math.floor(target.healing ?? 0)), 0);
+    const supportHealing = (summary.supportTargets ?? []).reduce(
+      (sum, target) => sum + Math.max(0, Math.floor(target.healing ?? 0)),
+      0
+    );
+    const actorHealingAlreadyIncluded = (summary.supportTargets ?? []).some(
+      (target) => target.characterId === summary.characterId && (target.healing ?? 0) > 0
+    );
+    statistics.healing += supportHealing
+      + (actorHealingAlreadyIncluded ? 0 : Math.max(0, Math.floor(summary.healing ?? 0)));
     if (summary.origin === "manual") statistics.actions += 1;
     if (summary.action === "skill" || summary.action === "race" || summary.action === "gear") {
       statistics.specialActions += 1;
@@ -1379,7 +1390,7 @@ function applyBossRetaliation(
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
     const unmitigatedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * focusMultiplier));
-    const guardedDamage = Math.max(1, Math.floor(unmitigatedDamage * guardReduction));
+    const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
     const damageBeforeLament = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
     const lamentPrevented = lament
       ? Math.min(damageBeforeLament, lament.damageReduction)
@@ -1434,11 +1445,16 @@ function applyBossRetaliation(
         signatureCount: state.personalProtocol.signatures.length
       };
     }
+    const hpBeforeRetaliation = participant.resources.hp;
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
     if (participant.statistics) {
-      participant.statistics.damageTaken += damage;
-      participant.statistics.guardPrevented += Math.max(0, unmitigatedDamage - damage);
+      const actualDamageTaken = Math.max(0, hpBeforeRetaliation - participant.resources.hp);
+      participant.statistics.damageTaken += actualDamageTaken;
+      participant.statistics.guardPrevented += Math.max(
+        0,
+        Math.min(hpBeforeRetaliation, unmitigatedDamage) - actualDamageTaken
+      );
     }
     const counterDamage = damage > 0 && participant.resources.hp > 0
       ? Math.min(

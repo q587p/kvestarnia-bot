@@ -503,6 +503,13 @@ export async function handleGroupCombatCallback(
     return;
   }
   if (callback.type === "statistics") {
+    if (ctx.chat?.type !== "private") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
+        show_alert: true
+      });
+      return;
+    }
     if (session.status === "active") {
       await safeAnswerCallbackQuery(ctx, {
         text: "Статистика відкриється після завершення бою.",
