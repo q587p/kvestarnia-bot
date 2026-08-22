@@ -30,6 +30,11 @@ import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { isConsumableCommitAllowed } from "./consumableCommitGate";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStack,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -51,7 +56,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
     }
   ): Promise<ItemUsePreviewRepositoryResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) {
           return { state: "no-character" };
@@ -139,7 +144,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return { state: "not-usable" };
         }
 
-        await lockItemStack(tx, character.id, input.item.id, input.now);
+        await lockInventoryItemStack(tx, character.id, input.item.id, input.now);
 
         const [items, equippedItemIds, reservedItemIds] = await Promise.all([
           getItems(tx, character.id),
@@ -207,6 +212,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         };
       });
     } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return { state: "reserved" };
       if (isLiveReservationConflict(error)) {
         return await recoverLivePreviewAfterReservationConflict(this.prisma, telegramUserId, {
           itemId: input.item.id,
@@ -532,7 +538,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
-        await lockItemStack(tx, character.id, input.item.id, input.now);
+        await lockInventoryItemStack(tx, character.id, input.item.id, input.now);
 
         const existing = mapOrder(await tx.itemUseOrder.findFirst({
           where: {
@@ -1251,18 +1257,6 @@ function mapDrinkState(record: CharacterDrinkState | null): Parameters<typeof bu
     expiresAt: record.expiresAt,
     metadata: record.metadataJson
   };
-}
-
-async function lockItemStack(
-  tx: TxClient,
-  characterId: string,
-  itemId: string,
-  now: Date
-): Promise<void> {
-  await tx.characterItem.updateMany({
-    where: { characterId, itemId },
-    data: { updatedAt: now }
-  });
 }
 
 async function releaseExpiredUseReservations(

@@ -177,6 +177,148 @@ describe("combat domain engine", () => {
     });
   });
 
+  it("keeps fatal self-fumble damage on the hero without inventing an enemy source", () => {
+    const previous = startCombat({ hero: warrior, monster });
+    previous.hero.hp = 5;
+    const current = cloneCombatState(previous);
+    current.hero.hp = 0;
+    const summary: CombatTurnSummary = {
+      action: "skill",
+      heroOutcome: "critical-fumble",
+      monsterOutcome: "skipped",
+      heroDamage: 0,
+      monsterDamage: 0,
+      manaSpent: 0,
+      critical: false,
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage",
+        line: "test",
+        selfDamage: 13
+      },
+      statisticsEvidence: { enemies: {} }
+    };
+
+    recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
+
+    expect(current.statistics?.hero.damageTaken).toBe(5);
+    expect(current.statistics?.enemies["enemy:1"]?.damage).toBe(0);
+  });
+
+  it("attributes only the authoritative enemy response after a self-fumble", () => {
+    const previous = startCombat({ hero: warrior, monster });
+    previous.hero.hp = 20;
+    const current = cloneCombatState(previous);
+    current.hero.hp = 12;
+    const summary: CombatTurnSummary = {
+      action: "skill",
+      heroOutcome: "critical-fumble",
+      monsterOutcome: "hit",
+      heroDamage: 0,
+      monsterDamage: 5,
+      manaSpent: 0,
+      critical: false,
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage",
+        line: "test",
+        selfDamage: 3
+      },
+      statisticsEvidence: { enemies: { "enemy:1": { damage: 5 } } },
+      enemyActions: [{
+        enemyId: "enemy:1",
+        monsterId: monster.monsterId,
+        monsterDamage: 5,
+        monsterAction: "attack"
+      }]
+    };
+
+    recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
+
+    expect(current.statistics?.hero.damageTaken).toBe(8);
+    expect(current.statistics?.enemies["enemy:1"]?.damage).toBe(5);
+  });
+
+  it("does not distribute a multi-enemy self-fumble remainder across enemies", () => {
+    const previous = startCombat({ hero: warrior, monster });
+    previous.hero.hp = 20;
+    previous.enemies = [
+      { enemyId: "enemy:1", id: monster.monsterId, hp: 18, hpMax: 18 },
+      { enemyId: "enemy:2", id: secondMonster.monsterId, hp: 16, hpMax: 16 }
+    ];
+    previous.monster = { ...previous.monster, hp: 18, hpMax: 18 };
+    const current = cloneCombatState(previous);
+    current.hero.hp = 11;
+    const summary: CombatTurnSummary = {
+      action: "skill",
+      heroOutcome: "critical-fumble",
+      monsterOutcome: "hit",
+      heroDamage: 0,
+      monsterDamage: 5,
+      manaSpent: 0,
+      critical: false,
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage",
+        line: "test",
+        selfDamage: 4
+      },
+      statisticsEvidence: {
+        enemies: {
+          "enemy:1": { damage: 2 },
+          "enemy:2": { damage: 3 }
+        }
+      },
+      enemyActions: [
+        { enemyId: "enemy:1", monsterId: monster.monsterId, monsterDamage: 2, monsterAction: "attack" },
+        { enemyId: "enemy:2", monsterId: secondMonster.monsterId, monsterDamage: 3, monsterAction: "attack" }
+      ]
+    };
+
+    recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
+
+    expect(current.statistics?.hero.damageTaken).toBe(9);
+    expect(Object.values(current.statistics?.enemies ?? {}).reduce(
+      (total, contribution) => total + contribution.damage,
+      0
+    )).toBe(5);
+  });
+
+  it("caps enemy attribution after self-damage and real healing against actual HP deltas", () => {
+    const previous = startCombat({ hero: warrior, monster });
+    previous.hero.hp = 10;
+    const current = cloneCombatState(previous);
+    current.hero.hp = 4;
+    const summary: CombatTurnSummary = {
+      action: "skill",
+      heroOutcome: "critical-fumble",
+      monsterOutcome: "hit",
+      heroDamage: 0,
+      monsterDamage: 99,
+      manaSpent: 0,
+      critical: false,
+      heroHealing: 3,
+      fumble: {
+        abilityId: "skill.forceful-strike",
+        kind: "self-damage",
+        line: "test",
+        selfDamage: 4
+      },
+      statisticsEvidence: { enemies: { "enemy:1": { damage: 99 } } },
+      enemyActions: [{
+        enemyId: "enemy:1",
+        monsterId: monster.monsterId,
+        monsterDamage: 99,
+        monsterAction: "skill"
+      }]
+    };
+
+    recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
+
+    expect(current.statistics?.hero).toMatchObject({ healing: 3, damageTaken: 9 });
+    expect(current.statistics?.enemies["enemy:1"]?.damage).toBe(5);
+  });
+
   it("records actual basic-guard prevention without changing the resolved retaliation", () => {
     const durableHero = { ...warrior, hpMax: 100, hpCurrent: 100 };
     const hardHitter = { ...monster, attack: 20, hpMax: 100 };

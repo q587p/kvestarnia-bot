@@ -602,6 +602,14 @@ Do not expose the exact fumble contract, seed, trigger position or authored punc
 
 `Перше правило Бійцівського кутка` is once per remort life and never requires victory. At the separate Quest Table claim, XP is `min(42, max(5, ceil(remortAdjustedCurrentLevelBandWidth * 0.42)))`; max level reuses the last finite band. Gold is `min(93, 13 + level * 6)`. The claim applies max-one starter equipment `item.pink-soap-of-first-rule` (`accessory` schema category, `tool` equipment slot, level 3, +1 Intelligence), guarantees one `item.iskrokamin`, and enables the existing level 4+ canonical quest Iskrokamin bonus. A pre-owned soap is omitted from applied/replayed grants, while remort resets the quest but not the equipment ownership cap. The exact applied reward is stored and replayed, so the quest is an onboarding grant rather than a repeatable duel/training faucet; underlying rewards and tournament scoring remain unchanged.
 
+## 0.4.7 Korchma rewards and Forge dismantling
+
+- Daily Korchma XP stays `2 * level + random(1..level)`; gold is `13 + level + random(1..level)`, plus exactly 13 Iskrokamin and one Dense Bandage.
+- The identity branch is 13% through LUCK 6, then +1 percentage point per full LUCK, capped at 23%. LUCK does not modify canonical `tavern_event` item weights. Six completed misses force the next eligible branch, and only an actually applied featured grant resets pity.
+- Identity candidates are base `+0` runtime-equippable `weapon`, `armor` or `accessory` items with matching class/race/canonical-title affinity or satisfied hard requirements. There is no incompatible or non-equippable fallback.
+- Dismantling costs 5 gold, except mage, varenyk-mancer and bureaucramancer pay 5 regenerated mana with no gold fallback. It is deterministic and exact-once: `rarityBase + ceil(0.42 * nominal cumulative Iskrokamin upgrade cost)`, including canonical set and legendary modifiers.
+- Statistics are observational only and never affect combat HP, knockout, counters, settlement, rewards, quests, achievements or ranking.
+
 ## Phase 2 trading/gifting guardrails
 - Gift/trade is not a gold source.
 - First slice transfers one eligible item unit or one narrow item-for-item offer.

@@ -117,6 +117,45 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.resourceMutations).toBe(0);
   });
 
+  it("keeps Training self-fumble damage truthful without crediting it to the doppelganger", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 66, hpMax: 66 });
+    const service = buildService(world, new FakeRandomSource([0, 0, 0, 0, 0, 0]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error("Expected active training.");
+    }
+    const state = started.session.state;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 1 }
+      }
+    };
+    world.sessions.set(started.session.id, { ...started.session, state });
+    const hpBefore = state.hero.hp;
+
+    const result = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "skill"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated" && result.session.state) {
+      const resolved = result.session.state;
+      const selfDamage = resolved.lastTurn?.fumble?.selfDamage ?? 0;
+      const enemyRecorded = Object.values(resolved.statistics?.enemies ?? {})
+        .reduce((total, contribution) => total + contribution.damage, 0);
+      const heroDamageTaken = resolved.statistics?.hero.damageTaken ?? 0;
+
+      expect(selfDamage).toBeGreaterThan(0);
+      expect(heroDamageTaken).toBe(hpBefore - resolved.hero.hp);
+      expect(enemyRecorded).toBe(heroDamageTaken - Math.min(heroDamageTaken, selfDamage));
+      expect(enemyRecorded).toBeLessThan(heroDamageTaken);
+    }
+  });
+
   it("persists a Sated pulse on the Training Doppelganger turn after its hostile response", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);

@@ -598,6 +598,7 @@ export class EquipmentService {
           }
         : {})
     });
+    if ("state" in equipResult) return equipResult;
     const equipped =
       !equipResult.changed && replacedRow?.itemId === itemId && replacedRow.attunement && !equipResult.record.attunement
         ? { ...equipResult.record, attunement: replacedRow.attunement }
@@ -647,7 +648,7 @@ export class EquipmentService {
       startedAt: Date;
       readyAt: Date;
     };
-  }): Promise<{ record: CharacterEquipmentRecord; changed: boolean }> {
+  }): Promise<{ record: CharacterEquipmentRecord; changed: boolean } | { state: "not-owned" }> {
     if (this.equipment.equipForCharacterAtomically) {
       return this.equipment.equipForCharacterAtomically(input);
     }

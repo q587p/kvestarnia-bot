@@ -25,9 +25,14 @@ export interface CharacterEquipmentSnapshot {
   equipment: CharacterEquipmentRecord[];
 }
 
-export interface EquipForCharacterResult {
-  record: CharacterEquipmentRecord;
-  changed: boolean;
+export type EquipForCharacterResult =
+  | { record: CharacterEquipmentRecord; changed: boolean }
+  | { state: "not-owned" };
+
+export class EquipmentInventoryUnavailableError extends Error {
+  constructor() {
+    super("The requested inventory copy is no longer available for equipment.");
+  }
 }
 
 export interface StartEquipmentAttunementInput {

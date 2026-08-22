@@ -237,7 +237,11 @@ export function getLootExpansionBaseIdentityCandidates(input: {
     ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
   }).flatMap((candidate) => {
     const variant = findLootExpansionVariantByItemId(candidate.item.id);
-    if (!variant || variant.enhancement !== 0) return [];
+    if (
+      !variant ||
+      variant.enhancement !== 0 ||
+      !["weapon", "armor", "accessory"].includes(candidate.item.slot)
+    ) return [];
     const base = findLootExpansionBaseItem(variant.baseId);
     const match = base ? getLootExpansionIdentityMatch(base, input.profile) : null;
     return match ? [{ ...candidate, match }] : [];

@@ -23,11 +23,13 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Security
 - Battle statistics are read-only terminal projections bound to the requesting participant and authoritative persisted combat state; callback payloads stay within Telegram limits and do not expose private opponent state.
-- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipped, protected, reserved, zero-value and last-copy restricted gear is rejected transactionally; duplicate or concurrent confirmation can consume at most one item and one payment.
+- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipment, item-use, transfer and duplicate-confirmation races share one per-character/item serialization point with bounded retry; equipped, protected, reserved, zero-value and last-copy restricted gear is rejected transactionally, and contention can consume at most one item and one payment.
 
 ### Fixed
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
 - PartyBoss retaliation keeps the exact pre-statistics damage formula; contribution measurement is isolated from HP, knockout, counter and reward state, while capped HP deltas prevent overkill and self-heal duplication.
+- Solo and Training critical-fumble self-damage remains part of truthful hero damage taken but is never credited to an enemy contribution row, including fatal, multi-enemy and heal-capped turns.
+- Daily Korchma featured rewards now use the runtime item slot as the equippability authority, excluding matching consumables and every non-weapon/armor/accessory candidate without changing canonical candidate weights.
 - Daily Korchma reward replay now presents the grants actually applied by the transactional claim, so restart, duplicate callback and remort recovery cannot reroll or silently replace the reward.
 
 ## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards

@@ -52,6 +52,11 @@ import { findAllActiveReservedItemIds } from "./itemTransferReservations";
 import { protectedMantokChestItemIds } from "../../domain/mantokChest/mantokChestScore";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStack,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -405,11 +410,13 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
     input: ItemDismantleConfirmInput
   ): Promise<ItemDismantleConfirmResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) return { state: "no-character" };
         const remortCount = getIncludedRemortCount(character);
         if (remortCount !== input.expectedRemortCount) return { state: "stale" };
+
+        await lockInventoryItemStack(tx, character.id, input.itemId, input.now);
 
         const existingReceipt = await tx.dailyAction.findUnique({
           where: {
@@ -608,6 +615,9 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
       });
     } catch (error) {
       if (error instanceof StaleSnapshotRollbackError) return { state: "stale" };
+      if (error instanceof InventoryMutationContentionError) {
+        return (await getDismantleReplay(this.prisma, telegramUserId, input)) ?? { state: "stale" };
+      }
       if (!isUniqueConstraintError(error)) throw error;
       return (await getDismantleReplay(this.prisma, telegramUserId, input)) ?? { state: "stale" };
     }

@@ -1,13 +1,13 @@
 # Post-Combat Contribution Cards
 
-Status: GroupCombat slice first shipped in repository release `0.4.2`; the
-cross-mode expansion remains future work.
+Status: GroupCombat first shipped in `0.4.2`; the audited cross-mode expansion
+is implemented in draft release PR `#196` for `0.4.7`. Merge, deployment,
+production availability and Manual Telegram QA remain separate and unclaimed.
 
 ## Goal
 
-Keep the readable eight-dimension GroupCombat statistics as a separate
-`📊 Статистика` card pattern, then extend it to every shipped combat surface
-where the mode stores enough truthful evidence.
+Keep one readable eight-dimension `📊 Статистика` card pattern across every
+shipped combat surface where the mode stores enough truthful evidence.
 
 ## Scope
 
@@ -35,6 +35,8 @@ where the mode stores enough truthful evidence.
 - No FightService rewrite or forced shared persistence schema before each
   existing combat surface is audited.
 - No exposure of hidden odds, threat formulas or private opponent choices.
+- Future work may add explicitly designed lifetime analytics or new combat
+  modes, but neither is implied by the `0.4.7` terminal-card implementation.
 
 ## Acceptance criteria
 
@@ -75,6 +77,7 @@ after restart and do not reveal another player's private detail on public cards.
 
 ## Release surfaces
 
-When activated, update the owning version task, QA matrix, combat architecture,
-playtesting notes, compact context, changelog, player news when visible, and the
-PR body. Do not present this backlog contract as shipped behavior.
+The owning task, compact context, changelog, player news and PR body carry the
+`0.4.7` implementation evidence. Keep Manual Telegram QA, merge, deployment and
+production availability explicit rather than treating this former backlog as
+rollout proof.

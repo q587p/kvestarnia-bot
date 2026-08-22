@@ -5,6 +5,11 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
+import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
+import {
+  lockInventoryItemStack,
+  runSerializableInventoryMutation
+} from "../../src/db/repositories/inventoryMutationSerialization";
 import { FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import {
   ITEM_DISMANTLE_RULES_VERSION,
@@ -26,7 +31,10 @@ const panPlusFourItemId = "item.pan-of-persuasion.plus-4";
 describe("PrismaItemUpgradeRepository integration", () => {
   let dir: string;
   let prisma: PrismaClient;
+  let contenderPrisma: PrismaClient;
   let repository: PrismaItemUpgradeRepository;
+  let contenderRepository: PrismaItemUpgradeRepository;
+  let equipmentRepository: PrismaEquipmentRepository;
   let producerRecord: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
@@ -39,14 +47,27 @@ describe("PrismaItemUpgradeRepository integration", () => {
       }
     });
     await createMinimalSchema(prisma);
+    contenderPrisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: `file:${join(dir, "test.db").replace(/\\/g, "/")}`
+        }
+      }
+    });
+    await prisma.$queryRawUnsafe("PRAGMA busy_timeout = 5000");
+    await contenderPrisma.$queryRawUnsafe("PRAGMA busy_timeout = 5000");
     const producer = new HpRecoveryNotificationProducer(true);
     producerRecord = vi.spyOn(producer, "record").mockResolvedValue(undefined);
     repository = new PrismaItemUpgradeRepository(prisma, producer);
+    contenderRepository = new PrismaItemUpgradeRepository(contenderPrisma, producer);
+    equipmentRepository = new PrismaEquipmentRepository(contenderPrisma);
   }, 60_000);
 
   beforeEach(async () => {
     producerRecord.mockClear();
     await prisma.dailyAction.deleteMany();
+    await prisma.$executeRawUnsafe(`DELETE FROM "item_use_orders"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "item_transfers"`);
     await prisma.characterEquipment.deleteMany();
     await prisma.characterItem.deleteMany();
     await prisma.character.deleteMany();
@@ -55,6 +76,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
   });
 
   afterAll(async () => {
+    await contenderPrisma?.$disconnect();
     await prisma?.$disconnect();
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
@@ -403,7 +425,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
     };
     const results = await Promise.all([
       repository.dismantleForTelegramUser(telegramUserId, input),
-      repository.dismantleForTelegramUser(telegramUserId, input)
+      contenderRepository.dismantleForTelegramUser(telegramUserId, input)
     ]);
 
     expect(results.map((result) => result.state).sort()).toEqual(["dismantled", "replayed"]);
@@ -412,6 +434,63 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await expectCharacterResources({ gold: 995, manaCurrent: 80 });
     await expect(repository.dismantleForTelegramUser(telegramUserId, input))
       .resolves.toMatchObject({ state: "replayed", yield: preview.item.yield });
+    await expectDismantleReceiptCount(preview.guard, 1);
+  });
+
+  it("serializes dismantling against equipping the same last copy", async () => {
+    const { preview, input } = await prepareDismantleRace();
+
+    const [dismantle, equip] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      equipmentRepository.equipForCharacterAtomically({
+        characterId,
+        slot: "weapon",
+        itemId: panPlusTwoItemId
+      })
+    ]);
+
+    const equipped = await prisma.characterEquipment.findFirst({
+      where: { characterId, itemId: panPlusTwoItemId }
+    });
+    const quantity = await getItemQuantity(panPlusTwoItemId);
+    expect(
+      (dismantle.state === "dismantled" && "state" in equip && equip.state === "not-owned") ||
+      (dismantle.state === "equipped" && !("state" in equip))
+    ).toBe(true);
+    expect(equipped ? quantity : true).toBeTruthy();
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against an active item-use reservation", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    const reservation = createConcurrentReservation("item-use-race", "item_use_orders");
+
+    const [dismantle, reserved] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      reservation
+    ]);
+
+    expect(
+      (dismantle.state === "dismantled" && reserved === "not-owned") ||
+      (dismantle.state === "reserved" && reserved === "reserved")
+    ).toBe(true);
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against an active transfer reservation", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    const reservation = createConcurrentReservation("item-transfer-race", "item_transfers");
+
+    const [dismantle, reserved] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      reservation
+    ]);
+
+    expect(
+      (dismantle.state === "dismantled" && reserved === "not-owned") ||
+      (dismantle.state === "reserved" && reserved === "reserved")
+    ).toBe(true);
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
   });
 
   it("fails closed on a forged durable dismantling receipt without spending or consuming", async () => {
@@ -594,6 +673,87 @@ describe("PrismaItemUpgradeRepository integration", () => {
         }
       }
     });
+  }
+
+  async function prepareDismantleRace() {
+    await seedUnlock();
+    await seedItem(panPlusTwoItemId, 1);
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panPlusTwoItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    return {
+      preview,
+      input: {
+        itemId: preview.item.itemId,
+        expectedQuantity: preview.item.quantity,
+        expectedRemortCount: preview.expectedRemortCount,
+        expectedYield: preview.item.yield,
+        payment: preview.payment,
+        rulesFingerprint: preview.rulesFingerprint,
+        guard: preview.guard,
+        now: now()
+      }
+    };
+  }
+
+  async function createConcurrentReservation(
+    id: string,
+    table: "item_use_orders" | "item_transfers"
+  ): Promise<"reserved" | "not-owned"> {
+    return runSerializableInventoryMutation(contenderPrisma, async (tx) => {
+      await lockInventoryItemStack(tx, characterId, panPlusTwoItemId, now());
+      const stack = await tx.characterItem.findUnique({
+        where: { characterId_itemId: { characterId, itemId: panPlusTwoItemId } },
+        select: { quantity: true }
+      });
+      if (!stack || stack.quantity < 1) return "not-owned";
+      const expiresAt = new Date(now().getTime() + 60_000).toISOString();
+      if (table === "item_use_orders") {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "item_use_orders" ("id", "character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
+          id,
+          characterId,
+          panPlusTwoItemId,
+          expiresAt
+        );
+      } else {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "item_transfers" ("id", "sender_character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
+          id,
+          characterId,
+          panPlusTwoItemId,
+          expiresAt
+        );
+      }
+      return "reserved";
+    });
+  }
+
+  async function assertDismantleRaceEconomy(
+    preview: Extract<Awaited<ReturnType<ItemUpgradeService["previewDismantleForTelegramUser"]>>, { state: "ready" }>,
+    dismantled: boolean
+  ): Promise<void> {
+    await expectCharacterResources({ gold: dismantled ? 995 : 1_000, manaCurrent: 80 });
+    await expectItemQuantity(panPlusTwoItemId, dismantled ? 0 : 1);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, dismantled ? preview.item.yield : 0);
+    await expectDismantleReceiptCount(preview.guard, dismantled ? 1 : 0);
+  }
+
+  async function expectDismantleReceiptCount(guard: string, count: number): Promise<void> {
+    await expect(prisma.dailyAction.count({
+      where: {
+        characterId,
+        key: `item-dismantle.receipt:${guard}`,
+        localDate: "persistent"
+      }
+    })).resolves.toBe(count);
+  }
+
+  async function getItemQuantity(itemId: string): Promise<number> {
+    return (await prisma.characterItem.findUnique({
+      where: { characterId_itemId: { characterId, itemId } },
+      select: { quantity: true }
+    }))?.quantity ?? 0;
   }
 
   async function seedItem(itemId: string, quantity: number): Promise<void> {

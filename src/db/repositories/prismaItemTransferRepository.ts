@@ -31,6 +31,12 @@ import type {
 import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { findActiveItemUseReservedItems } from "./itemUseReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStack,
+  lockInventoryItemStacks,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -46,7 +52,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
     input: ItemTransferCreateInput
   ): Promise<ItemTransferCreateResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
         const sender = await findCharacter(tx, senderTelegramUserId);
         if (!sender) {
           return { state: "no-character" };
@@ -72,7 +78,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         }
 
         await releaseExpiredGiftReservation(tx, sender.id, input.item.id, input.now);
-        await lockSenderItemStack(tx, sender.id, input.item.id, input.now);
+        await lockInventoryItemStack(tx, sender.id, input.item.id, input.now);
 
         const [items, equipment, reservedItemIds] = await Promise.all([
           getItems(tx, sender.id),
@@ -124,6 +130,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
         };
       });
     } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return { state: "stale-selection" };
       if (isLiveReservationConflict(error)) {
         return { state: "stale-selection" };
       }
@@ -342,7 +349,7 @@ export class PrismaItemTransferRepository implements ItemTransferRepository {
 
         await releaseExpiredPostalReservations(tx, sender.id, input.now);
         const itemIds = transfer.packageLines.map((line) => line.itemId);
-        await lockSenderItemStacks(tx, sender.id, itemIds, input.now);
+        await lockInventoryItemStacks(tx, sender.id, itemIds, input.now);
 
         const validation = await validatePostalPackage(tx, sender.id, transfer, input.itemContents, input.now);
         if (!validation.ok) {
@@ -831,30 +838,6 @@ async function getItems(tx: TxClient, characterId: string): Promise<CharacterIte
   return tx.characterItem.findMany({
     where: { characterId },
     orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
-  });
-}
-
-async function lockSenderItemStack(
-  tx: TxClient,
-  characterId: string,
-  itemId: string,
-  now: Date
-): Promise<void> {
-  await tx.characterItem.updateMany({
-    where: { characterId, itemId },
-    data: { updatedAt: now }
-  });
-}
-
-async function lockSenderItemStacks(
-  tx: TxClient,
-  characterId: string,
-  itemIds: readonly string[],
-  now: Date
-): Promise<void> {
-  await tx.characterItem.updateMany({
-    where: { characterId, itemId: { in: [...new Set(itemIds)] } },
-    data: { updatedAt: now }
   });
 }
 

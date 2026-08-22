@@ -382,6 +382,7 @@ describe("loot engine", () => {
         const variant = findLootExpansionVariantByItemId(candidate.item.id);
         const base = variant ? findLootExpansionBaseItem(variant.baseId) : undefined;
         expect(variant?.enhancement).toBe(0);
+        expect(["weapon", "armor", "accessory"]).toContain(candidate.item.slot);
         expect(base).toBeDefined();
         expect(checkLootExpansionEquipRequirement(candidate.item.id, profile)).toMatchObject({ canEquip: true });
         expect(candidate.weight).toBe(canonical.get(candidate.item.id));
@@ -440,6 +441,38 @@ describe("loot engine", () => {
     }
     expect([...observedKinds].sort()).toEqual(["affinity", "hard-requirement"]);
     expect([...observedAxes].sort()).toEqual(["class", "race", "title"]);
+  });
+
+  it("excludes affinity-matching consumables and every other non-equippable slot from Korchma identity rewards", () => {
+    const input = {
+      profile: {
+        level: 13,
+        classId: "class.warrior",
+        raceId: "race.human-ish",
+        title: "Лицар Борщу"
+      },
+      sourceId: "tavern_event" as const,
+      sourceTags: ["authored_quest", "daily_korchma_round"]
+    };
+    const canonical = getLootExpansionCandidates(input);
+    const excluded = canonical.filter((candidate) =>
+      !["weapon", "armor", "accessory"].includes(candidate.item.slot)
+    );
+    const identityCandidates = getLootExpansionBaseIdentityCandidates(input);
+
+    expect(canonical.find((candidate) => candidate.item.id === "item.loot-v1-c001")?.item.slot)
+      .toBe("consumable");
+    expect(excluded.length).toBeGreaterThan(1);
+    expect(identityCandidates.map((candidate) => candidate.item.id))
+      .not.toContain("item.loot-v1-c001");
+    expect(identityCandidates.every((candidate) =>
+      candidate.item.slot === "weapon" ||
+      candidate.item.slot === "armor" ||
+      candidate.item.slot === "accessory"
+    )).toBe(true);
+    expect(identityCandidates.some((candidate) =>
+      excluded.some((excludedCandidate) => excludedCandidate.item.id === candidate.item.id)
+    )).toBe(false);
   });
 
   it("lets LUCK influence guaranteed expansion item rarity", () => {

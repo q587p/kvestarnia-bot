@@ -8,21 +8,15 @@ Allowed values: `yes`, `no`, `unknown`, `deferred`, `retired`, or a dated eviden
 link/reference. A release is truthful when every row has an explicit decision;
 not every feature must be enabled.
 
-## Current repository baseline (repository evidence, 12026-08-19)
+## Current repository baseline (repository evidence, 12026-08-22)
 
-The repository baseline is package `0.4.5`, merged through Guild Foundation PR
-`#190` at `a3945b1f11d313f842aa108c5b1abb9f42b43b44`. The unnumbered
-GroupCombat SQLite delivery hotfix is merged at
-`2afe359a914a92385623590c506c49abb9653034`; deployment and exact-head QA remain
-separate evidence. PR `#193` is merged in current `main` `4eeddf16` and restores
-the public guild-activation Chronicle event from the durable activation fact
-even after founder Character deletion. Guild Foundation migration deployment, target
-availability and manual QA also remain separate evidence. The release includes
-the same-presence `🪺 Гніздо ґільдій`, active-only public directory,
-exclusive catalog/custom emoji crests and 13-text private invitation cards. The original
-foundation migration remains unchanged; additive
-`20260806120000_guild_custom_crests` has a paired rollback and target deployment
-remains unproven.
+Repository `main` is package `0.4.6`, merged through Referral Foundation PR
+`#195` at `6b5ab40a07a55a6ed3cf7ab3900bf012d05c6d67`. Release `0.4.7` is
+implemented only in draft PR `#196` on
+`codex/0.4.7-universal-battle-stats-dismantling`; it is unmerged and undeployed,
+and Manual Telegram QA is pending. Repository implementation, migration state,
+target flags, deployment, production availability and Manual Telegram QA remain
+separate evidence throughout this ledger.
 
 | Surface | Code merged | Migration deployed | Flag in target | Automated checks | Manual Telegram QA | Kill switch / owner | Decision |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -44,7 +38,8 @@ remains unproven.
 | 0.4.4 bugfix & polish | yes; merged PR `#191` at `67bd02cd` | no migration required | production feedback proves the GroupCombat/left-passage path was reachable; exact hosted values remain unrecorded | yes; merge checks passed | formal final-head matrix not recorded; production feedback exposed stale cards under SQLite contention | deploy rollback; release operator unassigned | hotfix required |
 | GroupCombat SQLite delivery hotfix | yes; merged PR `#192` at `2afe359a` | no migration required | no new flag | merge checks passed with actor-first/session-serialized-tail, exact-revision CAS, scheduler-overlap, restart recovery, completed-result deep-link replay, partial-`P1008`, retry-window and repository integration coverage | full three-account rerun not recorded on merged head | deploy rollback; release operator unassigned | deferred |
 | 0.4.5 guild foundation, Guild Nest and emoji crests | yes; merged PR `#190` at `a3945b1f` plus merged Chronicle hotfix PR `#193` in `4eeddf16` | target deployment unknown; repository includes unchanged additive `20260802230000_guild_foundation` plus additive `20260806120000_guild_custom_crests`, each with tested rollback/restore isolation; the initial-8/absolute-13 capacity boundary adds no schema field or migration | no target evidence; repository default off | PR #190 and #193 checks passed; activation Chronicle covers founder `/restart`, durable original timing, both filters and replay deduplication | exact-head three-account Nest/directory/create/invite/roles/remort/restart/party/privacy plus catalog/custom-emoji and invitation-card matrix pending, including level-6 rejection, level-7 first-life access and level-3 remort access | `GUILD_FOUNDATION_ENABLED`; release operator unassigned | deferred |
-| 0.4.6 referral foundation | no; current `0.4.6` PR branch | not deployed; repository adds `20260819090000_referral_foundation` with paired rollback | no target evidence; both flags default off | focused policy, atomic first-touch, automatic onboarding, Character-arrival, level-jump, immediate scheduler wake, exact-once payout, restart/remort-gap, outbox retry, privacy, Chronicle, referral-achievement and production-guard tests pass; the stable no-cache full local gate and migration/rollback smoke pass, while final pushed-head CI remains pending | six-account private/share/automatic-capture/competing-inviter/payout/restart/remort/flag matrix pending | `REFERRAL_FOUNDATION_ENABLED` + `REFERRAL_REWARD_PAYOUTS_ENABLED`; release operator unassigned | deferred |
+| 0.4.6 referral foundation | yes; merged PR `#195` at `6b5ab40a` | target deployment unknown; repository includes `20260819090000_referral_foundation` and `20260820131500_referral_achievement_notifications`, each with paired rollback | no target evidence; both flags default off | PR `#195` automated checks passed | six-account private/share/automatic-capture/competing-inviter/payout/restart/remort/flag matrix not recorded on the merged head | `REFERRAL_FOUNDATION_ENABLED` + `REFERRAL_REWARD_PAYOUTS_ENABLED`; release operator unassigned | deferred |
+| 0.4.7 universal battle statistics, richer Korchma rewards and Forge dismantling | no; implemented in draft PR `#196`, unmerged | no schema or migration added | no new production flag; target deployment and availability unproven | 280 focused tests plus complete local static/docs/build, 4704-unit and 762-integration gates pass; pushed-head CI remains separate until recorded | pending | deploy rollback; release operator unassigned | deferred |
 
 The `0.4.2` candidate also hides the GroupCombat one-use button when no item is
 currently legal and records a successfully attached reply-keyboard fingerprint

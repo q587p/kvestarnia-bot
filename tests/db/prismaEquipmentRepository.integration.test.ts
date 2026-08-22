@@ -33,6 +33,7 @@ describe("PrismaEquipmentRepository integration", () => {
 
   beforeEach(async () => {
     await prisma.characterEquipment.deleteMany();
+    await prisma.characterItem.deleteMany();
     await prisma.character.deleteMany();
     await prisma.user.deleteMany();
     await seedCharacter();
@@ -113,7 +114,7 @@ describe("PrismaEquipmentRepository integration", () => {
       orderBy: { slot: "asc" }
     });
 
-    expect(results.map((result) => result.changed).sort()).toEqual([false, true]);
+    expect(results.flatMap((result) => "state" in result ? [] : [result.changed]).sort()).toEqual([false, true]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       slot: "weapon",
@@ -175,6 +176,7 @@ describe("PrismaEquipmentRepository integration", () => {
       }
     });
     const tuningSnapshot = await repository.listByTelegramUserId(telegramUserId);
+    if ("state" in result) throw new Error("Expected the owned item to be equipped.");
 
     expect(result.record.attunement).toMatchObject({
       state: "tuning",
@@ -247,6 +249,7 @@ describe("PrismaEquipmentRepository integration", () => {
     const after = await prisma.dailyAction.findMany({
       where: { characterId, key: EQUIPMENT_ATTUNEMENT_ACTION_KEY }
     });
+    if ("state" in replay) throw new Error("Expected the owned item equip to replay.");
 
     expect(replay.changed).toBe(false);
     expect(replay.record.attunement).toMatchObject({ state: "tuning" });
@@ -454,6 +457,17 @@ describe("PrismaEquipmentRepository integration", () => {
         statsJson: { strength: 1, dexterity: 1, intelligence: 1, charisma: 1, luck: 1 }
       }
     });
+    await prisma.characterItem.createMany({
+      data: [
+        "item.apron-of-foam-resistance",
+        "item.legacy-apron",
+        "item.pan-of-persuasion",
+        "item.pan-of-persuasion.plus-1",
+        "item.set.red-line.margin-dagger",
+        "item.stamp-of-minor-authority",
+        "item.test-twohand-ladle"
+      ].map((itemId) => ({ characterId, itemId, quantity: 3 }))
+    });
   }
 });
 
@@ -495,6 +509,16 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "characters_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
+    `CREATE TABLE "character_items" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "character_id" TEXT NOT NULL,
+      "item_id" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "character_items_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "character_items_character_id_item_id_key" ON "character_items"("character_id", "item_id")`,
     `CREATE TABLE "character_equipment" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "character_id" TEXT NOT NULL,

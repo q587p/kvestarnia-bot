@@ -1066,6 +1066,11 @@ export function recordCombatStatisticsTurn(input: {
     0,
     input.previousState.hero.hp + heroHealing - input.state.hero.hp
   );
+  const heroSelfDamage = Math.max(0, Math.min(
+    heroDamageTaken,
+    Math.floor(input.summary.fumble?.selfDamage ?? 0)
+  ));
+  const enemyDamageBudget = heroDamageTaken - heroSelfDamage;
   const manualAction = (input.summary.actionOrigin ?? "manual") === "manual" &&
     input.summary.action !== "skip";
 
@@ -1099,7 +1104,7 @@ export function recordCombatStatisticsTurn(input: {
       const values = statistics.enemies[enemyId];
       if (!values) continue;
       const appliedDamage = Math.max(0, Math.min(
-        heroDamageTaken - attributedEnemyDamage,
+        enemyDamageBudget - attributedEnemyDamage,
         Math.floor(evidence.damage)
       ));
       values.damage += appliedDamage;
@@ -1113,7 +1118,7 @@ export function recordCombatStatisticsTurn(input: {
     }
     if (!input.summary.statisticsEvidence) {
       const appliedDamage = Math.max(0, Math.min(
-        heroDamageTaken - attributedEnemyDamage,
+        enemyDamageBudget - attributedEnemyDamage,
         Math.floor(action.monsterDamage)
       ));
       values.damage += appliedDamage;
@@ -1123,10 +1128,14 @@ export function recordCombatStatisticsTurn(input: {
     values.specialActions += action.monsterAction === "skill" ? 1 : 0;
     values.guardedTurns += action.monsterAction === "defend" ? 1 : 0;
   }
-  if (attributedEnemyDamage < heroDamageTaken) {
+  if (
+    !input.summary.statisticsEvidence &&
+    enemyActions.length > 0 &&
+    attributedEnemyDamage < enemyDamageBudget
+  ) {
     const primary = statistics.enemies[enemyActions[0]?.enemyId ?? "enemy:1"];
     if (primary) {
-      primary.damage += heroDamageTaken - attributedEnemyDamage;
+      primary.damage += enemyDamageBudget - attributedEnemyDamage;
     }
   }
 
