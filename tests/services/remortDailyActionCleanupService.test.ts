@@ -5,6 +5,9 @@ import {
   type RemortDailyActionCleanupStore
 } from "../../src/services/remortDailyActionCleanupService";
 import {
+  DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY,
+  DAILY_KORCHMA_ROUND_STEP_KEY,
   YEGER_UNQUIET_TRIAL_COMPLETED_KEY,
   YEGER_UNQUIET_TRIAL_STARTED_KEY
 } from "../../src/services/dailyActionKeys";
@@ -130,6 +133,27 @@ describe("runRemortDailyActionCleanup", () => {
       "old-yeger-completed",
       "old-bandage-purchase"
     ]);
+  });
+
+  it("preserves Daily Korchma offer, steps, and reward across generic post-remort cleanup", async () => {
+    const old = new Date("2026-06-17T23:00:00.000Z");
+    const store = new FakeRemortDailyActionCleanupStore([{
+      id: "character-1",
+      name: "Пані Реморт",
+      level: 1,
+      latestRemortCreatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      dailyActions: [
+        { id: "offer", key: DAILY_KORCHMA_ROUND_OFFER_KEY, localDate: "2026-06-17", createdAt: old },
+        { id: "step", key: DAILY_KORCHMA_ROUND_STEP_KEY, localDate: "2026-06-17:a", createdAt: old },
+        { id: "reward", key: DAILY_KORCHMA_ROUND_REWARD_KEY, localDate: "2026-06-17", createdAt: old },
+        { id: "other", key: YEGER_UNQUIET_TRIAL_STARTED_KEY, localDate: "once", createdAt: old }
+      ]
+    }]);
+
+    const summary = await runRemortDailyActionCleanup({ store, apply: true });
+
+    expect(summary.entries[0]?.actionIds).toEqual(["other"]);
+    expect(store.deletedIds).toEqual(["other"]);
   });
 });
 

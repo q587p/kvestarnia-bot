@@ -811,17 +811,6 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
     return this.daily.findLatestForTelegramUser(id, input);
   }
 
-  listLatestForTelegramUser(
-    id: bigint,
-    input: { key: string; take: number }
-  ): Promise<DailyActionRecord[] | null> {
-    if (id !== telegramUserId || !this.world.character) return Promise.resolve(null);
-    return Promise.resolve(this.records
-      .filter((record) => record.key === input.key)
-      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .slice(0, input.take));
-  }
-
   claimForTelegramUser(
     id: bigint,
     input: ClaimDailyActionInput
@@ -912,6 +901,17 @@ class FakeDailyActionRepository implements DailyActionRepository {
         .filter((record) => record.key === input.key)
         .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
     );
+  }
+
+  listLatestForTelegramUser(
+    id: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    if (id !== telegramUserId || !this.world.character) return Promise.resolve(null);
+    return Promise.resolve(this.records
+      .filter((record) => record.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, input.take));
   }
 
   listForTelegramUser(id: bigint, input: { key: string }): Promise<DailyActionRecord[] | null> {

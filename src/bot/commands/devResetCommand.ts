@@ -109,28 +109,27 @@ export function registerDevResetCommand(
     await ctx.reply(presentDevAdventureResetResult(result.state));
   });
 
-  bot.command("dev_reset_korchma_round", async (ctx) => {
-    if (!devResetService.isEnabled()) {
-      await ctx.reply(presentDevResetDisabled());
-      return;
-    }
+  if (devResetService.isEnabled()) {
+    bot.command("dev_reset_korchma_round", async (ctx) => {
+      if (!dailyKorchmaRoundService) {
+        await ctx.reply(presentDevKorchmaRoundResetResult("unavailable"));
+        return;
+      }
 
-    if (!dailyKorchmaRoundService) {
-      await ctx.reply(presentDevKorchmaRoundResetResult("unavailable"));
-      return;
-    }
-
-    const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
-
-    if (!telegramUserId) {
-      await ctx.reply(presentDevKorchmaRoundResetResult("no-character"));
-      return;
-    }
-
-    const result = await dailyKorchmaRoundService.resetTodayForDev(telegramUserId);
-
-    await ctx.reply(presentDevKorchmaRoundResetResult(result));
-  });
+      const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+      if (!telegramUserId) {
+        await ctx.reply(presentDevKorchmaRoundResetResult("no-character"));
+        return;
+      }
+      const rawMode = (ctx as DevResetCommandContext).match?.trim() || "random";
+      if (rawMode !== "random" && rawMode !== "hit" && rawMode !== "miss" && rawMode !== "forced-pity") {
+        await ctx.reply("Формат: /dev_reset_korchma_round [random|hit|miss|forced-pity]");
+        return;
+      }
+      const result = await dailyKorchmaRoundService.resetTodayForDev(telegramUserId, rawMode);
+      await ctx.reply(presentDevKorchmaRoundResetResult(result));
+    });
+  }
 
   bot.command("dev_raid_stop", async (ctx) => {
     if (!devResetService.isEnabled()) {

@@ -47,7 +47,8 @@ export async function runRemortDailyActionCleanup(input: {
   const entries = characters
     .map((character) => {
       const staleActions = character.dailyActions.filter(
-        (action) => action.createdAt < character.latestRemortCreatedAt
+        (action) => action.createdAt < character.latestRemortCreatedAt &&
+          !REMORT_CLEANUP_PRESERVED_KEYS.has(action.key)
       );
 
       return {
@@ -74,3 +75,14 @@ export async function runRemortDailyActionCleanup(input: {
     entries
   };
 }
+import {
+  DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY,
+  DAILY_KORCHMA_ROUND_STEP_KEY
+} from "./dailyActionKeys";
+
+const REMORT_CLEANUP_PRESERVED_KEYS = new Set([
+  DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_STEP_KEY,
+  DAILY_KORCHMA_ROUND_REWARD_KEY
+]);

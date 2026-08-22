@@ -16,6 +16,7 @@ import {
   LOOT_RARITY_WEIGHTS,
   rollBandageDropQuantity,
   rollLootExpansionItem,
+  rollLootExpansionBaseIdentityItem,
   rollLootRarity,
   rollMonsterLoot,
   rollPostFightBandageSlotReward
@@ -342,6 +343,26 @@ describe("loot engine", () => {
     );
 
     expect(first).toEqual(second);
+  });
+
+  it("rolls only equippable base identity manatky through tavern-event weights", () => {
+    const profiles = [
+      { level: 13, classId: "class.mage", raceId: "race.human-ish", title: "Кімнатогрій" },
+      { level: 13, classId: "class.warrior", raceId: "race.dwarf", title: "Прямопланник" },
+      { level: 13, classId: "class.bard", raceId: "race.elf", title: "Куплетник" }
+    ];
+    for (const [index, profile] of profiles.entries()) {
+      const result = rollLootExpansionBaseIdentityItem({
+        profile,
+        sourceId: "tavern_event",
+        sourceTags: ["authored_quest", "daily_korchma_round"],
+        rng: new SeededRandomSource(`daily-identity-matrix:${index}`)
+      });
+      expect(result).not.toBeNull();
+      expect(result?.item.id).not.toMatch(/(?:\.plus-|-plus-)[1-5]$/);
+      expect(result?.match.axis).toMatch(/^(class|race|title)$/);
+      expect(checkLootExpansionEquipRequirement(result!.item.id, profile)).toMatchObject({ canEquip: true });
+    }
   });
 
   it("lets LUCK influence guaranteed expansion item rarity", () => {

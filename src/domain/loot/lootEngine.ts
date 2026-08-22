@@ -6,6 +6,9 @@ import {
   getLootExpansionAffinityMultiplier,
   getLootExpansionSourceWeightMultiplier,
   getLootExpansionTagMultiplier,
+  findLootExpansionBaseItem,
+  findLootExpansionVariantByItemId,
+  normalizeLootExpansionTitleIds,
   lootExpansionV1Data,
   type LootExpansionProfile,
   type LootExpansionSourceId
@@ -212,6 +215,56 @@ export function rollLootExpansionItem(input: {
       : selectCandidatesForRarity(candidates, rollLootRarity(input.rng, input.luck));
 
   return selectWeightedCandidate(eligible, input.rng)?.item ?? null;
+}
+
+export interface LootExpansionIdentityRoll {
+  item: ItemContent;
+  match: { axis: "class" | "race" | "title"; kind: "affinity" | "hard-requirement" };
+}
+
+export function rollLootExpansionBaseIdentityItem(input: {
+  profile: LootExpansionProfile;
+  sourceId: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+  rng: RandomSource;
+}): LootExpansionIdentityRoll | null {
+  const candidates = getLootExpansionCandidates({
+    profile: input.profile,
+    sourceId: input.sourceId,
+    ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
+  }).filter((candidate) => {
+    const variant = findLootExpansionVariantByItemId(candidate.item.id);
+    if (!variant || variant.enhancement !== 0) return false;
+    const base = findLootExpansionBaseItem(variant.baseId);
+    if (!base) return false;
+    const hasAffinity = getLootExpansionAffinityMultiplier(base, input.profile) > 1;
+    const hasIdentityRequirement = base.requirements.classes.length > 0
+      || base.requirements.races.length > 0
+      || base.requirements.titles.length > 0;
+    return hasAffinity || hasIdentityRequirement;
+  });
+  const selected = selectWeightedCandidate(candidates, input.rng);
+  if (!selected) return null;
+  const variant = findLootExpansionVariantByItemId(selected.item.id);
+  const base = variant ? findLootExpansionBaseItem(variant.baseId) : undefined;
+  const match = base ? getLootExpansionIdentityMatch(base, input.profile) : null;
+  return match ? { item: selected.item, match } : null;
+}
+
+function getLootExpansionIdentityMatch(
+  base: (typeof lootExpansionV1Data.items)[number],
+  profile: LootExpansionProfile
+): LootExpansionIdentityRoll["match"] | null {
+  const classId = profile.classId?.replace(/^class\./, "");
+  const raceId = profile.raceId?.replace(/^race\./, "");
+  const titleIds = normalizeLootExpansionTitleIds(profile);
+  if (classId && base.requirements.classes.includes(classId)) return { axis: "class", kind: "hard-requirement" };
+  if (raceId && base.requirements.races.includes(raceId)) return { axis: "race", kind: "hard-requirement" };
+  if (base.requirements.titles.some((id) => titleIds.has(id))) return { axis: "title", kind: "hard-requirement" };
+  if (classId && base.affinity.classes.some((entry) => entry.id === classId)) return { axis: "class", kind: "affinity" };
+  if (raceId && base.affinity.races.some((entry) => entry.id === raceId)) return { axis: "race", kind: "affinity" };
+  if (base.affinity.titles.some((entry) => titleIds.has(entry.id))) return { axis: "title", kind: "affinity" };
+  return null;
 }
 
 export function rollLootRarity(rng: RandomSource, luck: number): LootRarity {

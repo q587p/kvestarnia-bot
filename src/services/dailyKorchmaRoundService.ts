@@ -22,6 +22,7 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
   DAILY_KORCHMA_ROUND_REROLL_KEY,
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
@@ -36,16 +37,10 @@ import { trackRewardAchievementsSafely } from "./achievementTracking";
 import { enrichRewardItemGrants, type RewardItemGrant } from "./itemGrant";
 import { ISKROKAMIN_ITEM_ID } from "./itemGrant";
 import { DENSE_BANDAGE_ITEM_ID } from "../domain/itemCraft";
-import {
-  buildLootExpansionVariant,
-  checkLootExpansionEquipRequirement,
-  getLootExpansionAffinityMultiplier,
-  lootExpansionV1Data,
-  normalizeLootExpansionTitleIds
-} from "../content/lootExpansionV1";
-import { resolveActiveCosmeticTitleLabel } from "../content/cosmeticTitles";
+import { rollLootExpansionBaseIdentityItem } from "../domain/loot/lootEngine";
 
 export const DAILY_KORCHMA_ROUND_MIN_LEVEL = 3;
+export type DailyKorchmaRoundDevIdentityMode = "random" | "hit" | "miss" | "forced-pity";
 
 export interface DailyKorchmaRoundOffer {
   dayKey: string;
@@ -172,7 +167,10 @@ interface DailyKorchmaIdentityPlan {
   pityMisses: number;
   forced: boolean;
   itemId: string | null;
-  matchedAffinity: "class" | "race" | "title" | null;
+  matchedIdentity: {
+    axis: "class" | "race" | "title";
+    kind: "affinity" | "hard-requirement";
+  } | null;
 }
 
 interface DailyKorchmaRoundOfferJson {
@@ -648,59 +646,57 @@ export class DailyKorchmaRoundService {
       context.offer.scenes.map((scene) => scene.id).join(","),
       [...context.completedSceneIds].sort().join(",")
     ].join("|"));
-    const roll = random.nextInt(1, 100);
-    const forced = (recent?.length ?? 0) >= 6 && pityMisses >= 6;
+    const devIdentityRecord = await this.dailyActions.findForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
+      localDate: context.dayKey
+    });
+    const devMode = readDevIdentityMode(devIdentityRecord?.resultJson);
+    const roll = devMode === "hit" ? 1 : devMode === "miss" || devMode === "forced-pity"
+      ? 100
+      : random.nextInt(1, 100);
+    const forced = devMode === "forced-pity" || ((recent?.length ?? 0) >= 6 && pityMisses >= 6);
     if (!forced && roll > 13) {
-      return { rulesVersion: 1, roll, pityMisses, forced: false, itemId: null, matchedAffinity: null };
+      return { rulesVersion: 1, roll, pityMisses, forced: false, itemId: null, matchedIdentity: null };
     }
 
     const record = await this.characters.findByTelegramUserId(telegramUserId);
     if (!record) {
-      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedAffinity: null };
+      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedIdentity: null };
     }
-    const activeTitle = resolveActiveCosmeticTitleLabel(record.activeCosmeticTitleGrantId);
     const profile = {
       level: record.level,
       classId: record.classId,
       raceId: record.raceId,
-      ...(activeTitle ? { title: activeTitle } : {}),
-      titleIds: [...normalizeLootExpansionTitleIds({
-        level: record.level,
-        classId: record.classId,
-        raceId: record.raceId,
-        ...(activeTitle ? { title: activeTitle } : {})
-      })]
+      title: context.character.title
     };
-    const candidates = lootExpansionV1Data.items.flatMap((base) => {
-      const variant = buildLootExpansionVariant(base, 0);
-      if (!checkLootExpansionEquipRequirement(variant.variantId, profile).canEquip) return [];
-      if (getLootExpansionAffinityMultiplier(base, profile) <= 1) return [];
-      const normalizedClass = record.classId.replace(/^class\./, "");
-      const normalizedRace = record.raceId.replace(/^race\./, "");
-      const titleIds = new Set(profile.titleIds);
-      const matchedAffinity = base.affinity.classes.some((entry) => entry.id === normalizedClass)
-        ? "class" as const
-        : base.affinity.races.some((entry) => entry.id === normalizedRace)
-          ? "race" as const
-          : base.affinity.titles.some((entry) => titleIds.has(entry.id))
-            ? "title" as const
-            : null;
-      return matchedAffinity ? [{ itemId: variant.variantId, matchedAffinity }] : [];
-    }).sort((left, right) => left.itemId.localeCompare(right.itemId));
-
-    if (candidates.length === 0) {
+    const selected = rollLootExpansionBaseIdentityItem({
+      profile,
+      sourceId: "tavern_event",
+      sourceTags: ["authored_quest", "daily_korchma_round"],
+      rng: random
+    });
+    if (!selected) {
       console.warn("Kvestarnia: daily Korchma identity roll had no eligible affinity manatka.", {
         characterId: context.characterId,
         classId: record.classId,
         raceId: record.raceId
       });
-      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedAffinity: null };
+      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedIdentity: null };
     }
-    const selected = candidates[random.nextInt(0, candidates.length - 1)]!;
-    return { rulesVersion: 1, roll, pityMisses, forced, ...selected };
+    return {
+      rulesVersion: 1,
+      roll,
+      pityMisses,
+      forced,
+      itemId: selected.item.id,
+      matchedIdentity: selected.match
+    };
   }
 
-  async resetTodayForDev(telegramUserId: bigint): Promise<"reset" | "no-character" | "unavailable"> {
+  async resetTodayForDev(
+    telegramUserId: bigint,
+    mode: DailyKorchmaRoundDevIdentityMode = "random"
+  ): Promise<"reset" | "no-character" | "unavailable"> {
     if (!this.dailyActions.deleteForTelegramUser) {
       return "unavailable";
     }
@@ -726,6 +722,10 @@ export class DailyKorchmaRoundService {
       key: DAILY_KORCHMA_ROUND_REWARD_KEY,
       localDate: dayKey
     });
+    await this.dailyActions.deleteForTelegramUser(telegramUserId, {
+      key: DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
+      localDate: dayKey
+    });
 
     for (const scene of dailyKorchmaRoundScenes) {
       await this.dailyActions.deleteForTelegramUser(telegramUserId, {
@@ -743,6 +743,17 @@ export class DailyKorchmaRoundService {
 
     if (rerollIndex === null) {
       return "no-character";
+    }
+
+    if (mode !== "random") {
+      const claim = await this.dailyActions.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
+        localDate: dayKey,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { version: 1, mode }
+      });
+      if (!claim) return "no-character";
     }
 
     return "reset";
@@ -1199,7 +1210,18 @@ function readIdentityItemId(value: unknown): string | null {
   const plan = (value as { identityPlan?: unknown }).identityPlan;
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
   const itemId = (plan as { itemId?: unknown }).itemId;
-  return typeof itemId === "string" && itemId.length > 0 ? itemId : null;
+  return typeof itemId === "string" && itemId.length > 0 &&
+    readAppliedItemGrants(value).some((grant) => grant.itemId === itemId && grant.quantity > 0)
+    ? itemId
+    : null;
+}
+
+function readDevIdentityMode(value: unknown): DailyKorchmaRoundDevIdentityMode | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const mode = (value as { mode?: unknown }).mode;
+  return mode === "hit" || mode === "miss" || mode === "forced-pity" || mode === "random"
+    ? mode
+    : null;
 }
 
 function stepLocalDate(dayKey: string, sceneId: string): string {
