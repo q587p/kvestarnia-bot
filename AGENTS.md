@@ -35,6 +35,15 @@ Use English for Codex-facing workflow materials:
 - internal implementation notes intended mainly for Codex
 - PR titles/bodies, commit messages, and test names when practical
 
+This language rule also covers every ready-to-paste Codex prompt delivered
+directly in chat, including new-task, continuation, review-fix, integration,
+QA and release follow-up prompts. The surrounding review or discussion may be
+Ukrainian, and exact player-facing copy inside the prompt stays Ukrainian, but
+the prompt's operational instructions must be English. Never translate a Codex
+prompt into Ukrainian merely because the conversation with the user is
+Ukrainian; treat a non-English handoff prompt as a blocking prompt-quality
+defect and correct it before delivery.
+
 Use Ukrainian for:
 
 - all player-facing Telegram text
