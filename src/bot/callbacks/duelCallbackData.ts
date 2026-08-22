@@ -13,6 +13,7 @@ export type DuelCallback =
   | { type: "rematch"; token: string }
   | { type: "rematch-risk"; token: string }
   | { type: "share"; token: string }
+  | { type: "statistics"; token: string }
   | { type: "journal"; token: string; page: number }
   | { type: "invite"; token: string; templateIndex: number }
   | { type: "turn"; token: string; action: "attack" | "defend" | "skill" | "race" | "surrender"; turn: number; version: number }
@@ -78,6 +79,10 @@ export function makeDuelShareCallbackData(token: string): string {
 
 export function makeDuelJournalCallbackData(token: string, page = 0): string {
   return `${PREFIX}:j:${token}:${Math.max(0, Math.floor(page)).toString(36)}`;
+}
+
+export function makeDuelStatisticsCallbackData(token: string): string {
+  return `${PREFIX}:s:${token}`;
 }
 
 export function makeDuelInviteRotateCallbackData(token: string, templateIndex: number): string {
@@ -162,6 +167,7 @@ export function parseDuelCallbackData(
     action !== "rematch-risk" &&
     action !== "inv" &&
     action !== "j" &&
+    action !== "s" &&
     action !== "t" &&
     action !== "g" &&
     action !== "share" &&
@@ -261,7 +267,7 @@ export function parseDuelCallbackData(
   }
 
   return ok({
-    type: action,
+    type: action === "s" ? "statistics" : action,
     token
   });
 }

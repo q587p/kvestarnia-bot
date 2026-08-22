@@ -12,6 +12,7 @@ import {
   ITEM_UPGRADE_UNLOCK_LOCAL_DATE
 } from "../../src/domain/itemUpgrades";
 import { ISKROKAMIN_ITEM_ID } from "../../src/services/itemGrant";
+import { ItemUpgradeService } from "../../src/services/itemUpgradeService";
 
 const telegramUserId = 3030n;
 const userId = "user-upgrade-3030";
@@ -383,6 +384,132 @@ describe("PrismaItemUpgradeRepository integration", () => {
     })).resolves.toMatchObject({ state: "attempted", success: true });
   });
 
+  it("atomically dismantles one unit and replays concurrent duplicate confirmations", async () => {
+    await seedUnlock();
+    await seedItem(panPlusTwoItemId, 2);
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panPlusTwoItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    const input = {
+      itemId: preview.item.itemId,
+      expectedQuantity: preview.item.quantity,
+      expectedRemortCount: preview.expectedRemortCount,
+      expectedYield: preview.item.yield,
+      payment: preview.payment,
+      rulesFingerprint: preview.rulesFingerprint,
+      guard: preview.guard,
+      now: now()
+    };
+    const results = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      repository.dismantleForTelegramUser(telegramUserId, input)
+    ]);
+
+    expect(results.map((result) => result.state).sort()).toEqual(["dismantled", "replayed"]);
+    await expectItemQuantity(panPlusTwoItemId, 1);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, preview.item.yield);
+    await expectCharacterResources({ gold: 995, manaCurrent: 80 });
+    await expect(repository.dismantleForTelegramUser(telegramUserId, input))
+      .resolves.toMatchObject({ state: "replayed", yield: preview.item.yield });
+  });
+
+  it("rechecks reservations and equipment atomically after dismantling preview", async () => {
+    await seedUnlock();
+    await seedItem(panPlusTwoItemId, 2);
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panPlusTwoItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    const input = {
+      itemId: preview.item.itemId,
+      expectedQuantity: preview.item.quantity,
+      expectedRemortCount: preview.expectedRemortCount,
+      expectedYield: preview.item.yield,
+      payment: preview.payment,
+      rulesFingerprint: preview.rulesFingerprint,
+      guard: preview.guard,
+      now: now()
+    };
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "item_use_orders" ("id", "character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
+      "reserved-after-preview",
+      characterId,
+      panPlusTwoItemId,
+      new Date(now().getTime() + 60_000).toISOString()
+    );
+    await expect(repository.dismantleForTelegramUser(telegramUserId, input))
+      .resolves.toEqual({ state: "reserved" });
+    await prisma.$executeRawUnsafe(`DELETE FROM "item_use_orders" WHERE "id" = ?`, "reserved-after-preview");
+
+    await prisma.characterEquipment.create({
+      data: { characterId, slot: "weapon", itemId: panPlusTwoItemId }
+    });
+    await expect(repository.dismantleForTelegramUser(telegramUserId, input))
+      .resolves.toEqual({ state: "equipped" });
+    await expectItemQuantity(panPlusTwoItemId, 2);
+    await expectCharacterResources({ gold: 1_000, manaCurrent: 80 });
+  });
+
+  it("rejects a pre-remort dismantling confirmation without spending or yielding", async () => {
+    await seedUnlock();
+    await seedItem(panPlusTwoItemId, 1);
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panPlusTwoItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "character_remorts" ("id", "character_id", "remort_number", "level_before", "xp_before") VALUES (?, ?, 1, 8, 0)`,
+      "remort-after-preview",
+      characterId
+    );
+
+    await expect(repository.dismantleForTelegramUser(telegramUserId, {
+      itemId: preview.item.itemId,
+      expectedQuantity: preview.item.quantity,
+      expectedRemortCount: preview.expectedRemortCount,
+      expectedYield: preview.item.yield,
+      payment: preview.payment,
+      rulesFingerprint: preview.rulesFingerprint,
+      guard: preview.guard,
+      now: now()
+    })).resolves.toEqual({ state: "stale" });
+    await expectItemQuantity(panPlusTwoItemId, 1);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+    await expectCharacterResources({ gold: 1_000, manaCurrent: 80 });
+  });
+
+  it("uses canonical mana regeneration and charges five mana for a magical class", async () => {
+    await seedUnlock();
+    await seedItem(panItemId, 1);
+    await prisma.character.update({
+      where: { id: characterId },
+      data: {
+        classId: "class.mage",
+        manaCurrent: 2,
+        manaMax: 80,
+        manaRegenAt: new Date(now().getTime() - 24 * 60 * 60 * 1_000)
+      }
+    });
+    const service = new ItemUpgradeService(repository, now);
+    const preview = await service.previewDismantleForTelegramUser(telegramUserId, panItemId);
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    expect(preview).toMatchObject({ payment: "mana", paymentAmount: 5, available: 94 });
+
+    await expect(repository.dismantleForTelegramUser(telegramUserId, {
+      itemId: preview.item.itemId,
+      expectedQuantity: preview.item.quantity,
+      expectedRemortCount: preview.expectedRemortCount,
+      expectedYield: preview.item.yield,
+      payment: preview.payment,
+      rulesFingerprint: preview.rulesFingerprint,
+      guard: preview.guard,
+      now: now()
+    })).resolves.toMatchObject({ state: "dismantled", payment: "mana", paymentAmount: 5 });
+
+    await expectItemQuantity(panItemId, 0);
+    await expectItemQuantity(ISKROKAMIN_ITEM_ID, preview.item.yield);
+    await expectCharacterResources({ gold: 1_000, manaCurrent: 89 });
+  });
+
   async function seedCharacter(): Promise<void> {
     await prisma.user.create({
       data: {
@@ -540,6 +667,41 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       CONSTRAINT "character_equipment_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE UNIQUE INDEX "character_equipment_character_id_slot_key" ON "character_equipment"("character_id", "slot")`,
+    `CREATE TABLE "mantok_chest_runs" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "input_items_json" JSONB NOT NULL
+    )`,
+    `CREATE TABLE "level_barter_exchanges" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "token" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'completed',
+      "input_items_json" JSONB NOT NULL
+    )`,
+    `CREATE TABLE "korchma_mantok_sales" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "selection_json" JSONB NOT NULL,
+      "expires_at" DATETIME NOT NULL
+    )`,
+    `CREATE TABLE "item_transfers" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "sender_character_id" TEXT NOT NULL,
+      "item_id" TEXT NOT NULL,
+      "package_json" JSONB,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "expires_at" DATETIME NOT NULL
+    )`,
+    `CREATE TABLE "item_use_orders" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "character_id" TEXT NOT NULL,
+      "item_id" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "expires_at" DATETIME NOT NULL
+    )`,
     `CREATE TABLE "character_remorts" (
       "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       "character_id" TEXT NOT NULL,

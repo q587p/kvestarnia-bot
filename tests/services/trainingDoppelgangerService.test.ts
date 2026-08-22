@@ -93,6 +93,30 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.cooldowns.size).toBe(0);
   });
 
+  it("reads Training statistics without adopting, settling, or otherwise mutating the session", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world);
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active") {
+      throw new Error("Expected active training.");
+    }
+    const before = JSON.stringify([...world.sessions.entries()]);
+
+    await expect(service.getTrainingDoppelgangerStatisticsForTelegramUser(
+      telegramUserId,
+      started.session.id
+    )).resolves.toMatchObject({
+      state: "found",
+      session: { id: started.session.id }
+    });
+
+    expect(JSON.stringify([...world.sessions.entries()])).toBe(before);
+    expect(world.actions.size).toBe(0);
+    expect(world.cooldowns.size).toBe(0);
+    expect(world.resourceMutations).toBe(0);
+  });
+
   it("persists a Sated pulse on the Training Doppelganger turn after its hostile response", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId);

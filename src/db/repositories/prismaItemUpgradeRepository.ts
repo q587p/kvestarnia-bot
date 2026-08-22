@@ -3,16 +3,24 @@ import { items } from "../../content";
 import { FIELD_KIT_ITEM_ID } from "../../domain/itemCraft";
 import { getMantokSetForItem } from "../../domain/equipment/mantokSetBonuses";
 import {
+  buildItemDismantleGuard,
+  buildItemDismantleRulesFingerprint,
   canAccessItemUpgrades,
+  calculateItemDismantleYield,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
   getItemUpgradeRequiredLevel,
   getItemUpgradeUnlockRewardXp,
+  getBaseItemIdForUpgradeVariant,
+  getItemDismantleEligibility,
   getDonorBonus,
   getItemUpgradeLevelFromItemId,
   getLuckFromStats,
   getNextItemUpgradeItemId,
   ITEM_UPGRADE_LOCATION_ID,
+  ITEM_DISMANTLE_GOLD_COST,
+  ITEM_DISMANTLE_MANA_COST,
+  ITEM_DISMANTLE_RULES_VERSION,
   ITEM_UPGRADE_UNLOCK_KEY,
   ITEM_UPGRADE_UNLOCK_LOCAL_DATE,
   isItemUpgradeable,
@@ -26,6 +34,8 @@ import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
 import type { CharacterRecord } from "./characterRepository";
 import type { ItemGrant } from "./dailyActionRepository";
 import type {
+  ItemDismantleConfirmInput,
+  ItemDismantleConfirmResult,
   ItemUpgradeAttemptInput,
   ItemUpgradeAttemptResult,
   ItemUpgradeInventoryRow,
@@ -38,6 +48,10 @@ import { recordLevelMilestones } from "./levelMilestoneRepository";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
+import { findAllActiveReservedItemIds } from "./itemTransferReservations";
+import { protectedMantokChestItemIds } from "../../domain/mantokChest/mantokChestScore";
+import { summarizeCharacter } from "../../domain/characters/characterSummary";
+import { applyPassiveResourceRegeneration } from "../../domain/resources/resourceRegeneration";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -46,6 +60,8 @@ const PITY_KEY_PREFIX = "item-upgrade.pity:";
 const PITY_KIND = "item-upgrade-pity";
 const ATTEMPT_CLAIM_KEY_PREFIX = "item-upgrade.attempt:";
 const ATTEMPT_CLAIM_KIND = "item-upgrade-attempt-claim";
+const DISMANTLE_RECEIPT_KEY_PREFIX = "item-dismantle.receipt:";
+const DISMANTLE_RECEIPT_LOCAL_DATE = "persistent";
 
 class StaleSnapshotRollbackError extends Error {}
 
@@ -55,14 +71,14 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
   ) {}
 
-  async getSnapshotForTelegramUser(telegramUserId: bigint): Promise<ItemUpgradeSnapshot | null> {
+  async getSnapshotForTelegramUser(telegramUserId: bigint, now = new Date()): Promise<ItemUpgradeSnapshot | null> {
     return this.prisma.$transaction(async (tx) => {
       const character = await findCharacter(tx, telegramUserId);
       if (!character) {
         return null;
       }
 
-      const [itemRows, equipment, pities, unlocked] = await Promise.all([
+      const [itemRows, equipment, pities, unlocked, reservedItemIds] = await Promise.all([
         tx.characterItem.findMany({ where: { characterId: character.id }, orderBy: [{ createdAt: "asc" }] }),
         tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } }),
         tx.dailyAction.findMany({
@@ -76,15 +92,47 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
               localDate: ITEM_UPGRADE_UNLOCK_LOCAL_DATE
             }
           }
-        })
+        }),
+        findAllActiveReservedItemIds(tx, { characterId: character.id, now })
       ]);
       const equipped = new Set(equipment.map((row) => row.itemId));
+      const characterRecord = toCharacterRecord(character);
+      const summary = summarizeCharacter(characterRecord, {
+        equippedItems: equipment.flatMap((entry) => {
+          const item = findItem(entry.itemId);
+          return item ? [item] : [];
+        })
+      });
+      const regeneration = applyPassiveResourceRegeneration({
+        resources: {
+          hpCurrent: characterRecord.hpCurrent,
+          hpMax: summary.hpMax,
+          manaCurrent: characterRecord.manaCurrent,
+          manaMax: summary.manaMax,
+          ...(characterRecord.hpRegenAt === undefined ? {} : { hpRegenAt: characterRecord.hpRegenAt }),
+          ...(characterRecord.manaRegenAt === undefined ? {} : { manaRegenAt: characterRecord.manaRegenAt })
+        },
+        profile: {
+          raceId: summary.raceId,
+          classId: summary.classId,
+          title: summary.title,
+          stats: summary.stats
+        },
+        now
+      });
 
       return {
-        character: toCharacterRecord(character),
+        character: {
+          ...characterRecord,
+          hpCurrent: regeneration.resources.hpCurrent,
+          manaCurrent: regeneration.resources.manaCurrent,
+          hpRegenAt: regeneration.resources.hpRegenAt,
+          manaRegenAt: regeneration.resources.manaRegenAt
+        },
         items: itemRows.map((row) => toInventoryRow(row, equipped)),
         pities: pities.flatMap(mapPity),
-        unlocked: Boolean(unlocked)
+        unlocked: Boolean(unlocked),
+        reservedItemIds
       };
     });
   }
@@ -350,6 +398,219 @@ export class PrismaItemUpgradeRepository implements ItemUpgradeRepository {
 
       return { character: toCharacterRecord(character), failureCount: safeFailures };
     });
+  }
+
+  async dismantleForTelegramUser(
+    telegramUserId: bigint,
+    input: ItemDismantleConfirmInput
+  ): Promise<ItemDismantleConfirmResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) return { state: "no-character" };
+        const remortCount = getIncludedRemortCount(character);
+        if (remortCount !== input.expectedRemortCount) return { state: "stale" };
+
+        const existingReceipt = await tx.dailyAction.findUnique({
+          where: {
+            characterId_key_localDate: {
+              characterId: character.id,
+              key: `${DISMANTLE_RECEIPT_KEY_PREFIX}${input.guard}`,
+              localDate: DISMANTLE_RECEIPT_LOCAL_DATE
+            }
+          }
+        });
+        const replay = parseDismantleReceipt(existingReceipt, character);
+        if (replay) return replay;
+
+        const gate = await getUpgradeGateResult(tx, character);
+        if (gate) {
+          if (gate.state === "wrong-place" || gate.state === "level-locked" || gate.state === "unlock-required") {
+            return { state: gate.state };
+          }
+          return { state: "stale" };
+        }
+
+        const [row, equipment, reservedItemIds, sparkBefore] = await Promise.all([
+          tx.characterItem.findUnique({
+            where: { characterId_itemId: { characterId: character.id, itemId: input.itemId } }
+          }),
+          tx.characterEquipment.findMany({ where: { characterId: character.id }, select: { itemId: true } }),
+          findAllActiveReservedItemIds(tx, { characterId: character.id, now: input.now }),
+          tx.characterItem.findUnique({
+            where: { characterId_itemId: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID } },
+            select: { quantity: true }
+          })
+        ]);
+        if (!row || row.quantity <= 0) return { state: "not-owned" };
+        if (equipment.some((entry) => entry.itemId === input.itemId)) return { state: "equipped" };
+        if (reservedItemIds.includes(input.itemId)) return { state: "reserved" };
+
+        const content = findItem(input.itemId);
+        if (!content) return { state: "not-eligible" };
+        const eligibility = getItemDismantleEligibility(content, row.quantity, protectedMantokChestItemIds);
+        if (eligibility !== "eligible") {
+          return { state: eligibility === "protected-last-copy" ? "protected-last-copy" : "not-eligible" };
+        }
+        const enhancementLevel = getItemUpgradeLevelFromItemId(input.itemId);
+        const baseItemId = getBaseItemIdForUpgradeVariant(input.itemId);
+        const baseContent = findItem(baseItemId) ?? content;
+        const isSetPiece = Boolean(getMantokSetForItem(baseItemId));
+        const yieldAmount = calculateItemDismantleYield({
+          baseRarity: baseContent.rarity,
+          enhancementLevel,
+          isSetPiece
+        });
+        const rulesFingerprint = buildItemDismantleRulesFingerprint({
+          baseItemId,
+          enhancementLevel,
+          baseRarity: baseContent.rarity,
+          isSetPiece,
+          yield: yieldAmount
+        });
+        const payment = isMageClassForItemSelfUpgrade(character.classId) ? "mana" : "gold";
+        const paymentAmount = payment === "mana" ? ITEM_DISMANTLE_MANA_COST : ITEM_DISMANTLE_GOLD_COST;
+        const guard = buildItemDismantleGuard({
+          characterId: character.id,
+          remortCount,
+          itemId: input.itemId,
+          baseItemId,
+          enhancementLevel,
+          baseRarity: baseContent.rarity,
+          isSetPiece,
+          expectedQuantity: row.quantity,
+          yield: yieldAmount,
+          payment,
+          paymentAmount,
+          rulesFingerprint
+        });
+        if (
+          row.quantity !== input.expectedQuantity ||
+          yieldAmount !== input.expectedYield ||
+          payment !== input.payment ||
+          rulesFingerprint !== input.rulesFingerprint ||
+          guard !== input.guard
+        ) {
+          return { state: "stale" };
+        }
+
+        const availableGold = character.gold;
+        let availableMana = character.manaCurrent;
+        if (payment === "mana") {
+          const summary = summarizeCharacter(toCharacterRecord(character), {
+            equippedItems: equipment.flatMap((entry) => {
+              const item = findItem(entry.itemId);
+              return item ? [item] : [];
+            })
+          });
+          const regeneration = applyPassiveResourceRegeneration({
+            resources: {
+              hpCurrent: character.hpCurrent,
+              hpMax: summary.hpMax,
+              manaCurrent: character.manaCurrent,
+              manaMax: summary.manaMax,
+              hpRegenAt: character.hpRegenAt,
+              manaRegenAt: character.manaRegenAt
+            },
+            profile: {
+              raceId: summary.raceId,
+              classId: summary.classId,
+              title: summary.title,
+              stats: summary.stats
+            },
+            now: input.now
+          });
+          availableMana = regeneration.resources.manaCurrent;
+          await tx.character.update({
+            where: { id: character.id },
+            data: {
+              hpCurrent: regeneration.resources.hpCurrent,
+              manaCurrent: regeneration.resources.manaCurrent,
+              hpRegenAt: regeneration.resources.hpRegenAt,
+              manaRegenAt: regeneration.resources.manaRegenAt
+            }
+          });
+        }
+        if (payment === "gold" && availableGold < paymentAmount) {
+          return { state: "not-enough-gold", required: paymentAmount, available: availableGold };
+        }
+        if (payment === "mana" && availableMana < paymentAmount) {
+          return { state: "not-enough-mana", required: paymentAmount, available: availableMana };
+        }
+
+        const receipt = await tx.dailyAction.create({
+          data: {
+            characterId: character.id,
+            key: `${DISMANTLE_RECEIPT_KEY_PREFIX}${input.guard}`,
+            localDate: DISMANTLE_RECEIPT_LOCAL_DATE,
+            rewardXp: 0,
+            rewardGold: 0,
+            spentGold: payment === "gold" ? paymentAmount : 0,
+            resultJson: {
+              version: 1,
+              rulesVersion: ITEM_DISMANTLE_RULES_VERSION,
+              remortCount,
+              itemId: input.itemId,
+              baseItemId,
+              enhancementLevel,
+              baseRarity: baseContent.rarity,
+              isSetPiece,
+              quantityBefore: row.quantity,
+              yield: yieldAmount,
+              iskrokaminAfter: (sparkBefore?.quantity ?? 0) + yieldAmount,
+              payment,
+              paymentAmount,
+              rulesFingerprint,
+              guard: input.guard
+            }
+          }
+        });
+        const charged = await tx.character.updateMany({
+          where: payment === "gold"
+            ? { id: character.id, gold: { gte: paymentAmount } }
+            : { id: character.id, manaCurrent: { gte: paymentAmount } },
+          data: payment === "gold"
+            ? { gold: { decrement: paymentAmount } }
+            : { manaCurrent: { decrement: paymentAmount }, manaRegenAt: input.now }
+        });
+        const consumed = await tx.characterItem.updateMany({
+          where: {
+            characterId: character.id,
+            itemId: input.itemId,
+            quantity: row.quantity
+          },
+          data: { quantity: { decrement: 1 } }
+        });
+        if (charged.count !== 1 || consumed.count !== 1) throw new StaleSnapshotRollbackError();
+        await tx.characterItem.deleteMany({
+          where: { characterId: character.id, itemId: input.itemId, quantity: { lte: 0 } }
+        });
+        const spark = await tx.characterItem.upsert({
+          where: { characterId_itemId: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID } },
+          create: { characterId: character.id, itemId: ISKROKAMIN_ITEM_ID, quantity: yieldAmount },
+          update: { quantity: { increment: yieldAmount } }
+        });
+        const updatedCharacter = await tx.character.findUniqueOrThrow({
+          where: { id: character.id },
+          include: characterInclude
+        });
+        return {
+          state: "dismantled",
+          character: toCharacterRecord(updatedCharacter),
+          itemId: input.itemId,
+          quantityBefore: row.quantity,
+          yield: yieldAmount,
+          payment,
+          paymentAmount,
+          iskrokaminAfter: spark.quantity,
+          receiptId: receipt.id
+        };
+      });
+    } catch (error) {
+      if (error instanceof StaleSnapshotRollbackError) return { state: "stale" };
+      if (!isUniqueConstraintError(error)) throw error;
+      return (await getDismantleReplay(this.prisma, telegramUserId, input)) ?? { state: "stale" };
+    }
   }
 
   async unlockForTelegramUser(
@@ -840,6 +1101,57 @@ function mapPity(row: Pick<DailyAction, "key" | "resultJson"> | null): Array<{
         failureCount: Math.max(0, Math.floor(row.resultJson.failureCount))
       }]
     : [];
+}
+
+function parseDismantleReceipt(
+  row: DailyAction | null,
+  character: Character & { user: { lastSeenLocationId: string | null }; _count?: { remorts?: number } }
+): (ItemDismantleConfirmResult & { state: "replayed" }) | null {
+  if (!row || !isRecord(row.resultJson)) return null;
+  const value = row.resultJson;
+  if (
+    value.version !== 1 ||
+    value.rulesVersion !== ITEM_DISMANTLE_RULES_VERSION ||
+    typeof value.itemId !== "string" ||
+    !Number.isInteger(value.quantityBefore) ||
+    !Number.isInteger(value.yield) ||
+    (value.payment !== "gold" && value.payment !== "mana") ||
+    !Number.isInteger(value.paymentAmount) ||
+    !Number.isInteger(value.iskrokaminAfter) ||
+    typeof value.guard !== "string"
+  ) {
+    return null;
+  }
+  return {
+    state: "replayed",
+    character: toCharacterRecord(character),
+    itemId: value.itemId,
+    quantityBefore: Number(value.quantityBefore),
+    yield: Number(value.yield),
+    payment: value.payment,
+    paymentAmount: Number(value.paymentAmount),
+    iskrokaminAfter: Number(value.iskrokaminAfter),
+    receiptId: row.id
+  };
+}
+
+async function getDismantleReplay(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  input: ItemDismantleConfirmInput
+): Promise<(ItemDismantleConfirmResult & { state: "replayed" }) | null> {
+  const character = await findCharacter(prisma, telegramUserId);
+  if (!character || getIncludedRemortCount(character) !== input.expectedRemortCount) return null;
+  const row = await prisma.dailyAction.findUnique({
+    where: {
+      characterId_key_localDate: {
+        characterId: character.id,
+        key: `${DISMANTLE_RECEIPT_KEY_PREFIX}${input.guard}`,
+        localDate: DISMANTLE_RECEIPT_LOCAL_DATE
+      }
+    }
+  });
+  return parseDismantleReceipt(row, character);
 }
 
 const characterInclude = {

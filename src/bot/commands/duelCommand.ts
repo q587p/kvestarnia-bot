@@ -44,6 +44,7 @@ import {
   presentDuelKorchmaGate,
   presentDuelRematch,
   presentDuelResultShare,
+  presentDuelStatistics,
   presentTurnBasedDuelJournal,
   presentTurnBasedDuelIntro,
   presentDuelView
@@ -628,6 +629,41 @@ export async function handleDuelCallback(
       "edit",
       presentTurnBasedDuelJournal(result, callback.page),
       { state: "journal", token: callback.token, page: callback.page, totalPages: result.rounds.length }
+    );
+    return;
+  }
+
+  if (callback.type === "statistics") {
+    if (!isPrivateChat(ctx)) {
+      await answerCallback({ text: "Особиста статистика доступна лише у приватному чаті з ботом." });
+      return;
+    }
+    const telegramUserId = telegramUserIdFromContext(ctx.from);
+    if (telegramUserId === null) {
+      await answerCallback({ text: "Не вдалося підтвердити учасника дуелі." });
+      return;
+    }
+    const result = await service.getStatisticsForTelegramUser(telegramUserId, callback.token);
+    if (result.state === "not-found") {
+      await answerCallback({ text: "Статистика цієї дуелі не знайшлася для вашого пригодника." });
+      return;
+    }
+    if (result.state === "active") {
+      await answerCallback();
+      await showCanonicalTurnBasedDuelCard(ctx, result.view, service, "edit");
+      return;
+    }
+    if (result.state === "not-ready") {
+      await answerCallback({ text: "Статистика відкриється після завершення дуелі." });
+      return;
+    }
+
+    await answerCallback();
+    await sendText(
+      ctx,
+      "edit",
+      presentDuelStatistics(result),
+      { state: "result", token: callback.token, mode: result.mode }
     );
     return;
   }

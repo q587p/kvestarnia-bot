@@ -216,7 +216,36 @@ describe("FightService", () => {
       key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY,
       localDate: "2026-06-12",
       rewardXp: buildStarterLevelTwoXpReward(),
-      rewardGold: 3
+      rewardGold: 3,
+      resultJson: {
+        version: 1,
+        action: "attack",
+        statistics: {
+          version: 1,
+          hero: {
+            damage: 8,
+            healing: 0,
+            guardPrevented: 0,
+            control: 0,
+            damageTaken: 3,
+            actions: 1,
+            specialActions: 0,
+            guardedTurns: 0
+          },
+          enemy: {
+            damage: 3,
+            damageTaken: 8,
+            actions: 1
+          }
+        }
+      }
+    });
+    await expect(service.getMimicShawarmaStatisticsForTelegramUser(
+      telegramUserId,
+      "2026-06-12"
+    )).resolves.toMatchObject({
+      state: "ready",
+      statistics: { hero: { damage: 8 }, enemy: { damage: 3 } }
     });
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 15,
@@ -494,6 +523,37 @@ describe("FightService", () => {
       }
     });
     expect(sessions.createCount).toBe(0);
+  });
+
+  it("reads persistent-fight statistics without refreshing or settling combat state", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const session = sessions.addSession(makeActivePersistentSession({
+      id: "solo-statistics-read-only",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    }));
+    const before = JSON.stringify(session);
+    const service = new FightService({
+      characters,
+      dailyActions,
+      clock: fixedClock,
+      combatSessions: sessions
+    });
+
+    await expect(service.getPersistentFightStatisticsForTelegramUser(
+      telegramUserId,
+      session.id
+    )).resolves.toMatchObject({
+      state: "found",
+      session: { id: session.id }
+    });
+
+    expect(sessions.updateCount).toBe(0);
+    expect(sessions.lastStatusMark).toBeNull();
+    expect(JSON.stringify(await sessions.findByIdForTelegramUserId(telegramUserId, session.id))).toBe(before);
   });
 
   it("uses a supplied authoritative solo lease without rereading combat ownership", async () => {
@@ -7935,6 +7995,7 @@ class FakeDailyActionRepository implements DailyActionRepository {
       localDate: input.localDate,
       rewardXp: input.rewardXp,
       rewardGold: input.rewardGold,
+      resultJson: input.resultJson ?? null,
       createdAt: fixedClock()
     };
     this.actions.set(claimKey, action);

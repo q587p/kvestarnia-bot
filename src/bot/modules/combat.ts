@@ -64,6 +64,7 @@ buildProblemQuestProgressAfterFightEntry,
 presentFightLevelRetired,
 presentFightNoCharacter,
 presentFightResult,
+presentMimicShawarmaStatistics,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
 presentPersistentFightGearUnavailableNotice,
@@ -300,10 +301,15 @@ export async function handleTrainingDoppelgangerCallback(
       });
       return;
     }
-    const result = await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
-      telegramUserId,
-      callback.sessionId
-    );
+    const result = callback.type === "statistics"
+      ? await services.trainingDoppelganger.getTrainingDoppelgangerStatisticsForTelegramUser(
+          telegramUserId,
+          callback.sessionId
+        )
+      : await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
+          telegramUserId,
+          callback.sessionId
+        );
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -418,6 +424,30 @@ async function handleFightCallback(
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "mimic-statistics") {
+    if (ctx.chat?.type !== "private") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
+        show_alert: true
+      });
+      return;
+    }
+    const result = await services.fight.getMimicShawarmaStatisticsForTelegramUser(
+      telegramUserId,
+      callback.localDate
+    );
+    if (result.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Статистика цього бою не знайшлася." });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentMimicShawarmaStatistics(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildFightResultKeyboard("already-completed", result.character, callback.localDate)
+    });
     return;
   }
 
@@ -588,10 +618,15 @@ async function handleFightCallback(
       });
       return;
     }
-    const result = await services.fight.getPersistentFightSnapshotForTelegramUser(
-      telegramUserId,
-      callback.sessionId
-    );
+    const result = callback.type === "statistics"
+      ? await services.fight.getPersistentFightStatisticsForTelegramUser(
+          telegramUserId,
+          callback.sessionId
+        )
+      : await services.fight.getPersistentFightSnapshotForTelegramUser(
+          telegramUserId,
+          callback.sessionId
+        );
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -912,7 +947,11 @@ async function handleFightCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildFightResultKeyboard(result.state, result.character)
+    reply_markup: buildFightResultKeyboard(
+      result.state,
+      result.character,
+      result.state === "completed" ? result.reward.localDate : result.localDate
+    )
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);

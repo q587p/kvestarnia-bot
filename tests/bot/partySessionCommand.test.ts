@@ -1935,6 +1935,37 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("v1:gc:v:partyABC12");
   });
 
+  it.each(["group", "supergroup"] as const)(
+    "rejects viewer-specific PartyBoss statistics in a %s before reading the battle",
+    async (chatType) => {
+      const getByPartyInviteToken = vi.fn();
+      const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, {
+        id: -100587,
+        type: chatType
+      });
+
+      await handlePartySessionCallback(
+        ctx,
+        { type: "boss-statistics", token: "partyABC12" },
+        serviceWith({}),
+        {
+          presence: {} as PresenceService,
+          partyBoss: {
+            isEnabled: () => true,
+            getByPartyInviteToken
+          } as unknown as PartyBossService
+        }
+      );
+
+      expect(getByPartyInviteToken).not.toHaveBeenCalled();
+      expect(editMessageText).not.toHaveBeenCalled();
+      expect(answerCallbackQuery).toHaveBeenCalledWith({
+        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
+        show_alert: true
+      });
+    }
+  );
+
   it("opens a settled GroupCombat result with journal and statistics from a party deep link", async () => {
     const party = {
       ...makeSession("completed"),

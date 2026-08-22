@@ -10,13 +10,15 @@ import type {
 import { DAILY_KORCHMA_ROUND_REQUIRED_STEPS } from "../../src/content/dailyKorchmaRoundContent";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
   DAILY_KORCHMA_ROUND_REROLL_KEY,
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "../../src/services/dailyActionKeys";
 import {
   DailyKorchmaRoundService,
-  calculateDailyKorchmaRoundReward
+  calculateDailyKorchmaRoundReward,
+  getDailyKorchmaIdentityChancePercent
 } from "../../src/services/dailyKorchmaRoundService";
 import {
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -29,6 +31,78 @@ const telegramUserId = 587n;
 const now = new Date("2026-06-28T09:00:00.000Z");
 
 describe("DailyKorchmaRoundService", () => {
+  it("lets LUCK improve only the bounded identity-branch chance", () => {
+    expect(getDailyKorchmaIdentityChancePercent(1)).toBe(13);
+    expect(getDailyKorchmaIdentityChancePercent(6)).toBe(13);
+    expect(getDailyKorchmaIdentityChancePercent(7)).toBe(14);
+    expect(getDailyKorchmaIdentityChancePercent(16)).toBe(23);
+    expect(getDailyKorchmaIdentityChancePercent(999)).toBe(23);
+  });
+
+  it.each([
+    ["hit", false, true],
+    ["miss", false, false],
+    ["forced-pity", true, true]
+  ] as const)("pins the Korchma dev-helper %s identity mode", async (mode, forced, hasItem) => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    await expect(world.service.resetTodayForDev(telegramUserId, mode)).resolves.toBe("reset");
+
+    const claimed = await completeOfferForClaim(world);
+    expect(claimed.state).toBe("reward-claimed");
+    const plan = readRecordedIdentityPlan(world, "2026-06-28");
+
+    expect(plan).toMatchObject({ forced });
+    expect(typeof plan?.itemId === "string").toBe(hasItem);
+    expect(world.daily.records.some((record) =>
+      record.key === DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY && record.localDate === "2026-06-28"
+    )).toBe(true);
+  });
+
+  it("forces pity after six planned identity items were not actually applied", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    for (let index = 0; index < 6; index += 1) {
+      await world.daily.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+        localDate: `2026-06-${String(22 + index).padStart(2, "0")}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { identityPlan: { itemId: `item.planned-${index}` } },
+        itemGrants: []
+      });
+    }
+
+    await completeOfferForClaim(world);
+
+    const plan = readRecordedIdentityPlan(world, "2026-06-28");
+    expect(plan?.forced).toBe(true);
+    expect(plan?.pityMisses).toBe(6);
+    expect(typeof plan?.itemId).toBe("string");
+  });
+
+  it("resets pity only for a planned identity item present in appliedItemGrants", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    for (let index = 0; index < 6; index += 1) {
+      const itemId = `item.planned-${index}`;
+      await world.daily.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+        localDate: `2026-06-${String(22 + index).padStart(2, "0")}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { identityPlan: { itemId } },
+        itemGrants: index === 5 ? [{ itemId, quantity: 1 }] : []
+      });
+    }
+    await expect(world.service.resetTodayForDev(telegramUserId, "miss")).resolves.toBe("reset");
+
+    await completeOfferForClaim(world);
+
+    expect(readRecordedIdentityPlan(world, "2026-06-28")).toMatchObject({
+      forced: false,
+      pityMisses: 5,
+      itemId: null
+    });
+  });
+
   it("locks level 1 without an existing offer and creates a stable level 3 offer with one yard and two interiors", async () => {
     const world = new FakeWorld(makeCharacter({ level: 1 }));
     let result = await world.service.getForTelegramUser(telegramUserId);
@@ -703,6 +777,28 @@ async function readyOffer(world: FakeWorld) {
   }
 
   return result.offer;
+}
+
+async function completeOfferForClaim(world: FakeWorld) {
+  const offer = await readyOffer(world);
+  await recordMarkerStep(world, offer, 0);
+  await recordMarkerStep(world, offer, 1);
+  world.locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  return world.service.claimReward(telegramUserId, {
+    dayToken: offer.dayToken,
+    lifeToken: offer.lifeToken
+  });
+}
+
+function readRecordedIdentityPlan(world: FakeWorld, localDate: string) {
+  const record = world.daily.records.find((candidate) =>
+    candidate.key === DAILY_KORCHMA_ROUND_REWARD_KEY && candidate.localDate === localDate
+  );
+  return (record?.resultJson as { identityPlan?: {
+    forced: boolean;
+    pityMisses: number;
+    itemId: string | null;
+  } } | null)?.identityPlan;
 }
 
 async function markerLookup(

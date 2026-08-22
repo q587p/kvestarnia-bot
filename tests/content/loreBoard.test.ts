@@ -238,6 +238,8 @@ describe("lore board content", () => {
     expect(general?.body).toContain("Дія спорядження");
     expect(general?.body).toContain("бойового трюку");
     expect(general?.body).toContain("магічне покращення");
+    expect(general?.body).toContain("незворотно розібрати на Іскрокамінь");
+    expect(general?.body).toContain("окремого підтвердження");
     expect(general?.body).not.toContain("таємний");
   });
 

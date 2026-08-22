@@ -19,6 +19,18 @@ export type ItemUpgradeCallback =
   | { type: "list"; page: number; sort: InventorySort }
   | { type: "page-prompt"; totalPages: number; sort: InventorySort }
   | { type: "unlock" }
+  | { type: "dismantle-list"; page: number }
+  | { type: "dismantle-preview"; itemId: string }
+  | {
+      type: "dismantle-confirm";
+      itemId: string;
+      expectedQuantity: number;
+      expectedRemortCount: number;
+      expectedYield: number;
+      payment: "gold" | "mana";
+      rulesFingerprint: string;
+      guard: string;
+    }
   | { type: "preview"; itemId: string; method: "npc" | "self"; donorItemId: string | null }
   | {
       type: "attempt";
@@ -53,6 +65,39 @@ export function makeItemUpgradePagePromptCallbackData(
 
 export function makeItemUpgradeUnlockCallbackData(): string {
   return assertCallbackData(`${PREFIX}:u`);
+}
+
+export function makeItemDismantleListCallbackData(page = 0): string {
+  return assertCallbackData(`${PREFIX}:dl:${safeSmallInt(page)}`);
+}
+
+export function makeItemDismantlePreviewCallbackData(itemId: string): string {
+  return assertCallbackData(`${PREFIX}:dp:${itemKey(itemId)}`);
+}
+
+export function makeItemDismantleConfirmCallbackData(input: {
+  itemId: string;
+  expectedQuantity: number;
+  expectedRemortCount: number;
+  expectedYield: number;
+  payment: "gold" | "mana";
+  rulesFingerprint: string;
+  guard: string;
+}): string {
+  if (!isAttemptGuard(input.rulesFingerprint) || !isAttemptGuard(input.guard)) {
+    throw new RangeError("Invalid dismantle callback guard.");
+  }
+  return assertCallbackData([
+    PREFIX,
+    "dc",
+    itemKey(input.itemId),
+    safeSmallInt(input.expectedQuantity),
+    safeSmallInt(input.expectedRemortCount),
+    safeSmallInt(input.expectedYield),
+    input.payment === "mana" ? "m" : "g",
+    input.rulesFingerprint,
+    input.guard
+  ].join(":"));
 }
 
 export function makeItemUpgradePreviewCallbackData(
@@ -113,6 +158,49 @@ export function parseItemUpgradeCallbackData(data: string | undefined): { ok: tr
 
   if (data === `${PREFIX}:u`) {
     return { ok: true, value: { type: "unlock" } };
+  }
+
+  if (data.startsWith(`${PREFIX}:dl:`)) {
+    const parts = data.split(":");
+    const page = parseSmallInt(parts[3]);
+    return parts.length === 4 && page !== null
+      ? { ok: true, value: { type: "dismantle-list", page } }
+      : { ok: false };
+  }
+
+  if (data.startsWith(`${PREFIX}:dp:`)) {
+    const parts = data.split(":");
+    const itemId = itemIdFromKey(parts[3] ?? "");
+    return parts.length === 4 && itemId
+      ? { ok: true, value: { type: "dismantle-preview", itemId } }
+      : { ok: false };
+  }
+
+  if (data.startsWith(`${PREFIX}:dc:`)) {
+    const parts = data.split(":");
+    const itemId = itemIdFromKey(parts[3] ?? "");
+    const expectedQuantity = parseSmallInt(parts[4]);
+    const expectedRemortCount = parseSmallInt(parts[5]);
+    const expectedYield = parseSmallInt(parts[6]);
+    const payment = parts[7] === "m" ? "mana" as const : parts[7] === "g" ? "gold" as const : null;
+    const rulesFingerprint = parts[8];
+    const guard = parts[9];
+    return parts.length === 10 && itemId && expectedQuantity !== null && expectedRemortCount !== null &&
+      expectedYield !== null && payment && isAttemptGuard(rulesFingerprint) && isAttemptGuard(guard)
+      ? {
+          ok: true,
+          value: {
+            type: "dismantle-confirm",
+            itemId,
+            expectedQuantity,
+            expectedRemortCount,
+            expectedYield,
+            payment,
+            rulesFingerprint,
+            guard
+          }
+        }
+      : { ok: false };
   }
 
   const [version, scope, action, itemKeyPart, methodPart, ...rest] = data.split(":");

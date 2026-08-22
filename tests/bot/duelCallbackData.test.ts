@@ -14,6 +14,7 @@ import {
   makeDuelRematchCallbackData,
   makeDuelRematchRiskCallbackData,
   makeDuelShareCallbackData,
+  makeDuelStatisticsCallbackData,
   makeDuelTurnCallbackData,
   makeDuelViewCallbackData,
   parseDuelCallbackData
@@ -64,6 +65,10 @@ describe("duel callback data", () => {
     expect(parseDuelCallbackData(makeDuelShareCallbackData("abc_DEF12"))).toEqual({
       ok: true,
       value: { type: "share", token: "abc_DEF12" }
+    });
+    expect(parseDuelCallbackData(makeDuelStatisticsCallbackData("abc_DEF12"))).toEqual({
+      ok: true,
+      value: { type: "statistics", token: "abc_DEF12" }
     });
     expect(parseDuelCallbackData(makeDuelJournalCallbackData("abc_DEF12", 12))).toEqual({
       ok: true,
@@ -116,6 +121,7 @@ describe("duel callback data", () => {
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "defend", 42, 13), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelTurnCallbackData("abc_DEF12", "race", 42, 13), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelJournalCallbackData("abc_DEF12", 42), "utf8")).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(makeDuelStatisticsCallbackData("abc_DEF12"), "utf8")).toBeLessThanOrEqual(64);
     expect(Buffer.byteLength(makeDuelGearActionCallbackData({
       token: "abc_DEF12",
       turn: 42,

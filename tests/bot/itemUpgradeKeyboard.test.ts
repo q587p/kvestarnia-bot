@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildItemDismantleListKeyboard,
+  buildItemDismantlePreviewKeyboard,
   buildItemUpgradeListKeyboard,
   buildItemUpgradePreviewKeyboard
 } from "../../src/bot/keyboards/itemUpgradeKeyboard";
@@ -9,12 +11,43 @@ import {
 } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { parseItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import type {
+  ItemDismantleListResult,
+  ItemDismantlePreviewResult,
   ItemUpgradeListResult,
   ItemUpgradePreviewResult
 } from "../../src/services/itemUpgradeService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("item upgrade keyboard", () => {
+  it("paginates every dismantling candidate and carries the frozen confirmation guard", () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({
+      itemId: `item.test-upgrade-${index + 1}`,
+      name: `Манатка ${index + 1}`,
+      quantity: 1,
+      enhancementLevel: 0,
+      rarity: "common" as const,
+      isSetPiece: false,
+      yield: 1
+    }));
+    const list = { state: "ready", character, items } satisfies ItemDismantleListResult;
+    expect(buttonTexts(buildItemDismantleListKeyboard(list)).filter((text) => text.startsWith("♻️ Манатка"))).toHaveLength(10);
+    expect(buttonTexts(buildItemDismantleListKeyboard(list, 1)).filter((text) => text.startsWith("♻️ Манатка"))).toHaveLength(2);
+
+    const preview = {
+      state: "ready",
+      character,
+      item: { ...items[0]!, itemId: "item.pan-of-persuasion", quantity: 2, yield: 1 },
+      payment: "gold",
+      paymentAmount: 5,
+      available: 20,
+      expectedRemortCount: 0,
+      rulesFingerprint: "a1b2c3d4",
+      guard: "e5f60718"
+    } satisfies ItemDismantlePreviewResult;
+    expect(buttonCallbacks(buildItemDismantlePreviewKeyboard(preview)).join("\n")).toContain("v1:up:dc:");
+    expect(buttonTexts(buildItemDismantlePreviewKeyboard(preview))).toContain("♻️ Підтвердити розбір");
+  });
+
   it("marks equipped upgrade candidates with the equip icon", () => {
     const keyboard = buildItemUpgradeListKeyboard(readyList({
       items: [

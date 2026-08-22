@@ -1343,6 +1343,47 @@ describe("handleDuelCallback", () => {
     expect(editMessageText).not.toHaveBeenCalled();
   });
 
+  it.each(["group", "supergroup"] as const)(
+    "never reads or renders participant statistics in a %s chat",
+    async (chatType) => {
+      const getStatisticsForTelegramUser = vi.fn();
+      const service = serviceWith({ getStatisticsForTelegramUser });
+      const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, chatType);
+
+      await handleDuelCallback(ctx, { type: "statistics", token: TOKEN }, service, {
+        presence: createPresence()
+      });
+
+      expect(getStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(answerCallbackQuery).toHaveBeenCalledWith({
+        text: "Особиста статистика доступна лише у приватному чаті з ботом."
+      });
+      expect(editMessageText).not.toHaveBeenCalled();
+    }
+  );
+
+  it("renders participant-authorized quick-duel scores without invoking settlement", async () => {
+    const getStatisticsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      mode: "quick",
+      view: makeResolvedQuickView()
+    });
+    const getByToken = vi.fn();
+    const service = serviceWith({ getStatisticsForTelegramUser, getByToken });
+    const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, "private");
+
+    await handleDuelCallback(ctx, { type: "statistics", token: TOKEN }, service, {
+      presence: createPresence()
+    });
+
+    expect(getStatisticsForTelegramUser).toHaveBeenCalledWith(42n, TOKEN);
+    expect(getByToken).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+    expect(messageText(editMessageText)).toContain("📊 <b>Статистика дуелі</b>");
+    expect(messageText(editMessageText)).toContain("⚔️ 7");
+    expect(messageText(editMessageText)).toContain("⚔️ 9");
+  });
+
   it("sends a first gear-action achievement notice to the turn-based duel actor", async () => {
     const target = makeCharacter(99n, "Ціль Виклику");
     const activeSession = makeTurnBasedSession("active", target);

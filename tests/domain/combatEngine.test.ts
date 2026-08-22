@@ -20,10 +20,12 @@ import {
   resolveCombatGearTurn,
   resolveCombatItemTurn,
   resolveCombatTurn,
+  recordCombatStatisticsTurn,
   startCombat,
   type CombatActorStats,
   type CombatStatus,
   type CombatState,
+  type CombatTurnSummary,
   type MonsterCombatStats
 } from "../../src/domain/combat";
 import { findMantokAbilityGrantByKey } from "../../src/content";
@@ -121,6 +123,53 @@ const rangerTrickShotNumbers = {
 } as const;
 
 describe("combat domain engine", () => {
+  it("maps capped HP deltas and committed action dimensions into solo statistics", () => {
+    const previous = startCombat({ hero: warrior, monster });
+    previous.hero.hp = 20;
+    const current = cloneCombatState(previous);
+    current.monster.hp = 0;
+    current.hero.hp = 21;
+    const summary: CombatTurnSummary = {
+      action: "skill",
+      heroOutcome: "won",
+      monsterOutcome: "hit",
+      heroDamage: 999,
+      monsterDamage: 99,
+      manaSpent: 3,
+      critical: false,
+      heroHealing: 4,
+      enemyActions: [{
+        enemyId: "enemy:1",
+        monsterId: monster.monsterId,
+        monsterDamage: 99,
+        monsterAction: "skill"
+      }]
+    };
+
+    recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
+
+    expect(current.statistics?.hero).toEqual({
+      damage: monster.hpMax,
+      healing: 4,
+      guardPrevented: null,
+      control: null,
+      damageTaken: 3,
+      actions: 1,
+      specialActions: 1,
+      guardedTurns: 0
+    });
+    expect(current.statistics?.enemies["enemy:1"]).toEqual({
+      damage: 3,
+      healing: null,
+      guardPrevented: null,
+      control: null,
+      damageTaken: monster.hpMax,
+      actions: 1,
+      specialActions: 1,
+      guardedTurns: 0
+    });
+  });
+
   it("applies a Sated pulse after the hostile response to a committed single-enemy action", () => {
     const weakMonster = { ...monster, attack: 1 };
     const state = startCombat({ hero: warrior, monster: weakMonster });

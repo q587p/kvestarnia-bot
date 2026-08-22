@@ -5,6 +5,7 @@ import {
   makeFightItemsCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
+  makeMimicFightStatisticsCallbackData,
   makeFightPassageAttackCallbackData,
   makeFightTierTwoCallbackData,
   makeFightTurnCallbackData,
@@ -23,6 +24,15 @@ describe("fight callback data", () => {
         type: "mimic",
         action
       }
+    });
+    expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
+  });
+
+  it("binds starter Mimic statistics to the immutable completion date", () => {
+    const data = makeMimicFightStatisticsCallbackData("2026-08-22");
+    expect(parseFightCallbackData(data)).toEqual({
+      ok: true,
+      value: { type: "mimic-statistics", localDate: "2026-08-22" }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });

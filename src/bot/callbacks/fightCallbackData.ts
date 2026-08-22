@@ -19,6 +19,10 @@ export type FightCallback =
       action: CombatProbeAction;
     }
   | {
+      type: "mimic-statistics";
+      localDate: string;
+    }
+  | {
       type: "turn";
       sessionId: string;
       turn: number;
@@ -64,6 +68,7 @@ export type FightCallback =
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
+const MIMIC_STATISTICS_PREFIX = "v1:fight:mstats";
 const TURN_PREFIX = "v1:fight:turn";
 const ITEM_PREFIX = "v1:fight:item";
 const ITEMS_PREFIX = "v1:fight:items";
@@ -128,6 +133,10 @@ export function makeFightJournalCallbackData(input: {
   page: number;
 }): string {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
+}
+
+export function makeMimicFightStatisticsCallbackData(localDate: string): string {
+  return `${MIMIC_STATISTICS_PREFIX}:${localDate.split("-").join("")}`;
 }
 
 export function makeFightStatisticsCallbackData(sessionId: string): string {
@@ -322,6 +331,17 @@ export function parseFightCallbackData(
       type: "journal",
       sessionId,
       page
+    });
+  }
+
+  if (data.startsWith(`${MIMIC_STATISTICS_PREFIX}:`)) {
+    const [, section, scene, dayToken, ...rest] = data.split(":");
+    if (section !== "fight" || scene !== "mstats" || rest.length > 0 || !/^\d{8}$/.test(dayToken ?? "")) {
+      return err("invalid-prefix");
+    }
+    return ok({
+      type: "mimic-statistics",
+      localDate: `${dayToken!.slice(0, 4)}-${dayToken!.slice(4, 6)}-${dayToken!.slice(6, 8)}`
     });
   }
 

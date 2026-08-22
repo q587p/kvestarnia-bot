@@ -505,6 +505,32 @@ describe("party boss reducer", () => {
     });
   });
 
+  it("keeps PartyBoss damage, HP, counters, and rewards identical when statistics are absent", () => {
+    const tracked = createPartyBossState({
+      partySessionId: "party-statistics-formula-regression",
+      variant: "big-barrel",
+      now: new Date("2026-08-22T10:00:00.000Z"),
+      participants: [participant("leader", "Вартова", { hp: 100, level: 8, armor: 7 })]
+    });
+    tracked.participants[0]!.resources.guard = { consecutiveDefends: 1 };
+    const untracked = structuredClone(tracked);
+    delete untracked.participants[0]!.statistics;
+    const input = {
+      now: new Date("2026-08-22T10:01:00.000Z"),
+      seed: "party-statistics-formula-regression",
+      actions: [{ characterId: "leader", action: "attack", origin: "manual" }] as const
+    };
+
+    const withStatistics = resolvePartyBossRound({ state: tracked, ...input });
+    const withoutStatistics = resolvePartyBossRound({ state: untracked, ...input });
+
+    expect(withStatistics.round.bossRetaliations).toEqual(withoutStatistics.round.bossRetaliations);
+    expect(withStatistics.state.participants[0]?.resources.hp)
+      .toBe(withoutStatistics.state.participants[0]?.resources.hp);
+    expect(withStatistics.state.boss.hp).toBe(withoutStatistics.state.boss.hp);
+    expect(withStatistics.state.result).toEqual(withoutStatistics.state.result);
+  });
+
   it("applies borrowed equipment healing and guard in party boss rounds", () => {
     const grant = findMantokAbilityGrantByKey("ascstf");
     if (!grant?.combat) {

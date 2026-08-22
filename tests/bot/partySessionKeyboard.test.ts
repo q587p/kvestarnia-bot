@@ -589,6 +589,7 @@ describe("party session keyboard", () => {
 
     expect(inlineButtonTexts(buildPartyBossKeyboard(session, "character-1"))).toEqual([
       "📜 Журнал",
+      "📊 Статистика",
       "🔎 Оновити"
     ]);
   });

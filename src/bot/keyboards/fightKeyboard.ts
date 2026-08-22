@@ -35,6 +35,7 @@ import {
   makeFightItemsCallbackData,
   makeFightJournalCallbackData,
   makeFightStatisticsCallbackData,
+  makeMimicFightStatisticsCallbackData,
   makeFightItemUseCallbackData,
   makeFightPassageAttackCallbackData,
   makeFightTierTwoCallbackData,
@@ -75,13 +76,18 @@ export function buildFightKeyboard(character?: CharacterSummary): InlineKeyboard
 
 export function buildFightResultKeyboard(
   state: FightResultKeyboardState,
-  character?: CharacterSummary
+  character?: CharacterSummary,
+  localDate?: string
 ): InlineKeyboard {
   if (state === "already-completed") {
-    return new InlineKeyboard().text("📋 До справ", makePlaceCallbackData("quest-table"));
+    const keyboard = new InlineKeyboard();
+    if (localDate) keyboard.text("📊 Статистика", makeMimicFightStatisticsCallbackData(localDate)).row();
+    return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  return buildFightKeyboard(character);
+  const keyboard = buildFightKeyboard(character);
+  if (localDate) keyboard.row().text("📊 Статистика", makeMimicFightStatisticsCallbackData(localDate));
+  return keyboard;
 }
 
 export function buildPersistentFightKeyboard(

@@ -17,7 +17,38 @@ export interface ItemUpgradeSnapshot {
   items: ItemUpgradeInventoryRow[];
   pities: Array<{ itemId: string; targetLevel: number; failureCount: number }>;
   unlocked: boolean;
+  reservedItemIds?: string[];
 }
+
+export interface ItemDismantleConfirmInput {
+  itemId: string;
+  expectedQuantity: number;
+  expectedRemortCount: number;
+  expectedYield: number;
+  payment: "gold" | "mana";
+  rulesFingerprint: string;
+  guard: string;
+  now: Date;
+}
+
+export type ItemDismantleConfirmResult =
+  | { state: "no-character" }
+  | { state: "wrong-place" | "level-locked" | "unlock-required" }
+  | { state: "not-owned" | "not-eligible" | "equipped" | "reserved" | "protected-last-copy" }
+  | { state: "stale" }
+  | { state: "not-enough-gold"; required: number; available: number }
+  | { state: "not-enough-mana"; required: number; available: number }
+  | {
+      state: "dismantled" | "replayed";
+      character: CharacterRecord;
+      itemId: string;
+      quantityBefore: number;
+      yield: number;
+      payment: "gold" | "mana";
+      paymentAmount: number;
+      iskrokaminAfter: number;
+      receiptId: string;
+    };
 
 export interface ItemUpgradeQuestSnapshot {
   character: CharacterRecord;
@@ -98,4 +129,8 @@ export interface ItemUpgradeRepository {
     now: Date
   ): Promise<{ character: CharacterRecord; failureCount: number } | null>;
   unlockForTelegramUser(telegramUserId: bigint, now: Date): Promise<ItemUpgradeUnlockResult>;
+  dismantleForTelegramUser?(
+    telegramUserId: bigint,
+    input: ItemDismantleConfirmInput
+  ): Promise<ItemDismantleConfirmResult>;
 }

@@ -164,6 +164,7 @@ export interface DailyKorchmaRoundReward {
 interface DailyKorchmaIdentityPlan {
   rulesVersion: 1;
   roll: number;
+  chancePercent: number;
   pityMisses: number;
   forced: boolean;
   itemId: string | null;
@@ -651,17 +652,18 @@ export class DailyKorchmaRoundService {
       localDate: context.dayKey
     });
     const devMode = readDevIdentityMode(devIdentityRecord?.resultJson);
+    const chancePercent = getDailyKorchmaIdentityChancePercent(context.character.stats.luck);
     const roll = devMode === "hit" ? 1 : devMode === "miss" || devMode === "forced-pity"
       ? 100
       : random.nextInt(1, 100);
     const forced = devMode === "forced-pity" || ((recent?.length ?? 0) >= 6 && pityMisses >= 6);
-    if (!forced && roll > 13) {
-      return { rulesVersion: 1, roll, pityMisses, forced: false, itemId: null, matchedIdentity: null };
+    if (!forced && roll > chancePercent) {
+      return { rulesVersion: 1, roll, chancePercent, pityMisses, forced: false, itemId: null, matchedIdentity: null };
     }
 
     const record = await this.characters.findByTelegramUserId(telegramUserId);
     if (!record) {
-      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedIdentity: null };
+      return { rulesVersion: 1, roll, chancePercent, pityMisses, forced, itemId: null, matchedIdentity: null };
     }
     const profile = {
       level: record.level,
@@ -681,11 +683,12 @@ export class DailyKorchmaRoundService {
         classId: record.classId,
         raceId: record.raceId
       });
-      return { rulesVersion: 1, roll, pityMisses, forced, itemId: null, matchedIdentity: null };
+      return { rulesVersion: 1, roll, chancePercent, pityMisses, forced, itemId: null, matchedIdentity: null };
     }
     return {
       rulesVersion: 1,
       roll,
+      chancePercent,
       pityMisses,
       forced,
       itemId: selected.item.id,
@@ -1153,6 +1156,11 @@ export function calculateDailyKorchmaRoundReward(input: {
       { itemId: DENSE_BANDAGE_ITEM_ID, quantity: 1 }
     ])
   };
+}
+
+export function getDailyKorchmaIdentityChancePercent(luck: number): number {
+  const luckBonus = Math.max(0, Math.min(10, Math.floor(luck) - 6));
+  return 13 + luckBonus;
 }
 
 function buildRewardFromRecord(record: DailyActionRecord): DailyKorchmaRoundReward {

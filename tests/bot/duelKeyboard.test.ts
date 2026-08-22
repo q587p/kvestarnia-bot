@@ -4,12 +4,14 @@ import {
   makeDuelAcceptRiskCallbackData,
   makeDuelCancelCallbackData,
   makeDuelDeclineCallbackData,
+  makeDuelStatisticsCallbackData,
   makeDuelViewCallbackData
 } from "../../src/bot/callbacks/duelCallbackData";
 import {
   buildDuelAcceptConfirmationKeyboard,
   buildDuelChallengeKeyboard,
   buildDuelOwnerChallengeKeyboard,
+  buildDuelResultKeyboard,
   buildDuelTargetedInviteKeyboard
 } from "../../src/bot/keyboards/duelKeyboard";
 import type { DuelChallengeView } from "../../src/services/duelChallengeService";
@@ -48,5 +50,16 @@ describe("duel decision keyboards", () => {
       { text: "🤝 Так, прийняти", callback_data: makeDuelAcceptRiskCallbackData(TOKEN) }
     ]);
     expect(keyboard.flat().map((button) => button.text)).not.toContain("📖 Детальніше");
+  });
+
+  it("exposes private terminal statistics for quick and turn-based duel results", () => {
+    expect(buildDuelResultKeyboard(TOKEN, "quick").inline_keyboard.flat()).toContainEqual({
+      text: "📊 Статистика",
+      callback_data: makeDuelStatisticsCallbackData(TOKEN)
+    });
+    expect(buildDuelResultKeyboard(TOKEN, "turn-based").inline_keyboard.flat()).toContainEqual({
+      text: "📊 Статистика",
+      callback_data: makeDuelStatisticsCallbackData(TOKEN)
+    });
   });
 });

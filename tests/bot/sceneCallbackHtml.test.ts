@@ -32,10 +32,15 @@ import {
   makeFightItemsCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
+  makeFightStatisticsCallbackData,
+  makeMimicFightStatisticsCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
-import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
+import {
+  makeTrainingDoppelgangerStatisticsCallbackData,
+  makeTrainingDoppelgangerTurnCallbackData
+} from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
 import { makeDevHelpCallbackData } from "../../src/bot/callbacks/devHelpCallbackData";
 import { makeHelpCallbackData } from "../../src/bot/callbacks/helpCallbackData";
@@ -47,7 +52,12 @@ import {
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
-import { makeItemUpgradePreviewCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
+import {
+  makeItemDismantleConfirmCallbackData,
+  makeItemDismantleListCallbackData,
+  makeItemDismantlePreviewCallbackData,
+  makeItemUpgradePreviewCallbackData
+} from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
   makeLevelBarterAutoCallbackData,
@@ -2970,6 +2980,82 @@ describe("scene callback HTML options", () => {
     expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
     expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(String(telegramUserId));
     expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+  });
+
+  it("routes the Forge dismantling list, preview, and guarded confirmation", async () => {
+    const item = {
+      itemId: "item.pan-of-persuasion",
+      name: "Пательня переконання",
+      quantity: 2,
+      enhancementLevel: 0,
+      rarity: "common" as const,
+      isSetPiece: false,
+      yield: 1
+    };
+    const listDismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      character,
+      items: [item]
+    });
+    const previewDismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      character,
+      item,
+      payment: "gold" as const,
+      paymentAmount: 5,
+      available: 100,
+      expectedRemortCount: 0,
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    });
+    const dismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "dismantled" as const,
+      character,
+      itemId: item.itemId,
+      quantityBefore: 2,
+      yield: 1,
+      payment: "gold" as const,
+      paymentAmount: 5,
+      iskrokaminAfter: 14,
+      receiptId: "receipt-13"
+    });
+    const services = servicesWith({
+      itemUpgrades: {
+        listDismantleForTelegramUser,
+        previewDismantleForTelegramUser,
+        dismantleForTelegramUser
+      }
+    });
+
+    const listCalls = await captureApiCalls(makeItemDismantleListCallbackData(), services);
+    const previewCalls = await captureApiCalls(makeItemDismantlePreviewCallbackData(item.itemId), services);
+    const confirmCalls = await captureApiCalls(makeItemDismantleConfirmCallbackData({
+      itemId: item.itemId,
+      expectedQuantity: 2,
+      expectedRemortCount: 0,
+      expectedYield: 1,
+      payment: "gold",
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    }), services);
+
+    expect(listDismantleForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(previewDismantleForTelegramUser).toHaveBeenCalledWith(42n, item.itemId);
+    expect(dismantleForTelegramUser).toHaveBeenCalledWith(42n, {
+      itemId: item.itemId,
+      expectedQuantity: 2,
+      expectedRemortCount: 0,
+      expectedYield: 1,
+      payment: "gold",
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    });
+    expect(String(listCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("Розбір манатки");
+    expect(String(previewCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("<b>5</b> золота");
+    expect(String(confirmCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("Отримано: <b>1</b> Іскрокаменю");
   });
 
   it("logs one terminal Mantok confirm record when achievement delivery fails", async () => {
@@ -7667,6 +7753,74 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["group", "supergroup"] as const)(
+    "rejects all viewer-specific solo statistics in a %s before any statistics read",
+    async (chatType) => {
+      const getPersistentFightStatisticsForTelegramUser = vi.fn();
+      const getMimicShawarmaStatisticsForTelegramUser = vi.fn();
+      const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn();
+      const services = servicesWith({
+        fight: {
+          getPersistentFightStatisticsForTelegramUser,
+          getMimicShawarmaStatisticsForTelegramUser
+        },
+        trainingDoppelganger: { getTrainingDoppelgangerStatisticsForTelegramUser }
+      });
+      const callbacks = [
+        makeFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174000"),
+        makeMimicFightStatisticsCallbackData("2026-08-22"),
+        makeTrainingDoppelgangerStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174001")
+      ];
+
+      for (const callbackData of callbacks) {
+        const calls = await captureApiCalls(callbackData, services, { chatType });
+        expect(calls.find((call) => call.method === "answerCallbackQuery")?.payload)
+          .toMatchObject({ show_alert: true });
+      }
+
+      expect(getPersistentFightStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getMimicShawarmaStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getTrainingDoppelgangerStatisticsForTelegramUser).not.toHaveBeenCalled();
+    }
+  );
+
+  it("routes solo and Training statistics through their strictly read-only service methods", async () => {
+    const getPersistentFightSnapshotForTelegramUser = vi.fn();
+    const getTrainingDoppelgangerSnapshotForTelegramUser = vi.fn();
+    const getPersistentFightStatisticsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-found" as const,
+      character
+    });
+    const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn().mockResolvedValue({
+      state: "not-found" as const,
+      character
+    });
+    const services = servicesWith({
+      fight: {
+        getPersistentFightSnapshotForTelegramUser,
+        getPersistentFightStatisticsForTelegramUser
+      },
+      trainingDoppelganger: {
+        getTrainingDoppelgangerSnapshotForTelegramUser,
+        getTrainingDoppelgangerStatisticsForTelegramUser
+      }
+    });
+
+    await captureApiCalls(
+      makeFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174000"),
+      services
+    );
+    await captureApiCalls(
+      makeTrainingDoppelgangerStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174001"),
+      services
+    );
+
+    expect(getPersistentFightStatisticsForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getTrainingDoppelgangerStatisticsForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getPersistentFightSnapshotForTelegramUser).not.toHaveBeenCalled();
+    expect(getTrainingDoppelgangerSnapshotForTelegramUser).not.toHaveBeenCalled();
+  });
+
   it("opens the persistent fight one-use item menu through the active combat lock", async () => {
     const sessionId = "123e4567-e89b-42d3-a456-426614174000";
     const session = {
@@ -11132,6 +11286,7 @@ async function captureApiCalls(
     failure?: Error;
     telegramUserId?: number;
     botUsername?: string;
+    chatType?: "private" | "group" | "supergroup";
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot(
@@ -11205,9 +11360,11 @@ async function captureApiCalls(
         message_id: 10,
         date: 0,
         chat: {
-          id: telegramUserId,
-          type: "private",
-          first_name: "Тест"
+          id: options.chatType === "private" || !options.chatType ? telegramUserId : -100587,
+          type: options.chatType ?? "private",
+          ...(options.chatType === "private" || !options.chatType
+            ? { first_name: "Тест" }
+            : { title: "Тестова ватага" })
         },
         text: "old"
       }

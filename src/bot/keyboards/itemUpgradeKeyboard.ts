@@ -1,11 +1,16 @@
 import { InlineKeyboard } from "grammy";
 import type {
   ItemUpgradeListResult,
+  ItemDismantleListResult,
+  ItemDismantlePreviewResult,
   ItemUpgradePreviewResult,
   ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
 import { isMageClassForItemSelfUpgrade } from "../../domain/itemUpgrades";
 import {
+  makeItemDismantleConfirmCallbackData,
+  makeItemDismantleListCallbackData,
+  makeItemDismantlePreviewCallbackData,
   makeItemUpgradeAttemptCallbackData,
   makeItemUpgradeListCallbackData,
   makeItemUpgradePagePromptCallbackData,
@@ -86,7 +91,65 @@ export function buildItemUpgradeListKeyboard(
     }
   }
 
+  if (result.state === "ready") {
+    keyboard.text("♻️ Розібрати манатку", makeItemDismantleListCallbackData()).row();
+  }
+
   return keyboard.text("⬅️ До задвірку", makePlaceCallbackData("yard"));
+}
+
+export function buildItemDismantleListKeyboard(
+  result: ItemDismantleListResult,
+  page = 0
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (result.state === "ready") {
+    const items = [...result.items].sort((left, right) =>
+      (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0) ||
+      left.itemId.localeCompare(right.itemId)
+    );
+    const totalPages = Math.max(1, Math.ceil(items.length / MAX_LIST_BUTTONS));
+    const safePage = Math.min(Math.max(0, Math.floor(page)), totalPages - 1);
+    for (const item of items.slice(safePage * MAX_LIST_BUTTONS, (safePage + 1) * MAX_LIST_BUTTONS)) {
+      keyboard.text(
+        `♻️ ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
+        makeItemDismantlePreviewCallbackData(item.itemId)
+      ).row();
+    }
+    if (totalPages > 1) {
+      if (safePage > 0) keyboard.text("◀️ Назад", makeItemDismantleListCallbackData(safePage - 1));
+      keyboard.text(`${safePage + 1}/${totalPages}`, makeItemDismantleListCallbackData(safePage));
+      if (safePage < totalPages - 1) keyboard.text("Далі ▶️", makeItemDismantleListCallbackData(safePage + 1));
+      keyboard.row();
+    }
+  }
+  return keyboard.text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
+}
+
+export function buildItemDismantlePreviewKeyboard(result: ItemDismantlePreviewResult): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  if (result.state === "ready") {
+    keyboard.text("♻️ Підтвердити розбір", makeItemDismantleConfirmCallbackData({
+      itemId: result.item.itemId,
+      expectedQuantity: result.item.quantity,
+      expectedRemortCount: result.expectedRemortCount,
+      expectedYield: result.item.yield,
+      payment: result.payment,
+      rulesFingerprint: result.rulesFingerprint,
+      guard: result.guard
+    })).row();
+  }
+  return keyboard
+    .text("↩️ До списку розбору", makeItemDismantleListCallbackData())
+    .row()
+    .text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
+}
+
+export function buildItemDismantleResultKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("♻️ Розібрати ще", makeItemDismantleListCallbackData())
+    .row()
+    .text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
 }
 
 function getItemUpgradeListPageCount(itemCount: number): number {

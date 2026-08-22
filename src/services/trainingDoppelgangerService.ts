@@ -565,6 +565,37 @@ export class TrainingDoppelgangerService {
     };
   }
 
+  async getTrainingDoppelgangerStatisticsForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string
+  ): Promise<TrainingDoppelgangerSnapshotResult> {
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(current.character, {
+      equippedItems: await this.getEquippedItemContents(telegramUserId)
+    });
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (!session || !isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return { state: "not-found", character };
+    }
+
+    return {
+      state: "found",
+      character,
+      doppelganger: buildDoppelgangerCopy(character, session.state),
+      session,
+      reward: null
+    };
+  }
+
   async resetCooldownForDev(telegramUserId: bigint): Promise<TrainingDoppelgangerDevResetResult> {
     if (!this.cooldowns.setAvailableAtForTelegramUser) {
       return { state: "disabled" };

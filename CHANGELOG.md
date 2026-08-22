@@ -11,7 +11,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Added
 - Added one terminal `📊 Статистика` surface beside the battle journal across persistent solo fights, Training, PartyBoss and Big Barrel encounters, turn-based and quick duels, GroupCombat, passage and adventure fights, and the starter Mimic outcome. Versioned ledgers record exact damage, actual healing, actual prevention, applied control, damage taken, committed actions, special actions and defensive turns; legacy or structurally unavailable dimensions render `—` instead of fabricated zeroes.
-- Added deterministic Daily Korchma identity-manatka rewards: an independent 13% seeded roll selects only a currently equippable class, race or active-title affinity item at `+0`, while six consecutive completed misses force the next completed round to produce an eligible item. The frozen receipt records the roll, pity evidence, affinity kind and applied grants.
+- Added deterministic Daily Korchma identity-manatka rewards: a seeded branch starts at 13% for LUCK 6 or below, gains one percentage point per full LUCK above 6 and caps at 23%; the selected `+0` equippable item still uses the unchanged canonical `tavern_event` candidate weights for current class, race, canonical `character.title` affinity or explicit matching hard requirements. Six consecutive completed misses force the next eligible completed round, and the frozen receipt records chance, roll, pity evidence, affinity kind and applied grants.
 - Added `♻️ Розібрати манатку` inside `✨ Чароковальня`, with complete deterministic pagination, preview and atomic confirmation. Eligible ordinary gear costs 5 gold to dismantle; mage, varenyk-mancer and bureaucramancer characters instead spend 5 regenerated mana with no gold fallback.
 - Added canonical dismantling yields from base rarity plus 42% of the cumulative canonical Iskrokamin upgrade cost, including evolving rarity, set and legendary modifiers, and an exact accepted yield-table regression.
 - Added non-production Daily Korchma controls for deterministic miss, hit and forced-seventh pity QA; production configuration cannot register, advertise or mutate through those helpers.
@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
+- PartyBoss retaliation keeps the exact pre-statistics damage formula; contribution measurement is isolated from HP, knockout, counter and reward state, while capped HP deltas prevent overkill and self-heal duplication.
 - Daily Korchma reward replay now presents the grants actually applied by the transactional claim, so restart, duplicate callback and remort recovery cannot reroll or silently replace the reward.
 
 ## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards

@@ -1850,12 +1850,13 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
   const lastRound = parseRoundSummary(value.lastRound);
   const lastAction = hasOwn(value, "lastAction") ? parseActionSummary(value.lastAction) : undefined;
   const outcome = parseTurnBasedOutcome(value.outcome);
+  const statistics = hasOwn(value, "statistics") ? parseTurnBasedStatistics(value.statistics) : undefined;
 
   if (
     pendingActions === null ||
     lastRound === null ||
     lastAction === null ||
-    outcome === null
+    outcome === null || statistics === null
   ) {
     return null;
   }
@@ -1871,10 +1872,25 @@ function parseTurnBasedDuelState(value: unknown): TurnBasedDuelState | null {
     ...(pendingActions ? { pendingActions } : {}),
     ...(lastRound ? { lastRound } : {}),
     ...(lastAction ? { lastAction } : {}),
-    ...(outcome ? { outcome } : {})
+    ...(outcome ? { outcome } : {}),
+    ...(statistics ? { statistics } : {})
   };
 
   return state;
+}
+
+function parseTurnBasedStatistics(value: unknown): TurnBasedDuelState["statistics"] | null {
+  if (!isRecord(value) || value.version !== 1) return null;
+  const parseSide = (side: unknown) => {
+    if (!isRecord(side)) return null;
+    const keys = ["damage", "healing", "guardPrevented", "control", "damageTaken", "actions", "specialActions", "guardedTurns"] as const;
+    const values = Object.fromEntries(keys.map((key) => [key, parseNonNegativeInt(side[key])])) as Record<typeof keys[number], number | null>;
+    if (keys.some((key) => values[key] === null)) return null;
+    return values as Record<typeof keys[number], number>;
+  };
+  const challenger = parseSide(value.challenger);
+  const target = parseSide(value.target);
+  return challenger && target ? { version: 1, challenger, target } : null;
 }
 
 function parseTurnBasedStatusSafe(value: unknown): TurnBasedDuelStatus | null {

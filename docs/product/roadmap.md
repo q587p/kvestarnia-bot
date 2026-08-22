@@ -208,7 +208,10 @@ reference, а solo, Training, Big Barrel, turn/quick duels і стартовий
 пробник ніколи не домислюють відсутні значення. Daily Korchma Round зберігає
 Kyiv-day exact-once identity, але дає `13` Іскрокаменів, щільний бинт,
 посилене золото й deterministic identity-манатку з гарантією не пізніше сьомого
-завершення. `✨ Чароковальня` окремо приймає одну canonical equippable манатку
+завершення. Вдача підвищує лише bounded chance цієї гілки від `13%` до `23%`,
+а сама манатка обирається незміненими canonical `tavern_event` weights за
+класом, расою, чинним `character.title` або явною сумісною вимогою.
+`✨ Чароковальня` окремо приймає одну canonical equippable манатку
 на незворотне розбирання в Іскрокамінь із exact preview, оплатою gold або mana
 за класом і durable receipt; bulk, failure chance, buyback і resale integration
 не входять.

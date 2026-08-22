@@ -11,6 +11,7 @@ import {
   getBaseItemIdForUpgradeVariant,
   getDonorBonus,
   getItemDisplayNameWithUpgrade,
+  getItemDismantleEligibility,
   getItemUpgradeRequiredLevel,
   getItemUpgradeLevelFromItemId,
   getItemUpgradeMagicStrengthLabel,
@@ -414,5 +415,12 @@ describe("item upgrades", () => {
       enhancementLevel: 5,
       isSetPiece: true
     })).toBe(108);
+  });
+
+  it("protects the last marked copy while allowing a duplicate to be dismantled", () => {
+    const protectedIds = new Set([weapon.id]);
+
+    expect(getItemDismantleEligibility(weapon, 1, protectedIds)).toBe("protected-last-copy");
+    expect(getItemDismantleEligibility(weapon, 2, protectedIds)).toBe("eligible");
   });
 });

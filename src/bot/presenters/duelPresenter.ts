@@ -7,6 +7,7 @@ import type {
   DuelPairLimit,
   DuelRematchResult,
   DuelResourceWarning,
+  DuelStatisticsResult,
   DuelTurnBasedJournalResult
 } from "../../services/duelChallengeService";
 import type { CharacterSummary } from "../../domain/characters/characterSummary";
@@ -33,6 +34,11 @@ import {
   presentActiveBardInspirationCombatState,
   presentBardInspirationCombatEffectLines
 } from "./bardInspirationPresenter";
+import {
+  presentBattleContributionLegend,
+  presentBattleContributionLine,
+  type BattleContributionValues
+} from "./battleContributionPresenter";
 
 export function presentDuelEntry(): string {
   return [
@@ -995,6 +1001,39 @@ function presentTurnBasedDuelStartTip(character: CharacterSummary, seed: string)
 
 function presentDuelRepeatedName(character: CharacterSummary): string {
   return `${character.guildCrest ? `${escapeHtml(character.guildCrest)} ` : ""}<b>${escapeHtml(character.name)}</b>`;
+}
+
+export function presentDuelStatistics(
+  result: Extract<DuelStatisticsResult, { state: "ready" }>
+): string {
+  const unavailable: BattleContributionValues = {
+    damage: null,
+    healing: null,
+    guardPrevented: null,
+    control: null,
+    damageTaken: null,
+    actions: null,
+    specialActions: null,
+    guardedTurns: null
+  };
+  const challengerValues: BattleContributionValues = result.mode === "turn-based"
+    ? result.session.state.statistics?.challenger ?? unavailable
+    : { ...unavailable, damage: result.view.result.challengerScore };
+  const targetValues: BattleContributionValues = result.mode === "turn-based"
+    ? result.session.state.statistics?.target ?? unavailable
+    : { ...unavailable, damage: result.view.result.targetScore };
+
+  return [
+    "📊 <b>Статистика дуелі</b>",
+    "",
+    presentBattleContributionLine(result.view.challenger.name, challengerValues),
+    presentBattleContributionLine(result.view.target.name, targetValues),
+    "",
+    ...presentBattleContributionLegend(),
+    ...(result.mode === "quick"
+      ? ["", "Для миттєвої дуелі збережені лише публічні підсумкові бали; решта вимірів недоступна."]
+      : [])
+  ].join("\n");
 }
 
 function formatRemaining(expiresAt: Date, now: Date): string {

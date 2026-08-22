@@ -18,6 +18,7 @@ import { getCombatMantokAbilityGrantsByIds, items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
+  MimicShawarmaStatisticsResult,
   PersistentFightSnapshotResult,
   PersistentFightPreviewResult,
   ProblemQuestIssueNextLookupResult,
@@ -536,6 +537,19 @@ export function presentPersistentFightJournal(
     })],
     noticeLines: notices
   });
+}
+
+export function presentMimicShawarmaStatistics(
+  result: Extract<MimicShawarmaStatisticsResult, { state: "ready" }>
+): string {
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    presentBattleContributionLine(result.character.name, result.statistics.hero),
+    presentBattleContributionLine("Мімік-шаурма", result.statistics.enemy),
+    "",
+    ...presentBattleContributionLegend()
+  ].join("\n");
 }
 
 export function presentPersistentFightStatistics(
