@@ -7,6 +7,36 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards
+
+### Added
+- Added a default-off public `📨 Поклик до Квестарні` flow on the Korchma board and `/invite`, with one stable User-level `ref1_*` share link, atomic fresh-player first-touch attribution and five-row inviter history; an eligible link now continues directly into ordinary onboarding without a consent card.
+- Added frozen `REFERRAL_POLICY_V1` bundles at invitee levels 3, 5, 8 and 13: dense bandage/Field Kits, 276 total Iskrokamin and 1,830 total ordinary gold across the full track.
+- Added User-level referral code, attribution and stage-entitlement persistence plus a leased notification outbox in additive migration `20260819090000_referral_foundation`; additive migration `20260820131500_referral_achievement_notifications` extends the outbox to User-level referral-achievement notices. Both have paired rollbacks.
+- Added automatic cold-start and interaction-triggered payout reconciliation, whole-bundle CAS delivery to the inviter's current Character and non-production `/dev_referral_reconcile` recovery.
+- Added rewardless achievements for the first and thirteenth actually arrived invitees, reprojected from the authoritative referral count and delivered through the durable referral outbox.
+- Added one normal-severity `referral.arrived` Chronicle fact on first Character arrival, using the ordinary Character-arrival dedupe key and appearing only in all/adventurer views.
+- Added production-unregistered `/dev_delete_account` with explicit confirmation and transactional cleanup of one isolated QA identity so referral freshness scenarios can restart from a true pre-User state.
+- Referral invitation drafts now match raid share cards: the stable deep link stays inside the message, the optional live guild crest prefixes the bold inviter name, the active title follows canonical identity presentation, and the only inline control is `🎲 Інший текст`; guild names, name quotes, share/copy/back controls, variant counters and generator footers are omitted.
+
+### Changed
+- Extended the canonical transaction-level level-milestone writer so jumps create every crossed accepted-referral entitlement before Character-bound milestone evidence can be reset.
+- Added `REFERRAL_FOUNDATION_ENABLED` and `REFERRAL_REWARD_PAYOUTS_ENABLED`, both deploy-safe `false` by default; accepted relationships continue recording stages while payouts are paused.
+- Inserted Referral Foundation at `0.4.6` and shifted only the unimplemented forward plan through Guild Cosmetic Progression to `0.4.7`–`0.4.14`.
+
+### Security
+- Referral capture runs before ordinary presence upsert and creates the fresh User plus accepted attribution and frozen policy version atomically; malformed, unknown, self, existing-user, disabled and rebind attempts fail closed without late attribution.
+- Referral list, outbox and Chronicle projections exclude Telegram identity, presence, quests, inventory, balances, remort and guild identity; dynamic names are control-character bounded and HTML-escaped at presentation.
+
+### Fixed
+- Legacy pending rows now resolve automatically before Character creation, while flag-off and inconsistent existing-Character rows continue ordinary play without a late referral.
+- Missing/restarted inviter Characters, disabled payouts, transient writes and Telegram delivery failures remain durable pending work rather than producing partial bundles or requiring a claim button.
+- The private inviter dashboard now shows the owner-approved exact four-stage reward table with canonical Ukrainian names but no separate aggregate totals line; a stable-link generator offers 13 distinct invitation texts, while arrival and payout notices stay concise and omit reward explanations.
+- Player help now lists every enabled production command in one focused section, including referral and the full guild command family, with a catalog regression preventing silent omissions.
+- Exhausted fresh-capture conflicts now stop before presence without consuming eligibility; referral arrivals persist frozen Chronicle evidence and reconcile the single `referral.arrived` row after write failure or process restart.
+- Referral scheduling now proves immediate non-overlapping startup, queued wake-ups after Telegram actions, clean in-flight shutdown, flag-aware recovery and per-row failure isolation so newly earned rewards do not wait for dashboard refresh and one corrupt or unexpected reward cannot starve later due work.
+- Referral-achievement recovery now runs independently from the Chronicle backlog, preserves the first/thirteenth milestone attribution IDs and persisted arrival timestamps across dashboard recovery, scheduler replay and Character replacement, and keeps each unlock notice unique at User level; fail-closed fresh-capture replies retain a controlled same-link retry button without exposing the token in text or callbacks.
+
 ## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 
 ### Added

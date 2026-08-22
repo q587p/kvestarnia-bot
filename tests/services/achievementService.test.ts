@@ -86,6 +86,30 @@ describe("AchievementService", () => {
     expect(levelFive.map((unlock) => unlock.id)).toEqual(["achievement.level.5"]);
   });
 
+  it("unlocks rewardless referral achievements from an authoritative arrival count", async () => {
+    const repo = new FakeAchievementRepository();
+    const service = new AchievementService(repo);
+
+    const first = await service.trackEvent({
+      type: "referral.arrivals",
+      characterId: "character-1",
+      count: 1,
+      occurredAt: new Date("2026-08-20T12:00:00.000Z"),
+      sourceId: "referral-1"
+    });
+    const thirteenth = await service.trackEvent({
+      type: "referral.arrivals",
+      characterId: "character-1",
+      count: 13,
+      occurredAt: new Date("2026-08-20T13:00:00.000Z"),
+      sourceId: "referral-13"
+    });
+
+    expect(first.map((unlock) => unlock.id)).toEqual(["achievement.referral.first-arrival"]);
+    expect(thirteenth.map((unlock) => unlock.id)).toEqual(["achievement.referral.thirteen-arrivals"]);
+    expect(repo.snapshot.titleGrants).toHaveLength(0);
+  });
+
   it("unlocks the first other-recipient Varenyk feed achievement", async () => {
     const repo = new FakeAchievementRepository();
     const service = new AchievementService(repo);

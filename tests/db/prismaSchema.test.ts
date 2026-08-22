@@ -3,6 +3,35 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Prisma schema", () => {
+  it("stores User-level referral attribution, immutable reward entitlements, and leased outbox delivery", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(join(
+      process.cwd(),
+      "prisma",
+      "migrations",
+      "20260819090000_referral_foundation",
+      "migration.sql"
+    ), "utf8");
+    const rollback = readFileSync(join(
+      process.cwd(),
+      "prisma",
+      "migrations",
+      "20260819090000_referral_foundation",
+      "rollback.sql"
+    ), "utf8");
+
+    for (const model of ["ReferralInviteCode", "ReferralAttribution", "ReferralReward", "ReferralNotificationOutbox"]) {
+      expect(schema).toContain(`model ${model}`);
+    }
+    expect(schema).toContain("@@unique([attributionId, beneficiaryUserId, rewardFamily, milestoneKey])");
+    expect(schema).toContain("@@index([state, nextAttemptAt, earnedAt, id])");
+    expect(migration).toContain("referral_attributions_distinct_users_check");
+    expect(migration).toContain("referral_attributions_plan_check");
+    expect(migration).toContain("referral_invite_codes_token_shape_check");
+    expect(migration).toContain("referral_notification_outbox_logical_key_key");
+    expect(rollback).toContain("DROP TABLE IF EXISTS \"referral_notification_outbox\"");
+    expect(rollback).toContain("DROP TABLE IF EXISTS \"referral_invite_codes\"");
+  });
   it("stores PartyBoss history with one unique session-turn index and exact legacy normalization", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(

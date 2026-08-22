@@ -3,7 +3,7 @@ import { makeHelpCallbackData } from "../../src/bot/callbacks/helpCallbackData";
 import { buildHelpKeyboard } from "../../src/bot/keyboards/helpKeyboard";
 
 describe("help keyboard", () => {
-  it("opens five focused sections from the menu", () => {
+  it("opens six focused sections from the menu", () => {
     const keyboard = buildHelpKeyboard();
 
     expect(buttonTexts(keyboard)).toEqual([
@@ -11,6 +11,7 @@ describe("help keyboard", () => {
       "⚔️ Пригоди й бої",
       "🎒 Манатки",
       "🍺 Корчма й люди",
+      "🛡️ Ґільдії",
       "📰 Довідки й вісті"
     ]);
     expect(buttonCallbacks(keyboard)).toEqual([
@@ -18,6 +19,7 @@ describe("help keyboard", () => {
       makeHelpCallbackData("adventures"),
       makeHelpCallbackData("items"),
       makeHelpCallbackData("korchma"),
+      makeHelpCallbackData("guild"),
       makeHelpCallbackData("news")
     ]);
   });
@@ -33,7 +35,7 @@ describe("help keyboard", () => {
       makeHelpCallbackData("adventures")
     ]);
     expect(buttonCallbacks(buildHelpKeyboard("news"))).toEqual([
-      makeHelpCallbackData("korchma"),
+      makeHelpCallbackData("guild"),
       makeHelpCallbackData("menu")
     ]);
   });

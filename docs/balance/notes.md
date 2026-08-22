@@ -36,7 +36,17 @@ before any weight or purchase change. Preview/combat races, duplicate callbacks
 and reservations against gift/mail/chest/barter/Shynok sale remain the main
 double-spend risks and must resolve through one authoritative decrement. The
 quest bottle stays unavailable while reserved for its current-life ending.
-Take-away purchases remain a separate `0.4.9` economy decision.
+Take-away purchases remain a separate `0.4.11` economy decision after the two
+later roadmap insertions; the shipped `0.4.3` item-use contract itself is unchanged.
+
+## 0.4.6 referral foundation
+
+The exact owner-approved direct-referral track is frozen in
+[`referral-rewards.md`](referral-rewards.md): four whole inviter bundles at
+invitee levels `3/5/8/13`, totalling one dense bandage, six Field Kits, `276`
+Iskrokamin and `1830` ordinary gold. This is an explicit referral-only visible
+incentive, not a general pre-commit reward disclosure rule and not a purchase,
+premium currency, XP multiplier, guild contribution or multi-level tree.
 
 ## 0.4.2 left-passage party attack
 

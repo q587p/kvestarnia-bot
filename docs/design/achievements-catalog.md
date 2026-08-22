@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 150 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 152 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -25,6 +25,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | --- | --- | --- | --- | --- | --- |
 | `achievement.character.created` | enabled | visible | `character.created` | Де тут вихід? | створити пригодника й офіційно стати проблемою Корчмаря. |
 | `achievement.journey.achievements-opened` | enabled | visible | `achievement.list.opened` | Ачівка за ачівки | уперше відкрити список ачівок і дати літописцю привід поправити окуляри. |
+| `achievement.referral.first-arrival` | enabled | visible | `referral.arrivals >= 1` | Один кухоль уже зайнято | покликати першого пригодника, який справді дістався Квестарні. |
+| `achievement.referral.thirteen-arrivals` | enabled | visible | `referral.arrivals >= 13` | Тринадцятий кухоль напоготові | покликати тринадцятьох пригодників, які справді дісталися Квестарні. |
 | `achievement.journey.latest-events-opened` | enabled | visible | `latest-events.opened` | Хроніка відкрила око | уперше відкрити Хроніки Квестарні й переконатися, що корчемні події самі себе не перепишуть. |
 | `achievement.journey.cosmetic-title-selected` | enabled | visible | `cosmetic-title.selected` | Табличка тримається | уперше вдягнути косметичний титул і не отримати за це жодної бойової переваги. |
 | `achievement.race.human-ish` | enabled | visible | `character.created race.human-ish` | Анкета витримала людисько | стати людиськом і довести, що практичність теж може бути підозрілою. |

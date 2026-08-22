@@ -6,6 +6,7 @@ import type {
   CreateCharacterResult,
   UpdateCharacterResourcesInput
 } from "./characterRepository";
+import { PendingReferralConsentError } from "./characterRepository";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import type { TelegramUserProfile } from "./userRepository";
 import { countCharacterRemorts, getIncludedRemortCount } from "./prismaRemortCount";
@@ -13,6 +14,8 @@ import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
 import type { RestartCharacterResult, RestartRepository } from "./restartRepository";
 import { isAuthoritativeLivePartySession } from "./partySessionRepository";
 import { readLiveGuildCrest } from "./guildIdentityRead";
+import { sanitizeReferralName } from "../../domain/referral/referralIdentity";
+import { findClass, findRace, getComboTitle, isPronoun } from "../../content/characterOptions";
 
 export type SpendGoldForTelegramUserResult =
   | { state: "spent"; character: CharacterRecord }
@@ -366,6 +369,28 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         };
       }
 
+      const referralAttribution = await tx.referralAttribution.findUnique({
+        where: { inviteeUserId: user.id },
+        select: {
+          id: true,
+          inviterUserId: true,
+          status: true,
+          arrivedAt: true,
+          inviteCode: { select: { inviterNameSnapshot: true } }
+        }
+      });
+      if (referralAttribution?.status === "PENDING") {
+        throw new PendingReferralConsentError();
+      }
+
+      const arrivedAt = new Date();
+      const raceName = findRace(input.raceId)?.name ?? input.raceId;
+      const className = findClass(input.classId)?.name ?? input.classId;
+      const title = getComboTitle(
+        input.raceId,
+        input.classId,
+        isPronoun(input.pronoun) ? input.pronoun : "they"
+      );
       const character = await tx.character.create({
         data: {
           userId: user.id,
@@ -385,9 +410,60 @@ export class PrismaCharacterRepository implements CharacterRepository, RestartRe
         }
       });
 
+      let referralArrival: CreateCharacterResult["referralArrival"];
+      if (
+        referralAttribution?.status === "ACCEPTED" &&
+        referralAttribution.arrivedAt === null
+      ) {
+        const inviteeNameSnapshot = sanitizeReferralName(input.name);
+        const arrived = await tx.referralAttribution.updateMany({
+          where: {
+            id: referralAttribution.id,
+            status: "ACCEPTED",
+            arrivedAt: null
+          },
+          data: {
+            arrivedAt,
+            arrivedCharacterId: character.id,
+            inviteeNameSnapshot
+          }
+        });
+        if (arrived.count === 1) {
+          await tx.referralNotificationOutbox.create({
+            data: {
+              logicalKey: `REFERRAL_JOINED:${referralAttribution.id}`,
+              kind: "REFERRAL_JOINED",
+              recipientUserId: referralAttribution.inviterUserId,
+              payloadJson: {
+                attributionId: referralAttribution.id,
+                inviteeName: inviteeNameSnapshot,
+                raceName,
+                className,
+                title
+              },
+              state: "PENDING",
+              nextAttemptAt: arrivedAt
+            }
+          });
+          referralArrival = {
+            attributionId: referralAttribution.id,
+            inviterUserId: referralAttribution.inviterUserId,
+            inviterNameSnapshot: referralAttribution.inviteCode.inviterNameSnapshot,
+            inviteeNameSnapshot,
+            arrivedAt
+          };
+        }
+      }
+
+      await tx.referralReward.updateMany({
+        where: { beneficiaryUserId: user.id, state: "PENDING" },
+        data: { nextAttemptAt: arrivedAt }
+      });
+
       return {
         character: { ...character, currentLocationId: user.lastSeenLocationId, remortCount: 0 },
-        created: true
+        created: true,
+        ...(referralArrival ? { referralArrival } : {})
       };
     });
   }

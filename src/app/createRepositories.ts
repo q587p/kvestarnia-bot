@@ -11,6 +11,7 @@ import { PrismaCombatLeaseReadRepository } from "../db/repositories/prismaCombat
 import { PrismaCooldownRepository } from "../db/repositories/prismaCooldownRepository";
 import { PrismaDailyActionRepository } from "../db/repositories/prismaDailyActionRepository";
 import { PrismaDevGrantRepository } from "../db/repositories/prismaDevGrantRepository";
+import { PrismaDevAccountResetRepository } from "../db/repositories/prismaDevAccountResetRepository";
 import { PrismaDuelChallengeRepository } from "../db/repositories/prismaDuelChallengeRepository";
 import { PrismaDuelTournamentRepository } from "../db/repositories/prismaDuelTournamentRepository";
 import { PrismaEquipmentRepository } from "../db/repositories/prismaEquipmentRepository";
@@ -37,6 +38,7 @@ import { PrismaPartySessionRepository } from "../db/repositories/prismaPartySess
 import { PrismaPlayerHintReceiptRepository } from "../db/repositories/prismaPlayerHintReceiptRepository";
 import { PrismaPresenceRepository } from "../db/repositories/prismaPresenceRepository";
 import { PrismaQuestMarkerReadRepository } from "../db/repositories/prismaQuestMarkerReadRepository";
+import { PrismaReferralRepository } from "../db/repositories/prismaReferralRepository";
 import { PrismaRemortRepository } from "../db/repositories/prismaRemortRepository";
 import { PrismaShynokRepository } from "../db/repositories/prismaShynokRepository";
 import { PrismaSoloCombatSessionRepository } from "../db/repositories/prismaSoloCombatSessionRepository";
@@ -76,6 +78,7 @@ export function createRepositories(
     combatLeaseReads: new PrismaCombatLeaseReadRepository(prisma),
     cooldowns: new PrismaCooldownRepository(prisma, hpRecoveryProducer),
     dailyActions: new PrismaDailyActionRepository(prisma, hpRecoveryProducer),
+    devAccountReset: new PrismaDevAccountResetRepository(prisma),
     devGrants: new PrismaDevGrantRepository(prisma),
     duelChallenges: new PrismaDuelChallengeRepository(
       prisma,
@@ -108,6 +111,7 @@ export function createRepositories(
       options.guildIdentityEnabled === true
     ),
     questMarkerReads: new PrismaQuestMarkerReadRepository(prisma),
+    referrals: new PrismaReferralRepository(prisma),
     remorts: new PrismaRemortRepository(prisma, hpRecoveryProducer, partyRaidChatWriter),
     roundPurchases: new PrismaKorchmaRoundPurchaseRepository(
       prisma,

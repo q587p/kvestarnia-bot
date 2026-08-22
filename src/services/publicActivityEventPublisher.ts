@@ -35,6 +35,30 @@ export class PublicActivityEventPublisher {
     });
   }
 
+  recordReferralArrivedSafely(input: {
+    characterId: string;
+    inviteeDisplayName: string;
+    inviterUserId: string;
+    inviterDisplayName: string;
+    attributionId: string;
+    occurredAt: Date;
+  }): Promise<ActivityEventRecord | null> {
+    return this.recordSafely({
+      eventType: "referral.arrived",
+      category: "adventurer",
+      severity: "normal",
+      actorCharacterId: input.characterId,
+      actorDisplayName: input.inviteeDisplayName,
+      subjectKind: "referral-inviter",
+      subjectId: input.inviterUserId,
+      subjectName: input.inviterDisplayName,
+      sourceType: "referral-attribution",
+      sourceId: input.attributionId,
+      dedupeKey: `character.created:${input.characterId}`,
+      occurredAt: input.occurredAt
+    });
+  }
+
   recordGuildCreatedSafely(input: {
     guildId: string;
     guildDisplayName: string;

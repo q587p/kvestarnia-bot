@@ -22,6 +22,26 @@ export function presentDevResetCancelled(): string {
   return "Скидання скасовано. Персонаж лишається при манатках.";
 }
 
+export function presentDevAccountResetPrompt(): string {
+  return [
+    "⚠️ Повне локальне стирання видалить ваш акаунт, персонажа, зв’язки покликів, засновані або очолювані ґільдії та пов’язані записи Хронік.",
+    "Дія незворотна для ізольованої тестової бази.",
+    "Для підтвердження надішліть: /dev_delete_account ПІДТВЕРДЖУЮ"
+  ].join("\n");
+}
+
+export function presentDevAccountResetDeleted(): string {
+  return "Акаунт і весь пов’язаний локальний стан видалено. Наступний /start зустріне вас як цілком нового гравця.";
+}
+
+export function presentDevAccountResetNoAccount(): string {
+  return "Видаляти нічого: локального акаунту ще немає. /start уже готовий почати з нуля.";
+}
+
+export function presentDevAccountResetUnavailable(): string {
+  return "Повне стирання акаунту недоступне: локальне сховище не має потрібного гачка.";
+}
+
 export function presentDevAdventureResetResult(
   result: "reset" | "rerolled" | "no-character" | "unavailable"
 ): string {

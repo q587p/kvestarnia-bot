@@ -345,6 +345,7 @@ export function getCommandPresenceContext(command: string): PresenceContext | nu
     command === "restart" ||
     command === "remort" ||
     command === "dev_reset_me" ||
+    command === "dev_delete_account" ||
     command === "dev_help" ||
     command === "dev_adventure_reset" ||
     command === "dev_reset_korchma_round" ||

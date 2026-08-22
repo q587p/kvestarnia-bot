@@ -136,6 +136,8 @@ function renderEventRow(event: ActivityEventRecord): string {
   switch (event.eventType) {
     case "character.created":
       return `👋 ${time} | Новий пригодник у Квестарні: ${actor}!`;
+    case "referral.arrived":
+      return `🤝 ${time} | Новий пригодник у Квестарні: «${safeDynamicName(event.actorDisplayName)}», за покликом «${safeDynamicName(event.subjectName)}».`;
     case "guild.created": {
       const crest = readPayloadString(event.payload, "crest");
       const guild = `${crest ? `${escapeHtml(crest)} ` : ""}${subject}`;

@@ -13,6 +13,7 @@ Use these docs when changing formulas, economy, progression, combat tuning, RNG,
 - [`monster-reward-and-loot-balance.md`](monster-reward-and-loot-balance.md) — monster reward and loot balance notes.
 - [`mantok-ability-grants-foundation.md`](mantok-ability-grants-foundation.md) — Mantok Ability Grants tuning notes when present in the active branch.
 - [`left-passage-party-attack.md`](left-passage-party-attack.md) — 0.4.2 GroupCombat difficulty and encounter-wide reward bounds.
+- [`referral-rewards.md`](referral-rewards.md) — frozen 0.4.6 direct-referral reward track and economy boundary.
 - [`../history/early-raid/big-barrel-brother-balance.md`](../history/early-raid/big-barrel-brother-balance.md) — future Big Barrel Brother package balance notes.
 
 ## Guardrails

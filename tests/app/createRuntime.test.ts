@@ -48,7 +48,9 @@ describe("createRuntime", () => {
     const combatScheduler = makeScheduler();
     const healthRecoveryScheduler = makeScheduler();
     const passageSearchScheduler = makeScheduler();
-    const servicesFixture = makeServices({ passageSearch: true });
+    const referralScheduler = makeScheduler();
+    const createReferralScheduler = vi.fn(() => referralScheduler);
+    const servicesFixture = makeServices({ passageSearch: true, referrals: true });
     const services = servicesFixture.services;
     let readiness: { isReady(): boolean } | undefined;
     const runtime = createRuntime({
@@ -65,6 +67,7 @@ describe("createRuntime", () => {
         createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
         createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
         createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
+        createReferralScheduler,
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
           readiness = options.readiness;
@@ -86,10 +89,13 @@ describe("createRuntime", () => {
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
     expect(healthRecoveryScheduler.start).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.start).toHaveBeenCalledTimes(1);
+    expect(createReferralScheduler).toHaveBeenCalledWith(services.referrals, bot);
+    expect(referralScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);
     expect(healthRecoveryScheduler.stop).toHaveBeenCalledTimes(1);
     expect(duelScheduler.stop).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.stop).toHaveBeenCalledTimes(1);
+    expect(referralScheduler.stop).toHaveBeenCalledTimes(1);
     expect(botFixture.stop).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
@@ -634,7 +640,12 @@ function makeConfig(overrides: Partial<AppConfig>): AppConfig {
   };
 }
 
-function makeServices(options: { duel?: boolean; passageSearch?: boolean; trainingDoppelganger?: boolean } = {}): {
+function makeServices(options: {
+  duel?: boolean;
+  passageSearch?: boolean;
+  referrals?: boolean;
+  trainingDoppelganger?: boolean;
+} = {}): {
   services: ApplicationServices;
   cleanupExpiredPendingRuns: ReturnType<typeof vi.fn>;
   announceIfNeeded: ReturnType<typeof vi.fn>;
@@ -662,6 +673,12 @@ function makeServices(options: { duel?: boolean; passageSearch?: boolean; traini
     },
     mantokChest: { cleanupExpiredPendingRuns },
     ...(options.passageSearch ? { passageSearch: {} } : {}),
+    ...(options.referrals ? {
+      referrals: {
+        isFoundationEnabled: vi.fn(() => false),
+        areDevHelpersEnabled: vi.fn(() => false)
+      }
+    } : {}),
     presence: {},
     ...(options.trainingDoppelganger === false ? {} : { trainingDoppelganger: {} }),
     deployNotifications: { announceIfNeeded }

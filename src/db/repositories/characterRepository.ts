@@ -61,6 +61,20 @@ export interface UpdateCharacterResourcesInput {
 export interface CreateCharacterResult {
   character: CharacterRecord;
   created: boolean;
+  referralArrival?: {
+    attributionId: string;
+    inviterUserId: string;
+    inviterNameSnapshot: string;
+    inviteeNameSnapshot: string;
+    arrivedAt: Date;
+  } | undefined;
+}
+
+export class PendingReferralConsentError extends Error {
+  constructor() {
+    super("Referral consent must be resolved before Character creation.");
+    this.name = "PendingReferralConsentError";
+  }
 }
 
 export interface CharacterRepository {

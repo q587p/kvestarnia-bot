@@ -21,7 +21,9 @@ export function getDevHelpSections(
       page: "general",
       title: "🧰 Загальне",
       summary: "персонаж і довідка",
-      commands: commands.filter((entry) => ["dev_help", "dev_reset_me"].includes(entry.command))
+      commands: commands.filter((entry) =>
+        ["dev_help", "dev_reset_me", "dev_delete_account"].includes(entry.command)
+      )
     },
     {
       page: "combat",

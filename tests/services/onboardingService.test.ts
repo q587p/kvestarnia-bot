@@ -5,6 +5,7 @@ import type {
   CreateCharacterInput,
   CreateCharacterResult
 } from "../../src/db/repositories/characterRepository";
+import { PendingReferralConsentError } from "../../src/db/repositories/characterRepository";
 import type {
   TelegramUserProfile,
   UserRecord,
@@ -78,6 +79,66 @@ describe("OnboardingService", () => {
       characterId: "character-1",
       actorDisplayName: "Тестовий Герой із надто довгим і"
     }));
+  });
+
+  it("blocks direct character completion while referral consent is pending", async () => {
+    const users = new FakeUserRepository();
+    const characters = new FakeCharacterRepository(users);
+    vi.spyOn(characters, "createForTelegramUserIfMissing")
+      .mockRejectedValue(new PendingReferralConsentError());
+    const service = new OnboardingService(users, characters);
+
+    await expect(service.complete(player, "he", "race.human-ish", "class.warrior"))
+      .resolves.toEqual({ ok: false, error: { type: "pending-referral-consent" } });
+  });
+
+  it("publishes one referral arrival instead of the generic character arrival", async () => {
+    const users = new FakeUserRepository();
+    const characters = new FakeCharacterRepository(users);
+    const created = await characters.createForTelegramUserIfMissing(player, {
+      name: "Прибула",
+      pronoun: "they",
+      path: "boundary",
+      raceId: "race.human-ish",
+      classId: "class.warrior",
+      level: 1,
+      xp: 0,
+      gold: 0,
+      hpCurrent: 25,
+      hpMax: 25,
+      manaCurrent: 10,
+      manaMax: 10,
+      statsJson: { strength: 5, dexterity: 5, intelligence: 5, charisma: 5, luck: 5 }
+    });
+    vi.spyOn(characters, "createForTelegramUserIfMissing").mockResolvedValue({
+      ...created,
+      created: true,
+      referralArrival: {
+        attributionId: "attribution-1",
+        inviterUserId: "inviter-user",
+        inviterNameSnapshot: "Кличко",
+        inviteeNameSnapshot: "Прибула",
+        arrivedAt: new Date("2026-08-19T09:00:00.000Z")
+      }
+    });
+    const recordCharacterCreatedSafely = vi.fn().mockResolvedValue(null);
+    const recordReferralArrivedSafely = vi.fn().mockResolvedValue(null);
+    const service = new OnboardingService(users, characters, undefined, {
+      recordCharacterCreatedSafely,
+      recordReferralArrivedSafely
+    } as unknown as PublicActivityEventPublisher);
+
+    await service.complete(player, "they", "race.human-ish", "class.warrior");
+
+    expect(recordReferralArrivedSafely).toHaveBeenCalledWith({
+      characterId: created.character.id,
+      inviteeDisplayName: "Прибула",
+      inviterUserId: "inviter-user",
+      inviterDisplayName: "Кличко",
+      attributionId: "attribution-1",
+      occurredAt: new Date("2026-08-19T09:00:00.000Z")
+    });
+    expect(recordCharacterCreatedSafely).not.toHaveBeenCalled();
   });
 
   it("returns hero summary path for /start when character exists", async () => {

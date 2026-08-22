@@ -30,6 +30,11 @@ model User {
   guildInviteOptIn   GuildInviteOptIn?
   guildAudits        GuildAudit[]           @relation("GuildAuditActor")
   guildFounderCooldown GuildFounderCooldown?
+  referralInviteCode ReferralInviteCode? @relation("ReferralInviteCodeInviter")
+  referralAttributionsInvited ReferralAttribution[] @relation("ReferralInviter")
+  referralAttributionReceived ReferralAttribution? @relation("ReferralInvitee")
+  referralRewardsBenefiting ReferralReward[] @relation("ReferralRewardBeneficiary")
+  referralNotifications ReferralNotificationOutbox[] @relation("ReferralNotificationRecipient")
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
 
@@ -38,6 +43,96 @@ model User {
   @@index([currentRaidId])
   @@index([currentAdventureId])
   @@map("users")
+}
+
+model ReferralInviteCode {
+  id                  String                @id @default(uuid())
+  inviterUserId       String                @unique @map("inviter_user_id")
+  inviterUser         User                  @relation("ReferralInviteCodeInviter", fields: [inviterUserId], references: [id], onDelete: Restrict)
+  token               String                @unique
+  inviterNameSnapshot String                @map("inviter_name_snapshot")
+  attributions        ReferralAttribution[]
+  createdAt           DateTime              @default(now()) @map("created_at")
+
+  @@map("referral_invite_codes")
+}
+
+model ReferralAttribution {
+  id                String             @id @default(uuid())
+  inviterUserId     String             @map("inviter_user_id")
+  inviterUser       User               @relation("ReferralInviter", fields: [inviterUserId], references: [id], onDelete: Restrict)
+  inviteeUserId     String             @unique @map("invitee_user_id")
+  inviteeUser       User               @relation("ReferralInvitee", fields: [inviteeUserId], references: [id], onDelete: Restrict)
+  inviteCodeId      String             @map("invite_code_id")
+  inviteCode        ReferralInviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Restrict)
+  status            String             @default("PENDING")
+  capturedAt        DateTime           @map("captured_at")
+  acceptedAt        DateTime?          @map("accepted_at")
+  declinedAt        DateTime?          @map("declined_at")
+  arrivedAt         DateTime?          @map("arrived_at")
+  arrivedCharacterId String?           @map("arrived_character_id")
+  inviteeNameSnapshot String?          @map("invitee_name_snapshot")
+  chronicleRecordedAt DateTime?        @map("chronicle_recorded_at")
+  rewardPlanVersion Int?               @map("reward_plan_version")
+  rewards           ReferralReward[]
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@index([inviterUserId, status, arrivedAt, id])
+  @@index([status, chronicleRecordedAt, arrivedAt, id])
+  @@map("referral_attributions")
+}
+
+model ReferralReward {
+  id                   String              @id @default(uuid())
+  attributionId        String              @map("attribution_id")
+  attribution          ReferralAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
+  beneficiaryUserId    String              @map("beneficiary_user_id")
+  beneficiaryUser      User                @relation("ReferralRewardBeneficiary", fields: [beneficiaryUserId], references: [id], onDelete: Restrict)
+  rewardFamily         String              @map("reward_family")
+  milestoneKey         String              @map("milestone_key")
+  sourceAchievementId  String              @map("source_achievement_id")
+  rewardPlanVersion    Int                 @map("reward_plan_version")
+  rewardGold           Int                 @map("reward_gold")
+  rewardItemsJson      Json                @map("reward_items_json")
+  state                String              @default("PENDING")
+  earnedAt             DateTime            @map("earned_at")
+  deliveryAttemptCount Int                 @default(0) @map("delivery_attempt_count")
+  nextAttemptAt        DateTime            @map("next_attempt_at")
+  lastFailureCode      String?             @map("last_failure_code")
+  grantedAt            DateTime?           @map("granted_at")
+  grantedCharacterId   String?             @map("granted_character_id")
+  grantedCharacter     Character?          @relation("ReferralRewardGrantedCharacter", fields: [grantedCharacterId], references: [id], onDelete: SetNull)
+  grantedRemortCount   Int?                @map("granted_remort_count")
+  actualGrantJson      Json?               @map("actual_grant_json")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  @@unique([attributionId, beneficiaryUserId, rewardFamily, milestoneKey])
+  @@index([state, nextAttemptAt, earnedAt, id])
+  @@index([beneficiaryUserId, state, nextAttemptAt, earnedAt, id])
+  @@map("referral_rewards")
+}
+
+model ReferralNotificationOutbox {
+  id              String    @id @default(uuid())
+  logicalKey      String    @unique @map("logical_key")
+  kind            String
+  recipientUserId String    @map("recipient_user_id")
+  recipientUser   User      @relation("ReferralNotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  payloadJson     Json      @map("payload_json")
+  state           String    @default("PENDING")
+  attemptCount    Int       @default(0) @map("attempt_count")
+  nextAttemptAt   DateTime  @map("next_attempt_at")
+  claimToken      String?   @map("claim_token")
+  claimedUntil    DateTime? @map("claimed_until")
+  sentAt          DateTime? @map("sent_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([kind, state, nextAttemptAt, createdAt, id])
+  @@index([kind, state, claimedUntil, createdAt, id])
+  @@map("referral_notification_outbox")
 }
 
 model GuildFounderCooldown {
@@ -286,6 +381,7 @@ model Character {
   groupCombatUiPublicationClaim GroupCombatUiPublicationClaim?
   activeCombatLease ActiveCombatLease?
   hpRecoveryNotification HpRecoveryNotification?
+  referralRewardsGranted ReferralReward[] @relation("ReferralRewardGrantedCharacter")
   name      String
   pronoun   String   @default("they")
   path      String   @default("boundary")

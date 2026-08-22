@@ -176,7 +176,8 @@ export function registerMainMenuKeyboard(
       includeDevGrant: services.devGrant?.isEnabled() ?? false,
       includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
       includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
-      includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+      includeRaidChat: services.partyRaidChat !== undefined,
+      includeRaidChatDev: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
       includeTavernGames: services.tavernGames?.isEnabled() ?? false,
       includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false
@@ -203,7 +204,7 @@ export function registerMainMenuKeyboard(
 
 type DevHelpServices = Pick<
   BotServices,
-  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications" | "guilds"
+  "devReset" | "devGrant" | "partySessions" | "groupCombat" | "partyRaidChat" | "fightingCornerQuest" | "healthRecoveryNotifications" | "guilds" | "referrals"
 >;
 
 export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibility {
@@ -212,10 +213,14 @@ export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibilit
     includeDevGrant: services.devGrant?.isEnabled() ?? false,
     includePartySessions: services.partySessions?.areDevHelpersEnabled() ?? false,
     includeGroupCombat: services.groupCombat?.areDevHelpersEnabled() ?? false,
-    includeRaidChat: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
+    includeRaidChat: services.partyRaidChat !== undefined,
+    includeRaidChatDev: services.partyRaidChat?.areDevHelpersEnabled() ?? false,
     includeFightingCornerQuest: services.fightingCornerQuest?.isDevHelperEnabled() ?? false,
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
-    includeGuild: services.guilds?.areDevHelpersEnabled() ?? false
+    includeGuild: services.guilds !== undefined,
+    includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
+    includeReferral: services.referrals?.isFoundationEnabled() ?? false,
+    includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
   };
 }
 
@@ -229,6 +234,7 @@ export function shouldIncludeAdminMainMenu(
     || (services.partyRaidChat?.areDevHelpersEnabled() ?? false)
     || (services.fightingCornerQuest?.isDevHelperEnabled() ?? false)
     || (services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false)
+    || (services.referrals?.areDevHelpersEnabled() ?? false)
     || (services.guilds?.areDevHelpersEnabled() ?? false);
 }
 
@@ -612,7 +618,9 @@ async function sendCurrentPresenceLocation(
     return;
   }
   if (locationId === PRESENCE_LOCATION_KORCHMA_NEWS_CORNER) {
-    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply");
+    await sendKorchmaNewsCorner(ctx, services.tavern, services.presence, "reply", {
+      referralEnabled: services.referrals?.isFoundationEnabled() === true
+    });
     return;
   }
   if (locationId === PRESENCE_LOCATION_KORCHMA_FIGHTING_CORNER) {

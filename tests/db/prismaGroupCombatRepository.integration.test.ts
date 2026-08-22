@@ -7333,7 +7333,8 @@ async function applyGroupCombatMigration(prisma: PrismaClient): Promise<void> {
   for (const migration of [
     "prisma/migrations/20260722090000_group_combat_proof/migration.sql",
     "prisma/migrations/20260723194500_group_combat_hardening/migration.sql",
-    "prisma/migrations/20260724233000_left_passage_party_attack/migration.sql"
+    "prisma/migrations/20260724233000_left_passage_party_attack/migration.sql",
+    "prisma/migrations/20260819090000_referral_foundation/migration.sql"
   ]) {
     const sql = await readFile(resolve(migration), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {

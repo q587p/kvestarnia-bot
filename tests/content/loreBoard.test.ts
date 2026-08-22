@@ -252,8 +252,12 @@ describe("lore board content", () => {
   it("explains the shipped guild shell without promising shared party or economy ownership", () => {
     const guild = loreEntries.find((entry) => entry.id === "custom-guild-charter");
     const nest = loreEntries.find((entry) => entry.id === "place-guild-nest");
+    const referral = loreEntries.find((entry) => entry.id === "custom-referral-call");
 
     expect(guild).toMatchObject({ categoryId: "customs", title: "Ґільдійний статут" });
+    expect(referral).toMatchObject({ categoryId: "customs", title: "Поклик до Квестарні" });
+    expect(referral?.body).toContain("не ґільдійне запрошення");
+    expect(referral?.body).not.toContain("Telegram");
     expect(nest).toMatchObject({
       categoryId: "places",
       title: "Гніздо ґільдій",

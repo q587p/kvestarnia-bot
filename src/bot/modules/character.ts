@@ -5,6 +5,7 @@ import type { GuildService } from "../../services/guildService";
 import type { OnboardingService } from "../../services/onboardingService";
 import type { RemortService } from "../../services/remortService";
 import type { RestartService } from "../../services/restartService";
+import type { ReferralService } from "../../services/referralService";
 import type { TavernRaidService } from "../../services/tavernRaidService";
 import {
   answerInvalidCallback,
@@ -104,6 +105,7 @@ export function registerCharacterBotModule(
       ...(services.groupCombat ? { groupCombat: services.groupCombat } : {}),
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
       ...(services.guilds ? { guilds: services.guilds } : {}),
+      ...(services.referrals ? { referrals: services.referrals } : {}),
       presence: services.presence,
       botUsername: options.botUsername,
       duelBotUsername: options.botUsername
@@ -137,7 +139,7 @@ export function registerCharacterBotModule(
   }
 
   registerParsedCallbackRoute(bot, /^v1:onb:/, parseOnboardingCallbackData, async (ctx, callback) => {
-    await handleOnboardingCallback(ctx, callback, services.onboarding);
+    await handleOnboardingCallback(ctx, callback, services.onboarding, services.referrals);
   });
 
   registerParsedCallbackRoute(bot, /^v1:bst:/, parseBestiaryCallbackData, async (ctx, callback) => {
@@ -316,7 +318,8 @@ async function handleAchievementCallback(
 async function handleOnboardingCallback(
   ctx: Context,
   callback: OnboardingCallback,
-  onboardingService: OnboardingService
+  onboardingService: OnboardingService,
+  referralService?: ReferralService
 ): Promise<void> {
   if (callback.type === "gender") {
     await safeAnswerCallbackQuery(ctx);
@@ -436,12 +439,30 @@ async function handleOnboardingCallback(
     return;
   }
 
-  const result = await onboardingService.complete(
+  let result = await onboardingService.complete(
     player,
     callback.pronoun,
     callback.raceId,
     callback.classId
   );
+
+  if (!result.ok && result.error.type === "pending-referral-consent" && referralService) {
+    try {
+      await referralService.resolvePendingReferral(player.telegramUserId);
+      result = await onboardingService.complete(
+        player,
+        callback.pronoun,
+        callback.raceId,
+        callback.classId
+      );
+    } catch {
+      await safeAnswerCallbackQuery(ctx, {
+        text: "Писар не завершив запис поклику. Спробуй ще раз.",
+        show_alert: true
+      });
+      return;
+    }
+  }
 
   if (!result.ok) {
     const text =

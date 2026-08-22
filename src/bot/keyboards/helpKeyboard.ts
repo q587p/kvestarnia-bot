@@ -14,6 +14,7 @@ export function buildHelpKeyboard(page: HelpPage = "menu"): InlineKeyboard {
       .text("🎒 Манатки", makeHelpCallbackData("items"))
       .text("🍺 Корчма й люди", makeHelpCallbackData("korchma"))
       .row()
+      .text("🛡️ Ґільдії", makeHelpCallbackData("guild"))
       .text("📰 Довідки й вісті", makeHelpCallbackData("news"));
   }
 

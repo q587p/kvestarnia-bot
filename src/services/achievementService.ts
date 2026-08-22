@@ -25,6 +25,7 @@ export type AchievementSimpleEventType = Exclude<
   AchievementTriggerType,
   | "achievement.list.opened"
   | "character.created"
+  | "referral.arrivals"
   | "gold.balance"
   | "level.reached"
   | "combat.finished"
@@ -49,6 +50,13 @@ export type AchievementEvent =
       characterId: string;
       raceId?: string;
       classId?: string;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
+      type: "referral.arrivals";
+      characterId: string;
+      count: number;
       occurredAt: Date;
       sourceId?: string;
     }
@@ -556,6 +564,10 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
     return event.type === "gold.balance" ? Math.max(0, Math.floor(event.gold)) : null;
   }
 
+  if (definition.trigger.type === "referral.arrivals") {
+    return event.type === "referral.arrivals" ? Math.max(0, Math.floor(event.count)) : null;
+  }
+
   if (
     definition.trigger.type === "achievement.list.opened" ||
     definition.trigger.type === "character.created" ||
@@ -1029,6 +1041,8 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
       };
     case "gold.balance":
       return { gold: event.gold };
+    case "referral.arrivals":
+      return { count: event.count };
     case "equipment.item_equipped":
       return { itemId: event.itemId };
     default:

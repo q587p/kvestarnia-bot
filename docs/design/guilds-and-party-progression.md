@@ -218,7 +218,7 @@ other-game UI is product research rather than copy to reproduce verbatim.
    collusion and abandoned-leader policies. They must not block ordinary PvE or
    turn the read-only 0.4.5 directory into an authorization boundary.
 7. **Guild progression and cosmetics.** Guild XP/levels and earned frames remain
-   the 0.4.13 direction after weekly-goal evidence. Progression may unlock
+   the 0.4.14 direction after weekly-goal evidence. Progression may unlock
    cosmetic identity and carefully reviewed comfort features; it does not imply
    shared combat power, territory or treasury access.
 8. **Guild shutdown, destruction and deletion.** Foundation already permits a

@@ -364,6 +364,22 @@ describe("application factory wiring", () => {
     await expect(enabled.guilds.ensureCreationGoldForDev(42n)).resolves.toBe("disabled");
   });
 
+  it("keeps referral entry default-off and the reconcile helper unavailable in production", () => {
+    const disabled = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production"
+    }));
+    expect(disabled.referrals?.isFoundationEnabled()).toBe(false);
+
+    const enabled = createServices(createRepositories({} as PrismaClient), makeConfig({
+      nodeEnv: "production",
+      referralFoundationEnabled: true,
+      referralRewardPayoutsEnabled: true
+    }));
+    expect(enabled.referrals?.isFoundationEnabled()).toBe(true);
+    expect(enabled.referrals?.arePayoutsEnabled()).toBe(true);
+    expect(enabled.referrals?.areDevHelpersEnabled()).toBe(false);
+  });
+
   it("services group combat in production while keeping proof and left-passage entry disabled", async () => {
     const services = createServices(createRepositories({} as PrismaClient), makeConfig({
       nodeEnv: "production",
@@ -428,6 +444,8 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     bigBarrelBrotherRaidEnabled: false,
     groupCombatProofEnabled: false,
     guildFoundationEnabled: false,
+    referralFoundationEnabled: false,
+    referralRewardPayoutsEnabled: false,
     ...overrides
   };
 }

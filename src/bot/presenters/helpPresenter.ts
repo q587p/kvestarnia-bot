@@ -9,18 +9,36 @@ export interface HelpVisibility {
   includePartySessions?: boolean;
   includeGroupCombat?: boolean;
   includeRaidChat?: boolean;
+  includeRaidChatDev?: boolean;
   includeTavernGames?: boolean;
   includeFightingCornerQuest?: boolean;
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
+  includeGuildDev?: boolean;
+  includeReferral?: boolean;
+  includeReferralDev?: boolean;
 }
 
 const HELP_PAGE_COMMANDS: Record<Exclude<HelpPage, "menu">, readonly string[]> = {
   hero: ["start", "hero", "profile", "me", "restart", "remort"],
   adventures: ["adventure", "quest", "fight", "hunt", "bestiary", "monsters", "cellar"],
   items: ["inventory", "items", "bag", "equipment", "gear", "equip"],
-  korchma: ["tavern", "raid", "spar", "duel", "online", "games", "look"],
-  news: ["guild", "version", "news", "lore", "chronicles", "help", "support"]
+  korchma: ["tavern", "raid", "spar", "duel", "online", "games", "look", "cancel_raid_chat"],
+  guild: [
+    "guild",
+    "guild_create",
+    "guild_invite_code",
+    "guild_invite",
+    "guild_party",
+    "guild_edit",
+    "guild_leave",
+    "guild_delete",
+    "guild_transfer",
+    "guild_promote",
+    "guild_demote",
+    "guild_kick"
+  ],
+  news: ["invite", "version", "news", "lore", "chronicles", "help", "support"]
 };
 
 const HELP_COMMAND_ALIAS_GROUPS = [
@@ -44,6 +62,7 @@ export function presentHelp(
       "⚔️ Пригоди й бої — справи, монстри та Низ.",
       "🎒 Манатки — торба, спорядження й гачки.",
       "🍺 Корчма й люди — місця, Бочка та дозвілля.",
+      "🛡️ Ґільдії — дім, учасники та ватага.",
       "📰 Довідки й вісті — дошка, Перекази й підтримка.",
       "",
       "Оберіть розділ кнопкою нижче. Основна клавіатура теж знає більшість доріг."
@@ -103,7 +122,7 @@ function pageContent(
 ): string[] {
   if (page === "hero") {
     return [
-      `👤 Персонаж · ${pageNumber}/5`,
+      `👤 Персонаж · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
       "",
       "Створення, прогрес і нове життя пригодника.",
       "",
@@ -113,7 +132,7 @@ function pageContent(
 
   if (page === "adventures") {
     return [
-      `⚔️ Пригоди й бої · ${pageNumber}/5`,
+      `⚔️ Пригоди й бої · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
       "",
       "Справи, Низ, полювання та польові нотатки.",
       "",
@@ -123,7 +142,7 @@ function pageContent(
 
   if (page === "items") {
     return [
-      `🎒 Манатки · ${pageNumber}/5`,
+      `🎒 Манатки · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
       "",
       "Торба, спорядження й усе, що підозріло дзвенить.",
       "",
@@ -135,7 +154,7 @@ function pageContent(
 
   if (page === "korchma") {
     return [
-      `🍺 Корчма й люди · ${pageNumber}/5`,
+      `🍺 Корчма й люди · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
       "",
       "Місця, Бочка, дружні суперники й пригодники поруч.",
       "",
@@ -143,8 +162,18 @@ function pageContent(
     ];
   }
 
+  if (page === "guild") {
+    return [
+      `🛡️ Ґільдії · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
+      "",
+      "Ґільдійний дім, запрошення, ролі та спільна ватага.",
+      "",
+      ...commands
+    ];
+  }
+
   return [
-    `📰 Довідки й вісті · ${pageNumber}/5`,
+    `📰 Довідки й вісті · ${pageNumber}/${HELP_CONTENT_PAGES.length}`,
     "",
     "Дошка корчми, Перекази, версія та добровільна підтримка.",
     "",
@@ -208,10 +237,14 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includePartySessions: visibility,
       includeGroupCombat: visibility,
       includeRaidChat: visibility,
+      includeRaidChatDev: visibility,
       includeTavernGames: visibility,
       includeFightingCornerQuest: visibility,
       includeHpRecovery: visibility,
-      includeGuild: visibility
+      includeGuild: visibility,
+      includeGuildDev: visibility,
+      includeReferral: visibility,
+      includeReferralDev: visibility
     };
   }
 
@@ -221,9 +254,13 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includePartySessions: visibility.includePartySessions ?? false,
     includeGroupCombat: visibility.includeGroupCombat ?? false,
     includeRaidChat: visibility.includeRaidChat ?? false,
+    includeRaidChatDev: visibility.includeRaidChatDev ?? false,
     includeTavernGames: visibility.includeTavernGames ?? false,
     includeFightingCornerQuest: visibility.includeFightingCornerQuest ?? false,
     includeHpRecovery: visibility.includeHpRecovery ?? false,
-    includeGuild: visibility.includeGuild ?? false
+    includeGuild: visibility.includeGuild ?? false,
+    includeGuildDev: visibility.includeGuildDev ?? false,
+    includeReferral: visibility.includeReferral ?? false,
+    includeReferralDev: visibility.includeReferralDev ?? false
   };
 }

@@ -63,6 +63,8 @@ HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
 LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
 GUILD_FOUNDATION_ENABLED=false
+REFERRAL_FOUNDATION_ENABLED=false
+REFERRAL_REWARD_PAYOUTS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_ENABLED=false
 FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
@@ -71,6 +73,36 @@ FIGHTING_CORNER_ONBOARDING_QUEST_DEV_HELPERS_ENABLED=false
 # SUPPORT_JAR_GOAL_UAH=5000
 # SUPPORT_JAR_STATUS_UPDATED_AT=2026-06-16
 ```
+
+### Referral Foundation local QA
+
+Both referral flags remain `false` in committed deploy examples. For the
+six-account local matrix in
+[`0.4.6-referral-foundation-qa.md`](../qa/0.4.6-referral-foundation-qa.md), set
+these non-secret values in the existing untracked root `.env`:
+
+The inviter dashboard must expose the exact four-stage reward table before
+sharing; invitees continue directly into ordinary onboarding, and `news.md` deliberately remains concise.
+
+```env
+REFERRAL_FOUNDATION_ENABLED=true
+REFERRAL_REWARD_PAYOUTS_ENABLED=true
+```
+
+Use `/dev_add_level` to cross the real level milestone writer and
+`/dev_referral_reconcile` only to retry the acting inviter's canonical pending
+delivery. Both commands remain non-production; referral feature flags do not
+register the reconcile helper in production. Toggle only the payout flag off/on
+to test durable pending recovery. The isolated bot snapshot will not see these
+checkout values until an explicitly requested `refresh-local-bot.cmd`; do not
+infer that local `.env` changed a running bot.
+
+Use `/dev_delete_account` only when a Telegram QA account must become truly
+fresh again. The first call shows the destructive scope; only the exact
+`/dev_delete_account ПІДТВЕРДЖУЮ` form atomically deletes that Telegram User,
+its Character, referral relations/outbox rows, founded or led guilds and related
+local Chronicle evidence. The helper is not registered in production and never
+touches a hosted database.
 
 ### HP recovery notification rollout
 
@@ -174,6 +206,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 
 - `/dev_help` — показує доступні локальні dev-команди з урахуванням enabled-прапорців.
 - `/dev_reset_me` — скидає поточного персонажа.
+- `/dev_delete_account` — після окремого точного підтвердження повністю стирає власний User, персонажа й пов’язаний стан лише з ізольованої локальної бази; наступний `/start` починає onboarding з нуля. У production команда не реєструється, не показується й не мутує стан.
 - `/dev_party` — збирає тимчасову локальну ватагу; коли GroupCombat proof увімкнений, створює окремий збір на 2–3 учасників із автоматичним стартом через три хвилини. Без proof зберігає звичайний party/session контракт. У production не реєструється й не показується навіть тоді, коли production party/raid feature flags увімкнені.
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
 - `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.

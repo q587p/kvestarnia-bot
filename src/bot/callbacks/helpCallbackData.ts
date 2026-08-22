@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "../../shared/result";
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "./onboardingCallbackData";
 
-export const HELP_CONTENT_PAGES = ["hero", "adventures", "items", "korchma", "news"] as const;
+export const HELP_CONTENT_PAGES = ["hero", "adventures", "items", "korchma", "guild", "news"] as const;
 export const HELP_PAGES = ["menu", ...HELP_CONTENT_PAGES] as const;
 
 export type HelpPage = (typeof HELP_PAGES)[number];

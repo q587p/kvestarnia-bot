@@ -21,6 +21,32 @@ Release-specific historical checklists and evidence live under
 
 Очікування: повторні натискання onboarding callback-ів не створюють дублікати персонажа.
 
+## Поклик до Квестарні
+
+Release-critical referral QA uses the six-account matrix in
+[`0.4.6-referral-foundation-qa.md`](../qa/0.4.6-referral-foundation-qa.md). For a
+compact smoke:
+
+1. With both referral flags enabled locally, open `📰 Дошка корчми` →
+   `📨 Поклик до Квестарні` as an existing Character. Before sharing, verify the
+   exact `3/5/8/13` bundles and totals `1/6/276/1830`, then share the stable link.
+2. Open it with a fresh Telegram account. Verify the explicit accept/continue
+   choice appears before Character creation and discloses the one public
+   Chronicle arrival relation plus the private-data boundary.
+3. Accept, create the Character and verify one inviter notice plus one
+   `referral.arrived` row in all/`👥 Пригодники`, never `⭐ Важливе` or
+   `🎒 Манатки`.
+4. Use `/dev_add_level 12` on the invitee to cross `3/5/8/13`; verify the
+   inviter receives every whole bundle once and the dashboard/list show all
+   historical stages.
+5. Repeat callbacks and `/dev_referral_reconcile`, restart the inviter between
+   entitlement and payout, and toggle only `REFERRAL_REWARD_PAYOUTS_ENABLED`
+   off/on. No partial or duplicate gold/items may appear; pending status must
+   recover automatically when a current inviter Character exists.
+
+Manual Telegram results remain pending until a maintainer records the actual
+accounts, runtime snapshot SHA and observed inventory/gold deltas.
+
 ## Корчма, присутність і Бочка
 
 1. Натисни `🗺️ Квести` надворі.

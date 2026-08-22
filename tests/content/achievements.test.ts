@@ -31,8 +31,24 @@ describe("achievement definitions", () => {
     const enabled = achievements.filter((definition) => definition.status === "enabled");
     const disabled = achievements.filter((definition) => definition.status === "disabled");
 
-    expect(enabled).toHaveLength(150);
+    expect(enabled).toHaveLength(152);
     expect(disabled).toHaveLength(12);
+  });
+
+  it("keeps referral arrival achievements rewardless at one and thirteen", () => {
+    expect(achievements.filter((definition) => definition.trigger.type === "referral.arrivals"))
+      .toEqual([
+        expect.objectContaining({
+          id: "achievement.referral.first-arrival",
+          trigger: { type: "referral.arrivals", threshold: 1 },
+          progressTarget: 1
+        }),
+        expect.objectContaining({
+          id: "achievement.referral.thirteen-arrivals",
+          trigger: { type: "referral.arrivals", threshold: 13 },
+          progressTarget: 13
+        })
+      ]);
   });
 
   it("defers the left-passage party completion achievement and event", () => {

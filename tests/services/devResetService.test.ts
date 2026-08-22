@@ -6,6 +6,7 @@ import type {
   CreateCharacterResult
 } from "../../src/db/repositories/characterRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import type { DevAccountResetRepository } from "../../src/db/repositories/devAccountResetRepository";
 import { DevResetService } from "../../src/services/devResetService";
 
 describe("DevResetService", () => {
@@ -33,7 +34,37 @@ describe("DevResetService", () => {
       id: "character-current"
     });
   });
+
+  it("deletes the complete local account through the dedicated repository", async () => {
+    const accounts = new FakeDevAccountResetRepository([42n]);
+    const service = new DevResetService(new FakeCharacterRepository(), "development", accounts);
+
+    await expect(service.resetEntireAccount(42n)).resolves.toEqual({ state: "deleted" });
+    await expect(service.resetEntireAccount(42n)).resolves.toEqual({ state: "no-account" });
+  });
+
+  it("cannot delete an account or call the destructive repository in production", async () => {
+    const accounts = new FakeDevAccountResetRepository([42n]);
+    const service = new DevResetService(new FakeCharacterRepository(), "production", accounts);
+
+    await expect(service.resetEntireAccount(42n)).resolves.toEqual({ state: "disabled" });
+    expect(accounts.calls).toEqual([]);
+  });
 });
+
+class FakeDevAccountResetRepository implements DevAccountResetRepository {
+  readonly calls: bigint[] = [];
+  private readonly userIds: Set<bigint>;
+
+  constructor(userIds: readonly bigint[]) {
+    this.userIds = new Set(userIds);
+  }
+
+  deleteEverythingByTelegramUserId(telegramUserId: bigint): Promise<boolean> {
+    this.calls.push(telegramUserId);
+    return Promise.resolve(this.userIds.delete(telegramUserId));
+  }
+}
 
 class FakeCharacterRepository implements CharacterRepository {
   private readonly charactersByTelegramUserId = new Map<bigint, CharacterRecord>();

@@ -6,6 +6,7 @@ const root = process.cwd();
 const moduleDir = "src/bot/modules";
 const featureModuleOwners = {
   "raidChat.ts": [],
+  "referral.ts": ["/^v1:ref:/"],
   "core.ts": ["/^v1:menu:/", "/^v1:help:/", "/^v1:dh:/", "/^v1:news:/", "/^v1:lore:/"],
   "character.ts": ["/^v1:onb:/", "/^v1:bst:/", "/^v1:ach:/", "/^v1:devreset:/", "/^v1:restart:/", "/^v1:rm:/"],
   "inventory.ts": ["/^v1:equip:/", "/^v1:item:/", "/^v1:use:/", "/^v1:craft:/", "/^v1:up:/", "/^v1:chest:/", "/^v1:lvlx:/"],
@@ -67,6 +68,7 @@ const expectedCommandAliasInventory = [
   "dev_add_xp",
   "dev_add_yeger_line",
   "dev_adventure_reset",
+  "dev_delete_account",
   "dev_finish_attunements",
   "dev_group_combat",
   "dev_group_combat_timeout",
@@ -198,6 +200,7 @@ describe("0.2.2 architecture stabilization scope", () => {
       "quest.ts",
       "questHubOptions.ts",
       "raidChat.ts",
+      "referral.ts",
       "scenePresence.ts",
       "social.ts",
       "tavern.ts",

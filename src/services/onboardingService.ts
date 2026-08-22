@@ -11,7 +11,10 @@ import type { Pronoun } from "../content/schema";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { getPathForPronoun } from "../domain/characters/path";
 import { buildStarterStats } from "../domain/characters/starterStats";
-import type { CharacterRepository } from "../db/repositories/characterRepository";
+import {
+  PendingReferralConsentError,
+  type CharacterRepository
+} from "../db/repositories/characterRepository";
 import type { TelegramUserProfile, UserRepository } from "../db/repositories/userRepository";
 import { err, ok, type Result } from "../shared/result";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
@@ -36,7 +39,8 @@ export type OnboardingError =
   | { type: "invalid-race" }
   | { type: "invalid-class" }
   | { type: "unavailable-race"; reason: string }
-  | { type: "unavailable-class"; reason: string };
+  | { type: "unavailable-class"; reason: string }
+  | { type: "pending-referral-consent" };
 
 export class OnboardingService {
   constructor(
@@ -121,21 +125,29 @@ export class OnboardingService {
     }
 
     const starterStats = buildStarterStats(raceId, classId);
-    const result = await this.characters.createForTelegramUserIfMissing(player, {
-      name: normalizeCharacterName(player.displayName),
-      pronoun: selection.value.pronoun,
-      path: getPathForPronoun(selection.value.pronoun),
-      raceId,
-      classId,
-      level: 1,
-      xp: 0,
-      gold: 0,
-      hpCurrent: starterStats.hpCurrent,
-      hpMax: starterStats.hpMax,
-      manaCurrent: starterStats.manaCurrent,
-      manaMax: starterStats.manaMax,
-      statsJson: starterStats.stats
-    });
+    let result;
+    try {
+      result = await this.characters.createForTelegramUserIfMissing(player, {
+        name: normalizeCharacterName(player.displayName),
+        pronoun: selection.value.pronoun,
+        path: getPathForPronoun(selection.value.pronoun),
+        raceId,
+        classId,
+        level: 1,
+        xp: 0,
+        gold: 0,
+        hpCurrent: starterStats.hpCurrent,
+        hpMax: starterStats.hpMax,
+        manaCurrent: starterStats.manaCurrent,
+        manaMax: starterStats.manaMax,
+        statsJson: starterStats.stats
+      });
+    } catch (error) {
+      if (error instanceof PendingReferralConsentError) {
+        return err({ type: "pending-referral-consent" });
+      }
+      throw error;
+    }
 
     const occurredAt = new Date();
     const achievementUnlocks = result.created
@@ -149,11 +161,22 @@ export class OnboardingService {
         })) ?? []
       : [];
     if (result.created) {
-      await this.activityEvents?.recordCharacterCreatedSafely({
-        characterId: result.character.id,
-        actorDisplayName: result.character.name,
-        occurredAt
-      });
+      if (result.referralArrival) {
+        await this.activityEvents?.recordReferralArrivedSafely({
+          characterId: result.character.id,
+          inviteeDisplayName: result.referralArrival.inviteeNameSnapshot,
+          inviterUserId: result.referralArrival.inviterUserId,
+          inviterDisplayName: result.referralArrival.inviterNameSnapshot,
+          attributionId: result.referralArrival.attributionId,
+          occurredAt: result.referralArrival.arrivedAt
+        });
+      } else {
+        await this.activityEvents?.recordCharacterCreatedSafely({
+          characterId: result.character.id,
+          actorDisplayName: result.character.name,
+          occurredAt
+        });
+      }
     }
 
     return ok({
