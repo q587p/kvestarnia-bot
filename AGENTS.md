@@ -125,6 +125,26 @@ destructive database reset or another action that needs genuinely new authority.
 an unrequested work session running or hanging beyond one hour; at that boundary,
 stop and provide a recoverable handoff unless the user explicitly requested a
 longer-running session.
+2d. Never treat a model turn boundary, context compaction, token budget, tool
+runtime, internal deadline, elapsed work time below the explicit one-hour
+boundary, or an incomplete but still actionable scope as a blocker, terminal
+condition, or permission to stop. These are internal execution details, not user
+constraints. When the environment can continue in another pass, continue the
+same owning task automatically and preserve its state; do not emit a partial
+final response merely because one pass is ending.
+2e. Unless the user explicitly requests a checkpoint, partial implementation,
+draft PR, early publication or narrower scope, never self-declare a "safe
+checkpoint", silently reduce the accepted contract, open a knowingly incomplete
+PR, or hand incomplete work back as the requested result. A versioned task may
+end only when every required runtime path, regression, release surface,
+documentation update, commit, push, ready PR and requested CI follow-up is done,
+or when a genuine external blocker prevents further safe progress. Difficulty,
+remaining work, or the convenience of preserving progress is not a blocker.
+Before any final implementation response, compare the branch against the task
+contract and explicitly verify that no required section remains pending. If a
+true external blocker appears, commit and push recoverable in-scope work to the
+owning branch when authorized, then report the exact external condition without
+calling the task complete.
 3. Do not rewrite architecture unless the task requires it.
 4. Do not add production dependencies without a clear reason.
 5. Do not run global formatters on the whole repo unless explicitly requested.
@@ -206,7 +226,7 @@ PR defaults:
 - For implementation work, "done", "complete", or "PR-ready" means the branch has been committed, pushed to the remote, and a GitHub PR has been opened unless the user explicitly asked to stop before publishing.
 - Before a final handoff after commits, run `git status -sb` or an equivalent branch/upstream check. If the current branch is ahead of its upstream, push it before reporting completion; if pushing is blocked, report the exact blocker. Do not leave committed work only on the local checkout unless the user explicitly asked for local-only work.
 - Do not give a final implementation summary after only local edits/checks unless the user explicitly asked for local-only work. The final response must include the `main` PR link, or a concrete blocker that prevented creating/updating that PR.
-- Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
+- Prefer ready-for-review PRs. Create or convert to a draft PR only when the user explicitly asks for draft state, a checkpoint or early publication; knowingly incomplete work by itself is not permission to publish a draft PR or stop the implementation.
 - If an active PR already exists for the current work, add follow-ups to that same branch and PR unless the user explicitly asks for a separate branch or a separate PR. If there is already an open fixes branch/PR for the release or bugfix batch, put the next related fix there instead of creating a new branch/PR for each fix. Before opening any new PR, check whether the current task belongs to an already-open PR and update that PR instead when it does.
 - Treat every correction, rule update, documentation note or future-backlog item
   requested while working on an explicitly named PR as a follow-up to that same

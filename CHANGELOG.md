@@ -7,6 +7,28 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.7] - 12026-08-22 - Universal Battle Statistics, Richer Korchma Rounds, and Manatka Dismantling
+
+### Added
+- Added one terminal `📊 Статистика` surface beside the battle journal across persistent solo fights, Training, PartyBoss and Big Barrel encounters, turn-based and quick duels, GroupCombat, passage and adventure fights, and the starter Mimic outcome. Versioned ledgers record exact damage, actual healing, actual prevention, applied control, damage taken, committed actions, special actions and defensive turns; legacy or structurally unavailable dimensions render `—` instead of fabricated zeroes.
+- Added deterministic Daily Korchma identity-manatka rewards: an independent 13% seeded roll selects only a currently equippable class, race or active-title affinity item at `+0`, while six consecutive completed misses force the next completed round to produce an eligible item. The frozen receipt records the roll, pity evidence, affinity kind and applied grants.
+- Added `♻️ Розібрати манатку` inside `✨ Чароковальня`, with complete deterministic pagination, preview and atomic confirmation. Eligible ordinary gear costs 5 gold to dismantle; mage, varenyk-mancer and bureaucramancer characters instead spend 5 regenerated mana with no gold fallback.
+- Added canonical dismantling yields from base rarity plus 42% of the cumulative canonical Iskrokamin upgrade cost, including evolving rarity, set and legendary modifiers, and an exact accepted yield-table regression.
+- Added non-production Daily Korchma controls for deterministic miss, hit and forced-seventh pity QA; production configuration cannot register, advertise or mutate through those helpers.
+
+### Changed
+- Daily Korchma XP remains `2 × level + random(1..level)`, while ordinary gold becomes `13 + level + random(1..level)`. Every completed round now grants exactly 13 Iskrokamin and one Dense Bandage; the older generic quest-Iskrokamin bonus is disabled for this reward.
+- Daily Korchma offer, completed steps, frozen reward and bounded pity evidence now survive remort. Old-life callbacks become stale while the authoritative current card replays the preserved same-day state and grants exactly once.
+- Inserted this bundle as the sole `0.4.7` plan and shifted the still-unimplemented accepted sequence without reordering it: Guild Weekly Goal through Guild Cosmetic Progression now occupy `0.4.8` through `0.4.15`.
+
+### Security
+- Battle statistics are read-only terminal projections bound to the requesting participant and authoritative persisted combat state; callback payloads stay within Telegram limits and do not expose private opponent state.
+- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipped, protected, reserved, zero-value and last-copy restricted gear is rejected transactionally; duplicate or concurrent confirmation can consume at most one item and one payment.
+
+### Fixed
+- Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
+- Daily Korchma reward replay now presents the grants actually applied by the transactional claim, so restart, duplicate callback and remort recovery cannot reroll or silently replace the reward.
+
 ## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards
 
 ### Added
