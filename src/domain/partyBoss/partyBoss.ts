@@ -480,6 +480,7 @@ export function resolvePartyBossRound(input: {
   }> = [];
   let bossDamage = 0;
   const counterDamageByCharacterId = new Map<string, number>();
+  const abilityGuardSourceByCharacterId = new Map<string, string>();
   const pendingItemResponses = new Map<string, {
     item: PartyBossCombatItemInput;
     effect: Extract<ItemUseEffectContent, { kind: "guard-response" | "evade-response" }>;
@@ -668,6 +669,9 @@ export function resolvePartyBossRound(input: {
     });
 
     participant.resources = result.actorState;
+    if ((participant.resources.guard?.abilityDamageReduction ?? 0) > 0) {
+      abilityGuardSourceByCharacterId.set(participant.characterId, participant.characterId);
+    }
     tickPartyBossCombatItemCooldowns(participant);
     next.boss.hp = Math.max(0, result.defenderState.hp);
     if (participant.statistics) {
@@ -709,7 +713,13 @@ export function resolvePartyBossRound(input: {
   for (const pending of pendingSupports) {
     Object.assign(
       pending.summary,
-      applyPartyBossAbilitySupport(next, pending.participant, pending.profile, counterDamageByCharacterId)
+      applyPartyBossAbilitySupport(
+        next,
+        pending.participant,
+        pending.profile,
+        counterDamageByCharacterId,
+        abilityGuardSourceByCharacterId
+      )
     );
   }
 
@@ -726,11 +736,23 @@ export function resolvePartyBossRound(input: {
     );
     statistics.healing += supportHealing
       + (actorHealingAlreadyIncluded ? 0 : Math.max(0, Math.floor(summary.healing ?? 0)));
-    if (summary.origin === "manual") statistics.actions += 1;
-    if (summary.action === "skill" || summary.action === "race" || summary.action === "gear") {
+    const committedForStatistics = summary.outcome !== "not-enough-mana" &&
+      summary.outcome !== "skill-on-cooldown" &&
+      summary.outcome !== "item-not-used" &&
+      summary.outcome !== "taunt-failed";
+    if (summary.origin === "manual" && committedForStatistics) statistics.actions += 1;
+    if (
+      summary.origin === "manual" &&
+      committedForStatistics &&
+      (summary.action === "skill" || summary.action === "race" || summary.action === "gear")
+    ) {
       statistics.specialActions += 1;
     }
-    if (summary.action === "defend") statistics.guardedTurns += 1;
+    if (
+      summary.origin === "manual" &&
+      summary.action === "defend" &&
+      summary.outcome === "defended"
+    ) statistics.guardedTurns += 1;
   }
 
   if (next.boss.hp > 0) {
@@ -741,6 +763,11 @@ export function resolvePartyBossRound(input: {
       committedTaunt.outcome = "taunt-activated";
       tauntRound.activatedCharacterId = committedTaunt.characterId;
       tauntRound.bossAttacksRemaining = WARRIOR_RAID_TAUNT_DURATION_BOSS_ATTACKS;
+      const statistics = next.participants.find(
+        (participant) => participant.characterId === committedTaunt.characterId
+      )?.statistics;
+      if (statistics && committedTaunt.origin === "manual") statistics.actions += 1;
+      if (statistics) statistics.control = (statistics.control ?? 0) + 1;
     }
   }
 
@@ -778,7 +805,12 @@ export function resolvePartyBossRound(input: {
     });
   }
   const retaliationResolution = next.boss.hp > 0
-    ? applyBossRetaliation(next, counterDamageByCharacterId, itemResponseByCharacterId)
+    ? applyBossRetaliation(
+        next,
+        counterDamageByCharacterId,
+        itemResponseByCharacterId,
+        abilityGuardSourceByCharacterId
+      )
     : { retaliations: [] };
   for (const [characterId, pending] of pendingItemResponses) {
     const response = itemResponseByCharacterId.get(characterId);
@@ -1338,6 +1370,36 @@ function cloneAbilityCooldowns(
   );
 }
 
+function cappedPartyBossPrevention(
+  hpBefore: number,
+  damageBefore: number,
+  damageAfter: number
+): number {
+  return Math.max(
+    0,
+    Math.min(Math.max(0, hpBefore), Math.max(0, damageBefore)) -
+      Math.min(Math.max(0, hpBefore), Math.max(0, damageAfter))
+  );
+}
+
+function creditPartyBossStatistic(
+  state: PartyBossState,
+  characterId: string,
+  dimension: "guardPrevented" | "control",
+  amount: number
+): void {
+  const statistics = state.participants.find(
+    (participant) => participant.characterId === characterId
+  )?.statistics;
+  const applied = Math.max(0, Math.floor(amount));
+  if (!statistics || applied <= 0) return;
+  if (dimension === "guardPrevented") {
+    statistics.guardPrevented += applied;
+  } else {
+    statistics.control = (statistics.control ?? 0) + applied;
+  }
+}
+
 function applyBossRetaliation(
   state: PartyBossState,
   counterDamageByCharacterId: ReadonlyMap<string, number>,
@@ -1347,7 +1409,8 @@ function applyBossRetaliation(
     percent: number;
     used: boolean;
     preventedDamage: number;
-  }> = new Map()
+  }> = new Map(),
+  abilityGuardSourceByCharacterId: ReadonlyMap<string, string> = new Map()
 ): {
   retaliations: PartyBossRetaliationSummary[];
   wardSign?: PartyBossWardSignRoundSummary;
@@ -1451,9 +1514,49 @@ function applyBossRetaliation(
     if (participant.statistics) {
       const actualDamageTaken = Math.max(0, hpBeforeRetaliation - participant.resources.hp);
       participant.statistics.damageTaken += actualDamageTaken;
-      participant.statistics.guardPrevented += Math.max(
-        0,
-        Math.min(hpBeforeRetaliation, unmitigatedDamage) - actualDamageTaken
+    }
+    creditPartyBossStatistic(
+      state,
+      participant.characterId,
+      "guardPrevented",
+      cappedPartyBossPrevention(hpBeforeRetaliation, unmitigatedDamage, guardedDamage)
+    );
+    creditPartyBossStatistic(
+      state,
+      abilityGuardSourceByCharacterId.get(participant.characterId) ?? participant.characterId,
+      "guardPrevented",
+      cappedPartyBossPrevention(hpBeforeRetaliation, guardedDamage, damageBeforeLament)
+    );
+    if (lament) {
+      creditPartyBossStatistic(
+        state,
+        lament.sourceCharacterId,
+        "control",
+        cappedPartyBossPrevention(hpBeforeRetaliation, damageBeforeLament, damageBeforeWard)
+      );
+    }
+    if (wardCanTrigger && state.wardSign) {
+      creditPartyBossStatistic(
+        state,
+        state.wardSign.placerCharacterId,
+        "guardPrevented",
+        cappedPartyBossPrevention(hpBeforeRetaliation, damageBeforeWard, damageAfterWardBase)
+      );
+    }
+    if (signature) {
+      creditPartyBossStatistic(
+        state,
+        signature.characterId,
+        "control",
+        cappedPartyBossPrevention(hpBeforeRetaliation, damageAfterWardBase, damageAfterProtocol)
+      );
+    }
+    if (itemResponseDelta.eligible) {
+      creditPartyBossStatistic(
+        state,
+        participant.characterId,
+        "control",
+        itemResponseDelta.preventedDamage + itemResponseDelta.preventedHarmfulOnHitConsequenceCount
       );
     }
     const counterDamage = damage > 0 && participant.resources.hp > 0
@@ -1566,7 +1669,8 @@ function applyPartyBossAbilitySupport(
   state: PartyBossState,
   actor: PartyBossParticipantState,
   ability: CombatSkillProfile | undefined,
-  counterDamageByCharacterId: Map<string, number>
+  counterDamageByCharacterId: Map<string, number>,
+  abilityGuardSourceByCharacterId: Map<string, string>
 ): {
   healing?: number;
   guard?: number;
@@ -1616,6 +1720,7 @@ function applyPartyBossAbilitySupport(
       : 0;
     const protects = protectionTargets.some((candidate) => candidate.characterId === characterId);
     if (protects && guard > 0) {
+      const previousAbilityGuard = target.resources.guard?.abilityDamageReduction ?? 0;
       target.resources.guard = {
         consecutiveDefends: 1,
         abilityDamageReduction: Math.max(
@@ -1623,6 +1728,9 @@ function applyPartyBossAbilitySupport(
           target.resources.guard?.abilityDamageReduction ?? 0
         )
       };
+      if (guard > previousAbilityGuard) {
+        abilityGuardSourceByCharacterId.set(target.characterId, actor.characterId);
+      }
     }
     if (protects && counterDamage > 0) {
       counterDamageByCharacterId.set(

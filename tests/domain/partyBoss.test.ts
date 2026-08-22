@@ -112,6 +112,11 @@ describe("party boss reducer", () => {
     });
     expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.contribution.submittedActions).toBe(1);
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.timeoutActions).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.statistics?.actions).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.statistics).toMatchObject({
+      actions: 0,
+      guardedTurns: 0
+    });
   });
 
   it("spends Lament as a zero-damage action and reduces one focused boss response", () => {
@@ -191,6 +196,10 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations).toHaveLength(2);
     expect(result.round.bossRetaliations.every((entry) => entry.lamentPreventedDamage === 3)).toBe(true);
     expect(result.round.bardMusic?.remainingBossResponses).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "bard")?.statistics?.control)
+      .toBe(6);
+    expect(result.state.participants.find((entry) => entry.characterId === "ally")?.statistics?.control)
+      .toBe(0);
   });
 
   it("applies Lament after guard reductions and before the broad Ward", () => {
@@ -1583,6 +1592,10 @@ describe("party boss reducer", () => {
       redirectedAttackKind: "broad",
       bossAttacksRemaining: 2
     });
+    expect(resolved.state.participants[0]?.statistics).toMatchObject({
+      actions: 1,
+      control: 1
+    });
   });
 
   it("applies one broad Kharakternyk ward response to the redirected Taunt target", () => {
@@ -1618,6 +1631,8 @@ describe("party boss reducer", () => {
       usesMax: 2
     });
     expect(resolved.round.wardSign?.preventedDamage).toBeGreaterThan(0);
+    expect(resolved.state.participants.find((entry) => entry.characterId === "ally")?.statistics?.guardPrevented)
+      .toBeGreaterThanOrEqual(resolved.round.wardSign?.preventedDamage ?? 0);
   });
 
   it("redirects a focused response into the taunting Protocol 13-Z signer", () => {

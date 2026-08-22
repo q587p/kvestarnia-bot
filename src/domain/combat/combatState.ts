@@ -160,6 +160,19 @@ export interface CombatStatisticsStateV1 {
   enemies: Record<string, CombatContributionDimensionsV1>;
 }
 
+export interface CombatStatisticsEnemyTurnEvidenceV1 {
+  damage: number;
+  healing: number;
+  guardPrevented: number;
+  control: number;
+}
+
+export interface CombatStatisticsTurnEvidenceV1 {
+  heroGuardPrevented: number;
+  heroControl: number;
+  enemies: Record<string, CombatStatisticsEnemyTurnEvidenceV1>;
+}
+
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
@@ -357,6 +370,7 @@ export interface CombatTurnSummary {
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
   itemResponse?: CombatItemResponseSummary;
+  statisticsEvidence?: CombatStatisticsTurnEvidenceV1;
   debugTrace?: CombatDebugTrace;
 }
 
@@ -871,6 +885,19 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
       ? { enemyPressureSkips: summary.enemyPressureSkips.map((entry) => ({ ...entry })) }
       : {}),
     ...(summary.itemResponse ? { itemResponse: { ...summary.itemResponse } } : {}),
+    ...(summary.statisticsEvidence
+      ? {
+          statisticsEvidence: {
+            ...summary.statisticsEvidence,
+            enemies: Object.fromEntries(
+              Object.entries(summary.statisticsEvidence.enemies).map(([enemyId, values]) => [
+                enemyId,
+                { ...values }
+              ])
+            )
+          }
+        }
+      : {}),
     ...(summary.enemyResults
       ? { enemyResults: summary.enemyResults.map((entry) => ({ ...entry })) }
       : {}),
@@ -1019,9 +1046,16 @@ export function recordCombatStatisticsTurn(input: {
 
   for (const [enemyId, current] of currentEnemies) {
     const previous = previousEnemies.get(enemyId);
-    const values = statistics.enemies[enemyId] ?? emptyCombatContributionDimensions({ healing: null });
-    const damageTaken = previous ? Math.max(0, previous.hp - current.hp) : 0;
+    const values = statistics.enemies[enemyId] ?? emptyCombatContributionDimensions({ healing: 0 });
+    const evidence = input.summary.statisticsEvidence?.enemies[enemyId];
+    const healing = Math.max(0, Math.floor(evidence?.healing ?? 0));
+    const damageTaken = previous ? Math.max(0, previous.hp + healing - current.hp) : 0;
     totalDamageDealt += damageTaken;
+    values.healing = (values.healing ?? 0) + healing;
+    values.guardPrevented = (values.guardPrevented ?? 0) +
+      Math.max(0, Math.floor(evidence?.guardPrevented ?? 0));
+    values.control = (values.control ?? 0) +
+      Math.max(0, Math.floor(evidence?.control ?? 0));
     values.damageTaken += damageTaken;
     statistics.enemies[enemyId] = values;
   }
@@ -1037,13 +1071,17 @@ export function recordCombatStatisticsTurn(input: {
 
   statistics.hero.damage += totalDamageDealt;
   statistics.hero.healing = (statistics.hero.healing ?? 0) + heroHealing;
+  statistics.hero.guardPrevented = (statistics.hero.guardPrevented ?? 0) +
+    Math.max(0, Math.floor(input.summary.statisticsEvidence?.heroGuardPrevented ?? 0));
+  statistics.hero.control = (statistics.hero.control ?? 0) +
+    Math.max(0, Math.floor(input.summary.statisticsEvidence?.heroControl ?? 0));
   statistics.hero.damageTaken += heroDamageTaken;
   statistics.hero.actions += manualAction ? 1 : 0;
   statistics.hero.specialActions += manualAction &&
     (input.summary.action === "skill" || input.summary.action === "race" || input.summary.action === "gear")
     ? 1
     : 0;
-  statistics.hero.guardedTurns += input.summary.action === "defend" ? 1 : 0;
+  statistics.hero.guardedTurns += manualAction && input.summary.action === "defend" ? 1 : 0;
 
   const enemyActions = input.summary.enemyActions && input.summary.enemyActions.length > 0
     ? input.summary.enemyActions
@@ -1056,20 +1094,34 @@ export function recordCombatStatisticsTurn(input: {
         }]
       : [];
   let attributedEnemyDamage = 0;
+  if (input.summary.statisticsEvidence) {
+    for (const [enemyId, evidence] of Object.entries(input.summary.statisticsEvidence.enemies)) {
+      const values = statistics.enemies[enemyId];
+      if (!values) continue;
+      const appliedDamage = Math.max(0, Math.min(
+        heroDamageTaken - attributedEnemyDamage,
+        Math.floor(evidence.damage)
+      ));
+      values.damage += appliedDamage;
+      attributedEnemyDamage += appliedDamage;
+    }
+  }
   for (const action of enemyActions) {
     const values = statistics.enemies[action.enemyId];
     if (!values || !action.monsterAction) {
       continue;
     }
-    const appliedDamage = Math.max(0, Math.min(
-      heroDamageTaken - attributedEnemyDamage,
-      Math.floor(action.monsterDamage)
-    ));
-    values.damage += appliedDamage;
+    if (!input.summary.statisticsEvidence) {
+      const appliedDamage = Math.max(0, Math.min(
+        heroDamageTaken - attributedEnemyDamage,
+        Math.floor(action.monsterDamage)
+      ));
+      values.damage += appliedDamage;
+      attributedEnemyDamage += appliedDamage;
+    }
     values.actions += 1;
     values.specialActions += action.monsterAction === "skill" ? 1 : 0;
     values.guardedTurns += action.monsterAction === "defend" ? 1 : 0;
-    attributedEnemyDamage += appliedDamage;
   }
   if (attributedEnemyDamage < heroDamageTaken) {
     const primary = statistics.enemies[enemyActions[0]?.enemyId ?? "enemy:1"];
@@ -1086,7 +1138,7 @@ function createCombatStatisticsState(enemies: readonly CombatEnemyState[]): Comb
     version: 1,
     hero: emptyCombatContributionDimensions({ healing: 0 }),
     enemies: Object.fromEntries(
-      enemies.map((enemy) => [enemy.enemyId, emptyCombatContributionDimensions({ healing: null })])
+      enemies.map((enemy) => [enemy.enemyId, emptyCombatContributionDimensions({ healing: 0 })])
     )
   };
 }
@@ -1097,8 +1149,8 @@ function emptyCombatContributionDimensions(input: {
   return {
     damage: 0,
     healing: input.healing,
-    guardPrevented: null,
-    control: null,
+    guardPrevented: 0,
+    control: 0,
     damageTaken: 0,
     actions: 0,
     specialActions: 0,

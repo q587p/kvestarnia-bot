@@ -138,6 +138,13 @@ describe("combat domain engine", () => {
       manaSpent: 3,
       critical: false,
       heroHealing: 4,
+      statisticsEvidence: {
+        heroGuardPrevented: 2,
+        heroControl: 1,
+        enemies: {
+          "enemy:1": { damage: 3, healing: 2, guardPrevented: 5, control: 1 }
+        }
+      },
       enemyActions: [{
         enemyId: "enemy:1",
         monsterId: monster.monsterId,
@@ -149,10 +156,10 @@ describe("combat domain engine", () => {
     recordCombatStatisticsTurn({ state: current, previousState: previous, summary });
 
     expect(current.statistics?.hero).toEqual({
-      damage: monster.hpMax,
+      damage: monster.hpMax + 2,
       healing: 4,
-      guardPrevented: null,
-      control: null,
+      guardPrevented: 2,
+      control: 1,
       damageTaken: 3,
       actions: 1,
       specialActions: 1,
@@ -160,14 +167,64 @@ describe("combat domain engine", () => {
     });
     expect(current.statistics?.enemies["enemy:1"]).toEqual({
       damage: 3,
-      healing: null,
-      guardPrevented: null,
-      control: null,
-      damageTaken: monster.hpMax,
+      healing: 2,
+      guardPrevented: 5,
+      control: 1,
+      damageTaken: monster.hpMax + 2,
       actions: 1,
       specialActions: 1,
       guardedTurns: 0
     });
+  });
+
+  it("records actual basic-guard prevention without changing the resolved retaliation", () => {
+    const durableHero = { ...warrior, hpMax: 100, hpCurrent: 100 };
+    const hardHitter = { ...monster, attack: 20, hpMax: 100 };
+    const result = resolveCombatTurn({
+      state: startCombat({ hero: durableHero, monster: hardHitter }),
+      action: "defend",
+      hero: durableHero,
+      monster: hardHitter,
+      rng: new FakeRandomSource([0, 0, 0.99, 0.99])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.statistics?.hero.guardPrevented).toBeGreaterThan(0);
+    expect(result.state.statistics?.hero.damageTaken).toBe(
+      durableHero.hpMax - result.state.hero.hp
+    );
+    expect(result.summary.monsterDamage).toBe(durableHero.hpMax - result.state.hero.hp);
+  });
+
+  it("attributes an absorbed direct hit to the enemy shield source", () => {
+    const shieldedMonster = { ...monster, hpMax: 100 };
+    const state = startCombat({ hero: warrior, monster: shieldedMonster });
+    state.monsterRuntime = {
+      version: 1,
+      rulesVersion: MONSTER_ABILITY_RUNTIME_RULES_VERSION,
+      aiProfile: "defender",
+      loadoutIds: [],
+      cooldowns: {},
+      onceUsedAbilityIds: [],
+      consecutiveAbilityUses: 0,
+      ownActionCount: 0,
+      effects: [],
+      shield: { sourceAbilityId: "monster.basic-defend", points: 5 }
+    };
+
+    const result = resolveCombatTurn({
+      state,
+      action: "attack",
+      hero: { ...warrior, weaponDamage: 10 },
+      monster: shieldedMonster,
+      rng: new FakeRandomSource([
+        0.1, 0.99, 0, 0.99, 0.99, 0.99, 0.99, 0.99,
+        0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99
+      ])
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.state.statistics?.enemies["enemy:1"]?.guardPrevented).toBe(5);
   });
 
   it("applies a Sated pulse after the hostile response to a committed single-enemy action", () => {
@@ -501,9 +558,9 @@ describe("combat domain engine", () => {
       },
       statistics: {
         version: 1,
-        hero: { damage: 0, healing: 0, guardPrevented: null, control: null, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 },
+        hero: { damage: 0, healing: 0, guardPrevented: 0, control: 0, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 },
         enemies: {
-          "enemy:1": { damage: 0, healing: null, guardPrevented: null, control: null, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 }
+          "enemy:1": { damage: 0, healing: 0, guardPrevented: 0, control: 0, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 }
         }
       }
     });
@@ -659,6 +716,9 @@ describe("combat domain engine", () => {
     });
     expect(guarded.ok).toBe(true);
     expect(guarded.summary.monsterDamage).toBe(12);
+    expect(guarded.state.statistics?.hero.control).toBe(
+      guarded.summary.itemResponse?.preventedDamage
+    );
 
     const conditionalState = startCombat({ hero: { ...warrior, hpMax: 100 }, monster });
     conditionalState.hero.hp = 50;
@@ -1529,6 +1589,9 @@ describe("combat domain engine", () => {
     expect(parseCombatState(JSON.parse(JSON.stringify(result.state)))).not.toBeNull();
     expect(normalizeCombatEnemies(result.state)[1]).toMatchObject({ enemyId: "enemy:1", hp: 0 });
     expect(result.summary.enemyActions?.map((entry) => entry.enemyId)).not.toContain("enemy:1");
+    if (actionOrigin === "timeout-auto-defend") {
+      expect(result.state.statistics?.hero.guardedTurns).toBe(0);
+    }
   });
 
   it("preserves the enemy invariant when an active two-enemy fight expires after primary death", () => {
@@ -1611,6 +1674,10 @@ describe("combat domain engine", () => {
     expect(result.summary.heroDamage).toBe(0);
     expect(result.summary.heroHealing).toBeUndefined();
     expect(result.state.monster.hp).toBeGreaterThan(10);
+    expect(result.state.statistics?.enemies["enemy:1"]?.healing).toBe(
+      result.summary.fumble?.enemyHealing
+    );
+    expect(result.state.statistics?.enemies["enemy:1"]?.damageTaken).toBe(0);
     expect(result.state.hero.mana).toBe(16);
     expect(result.state.cooldowns?.skill?.id).toBe("skill.strict-blessing");
     expect(result.state.playerAbilityFumbles?.abilities["skill.strict-blessing"]).toMatchObject({
