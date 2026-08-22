@@ -6,6 +6,7 @@ import {
   calculateItemUpgradeVariantGoldValue,
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  calculateItemDismantleYield,
   canAccessItemUpgrades,
   getBaseItemIdForUpgradeVariant,
   getDonorBonus,
@@ -388,5 +389,30 @@ describe("item upgrades", () => {
     expect(applyItemUpgradeEffect({ weaponDamage: 5 }, weapon, 5)).toMatchObject({
       weaponDamage: 10
     });
+  });
+
+  it("matches the accepted non-set dismantling yield table", () => {
+    const expected = {
+      common: [1, 4, 9, 20, 40, 85],
+      uncommon: [2, 5, 11, 21, 42, 86],
+      rare: [3, 6, 12, 23, 43, 88],
+      epic: [5, 8, 15, 27, 49, 97],
+      legendary: [8, 13, 24, 43, 77, 153]
+    } as const;
+    for (const [baseRarity, yields] of Object.entries(expected)) {
+      expect(yields.map((_, enhancementLevel) => calculateItemDismantleYield({
+        baseRarity: baseRarity as ItemContent["rarity"],
+        enhancementLevel,
+        isSetPiece: false
+      }))).toEqual(yields);
+    }
+  });
+
+  it("uses the canonical set modifier for dismantling upgrade value", () => {
+    expect(calculateItemDismantleYield({
+      baseRarity: "common",
+      enhancementLevel: 5,
+      isSetPiece: true
+    })).toBe(108);
   });
 });
