@@ -23,7 +23,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Security
 - Battle statistics are read-only terminal projections bound to the requesting participant and authoritative persisted combat state; callback payloads stay within Telegram limits and do not expose private opponent state.
-- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipment, item-use, transfer and duplicate-confirmation races share one per-character/item serialization point with bounded retry; equipped, protected, reserved, zero-value and last-copy restricted gear is rejected transactionally, and contention can consume at most one item and one payment.
+- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipment, item-use, gift/postal transfer, Mantok Chest, Level Barter, Shynok sale and duplicate-confirmation races share one per-character/item serialization point with bounded retry; exhausted contention returns stable domain outcomes, equipped/protected/reserved/zero-value/last-copy restricted gear is rejected transactionally, and contention can consume at most one item and one payment.
 
 ### Fixed
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.

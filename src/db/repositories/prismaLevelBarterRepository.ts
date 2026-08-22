@@ -12,10 +12,15 @@ import type {
   LevelBarterRepository,
   LevelBarterSnapshot
 } from "./levelBarterRepository";
-import { findActiveTransferReservedItems } from "./itemTransferReservations";
-import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { findAllActiveReservedItemIds } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStacks,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
+import { isInventorySelectionAvailable } from "./inventoryReservationValidation";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -38,8 +43,8 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
     }
   ): Promise<LevelBarterConfirmRepositoryResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getSnapshot(tx, telegramUserId, input.now);
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        let snapshot = await getSnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -77,7 +82,27 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
           return { state: "stale-selection" };
         }
 
-        const plan = planResult.plan;
+        await lockInventoryItemStacks(
+          tx,
+          snapshot.character.id,
+          planResult.plan.items.map((item) => item.itemId),
+          input.now
+        );
+        snapshot = await getSnapshot(tx, telegramUserId, input.now);
+        if (!snapshot) return { state: "no-character" };
+        const lockedPlanResult = input.createPlan(snapshot);
+        if (lockedPlanResult.state === "battle-only-level" || lockedPlanResult.state === "insufficient") {
+          return lockedPlanResult;
+        }
+        if (lockedPlanResult.state === "token-mismatch" || lockedPlanResult.plan.token !== input.expectedToken) {
+          return { state: "stale-selection" };
+        }
+        const plan = lockedPlanResult.plan;
+        if (!(await isInventorySelectionAvailable(tx, {
+          characterId: snapshot.character.id,
+          items: plan.items,
+          now: input.now
+        }))) return { state: "stale-selection" };
 
         await tx.levelBarterExchange.create({
           data: {
@@ -198,6 +223,14 @@ export class PrismaLevelBarterRepository implements LevelBarterRepository {
       if (error instanceof LevelBarterStaleSelectionError) {
         return { state: "stale-selection" };
       }
+      if (error instanceof InventoryMutationContentionError) {
+        try {
+          return (await this.findCompletedExchangeForTelegramUser(telegramUserId, input.expectedToken))
+            ?? { state: "stale-selection" };
+        } catch {
+          return { state: "stale-selection" };
+        }
+      }
 
       if (error instanceof PrismaRuntime.PrismaClientKnownRequestError && error.code === "P2002") {
         const replay = await this.findCompletedExchangeForTelegramUser(telegramUserId, input.expectedToken);
@@ -290,7 +323,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     return null;
   }
 
-  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
+  const [items, equipment, reservedItemIds] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -312,14 +345,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
         itemId: true
       }
     }),
-    findActiveTransferReservedItems(tx, {
-      senderCharacterId: character.id,
-      now
-    }),
-    findActiveItemUseReservedItems(tx, {
-      characterId: character.id,
-      now
-    })
+    findAllActiveReservedItemIds(tx, { characterId: character.id, now })
   ]);
 
   return {
@@ -328,8 +354,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
-      ...pendingTransfers.map((row) => row.itemId),
-      ...pendingUses.map((row) => row.itemId)
+      ...reservedItemIds
     ]
   };
 }

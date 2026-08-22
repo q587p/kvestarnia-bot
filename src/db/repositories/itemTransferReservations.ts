@@ -11,7 +11,7 @@ export function findActiveTransferReservedItems(
   }
 ): Promise<Array<{ itemId: string }>> {
   const itemTransfer = (tx as TxClient & { itemTransfer?: TxClient["itemTransfer"] }).itemTransfer;
-  if (!itemTransfer) {
+  if (!itemTransfer || typeof itemTransfer.findMany !== "function") {
     return Promise.resolve([]);
   }
 
@@ -43,7 +43,17 @@ export function findActiveTransferReservedItems(
 
 export async function findAllActiveReservedItemIds(
   tx: TxClient,
-  input: { characterId: string; now: Date }
+  input: {
+    characterId: string;
+    now: Date;
+    exceptMantokChestRunId?: string;
+    exceptLevelBarterExchangeId?: string;
+    exceptKorchmaMantokSaleId?: string;
+    exceptTransferId?: string;
+    exceptItemUseOrderId?: string;
+    ignoreMantokChestRuns?: boolean;
+    ignoreKorchmaSales?: boolean;
+  }
 ): Promise<string[]> {
   const client = tx as TxClient & {
     mantokChestRun?: TxClient["mantokChestRun"];
@@ -52,26 +62,40 @@ export async function findAllActiveReservedItemIds(
     itemUseOrder?: TxClient["itemUseOrder"];
   };
   const [chests, barters, sales, transfers, uses] = await Promise.all([
-    client.mantokChestRun?.findMany({
-      where: { characterId: input.characterId, status: "pending" },
-      select: { inputItemsJson: true }
-    }) ?? [],
-    client.levelBarterExchange?.findMany({
-      where: { characterId: input.characterId, status: "pending" },
-      select: { inputItemsJson: true }
-    }) ?? [],
-    client.korchmaMantokSale?.findMany({
+    input.ignoreMantokChestRuns ? [] : client.mantokChestRun?.findMany?.({
       where: {
         characterId: input.characterId,
+        status: "pending",
+        ...(input.exceptMantokChestRunId ? { id: { not: input.exceptMantokChestRunId } } : {})
+      },
+      select: { inputItemsJson: true }
+    }) ?? [],
+    client.levelBarterExchange?.findMany?.({
+      where: {
+        characterId: input.characterId,
+        status: "pending",
+        ...(input.exceptLevelBarterExchangeId ? { id: { not: input.exceptLevelBarterExchangeId } } : {})
+      },
+      select: { inputItemsJson: true }
+    }) ?? [],
+    input.ignoreKorchmaSales ? [] : client.korchmaMantokSale?.findMany?.({
+      where: {
+        characterId: input.characterId,
+        ...(input.exceptKorchmaMantokSaleId ? { id: { not: input.exceptKorchmaMantokSaleId } } : {}),
         status: { in: ["pending", "processing"] },
         expiresAt: { gt: input.now }
       },
       select: { selectionJson: true }
     }) ?? [],
-    findActiveTransferReservedItems(tx, { senderCharacterId: input.characterId, now: input.now }),
-    client.itemUseOrder?.findMany({
+    findActiveTransferReservedItems(tx, {
+      senderCharacterId: input.characterId,
+      now: input.now,
+      ...(input.exceptTransferId ? { exceptTransferId: input.exceptTransferId } : {})
+    }),
+    client.itemUseOrder?.findMany?.({
       where: {
         characterId: input.characterId,
+        ...(input.exceptItemUseOrderId ? { id: { not: input.exceptItemUseOrderId } } : {}),
         status: { in: ["pending", "processing"] },
         expiresAt: { gt: input.now }
       },

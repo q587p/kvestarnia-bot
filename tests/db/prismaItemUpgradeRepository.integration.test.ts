@@ -6,10 +6,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { HpRecoveryNotificationProducer } from "../../src/db/repositories/hpRecoveryNotificationProducer";
 import { PrismaItemUpgradeRepository } from "../../src/db/repositories/prismaItemUpgradeRepository";
 import { PrismaEquipmentRepository } from "../../src/db/repositories/prismaEquipmentRepository";
-import {
-  lockInventoryItemStack,
-  runSerializableInventoryMutation
-} from "../../src/db/repositories/inventoryMutationSerialization";
+import { PrismaItemUseRepository } from "../../src/db/repositories/prismaItemUseRepository";
+import { PrismaItemTransferRepository } from "../../src/db/repositories/prismaItemTransferRepository";
+import { PrismaMantokChestRepository } from "../../src/db/repositories/prismaMantokChestRepository";
+import { PrismaLevelBarterRepository } from "../../src/db/repositories/prismaLevelBarterRepository";
+import { PrismaShynokRepository } from "../../src/db/repositories/prismaShynokRepository";
+import { items } from "../../src/content";
+import { createItemUseFingerprint } from "../../src/domain/itemUse";
+import { calculatePostalDeliveryFee, createItemGiftFingerprint } from "../../src/domain/itemTransfers";
 import { FIELD_KIT_ITEM_ID } from "../../src/domain/itemCraft";
 import {
   ITEM_DISMANTLE_RULES_VERSION,
@@ -27,6 +31,11 @@ const panItemId = "item.pan-of-persuasion";
 const panPlusOneItemId = "item.pan-of-persuasion.plus-1";
 const panPlusTwoItemId = "item.pan-of-persuasion.plus-2";
 const panPlusFourItemId = "item.pan-of-persuasion.plus-4";
+const receiverTelegramUserId = 4040n;
+const receiverUserId = "user-upgrade-4040";
+const receiverCharacterId = "character-upgrade-4040";
+const panPlusTwo = items.find((item) => item.id === panPlusTwoItemId)!;
+const bandage = items.find((item) => item.id === "item.responsible-panic-bandage")!;
 
 describe("PrismaItemUpgradeRepository integration", () => {
   let dir: string;
@@ -35,6 +44,11 @@ describe("PrismaItemUpgradeRepository integration", () => {
   let repository: PrismaItemUpgradeRepository;
   let contenderRepository: PrismaItemUpgradeRepository;
   let equipmentRepository: PrismaEquipmentRepository;
+  let itemUseRepository: PrismaItemUseRepository;
+  let itemTransferRepository: PrismaItemTransferRepository;
+  let mantokChestRepository: PrismaMantokChestRepository;
+  let levelBarterRepository: PrismaLevelBarterRepository;
+  let shynokRepository: PrismaShynokRepository;
   let producerRecord: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
@@ -61,11 +75,19 @@ describe("PrismaItemUpgradeRepository integration", () => {
     repository = new PrismaItemUpgradeRepository(prisma, producer);
     contenderRepository = new PrismaItemUpgradeRepository(contenderPrisma, producer);
     equipmentRepository = new PrismaEquipmentRepository(contenderPrisma);
+    itemUseRepository = new PrismaItemUseRepository(contenderPrisma, producer);
+    itemTransferRepository = new PrismaItemTransferRepository(contenderPrisma);
+    mantokChestRepository = new PrismaMantokChestRepository(contenderPrisma);
+    levelBarterRepository = new PrismaLevelBarterRepository(contenderPrisma, producer);
+    shynokRepository = new PrismaShynokRepository(contenderPrisma, producer);
   }, 60_000);
 
   beforeEach(async () => {
     producerRecord.mockClear();
     await prisma.dailyAction.deleteMany();
+    await prisma.mantokChestRun.deleteMany();
+    await prisma.levelBarterExchange.deleteMany();
+    await prisma.korchmaMantokSale.deleteMany();
     await prisma.$executeRawUnsafe(`DELETE FROM "item_use_orders"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "item_transfers"`);
     await prisma.characterEquipment.deleteMany();
@@ -73,6 +95,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
     await prisma.character.deleteMany();
     await prisma.user.deleteMany();
     await seedCharacter();
+    await seedReceiver();
   });
 
   afterAll(async () => {
@@ -458,39 +481,261 @@ describe("PrismaItemUpgradeRepository integration", () => {
       (dismantle.state === "equipped" && !("state" in equip))
     ).toBe(true);
     expect(equipped ? quantity : true).toBeTruthy();
+    expect(equipped === null).toBe(dismantle.state === "dismantled");
     await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
   });
 
-  it("serializes dismantling against an active item-use reservation", async () => {
+  it("serializes dismantling against production item-use preview creation", async () => {
     const { preview, input } = await prepareDismantleRace();
-    const reservation = createConcurrentReservation("item-use-race", "item_use_orders");
+    await prisma.character.update({ where: { id: characterId }, data: { hpCurrent: 10 } });
+    const usablePan = { ...bandage, id: panPlusTwo.id, name: panPlusTwo.name };
 
-    const [dismantle, reserved] = await Promise.all([
+    const [dismantle, itemUse] = await Promise.all([
       repository.dismantleForTelegramUser(telegramUserId, input),
-      reservation
+      itemUseRepository.createPreviewForTelegramUser(telegramUserId, {
+        item: usablePan,
+        itemContents: [usablePan],
+        itemFingerprint: createItemUseFingerprint(usablePan),
+        token: "item-use-race",
+        now: now(),
+        expiresAt: new Date(now().getTime() + 60_000)
+      })
     ]);
 
     expect(
-      (dismantle.state === "dismantled" && reserved === "not-owned") ||
-      (dismantle.state === "reserved" && reserved === "reserved")
+      (dismantle.state === "dismantled" && itemUse.state === "not-owned") ||
+      (dismantle.state === "reserved" && (itemUse.state === "preview-created" || itemUse.state === "preview-replayed"))
     ).toBe(true);
+    const liveOrders = await prisma.itemUseOrder.count({
+      where: { characterId, itemId: panPlusTwoItemId, status: { in: ["pending", "processing"] } }
+    });
+    expect(liveOrders).toBe(dismantle.state === "dismantled" ? 0 : 1);
     await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
   });
 
-  it("serializes dismantling against an active transfer reservation", async () => {
+  it("keeps restore-to-full production preview and dismantling domain-disjoint without contention leaks", async () => {
     const { preview, input } = await prepareDismantleRace();
-    const reservation = createConcurrentReservation("item-transfer-race", "item_transfers");
+    await seedItem(bandage.id, 13);
+    await prisma.character.update({ where: { id: characterId }, data: { hpCurrent: 10 } });
 
-    const [dismantle, reserved] = await Promise.all([
+    const [dismantle, restore] = await Promise.all([
       repository.dismantleForTelegramUser(telegramUserId, input),
-      reservation
+      itemUseRepository.restoreToFullForTelegramUser(telegramUserId, {
+        item: bandage,
+        itemContents: [bandage],
+        itemFingerprint: createItemUseFingerprint(bandage),
+        token: "restore-to-full-race",
+        now: now(),
+        expiresAt: new Date(now().getTime() + 60_000)
+      })
+    ]);
+
+    expect(dismantle.state).toBe("dismantled");
+    expect(["preview-created", "preview-replayed"]).toContain(restore.state);
+    await assertDismantleRaceEconomy(preview, true);
+    await expectItemQuantity(bandage.id, 13);
+    await expect(prisma.itemUseOrder.count({ where: { token: "restore-to-full-race", status: "pending" } }))
+      .resolves.toBe(1);
+  });
+
+  it("serializes dismantling against production gift reservation creation", async () => {
+    const { preview, input } = await prepareDismantleRace();
+
+    const [dismantle, gift] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      itemTransferRepository.createGiftForTelegramUser(telegramUserId, {
+        token: "item-transfer-race",
+        receiverTelegramUserId,
+        item: panPlusTwo,
+        itemFingerprint: createItemGiftFingerprint(panPlusTwo),
+        expiresAt: new Date(now().getTime() + 60_000),
+        now: now()
+      })
     ]);
 
     expect(
-      (dismantle.state === "dismantled" && reserved === "not-owned") ||
-      (dismantle.state === "reserved" && reserved === "reserved")
+      (dismantle.state === "dismantled" && gift.state === "stale-selection") ||
+      (dismantle.state === "reserved" && gift.state === "created")
     ).toBe(true);
+    const liveTransfers = await prisma.itemTransfer.count({
+      where: { token: "item-transfer-race", status: { in: ["pending", "processing"] } }
+    });
+    expect(liveTransfers).toBe(dismantle.state === "dismantled" ? 0 : 1);
+    await expect(prisma.characterItem.count({
+      where: { characterId: receiverCharacterId, itemId: panPlusTwoItemId }
+    })).resolves.toBe(0);
     await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against production postal draft confirmation and custody", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    await seedPostalDraft("postal-confirm-race", preview.item.quantity);
+
+    const [dismantle, postal] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      itemTransferRepository.confirmPostalDraftForTelegramUser(telegramUserId, {
+        token: "postal-confirm-race",
+        itemContents: [panPlusTwo],
+        now: now(),
+        expiresAt: new Date(now().getTime() + 60_000),
+        result: { kind: "postal-confirm-race" }
+      })
+    ]);
+
+    const validPostalRace =
+      (dismantle.state === "dismantled" && postal.state === "stale-selection") ||
+      ((dismantle.state === "reserved" || dismantle.state === "not-owned") && postal.state === "created");
+    if (!validPostalRace) throw new Error(`Unexpected postal race: ${dismantle.state}/${postal.state}`);
+    const transfer = await prisma.itemTransfer.findUniqueOrThrow({ where: { token: "postal-confirm-race" } });
+    expect(transfer.status).toBe(dismantle.state === "dismantled" ? "draft" : "pending");
+    expect(transfer.resultJson).toEqual(dismantle.state === "dismantled"
+      ? null
+      : expect.objectContaining({ senderDebited: true }));
+    await expect(prisma.characterItem.count({
+      where: { characterId: receiverCharacterId, itemId: panPlusTwoItemId }
+    })).resolves.toBe(0);
+    if (dismantle.state === "dismantled") {
+      await assertDismantleRaceEconomy(preview, true);
+    } else {
+      await expectCharacterResources({ gold: 1_000 - transfer.deliveryFeeGold, manaCurrent: 80 });
+      await expectItemQuantity(panPlusTwoItemId, 0);
+      await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+      await expectDismantleReceiptCount(preview.guard, 0);
+    }
+  });
+
+  it("serializes dismantling against production Mantok Chest reservation creation", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    const [dismantle, run] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      mantokChestRepository.createPendingRunForTelegramUser(telegramUserId, {
+        token: "mantok-create-race",
+        inputItems: [{ itemId: panPlusTwoItemId, quantity: 1 }],
+        averageInputScore: 1,
+        minimumOutputScore: 1,
+        now: now()
+      })
+    ]);
+
+    expect(
+      (dismantle.state === "dismantled" && run === null) ||
+      (dismantle.state === "reserved" && run?.status === "pending")
+    ).toBe(true);
+    await expect(prisma.mantokChestRun.count({
+      where: { token: "mantok-create-race", status: "pending" }
+    })).resolves.toBe(dismantle.state === "dismantled" ? 0 : 1);
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against production Mantok Chest reservation refresh", async () => {
+    await seedItem(bandage.id, 1);
+    const existing = await mantokChestRepository.createPendingRunForTelegramUser(telegramUserId, {
+      token: "mantok-update-race",
+      inputItems: [{ itemId: bandage.id, quantity: 1 }],
+      averageInputScore: 1,
+      minimumOutputScore: 1,
+      now: now()
+    });
+    expect(existing?.status).toBe("pending");
+    const { preview, input } = await prepareDismantleRace();
+
+    const [dismantle, updated] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      mantokChestRepository.updatePendingRunInputItemsForTelegramUser(telegramUserId, {
+        token: "mantok-update-race",
+        inputItems: [{ itemId: panPlusTwoItemId, quantity: 1 }],
+        averageInputScore: 1,
+        minimumOutputScore: 1,
+        now: now()
+      })
+    ]);
+
+    expect(
+      (dismantle.state === "dismantled" && updated === null) ||
+      (dismantle.state === "reserved" && updated?.inputItems[0]?.itemId === panPlusTwoItemId)
+    ).toBe(true);
+    const current = await prisma.mantokChestRun.findUniqueOrThrow({ where: { token: "mantok-update-race" } });
+    expect(current.inputItemsJson).toEqual(dismantle.state === "dismantled"
+      ? [{ itemId: bandage.id, quantity: 1 }]
+      : [{ itemId: panPlusTwoItemId, quantity: 1 }]);
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against production Shynok sale reservation creation", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    const [dismantle, sale] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      shynokRepository.createSaleForTelegramUser(telegramUserId, {
+        token: "shynok-sale-race",
+        selection: [{ itemId: panPlusTwoItemId, quantity: 1 }],
+        selectionFingerprint: "shynok-sale-race",
+        nominalValue: 1,
+        payoutGold: 1,
+        expiresAt: new Date(now().getTime() + 60_000),
+        now: now()
+      })
+    ]);
+
+    expect(
+      (dismantle.state === "dismantled" && sale === null) ||
+      (dismantle.state === "reserved" && sale?.status === "pending")
+    ).toBe(true);
+    await expect(prisma.korchmaMantokSale.count({
+      where: { token: "shynok-sale-race", status: "pending" }
+    })).resolves.toBe(dismantle.state === "dismantled" ? 0 : 1);
+    await assertDismantleRaceEconomy(preview, dismantle.state === "dismantled");
+  });
+
+  it("serializes dismantling against production Level Barter settlement", async () => {
+    const { preview, input } = await prepareDismantleRace();
+    const [dismantle, barter] = await Promise.all([
+      repository.dismantleForTelegramUser(telegramUserId, input),
+      levelBarterRepository.confirmAutoExchangeForTelegramUser(telegramUserId, {
+        expectedToken: "level-barter-race",
+        now: now(),
+        createPlan: (snapshot) => snapshot.items.some((item) =>
+          item.itemId === panPlusTwoItemId && item.quantity >= 1 &&
+          !snapshot.equippedItemIds.includes(item.itemId) &&
+          !snapshot.reservedItemIds?.includes(item.itemId)
+        )
+          ? {
+              state: "ready",
+              plan: {
+                token: "level-barter-race",
+                items: [{ itemId: panPlusTwoItemId, quantity: 1 }],
+                goldSpent: 0,
+                levelBefore: snapshot.character.level,
+                levelAfter: snapshot.character.level,
+                xpBefore: snapshot.character.xp,
+                xpAfter: snapshot.character.xp,
+                xpCarry: 0,
+                itemTotalValue: 1,
+                selectedTotalValue: 1,
+                overpay: 0
+              }
+            }
+          : { state: "token-mismatch" }
+      })
+    ]);
+
+    const validBarterRace =
+      (dismantle.state === "dismantled" && barter.state === "stale-selection") ||
+      ((dismantle.state === "stale" || dismantle.state === "not-owned") && barter.state === "exchanged");
+    if (!validBarterRace) throw new Error(`Unexpected barter race: ${dismantle.state}/${barter.state}`);
+    await expectItemQuantity(panPlusTwoItemId, 0);
+    await expect(prisma.levelBarterExchange.count({
+      where: { token: "level-barter-race", status: "pending" }
+    })).resolves.toBe(0);
+    await expect(prisma.levelBarterExchange.count({
+      where: { token: "level-barter-race", status: "completed" }
+    })).resolves.toBe(barter.state === "exchanged" ? 1 : 0);
+    if (dismantle.state === "dismantled") {
+      await assertDismantleRaceEconomy(preview, true);
+    } else {
+      await expectCharacterResources({ gold: 1_000, manaCurrent: 80 });
+      await expectItemQuantity(ISKROKAMIN_ITEM_ID, 0);
+      await expectDismantleReceiptCount(preview.guard, 0);
+    }
   });
 
   it("fails closed on a forged durable dismantling receipt without spending or consuming", async () => {
@@ -559,16 +804,19 @@ describe("PrismaItemUpgradeRepository integration", () => {
       now: now()
     };
 
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "item_use_orders" ("id", "character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
-      "reserved-after-preview",
-      characterId,
-      panPlusTwoItemId,
-      new Date(now().getTime() + 60_000).toISOString()
-    );
+    await prisma.character.update({ where: { id: characterId }, data: { hpCurrent: 10 } });
+    const usablePan = { ...bandage, id: panPlusTwo.id, name: panPlusTwo.name };
+    await expect(itemUseRepository.createPreviewForTelegramUser(telegramUserId, {
+      item: usablePan,
+      itemContents: [usablePan],
+      itemFingerprint: createItemUseFingerprint(usablePan),
+      token: "reserved-after-preview",
+      now: now(),
+      expiresAt: new Date(now().getTime() + 60_000)
+    })).resolves.toMatchObject({ state: "preview-created" });
     await expect(repository.dismantleForTelegramUser(telegramUserId, input))
       .resolves.toEqual({ state: "reserved" });
-    await prisma.$executeRawUnsafe(`DELETE FROM "item_use_orders" WHERE "id" = ?`, "reserved-after-preview");
+    await prisma.itemUseOrder.delete({ where: { token: "reserved-after-preview" } });
 
     await prisma.characterEquipment.create({
       data: { characterId, slot: "weapon", itemId: panPlusTwoItemId }
@@ -696,36 +944,68 @@ describe("PrismaItemUpgradeRepository integration", () => {
     };
   }
 
-  async function createConcurrentReservation(
-    id: string,
-    table: "item_use_orders" | "item_transfers"
-  ): Promise<"reserved" | "not-owned"> {
-    return runSerializableInventoryMutation(contenderPrisma, async (tx) => {
-      await lockInventoryItemStack(tx, characterId, panPlusTwoItemId, now());
-      const stack = await tx.characterItem.findUnique({
-        where: { characterId_itemId: { characterId, itemId: panPlusTwoItemId } },
-        select: { quantity: true }
-      });
-      if (!stack || stack.quantity < 1) return "not-owned";
-      const expiresAt = new Date(now().getTime() + 60_000).toISOString();
-      if (table === "item_use_orders") {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO "item_use_orders" ("id", "character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
-          id,
-          characterId,
-          panPlusTwoItemId,
-          expiresAt
-        );
-      } else {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO "item_transfers" ("id", "sender_character_id", "item_id", "status", "expires_at") VALUES (?, ?, ?, 'pending', ?)`,
-          id,
-          characterId,
-          panPlusTwoItemId,
-          expiresAt
-        );
+  async function seedPostalDraft(token: string, observedQuantity: number): Promise<void> {
+    const line = {
+      itemId: panPlusTwo.id,
+      itemName: panPlusTwo.name,
+      quantity: 1,
+      itemFingerprint: createItemGiftFingerprint(panPlusTwo),
+      unitGoldValue: panPlusTwo.goldValue ?? 0,
+      observedQuantity,
+      tags: []
+    };
+    await prisma.itemTransfer.create({
+      data: {
+        token,
+        transferKind: "postal",
+        senderCharacterId: characterId,
+        receiverCharacterId,
+        senderTelegramUserId: telegramUserId,
+        receiverTelegramUserId,
+        senderName: "Upgrade Test",
+        receiverName: "Upgrade Receiver",
+        senderRemortCount: 0,
+        receiverRemortCount: 0,
+        itemId: panPlusTwo.id,
+        itemName: panPlusTwo.name,
+        itemFingerprint: createItemGiftFingerprint(panPlusTwo),
+        quantity: 1,
+        packageJson: [line],
+        deliveryFeeGold: calculatePostalDeliveryFee([line]),
+        status: "draft",
+        expiresAt: new Date(now().getTime() + 60_000),
+        updatedAt: now()
       }
-      return "reserved";
+    });
+  }
+
+  async function seedReceiver(): Promise<void> {
+    await prisma.user.create({
+      data: {
+        id: receiverUserId,
+        telegramUserId: receiverTelegramUserId,
+        displayName: "Upgrade Receiver",
+        lastSeenLocationId: ITEM_UPGRADE_LOCATION_ID
+      }
+    });
+    await prisma.character.create({
+      data: {
+        id: receiverCharacterId,
+        userId: receiverUserId,
+        name: "Upgrade Receiver",
+        pronoun: "they",
+        path: "boundary",
+        raceId: "race.human-ish",
+        classId: "class.warrior",
+        level: 8,
+        xp: 0,
+        gold: 100,
+        hpCurrent: 25,
+        hpMax: 25,
+        manaCurrent: 80,
+        manaMax: 80,
+        statsJson: { strength: 8, dexterity: 8, intelligence: 8, charisma: 8, luck: 10 }
+      }
     });
   }
 
@@ -877,40 +1157,128 @@ async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
       CONSTRAINT "character_equipment_character_id_fkey" FOREIGN KEY ("character_id") REFERENCES "characters" ("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE UNIQUE INDEX "character_equipment_character_id_slot_key" ON "character_equipment"("character_id", "slot")`,
+    `CREATE TABLE "active_combat_leases" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "character_id" TEXT NOT NULL UNIQUE,
+      "kind" TEXT NOT NULL,
+      "reference_id" TEXT NOT NULL,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "character_drink_states" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "activation_id" TEXT NOT NULL UNIQUE,
+      "character_id" TEXT NOT NULL UNIQUE,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
+      "drink_key" TEXT NOT NULL,
+      "phase" TEXT NOT NULL,
+      "started_at" DATETIME NOT NULL,
+      "expires_at" DATETIME NOT NULL,
+      "source_type" TEXT NOT NULL,
+      "source_id" TEXT,
+      "metadata_json" JSONB,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE "mantok_chest_runs" (
-      "id" TEXT NOT NULL PRIMARY KEY,
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       "character_id" TEXT NOT NULL,
+      "token" TEXT NOT NULL UNIQUE,
       "status" TEXT NOT NULL DEFAULT 'pending',
-      "input_items_json" JSONB NOT NULL
+      "input_items_json" JSONB NOT NULL,
+      "output_items_json" JSONB,
+      "average_input_score" INTEGER NOT NULL DEFAULT 0,
+      "minimum_output_score" INTEGER NOT NULL DEFAULT 0,
+      "output_score" INTEGER,
+      "completed_at" DATETIME,
+      "expired_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE "level_barter_exchanges" (
-      "id" TEXT NOT NULL PRIMARY KEY,
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       "character_id" TEXT NOT NULL,
       "token" TEXT NOT NULL,
       "status" TEXT NOT NULL DEFAULT 'completed',
-      "input_items_json" JSONB NOT NULL
+      "input_items_json" JSONB NOT NULL,
+      "spent_gold" INTEGER NOT NULL DEFAULT 0,
+      "level_before" INTEGER NOT NULL DEFAULT 1,
+      "level_after" INTEGER NOT NULL DEFAULT 1,
+      "xp_before" INTEGER NOT NULL DEFAULT 0,
+      "xp_after" INTEGER NOT NULL DEFAULT 0,
+      "xp_carry" INTEGER NOT NULL DEFAULT 0,
+      "item_total_value" INTEGER NOT NULL DEFAULT 0,
+      "selected_total_value" INTEGER NOT NULL DEFAULT 0,
+      "overpay" INTEGER NOT NULL DEFAULT 0,
+      "completed_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE UNIQUE INDEX "level_barter_exchanges_character_id_token_key" ON "level_barter_exchanges"("character_id", "token")`,
     `CREATE TABLE "korchma_mantok_sales" (
-      "id" TEXT NOT NULL PRIMARY KEY,
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "token" TEXT NOT NULL UNIQUE,
       "character_id" TEXT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
       "status" TEXT NOT NULL DEFAULT 'pending',
       "selection_json" JSONB NOT NULL,
-      "expires_at" DATETIME NOT NULL
+      "selection_fingerprint" TEXT NOT NULL,
+      "nominal_value" INTEGER NOT NULL DEFAULT 0,
+      "payout_gold" INTEGER NOT NULL DEFAULT 0,
+      "result_json" JSONB,
+      "expires_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE "item_transfers" (
-      "id" TEXT NOT NULL PRIMARY KEY,
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "token" TEXT NOT NULL UNIQUE,
+      "transfer_kind" TEXT NOT NULL DEFAULT 'gift',
       "sender_character_id" TEXT NOT NULL,
+      "receiver_character_id" TEXT NOT NULL,
+      "sender_telegram_user_id" BIGINT NOT NULL,
+      "receiver_telegram_user_id" BIGINT NOT NULL,
+      "sender_name" TEXT NOT NULL,
+      "receiver_name" TEXT NOT NULL,
+      "sender_remort_count" INTEGER NOT NULL DEFAULT 0,
+      "receiver_remort_count" INTEGER NOT NULL DEFAULT 0,
+      "location_id" TEXT,
       "item_id" TEXT NOT NULL,
+      "item_name" TEXT NOT NULL,
+      "item_fingerprint" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
       "package_json" JSONB,
+      "delivery_fee_gold" INTEGER NOT NULL DEFAULT 0,
       "status" TEXT NOT NULL DEFAULT 'pending',
-      "expires_at" DATETIME NOT NULL
+      "reservation_key" TEXT UNIQUE,
+      "result_json" JSONB,
+      "expires_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "responded_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE "item_use_orders" (
-      "id" TEXT NOT NULL PRIMARY KEY,
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      "token" TEXT NOT NULL UNIQUE,
       "character_id" TEXT NOT NULL,
+      "telegram_user_id" BIGINT NOT NULL,
+      "remort_count" INTEGER NOT NULL DEFAULT 0,
       "item_id" TEXT NOT NULL,
+      "item_name" TEXT NOT NULL,
+      "item_fingerprint" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "effect_kind" TEXT NOT NULL,
       "status" TEXT NOT NULL DEFAULT 'pending',
-      "expires_at" DATETIME NOT NULL
+      "reservation_key" TEXT UNIQUE,
+      "preview_json" JSONB NOT NULL,
+      "result_json" JSONB,
+      "expires_at" DATETIME NOT NULL,
+      "completed_at" DATETIME,
+      "cancelled_at" DATETIME,
+      "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE "character_remorts" (
       "id" TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
