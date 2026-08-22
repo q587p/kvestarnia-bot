@@ -23,6 +23,10 @@ Use this as the durable process note for token-efficient Kvestarnia work.
 - Keep task docs English and short.
 - Keep player-facing game copy Ukrainian.
 - Keep Codex-facing prompts and integration prompts English.
+- Apply that rule to ready-to-paste prompts delivered directly in chat as well
+  as prompt files: surrounding discussion may be Ukrainian and exact
+  player-facing excerpts stay Ukrainian, but all Codex operational instructions
+  must be English before handoff.
 - Do not paste long Ukrainian style rules into prompts; use `$ukrainian-rpg-content`.
 - Ask reviews to inspect changed files only by default.
 - For second-Codex PR review, pass compact parameters: `PR`, `Base`, `Review mode`, optional `Task doc`, and optional `Extra focus`.
