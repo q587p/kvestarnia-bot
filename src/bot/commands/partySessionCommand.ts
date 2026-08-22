@@ -17,6 +17,7 @@ import {
   buildPartySessionInviteShareKeyboard,
   buildPartyBossKeyboard,
   buildPartyBossJournalKeyboard,
+  buildPartyBossStatisticsKeyboard,
   buildPartySessionKeyboard,
   buildPartySessionNearbyCandidatesKeyboard
 } from "../keyboards/partySessionKeyboard";
@@ -32,6 +33,7 @@ import {
   presentPartyBossIntro,
   presentPartyBossItems,
   presentPartyBossJournal,
+  presentPartyBossStatistics,
   presentPartyBossStart,
   presentPartyCreate,
   presentPartyJoin,
@@ -580,6 +582,32 @@ export async function handlePartySessionCallback(
     await sendBossJournalText(ctx, presentPartyBossJournal(boss, callback.page), {
       session: boss,
       page: boss.journal?.page ?? callback.page ?? boss.state.roundLog.length - 1
+    });
+    return;
+  }
+
+  if (callback.type === "boss-statistics") {
+    if (!options.partyBoss?.isEnabled()) {
+      await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+      return;
+    }
+    const boss = await options.partyBoss.getByPartyInviteToken(callback.token);
+    await safeAnswerCallbackQuery(ctx);
+    if (!boss) {
+      await sendBossText(ctx, "edit", "Бій не знайшовся.", false);
+      return;
+    }
+    const viewerCharacterId = getBossViewerCharacterId(boss, telegramUserId);
+    if (boss.status === "active") {
+      await sendBossText(ctx, "edit", presentPartyBoss(boss, {
+        viewerCharacterId,
+        notice: "Статистика відкриється після завершення бою."
+      }), { session: boss, viewerCharacterId, partyBoss: options.partyBoss, partyRaidChat: options.partyRaidChat, telegramUserId });
+      return;
+    }
+    await safeEditMessageText(ctx, presentPartyBossStatistics(boss, viewerCharacterId), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildPartyBossStatisticsKeyboard(boss)
     });
     return;
   }

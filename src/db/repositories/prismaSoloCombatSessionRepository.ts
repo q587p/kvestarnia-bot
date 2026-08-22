@@ -1864,6 +1864,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const playerAbilityFumbles = parsePlayerAbilityFumbles(value.playerAbilityFumbles);
   const equipmentAbilities = parseEquipmentAbilities(value.equipmentAbilities);
   const enemyStatuses = parseEnemyStatuses(value.enemyStatuses);
+  const statistics = parseCombatStatistics(value.statistics);
   const varenykSated = parseVarenykSatedCombatState(value.varenykSated);
   const bardInspiration = parseBardInspirationCombatState(value.bardInspiration);
 
@@ -1904,6 +1905,7 @@ export function parseCombatState(value: unknown): CombatState | null {
     ...(playerAbilityFumbles ? { playerAbilityFumbles } : {}),
     ...(equipmentAbilities ? { equipmentAbilities } : {}),
     ...(enemyStatuses ? { enemyStatuses } : {}),
+    ...(statistics ? { statistics } : {}),
     ...(varenykSated ? { varenykSated } : {}),
     ...(bardInspiration ? { bardInspiration } : {})
   };
@@ -2721,6 +2723,69 @@ function parseResourceBlock(value: unknown): CombatState["hero"] | null {
           ? { guildCrest: value.guildCrest }
           : {})
       };
+}
+
+function parseCombatStatistics(value: unknown): CombatState["statistics"] | null {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.enemies)) {
+    return null;
+  }
+
+  const hero = parseCombatContributionDimensions(value.hero);
+  if (!hero) {
+    return null;
+  }
+
+  const enemies = Object.fromEntries(
+    Object.entries(value.enemies).flatMap(([enemyId, dimensions]) => {
+      const parsed = parseCombatContributionDimensions(dimensions);
+
+      return enemyId.length > 0 && enemyId.length <= 80 && parsed
+        ? [[enemyId, parsed] as const]
+        : [];
+    })
+  );
+
+  return {
+    version: 1,
+    hero,
+    enemies
+  };
+}
+
+function parseCombatContributionDimensions(
+  value: unknown
+): NonNullable<NonNullable<CombatState["statistics"]>["hero"]> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const damage = boundedOptionalInt(value.damage, 0, 1_000_000_000);
+  const damageTaken = boundedOptionalInt(value.damageTaken, 0, 1_000_000_000);
+  const actions = boundedOptionalInt(value.actions, 0, 1_000_000);
+  const specialActions = boundedOptionalInt(value.specialActions, 0, 1_000_000);
+  const guardedTurns = boundedOptionalInt(value.guardedTurns, 0, 1_000_000);
+  const healing = parseNullableContributionValue(value.healing);
+  const guardPrevented = parseNullableContributionValue(value.guardPrevented);
+  const control = parseNullableContributionValue(value.control);
+
+  return damage === undefined || damageTaken === undefined || actions === undefined ||
+    specialActions === undefined || guardedTurns === undefined || healing === undefined ||
+    guardPrevented === undefined || control === undefined
+    ? null
+    : {
+        damage,
+        healing,
+        guardPrevented,
+        control,
+        damageTaken,
+        actions,
+        specialActions,
+        guardedTurns
+      };
+}
+
+function parseNullableContributionValue(value: unknown): number | null | undefined {
+  return value === null ? null : boundedOptionalInt(value, 0, 1_000_000_000);
 }
 
 function parseMonsterBlock(value: unknown): CombatState["monster"] | null {

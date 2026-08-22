@@ -55,6 +55,18 @@ export type PartyBossStandardActionKey = Exclude<PartyBossActionKey, "lament">;
 export type PartyBossParticipantStatus = "active" | "knocked-out";
 export type PartyBossStatus = "active" | "won" | "lost" | "cancelled";
 
+export interface PartyBossStatisticsV1 {
+  version: 1;
+  damage: number;
+  healing: number;
+  guardPrevented: number;
+  control: number | null;
+  damageTaken: number;
+  actions: number;
+  specialActions: number;
+  guardedTurns: number;
+}
+
 export interface PartyBossParticipantState {
   characterId: string;
   name: string;
@@ -76,6 +88,7 @@ export interface PartyBossParticipantState {
     healingDone?: number;
     itemUses?: number;
   };
+  statistics?: PartyBossStatisticsV1;
 }
 
 export interface PartyBossState {
@@ -392,6 +405,17 @@ export function createPartyBossState(input: {
           damageTaken: 0,
           healingDone: 0,
           itemUses: 0
+        },
+        statistics: {
+          version: 1,
+          damage: 0,
+          healing: 0,
+          guardPrevented: 0,
+          control: null,
+          damageTaken: 0,
+          actions: 0,
+          specialActions: 0,
+          guardedTurns: 0
         }
       };
     }),
@@ -684,6 +708,20 @@ export function resolvePartyBossRound(input: {
     );
   }
 
+  for (const summary of actionSummaries) {
+    const participant = next.participants.find((entry) => entry.characterId === summary.characterId);
+    const statistics = participant?.statistics;
+    if (!statistics) continue;
+    statistics.damage += Math.max(0, Math.floor(summary.damage));
+    statistics.healing += Math.max(0, Math.floor(summary.healing ?? 0))
+      + (summary.supportTargets ?? []).reduce((sum, target) => sum + Math.max(0, Math.floor(target.healing ?? 0)), 0);
+    if (summary.origin === "manual") statistics.actions += 1;
+    if (summary.action === "skill" || summary.action === "race" || summary.action === "gear") {
+      statistics.specialActions += 1;
+    }
+    if (summary.action === "defend") statistics.guardedTurns += 1;
+  }
+
   if (next.boss.hp > 0) {
     const committedTaunt = actionSummaries.find((summary) =>
       summary.action === "taunt" && tryActivateWarriorRaidTaunt(next, summary.characterId)
@@ -793,6 +831,7 @@ export function resolvePartyBossRound(input: {
       summary.hpAfter = participant.resources.hp;
       if (pulse.hpRestored > 0 || pulse.manaRestored > 0) {
         summary.satedRecovery = { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored };
+        if (participant.statistics) participant.statistics.healing += pulse.hpRestored;
       }
       if (participant.bardInspiration) {
         const inspirationPulse = applyBardInspirationCombatPulse({
@@ -1154,7 +1193,8 @@ export function clonePartyBossState(state: PartyBossState): PartyBossState {
       ...(participant.bardMusicAvailableAt
         ? { bardMusicAvailableAt: participant.bardMusicAvailableAt }
         : {}),
-      contribution: { ...participant.contribution }
+      contribution: { ...participant.contribution },
+      ...(participant.statistics ? { statistics: { ...participant.statistics } } : {})
     })),
     roundLog: state.roundLog.map((round) => ({
       ...round,
@@ -1338,7 +1378,8 @@ function applyBossRetaliation(
     const rawDamage = Math.max(1, state.boss.attack - Math.floor((participant.combatStats.armor ?? 0) / 2));
     const bigPressure = big ? Math.min(3, Math.floor(Math.max(1, state.participants.length) / 3)) : 0;
     const focusMultiplier = big && !broadBigRetaliation ? 2.23 : 1;
-    const guardedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * guardReduction * focusMultiplier));
+    const unmitigatedDamage = Math.max(1, Math.floor((rawDamage + bigPressure) * focusMultiplier));
+    const guardedDamage = Math.max(1, Math.floor(unmitigatedDamage * guardReduction));
     const damageBeforeLament = Math.max(0, guardedDamage - Math.max(0, participant.resources.guard?.abilityDamageReduction ?? 0));
     const lamentPrevented = lament
       ? Math.min(damageBeforeLament, lament.damageReduction)
@@ -1395,6 +1436,10 @@ function applyBossRetaliation(
     }
     participant.resources.hp = Math.max(0, participant.resources.hp - damage);
     participant.contribution.damageTaken += damage;
+    if (participant.statistics) {
+      participant.statistics.damageTaken += damage;
+      participant.statistics.guardPrevented += Math.max(0, unmitigatedDamage - damage);
+    }
     const counterDamage = damage > 0 && participant.resources.hp > 0
       ? Math.min(
           state.boss.hp,
@@ -1402,6 +1447,7 @@ function applyBossRetaliation(
         )
       : 0;
     state.boss.hp = Math.max(0, state.boss.hp - counterDamage);
+    if (participant.statistics) participant.statistics.damage += counterDamage;
 
     if (participant.resources.hp <= 0) {
       participant.status = "knocked-out";

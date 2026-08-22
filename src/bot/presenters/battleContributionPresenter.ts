@@ -1,14 +1,14 @@
 import { escapeHtml } from "./telegramHtml";
 
 export interface BattleContributionValues {
-  damage: number;
-  healing: number;
-  guardPrevented: number;
-  control: number;
-  damageTaken: number;
-  actions: number;
-  specialActions: number;
-  guardedTurns: number;
+  damage: number | null;
+  healing: number | null;
+  guardPrevented: number | null;
+  control: number | null;
+  damageTaken: number | null;
+  actions: number | null;
+  specialActions: number | null;
+  guardedTurns: number | null;
 }
 
 export function presentBattleContributionLegend(): string[] {
@@ -23,7 +23,11 @@ export function presentBattleContributionLine(
   name: string,
   values: BattleContributionValues
 ): string {
-  return `${escapeHtml(name)}: ⚔️ ${values.damage}, ❤️ ${values.healing}, 🛡️ ${values.guardPrevented}, ` +
-    `🌀 ${values.control}, 💥 ${values.damageTaken}, ✅ ${values.actions}, ` +
-    `✨ ${values.specialActions}, 🧱 ${values.guardedTurns}`;
+  return `${escapeHtml(name)}: ⚔️ ${presentValue(values.damage)}, ❤️ ${presentValue(values.healing)}, 🛡️ ${presentValue(values.guardPrevented)}, ` +
+    `🌀 ${presentValue(values.control)}, 💥 ${presentValue(values.damageTaken)}, ✅ ${presentValue(values.actions)}, ` +
+    `✨ ${presentValue(values.specialActions)}, 🧱 ${presentValue(values.guardedTurns)}`;
+}
+
+function presentValue(value: number | null): string {
+  return value === null ? "—" : String(Math.max(0, Math.floor(value)));
 }

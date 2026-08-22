@@ -36,8 +36,8 @@ before any weight or purchase change. Preview/combat races, duplicate callbacks
 and reservations against gift/mail/chest/barter/Shynok sale remain the main
 double-spend risks and must resolve through one authoritative decrement. The
 quest bottle stays unavailable while reserved for its current-life ending.
-Take-away purchases remain a separate `0.4.11` economy decision after the two
-later roadmap insertions; the shipped `0.4.3` item-use contract itself is unchanged.
+Take-away purchases remain a separate `0.4.12` economy decision after the later
+roadmap insertions; the shipped `0.4.3` item-use contract itself is unchanged.
 
 ## 0.4.6 referral foundation
 

@@ -149,6 +149,11 @@ export interface DailyActionRepository {
     input: { key: string }
   ): Promise<DailyActionRecord | null>;
 
+  listLatestForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null>;
+
   claimForTelegramUser(
     telegramUserId: bigint,
     input: ClaimDailyActionInput

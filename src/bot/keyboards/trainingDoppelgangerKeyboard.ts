@@ -10,6 +10,7 @@ import {
 import {
   makeTrainingDoppelgangerJournalCallbackData,
   makeTrainingDoppelgangerModeCallbackData,
+  makeTrainingDoppelgangerStatisticsCallbackData,
   makeTrainingDoppelgangerTurnCallbackData,
   makeTrainingDoppelgangerViewCallbackData
 } from "../callbacks/trainingDoppelgangerCallbackData";
@@ -81,16 +82,20 @@ export function buildTrainingDoppelgangerKeyboard(
   const keyboard = new InlineKeyboard();
   const logLength = session?.state?.turnLog?.length ?? 0;
 
-  if (session && logLength > 0) {
-    keyboard
-      .text(
+  if (session) {
+    if (logLength > 0) {
+      keyboard.text(
         "📜 Журнал бою",
         makeTrainingDoppelgangerJournalCallbackData({
           sessionId: session.id,
           page: logLength - 1
         })
-      )
-      .row();
+      );
+    }
+    keyboard.text(
+      "📊 Статистика",
+      makeTrainingDoppelgangerStatisticsCallbackData(session.id)
+    ).row();
   }
 
   return keyboard.text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
@@ -139,6 +144,15 @@ export function buildTrainingDoppelgangerJournalKeyboard(
 
   return keyboard.text(
     session.state?.status === "active" ? "↩️ До тренування" : "↩️ До результатів",
+    makeTrainingDoppelgangerViewCallbackData(session.id)
+  );
+}
+
+export function buildTrainingDoppelgangerStatisticsKeyboard(
+  session: SoloCombatSessionRecord
+): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "↩️ До результатів",
     makeTrainingDoppelgangerViewCallbackData(session.id)
   );
 }

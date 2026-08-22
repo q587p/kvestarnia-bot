@@ -38,6 +38,11 @@ import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
 import {
+  presentBattleContributionLegend,
+  presentBattleContributionLine,
+  type BattleContributionValues
+} from "./battleContributionPresenter";
+import {
   presentCombatActionCooldownNotice,
   presentCombatSupportEffectLine
 } from "./combatActionPresenter";
@@ -531,6 +536,53 @@ export function presentPersistentFightJournal(
     })],
     noticeLines: notices
   });
+}
+
+export function presentPersistentFightStatistics(
+  result: Extract<PersistentFightSnapshotResult, { state: "found" }>
+): string {
+  const state = result.session.state;
+  const statistics = state?.statistics;
+  const unavailable = unavailableContributionValues();
+  const enemies = state ? normalizeCombatEnemies(state) : [];
+  const heroName = result.character.guildCrest
+    ? `${result.character.guildCrest} ${result.character.name}`
+    : result.character.name;
+  const heroRow = presentBattleContributionLine(
+    heroName,
+    statistics?.hero ?? unavailable
+  );
+  const enemyRows = enemies.map((enemy, index) => presentBattleContributionLine(
+    enemy.name ?? `Монстр ${index + 1}`,
+    statistics?.enemies[enemy.enemyId] ?? unavailable
+  ));
+
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    "<b>Легенда:</b>",
+    ...presentBattleContributionLegend(),
+    "",
+    "<b>Пригодник:</b>",
+    heroRow,
+    ...(enemyRows.length > 0 ? ["", "<b>Монстри:</b>", ...enemyRows] : []),
+    ...(!statistics
+      ? ["", "Старий запис не містить повної бойової статистики; невідомі значення позначено «—»."]
+      : [])
+  ].join("\n");
+}
+
+function unavailableContributionValues(): BattleContributionValues {
+  return {
+    damage: null,
+    healing: null,
+    guardPrevented: null,
+    control: null,
+    damageTaken: null,
+    actions: null,
+    specialActions: null,
+    guardedTurns: null
+  };
 }
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {

@@ -449,6 +449,13 @@ describe("combat domain engine", () => {
         armor: 1,
         resist: 1,
         dexterity: 6
+      },
+      statistics: {
+        version: 1,
+        hero: { damage: 0, healing: 0, guardPrevented: null, control: null, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 },
+        enemies: {
+          "enemy:1": { damage: 0, healing: null, guardPrevented: null, control: null, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 }
+        }
       }
     });
   });

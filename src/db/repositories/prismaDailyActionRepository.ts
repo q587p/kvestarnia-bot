@@ -961,6 +961,22 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     });
   }
 
+  async listLatestForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      select: { id: true }
+    });
+    if (!character) return null;
+    return this.prisma.dailyAction.findMany({
+      where: { characterId: character.id, key: input.key },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: Math.max(1, Math.min(23, Math.floor(input.take)))
+    });
+  }
+
   async listForTelegramUserInCreatedAtRange(
     telegramUserId: bigint,
     input: { key: string; createdAtGte: Date; createdAtLt: Date }

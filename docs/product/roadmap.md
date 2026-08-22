@@ -128,7 +128,7 @@ protected until its `keep` ending, while remort-carried stacks stay usable.
 Source tags/effect ids не вмикають прихованої поведінки. A catalog-specific
 rollout flag is not used: all twenty exact mappings are active
 where their existing inventory/combat surface is available. Existing stacks
-require no data migration; take-away purchase shelf remains separate `0.4.11`.
+require no data migration; take-away purchase shelf remains separate `0.4.12`.
 
 PR `#188` merged this repository release. Target deployment, production
 availability and manual Telegram QA remain pending evidence.
@@ -200,7 +200,20 @@ accepted Character arrival дає одну безпечну `referral.arrived` �
 `👥 Пригодники`. Public referral не вступає до ґільдії й не показує Telegram,
 presence, quest, inventory, balance, remort або guild identity.
 
-### 0.4.7 — Guild weekly goal
+### 0.4.7 — Universal battle statistics, Korchma rewards and dismantling
+
+Кожен shipped terminal combat result отримує окрему правдиву
+`📊 Статистика` картку з persisted evidence: GroupCombat лишається golden
+reference, а solo, Training, Big Barrel, turn/quick duels і стартовий бойовий
+пробник ніколи не домислюють відсутні значення. Daily Korchma Round зберігає
+Kyiv-day exact-once identity, але дає `13` Іскрокаменів, щільний бинт,
+посилене золото й deterministic identity-манатку з гарантією не пізніше сьомого
+завершення. `✨ Чароковальня` окремо приймає одну canonical equippable манатку
+на незворотне розбирання в Іскрокамінь із exact preview, оплатою gold або mana
+за класом і durable receipt; bulk, failure chance, buyback і resale integration
+не входять.
+
+### 0.4.8 — Guild weekly goal
 
 Одна тижнева групова мета, що використовує звичайні PartySession +
 GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
@@ -209,49 +222,49 @@ GroupCombatSession. Нагорода social/cosmetic first; учасники б�
 рівнозначну типізовану дію в GroupCombat із тестами, або документує raid-only
 причину та окремого майбутнього власника.
 
-### 0.4.8 — Старий жертовник
+### 0.4.9 — Старий жертовник
 
 Gold-only MVP із `Благоволінням` і обрядом Жерця. Перед реалізацією один
 канонічний blessing-aware summary contract має довести, що заявлений stat bonus
 справді однаково діє або чесно не діє у solo, duel, PartyBoss і GroupCombat.
 Манатки й окрема локація до цього slice не входять.
 
-### 0.4.9 — Greeting buff
+### 0.4.10 — Greeting buff
 
 Одна тепла дія `👋 Привітатися` з одним bounded target status і `93`-хвилинним
 actor-target wait. До коду треба обрати рівно один ефект і його stacking/time
 policy проти напоїв, `Ситого`, Натхнення та благословення; XP/gold bonus не є
 рекомендованим MVP.
 
-### 0.4.10 — Їжа Шинку
+### 0.4.11 — Їжа Шинку
 
 Один активний food buff, до трьох авторських страв, явна покупка/заміна й
 канонічне споживання/expiry. Це їжа, зʼїдена зараз, без coffee cooldown state,
 five-buff stacking-а та carried items. До runtime треба затвердити exact
 ids/prices/effects/modes, interaction matrix і окремий food-owned status.
 
-### 0.4.11 — Shynok take-away consumables
+### 0.4.12 — Shynok take-away consumables
 
 Окремий replay-safe take-away shelf використовує лише вже затверджений
 `0.4.3` exact catalog. Він не розширює typed effect family і не змішує carried
 манатки з їжею, випитою або зʼїденою одразу.
 
-### 0.4.12–0.4.13 — Resale і Korchmar recycling
+### 0.4.13–0.4.14 — Resale і Korchmar recycling
 
-Поточний продаж Корчмарю за 42% уже shipped. `0.4.12` додає лише server-owned
+Поточний продаж Корчмарю за 42% уже shipped. `0.4.13` додає лише server-owned
 resale listings для sold units із `goldValue >= 93`, atomic sale intake receipt
-та opaque exact-once purchase receipt. `0.4.13` окремо додає bounded neutral
+та opaque exact-once purchase receipt. `0.4.14` окремо додає bounded neutral
 recycling після freezing batch identity/order/seed/outcome/repair policy, без
 player LUCK/achievements і без scheduler-а.
 
-### 0.4.14 — Guild cosmetic progression
+### 0.4.15 — Guild cosmetic progression
 
 Невеликий XP/level шар ґільдії, earned cosmetic milestones/frames і season-zero recap лише
 після достатніх даних тижневої мети. Пізніший номер дає зібрати ці дані, поки
 виходять старі social/economy promises. XP іде один раз із canonical
 guild-period completion receipt, не множиться на participant receipts; жодного
 бойового pay-to-win бонусу. Власні емоджі-герби вже належать identity surface
-`0.4.5`; `0.4.14` їх не дублює й не продає.
+`0.4.5`; `0.4.15` їх не дублює й не продає.
 
 ### Не входить у 0.4.x foundation
 
@@ -271,7 +284,7 @@ guild-period completion receipt, не множиться на participant receip
 
 - private/public рекрутинг, короткий анонс, безпечний внутрішньоігровий контакт,
   заявки зі списку ґільдій і кнопкове схвалення/відмову;
-- особисті та спільні contribution-квести після доказів `0.4.7`, з canonical
+- особисті та спільні contribution-квести після доказів `0.4.8`, з canonical
   receipts, anti-farming і exact-once settlement;
 - казну та зрозумілий журнал надходжень/витрат лише після окремого economy й
   abuse review;
@@ -288,7 +301,7 @@ guild-period completion receipt, не множиться на participant receip
   solo, duel, Big Barrel, PartyBoss і GroupCombat та без pay-to-win;
 - союзи, дипломатію, території, податки й ґільдійне PvP як пізні незалежні
   seasonal systems із opt-in conflict, collusion і abandoned-leader policy;
-- XP/рівні та earned cosmetic frames у напрямі `0.4.14`, не як автоматичний
+- XP/рівні та earned cosmetic frames у напрямі `0.4.15`, не як автоматичний
   дозвіл на казну, території чи спільну бойову силу.
 
 `0.4.5` лишається read-only у public directory та target-bound у вступі. Кожен
@@ -327,7 +340,7 @@ Admin allowlist із раннього roadmap не є автоматичною �
   ordering, restart recovery та відсутности keyboard-less станів;
 - сезони, guild wars, crafting, web/Mini App.
 
-Нумеровані `0.4.3` і `0.4.8`–`0.4.13` tasks активують bounded частини старих
+Нумеровані `0.4.3` і `0.4.9`–`0.4.14` tasks активують bounded частини старих
 drafts.
 Решту ідей треба активувати новим versioned task після даних, а не запускати
 старий `0.2.x-*` draft verbatim.

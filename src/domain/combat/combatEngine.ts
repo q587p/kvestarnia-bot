@@ -45,6 +45,7 @@ import {
   getTerminalCombatTurnLogEventId,
   hasCombatEnemyCollection,
   normalizeCombatEnemies,
+  recordCombatStatisticsTurn,
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
@@ -691,7 +692,7 @@ function resolveSingleEnemyCombatItemTurn(
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -765,7 +766,7 @@ function resolveMultiEnemyCombatItemTurn(
     ...(enemyPhase.itemResponse ? { itemResponse: enemyPhase.itemResponse } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1080,7 +1081,7 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1197,7 +1198,7 @@ function resolveHeroAttack(
       ...(skill ? { skill } : {})
     });
     nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
+    appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
     return {
       ok: true,
@@ -1270,7 +1271,7 @@ function resolveHeroAttack(
     ...(debugTrace ? { debugTrace } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1351,7 +1352,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1390,7 +1391,7 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
     ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1558,7 +1559,7 @@ function resolveMultiEnemyHeroAttack(
       ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
     });
     nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
+    appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
     return {
       ok: true,
@@ -1588,7 +1589,7 @@ function resolveMultiEnemyHeroAttack(
     ...(skill ? { skill } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1654,7 +1655,7 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -2043,8 +2044,10 @@ function heroOutcomeFromActor(
 function appendCombatTurnLog(
   state: CombatState,
   turn: number,
-  summary: CombatTurnSummary
+  summary: CombatTurnSummary,
+  previousState: CombatState
 ): void {
+  recordCombatStatisticsTurn({ state, previousState, summary });
   const notices = buildCombatTurnLogNotices(state);
 
   appendCombatTurnLogEntry(state, {

@@ -772,7 +772,16 @@ async function restorePostalCustodyLinesToSenders(
 async function resetCurrentLifeStateForRemort(tx: TxClient, characterId: string): Promise<void> {
   await Promise.all([
     tx.dailyAction.deleteMany({
-      where: { characterId }
+      where: {
+        characterId,
+        key: {
+          notIn: [
+            "quest.korchma-daily-round.offer",
+            "quest.korchma-daily-round.step",
+            "quest.korchma-daily-round.reward"
+          ]
+        }
+      }
     }),
     tx.characterCooldown.deleteMany({
       where: { characterId }

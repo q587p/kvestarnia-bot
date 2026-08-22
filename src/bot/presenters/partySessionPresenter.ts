@@ -28,6 +28,7 @@ import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft
 import { getCombatSkillDisplay } from "../../services/fightService";
 import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentBattleContributionLegend, presentBattleContributionLine } from "./battleContributionPresenter";
 import {
   presentPartyReadinessMarker,
   supportsPartyReadiness
@@ -801,6 +802,27 @@ function presentPartyBossQueuedActionPlan(
     default:
       return "дію";
   }
+}
+
+export function presentPartyBossStatistics(session: PartyBossSessionRecord, viewerCharacterId: string | null): string {
+  const participant = viewerCharacterId
+    ? session.state.participants.find((entry) => entry.characterId === viewerCharacterId)
+    : undefined;
+  if (!participant) {
+    return "📊 <b>Статистика бою</b>\n\nЦя картка доступна лише учасникам бою.";
+  }
+  const statistics = participant.statistics;
+  const values = statistics
+    ? statistics
+    : { damage: null, healing: null, guardPrevented: null, control: null, damageTaken: null, actions: null, specialActions: null, guardedTurns: null };
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    presentBattleContributionLine(participant.name, values),
+    "",
+    ...presentBattleContributionLegend(),
+    ...(!statistics ? ["", "Старий запис не містить точних лічильників, тому показано «—»."] : [])
+  ].join("\n");
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {

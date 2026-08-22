@@ -34,6 +34,7 @@ import {
   makeFightGearActionCallbackData,
   makeFightItemsCallbackData,
   makeFightJournalCallbackData,
+  makeFightStatisticsCallbackData,
   makeFightItemUseCallbackData,
   makeFightPassageAttackCallbackData,
   makeFightTierTwoCallbackData,
@@ -223,19 +224,30 @@ export function buildPersistentFightJournalKeyboard(
   return keyboard.text(getPersistentFightJournalReturnLabel(session), makeFightViewCallbackData(session.id));
 }
 
+export function buildPersistentFightStatisticsKeyboard(
+  session: SoloCombatSessionRecord
+): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "↩️ До результатів",
+    makeFightViewCallbackData(session.id)
+  );
+}
+
 function addPersistentFightJournalButton(
   keyboard: InlineKeyboard,
   session: SoloCombatSessionRecord
 ): InlineKeyboard {
   const logLength = getPersistentFightJournalPageCount(session);
 
-  if (logLength === 0) {
-    return keyboard;
+  keyboard.row();
+  if (logLength > 0) {
+    keyboard.text(
+      "📜 Журнал бою",
+      makeFightJournalCallbackData({ sessionId: session.id, page: logLength - 1 })
+    );
   }
 
-  return keyboard
-    .row()
-    .text("📜 Журнал бою", makeFightJournalCallbackData({ sessionId: session.id, page: logLength - 1 }));
+  return keyboard.text("📊 Статистика", makeFightStatisticsCallbackData(session.id));
 }
 
 function getPersistentFightJournalPageCount(session: SoloCombatSessionRecord): number {

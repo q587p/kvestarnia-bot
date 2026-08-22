@@ -8,6 +8,7 @@ export type TrainingDoppelgangerCallback =
   | { type: "mode"; mode: TrainingDoppelgangerStartMode }
   | { type: "view"; sessionId: string }
   | { type: "journal"; sessionId: string; page: number }
+  | { type: "statistics"; sessionId: string }
   | { type: "turn"; sessionId: string; turn: number; action: PlayerCombatActionType };
 export type TrainingDoppelgangerCallbackError =
   | "invalid-version"
@@ -20,6 +21,7 @@ const PREFIX = "v1:spar";
 const MODE_PREFIX = "v1:spar:mode";
 const VIEW_PREFIX = "v1:spar:view";
 const JOURNAL_PREFIX = "v1:spar:log";
+const STATISTICS_PREFIX = "v1:spar:stats";
 const TURN_PREFIX = "v1:spar:turn";
 const turnActions = new Set<PlayerCombatActionType>(["attack", "defend", "skill", "race", "flee"]);
 const startModes = new Set<TrainingDoppelgangerStartMode>([
@@ -58,6 +60,10 @@ export function makeTrainingDoppelgangerJournalCallbackData(input: {
   page: number;
 }): string {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${input.page}`;
+}
+
+export function makeTrainingDoppelgangerStatisticsCallbackData(sessionId: string): string {
+  return `${STATISTICS_PREFIX}:${sessionId}`;
 }
 
 export function parseTrainingDoppelgangerCallbackData(
@@ -150,6 +156,20 @@ export function parseTrainingDoppelgangerCallbackData(
     }
 
     return ok({ type: "journal", sessionId, page });
+  }
+
+  if (data.startsWith(`${STATISTICS_PREFIX}:`)) {
+    const [, section, scene, sessionId, ...rest] = data.split(":");
+
+    if (section !== "spar" || scene !== "stats" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({ type: "statistics", sessionId });
   }
 
   if (!data.startsWith(`${PREFIX}:`)) {

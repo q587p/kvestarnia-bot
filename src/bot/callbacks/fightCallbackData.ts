@@ -51,6 +51,10 @@ export type FightCallback =
       page: number;
     }
   | {
+      type: "statistics";
+      sessionId: string;
+    }
+  | {
       type: "passage";
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
       encounterToken: string;
@@ -66,6 +70,7 @@ const ITEMS_PREFIX = "v1:fight:items";
 const GEAR_PREFIX = "v1:fight:gear";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
+const STATISTICS_PREFIX = "v1:fight:stats";
 const PASSAGE_PREFIX = "v1:fight:pass";
 const TIER_TWO_CALLBACK = "v1:fight:tier2";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
@@ -123,6 +128,10 @@ export function makeFightJournalCallbackData(input: {
   page: number;
 }): string {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
+}
+
+export function makeFightStatisticsCallbackData(sessionId: string): string {
+  return `${STATISTICS_PREFIX}:${sessionId}`;
 }
 
 export function makeFightPassageAttackCallbackData(input: {
@@ -314,6 +323,20 @@ export function parseFightCallbackData(
       sessionId,
       page
     });
+  }
+
+  if (data.startsWith(`${STATISTICS_PREFIX}:`)) {
+    const [, section, scene, sessionId, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "stats" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({ type: "statistics", sessionId });
   }
 
   if (data.startsWith(`${PASSAGE_PREFIX}:`)) {

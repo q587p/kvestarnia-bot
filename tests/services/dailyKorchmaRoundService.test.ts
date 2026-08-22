@@ -555,12 +555,12 @@ describe("DailyKorchmaRoundService", () => {
     });
 
     expect(claimed.state).toBe("reward-claimed");
-    expect(claimed.state === "reward-claimed" ? claimed.reward.itemGrants : []).toEqual([
+    expect(claimed.state === "reward-claimed" ? claimed.reward.itemGrants : []).toEqual(expect.arrayContaining([
       expect.objectContaining({
         itemId: ISKROKAMIN_ITEM_ID,
-        quantity: 1
+        quantity: 13
       })
-    ]);
+    ]));
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
 
     const replay = await world.service.claimReward(telegramUserId, {
@@ -569,12 +569,12 @@ describe("DailyKorchmaRoundService", () => {
     });
 
     expect(replay.state).toBe("reward-replayed");
-    expect(replay.state === "reward-replayed" ? replay.reward.itemGrants : []).toEqual([
+    expect(replay.state === "reward-replayed" ? replay.reward.itemGrants : []).toEqual(expect.arrayContaining([
       expect.objectContaining({
         itemId: ISKROKAMIN_ITEM_ID,
-        quantity: 1
+        quantity: 13
       })
-    ]);
+    ]));
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
   });
 
@@ -592,12 +592,12 @@ describe("DailyKorchmaRoundService", () => {
     expect(calculateDailyKorchmaRoundReward({ ...base, characterLevel: 3 })).toEqual(level3);
     expect(level3.xp).toBeGreaterThanOrEqual(7);
     expect(level3.xp).toBeLessThanOrEqual(9);
-    expect(level3.gold).toBeGreaterThanOrEqual(4);
-    expect(level3.gold).toBeLessThanOrEqual(6);
+    expect(level3.gold).toBeGreaterThanOrEqual(17);
+    expect(level3.gold).toBeLessThanOrEqual(19);
     expect(level13.xp).toBeGreaterThanOrEqual(27);
     expect(level13.xp).toBeLessThanOrEqual(39);
-    expect(level13.gold).toBeGreaterThanOrEqual(14);
-    expect(level13.gold).toBeLessThanOrEqual(26);
+    expect(level13.gold).toBeGreaterThanOrEqual(27);
+    expect(level13.gold).toBeLessThanOrEqual(39);
   });
 
   it("does not create a third step row when another callback completes a second scene inside the claim boundary", async () => {
@@ -809,6 +809,17 @@ class FakeWorld implements CharacterRepository, DailyActionRepository {
     input: { key: string }
   ): Promise<DailyActionRecord | null> {
     return this.daily.findLatestForTelegramUser(id, input);
+  }
+
+  listLatestForTelegramUser(
+    id: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    if (id !== telegramUserId || !this.world.character) return Promise.resolve(null);
+    return Promise.resolve(this.records
+      .filter((record) => record.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, input.take));
   }
 
   claimForTelegramUser(
@@ -1023,10 +1034,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
       xp: this.world.character.xp + input.rewardXp,
       gold: this.world.character.gold + input.rewardGold
     };
-    const appliedItemGrants =
-      input.questIskrokaminBonus === true && this.world.character.level >= 4
+    const appliedItemGrants = [
+      ...(input.itemGrants ?? []).map(({ itemId, quantity }) => ({ itemId, quantity })),
+      ...(input.questIskrokaminBonus === true && this.world.character.level >= 4
         ? [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]
-        : [];
+        : [])
+    ];
     const action: DailyActionRecord = {
       id: `daily-action-${this.actions.size + 1}`,
       characterId: this.world.character.id,
