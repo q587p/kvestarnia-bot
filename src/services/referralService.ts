@@ -3,6 +3,7 @@ import type { CharacterRepository } from "../db/repositories/characterRepository
 import type {
   CaptureReferralResult,
   ClaimedReferralNotification,
+  ReferralAchievementReconciliationRecord,
   ReferralDashboardRecord,
   ReferralInviteePage,
   ReferralRepository,
@@ -112,7 +113,7 @@ export class ReferralService {
     }
     const existing = await this.referrals.getDashboard(telegramUserId, this.now());
     if (existing) {
-      await this.reconcileReferralAchievementsForUserSafely(existing, this.now());
+      await this.reconcileReferralAchievementsForUserSafely(existing.inviterUserId);
       return this.buildDashboardResult(existing);
     }
     const character = await this.characters.findByTelegramUserId(telegramUserId);
@@ -135,7 +136,7 @@ export class ReferralService {
       if (!dashboard) {
         throw new Error("Referral code creation did not yield a dashboard projection.");
       }
-      await this.reconcileReferralAchievementsForUserSafely(dashboard, this.now());
+      await this.reconcileReferralAchievementsForUserSafely(dashboard.inviterUserId);
       return this.buildDashboardResult(dashboard);
     }
     throw new Error("Referral token collision retry limit exhausted.");
@@ -234,15 +235,16 @@ export class ReferralService {
     }
     const rows = await this.referrals.listReferralAchievementReconciliationRecords(limit);
     let reconciled = 0;
+    const failedInviters = new Set<string>();
     for (const row of rows) {
+      if (failedInviters.has(row.inviterUserId)) {
+        continue;
+      }
       try {
-        await this.reconcileReferralAchievementsForInviter(
-          row.inviterUserId,
-          row.sourceId,
-          row.occurredAt
-        );
+        await this.reconcileReferralAchievement(row);
         reconciled += 1;
       } catch (error) {
+        failedInviters.add(row.inviterUserId);
         console.error("Квестарня: ачивки за поклики не пройшли чергову звірку.", {
           errorName: error instanceof Error ? error.name : "unknown"
         });
@@ -349,23 +351,20 @@ export class ReferralService {
     });
   }
 
-  private async reconcileReferralAchievementsForUser(
-    dashboard: ReferralDashboardRecord,
-    occurredAt: Date
-  ): Promise<void> {
-    await this.reconcileReferralAchievementsForInviter(
-      dashboard.inviterUserId,
-      dashboard.token,
-      occurredAt
-    );
-  }
-
   private async reconcileReferralAchievementsForUserSafely(
-    dashboard: ReferralDashboardRecord,
-    occurredAt: Date
+    inviterUserId: string
   ): Promise<void> {
+    if (!this.achievements) {
+      return;
+    }
     try {
-      await this.reconcileReferralAchievementsForUser(dashboard, occurredAt);
+      const rows = await this.referrals.listReferralAchievementReconciliationRecords(
+        2,
+        inviterUserId
+      );
+      for (const row of rows) {
+        await this.reconcileReferralAchievement(row);
+      }
     } catch (error) {
       console.error("Квестарня: ачивки за поклики не пройшли фонову звірку.", {
         errorName: error instanceof Error ? error.name : "unknown"
@@ -373,36 +372,27 @@ export class ReferralService {
     }
   }
 
-  private async reconcileReferralAchievementsForInviter(
-    inviterUserId: string,
-    sourceId: string,
-    occurredAt: Date
+  private async reconcileReferralAchievement(
+    row: ReferralAchievementReconciliationRecord
   ): Promise<void> {
     if (!this.achievements) {
       return;
     }
-    const character = await this.characters.findByUserId(inviterUserId);
+    const character = await this.characters.findByUserId(row.inviterUserId);
     if (!character) {
       return;
     }
-    const count = await this.referrals.countArrivedForInviterUserId(inviterUserId);
     await this.achievements.trackEvent({
       type: "referral.arrivals",
       characterId: character.id,
-      count,
-      occurredAt,
-      sourceId
+      count: row.arrivalCount,
+      occurredAt: row.occurredAt,
+      sourceId: row.sourceId
     });
-    const achievementIds = [
-      ...(count >= 1 ? ["achievement.referral.first-arrival"] : []),
-      ...(count >= 13 ? ["achievement.referral.thirteen-arrivals"] : [])
-    ];
-    if (achievementIds.length > 0) {
-      await this.referrals.enqueueReferralAchievementNotifications(
-        inviterUserId,
-        achievementIds,
-        this.now()
-      );
-    }
+    await this.referrals.enqueueReferralAchievementNotifications(
+      row.inviterUserId,
+      [row.achievementId],
+      this.now()
+    );
   }
 }

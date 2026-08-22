@@ -338,6 +338,30 @@ describe("PrismaReferralRepository integration", () => {
         inviterNameSnapshot: "Тринадцятий Кличко"
       }
     });
+    const firstArrivedAt = new Date(NOW.getTime() + 1_000);
+    const thirteenthArrivedAt = new Date(NOW.getTime() + 13_000);
+    const expectedEvidence = [
+      {
+        achievementId: "achievement.referral.first-arrival",
+        sourceId: "achievement-attribution-1",
+        unlockedAt: firstArrivedAt
+      },
+      {
+        achievementId: "achievement.referral.thirteen-arrivals",
+        sourceId: "achievement-attribution-13",
+        unlockedAt: thirteenthArrivedAt
+      }
+    ];
+    const expectMilestoneEvidence = async (characterId: string) => {
+      await expect(prisma.characterAchievement.findMany({
+        where: {
+          characterId,
+          achievementId: { in: expectedEvidence.map(({ achievementId }) => achievementId) }
+        },
+        orderBy: { achievementId: "asc" },
+        select: { achievementId: true, sourceId: true, unlockedAt: true }
+      })).resolves.toEqual(expectedEvidence);
+    };
     for (let index = 1; index <= 13; index += 1) {
       const inviteeUserId = `achievement-invitee-user-${index}`;
       const characterId = `achievement-invitee-character-${index}`;
@@ -397,12 +421,21 @@ describe("PrismaReferralRepository integration", () => {
       () => RECOVERY_NOW
     );
 
-    const firstTick = await createReferralScheduler(
+    await expect(makeAchievementService().getDashboard(inviterTelegramId)).resolves.toMatchObject({
+      state: "ready",
+      arrivedTotal: 13
+    });
+    await expectMilestoneEvidence("achievement-inviter-original");
+    await expect(prisma.referralNotificationOutbox.count({
+      where: { recipientUserId: inviterUserId, kind: "REFERRAL_ACHIEVEMENT_UNLOCKED" }
+    })).resolves.toBe(2);
+    await expect(new PrismaReferralRepository(prisma)
+      .listReferralAchievementReconciliationRecords(2, inviterUserId)).resolves.toEqual([]);
+
+    await createReferralScheduler(
       makeAchievementService(),
       { api: { sendMessage } } as unknown as Bot
     ).tick();
-    expect(firstTick.dueAchievementProjections).toBeGreaterThanOrEqual(1);
-    expect(firstTick.reconciledAchievementProjections).toBeGreaterThanOrEqual(1);
     expect(sendMessage.mock.calls.filter(([chatId]) => chatId === Number(inviterTelegramId)))
       .toHaveLength(2);
 
@@ -422,21 +455,13 @@ describe("PrismaReferralRepository integration", () => {
         makeAchievementService(),
         { api: { sendMessage } } as unknown as Bot
       ).tick()).resolves.toMatchObject({
-        dueAchievementProjections: 1,
-        reconciledAchievementProjections: 1,
+        dueAchievementProjections: 2,
+        reconciledAchievementProjections: 2,
         dueArrivalChronicles: 0,
         claimedNotifications: 0,
         sentNotifications: 0
       });
-      await expect(prisma.characterAchievement.count({
-        where: {
-          characterId: newCharacterId,
-          achievementId: { in: [
-            "achievement.referral.first-arrival",
-            "achievement.referral.thirteen-arrivals"
-          ] }
-        }
-      })).resolves.toBe(2);
+      await expectMilestoneEvidence(newCharacterId);
     }
 
     await expect(prisma.referralNotificationOutbox.findMany({
@@ -460,7 +485,7 @@ describe("PrismaReferralRepository integration", () => {
     })).resolves.toBe(originalChronicleCount);
   });
 
-  it("rolls the referral migration back without removing pre-existing player data", async () => {
+  it("preserves existing outbox rows through the additive migration and its rollback", async () => {
     const rollbackDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-referral-rollback-"));
     const rollbackPrisma = new PrismaClient({
       datasources: { db: { url: `file:${join(rollbackDirectory, "test.db").replace(/\\/g, "/")}` } }
@@ -469,16 +494,122 @@ describe("PrismaReferralRepository integration", () => {
       await createBaseSchema(rollbackPrisma);
       await seedCharacter(rollbackPrisma, "rollback-user", "rollback-character", 64_093n, "Незворушна");
       await applySqlFile(rollbackPrisma, `prisma/migrations/${MIGRATION}/migration.sql`);
+      const joinedNextAttemptAt = new Date("2026-08-20T13:15:01.000Z");
+      const payoutNextAttemptAt = new Date("2026-08-20T13:15:02.000Z");
+      const joinedClaimedUntil = new Date("2026-08-20T13:16:01.000Z");
+      const payoutSentAt = new Date("2026-08-20T13:14:02.000Z");
+      const createdAt = new Date("2026-08-20T13:00:00.000Z");
+      const updatedAt = new Date("2026-08-20T13:10:00.000Z");
+      await rollbackPrisma.referralNotificationOutbox.createMany({
+        data: [
+          {
+            id: "rollback-joined-notification",
+            logicalKey: "REFERRAL_JOINED:rollback-attribution",
+            kind: "REFERRAL_JOINED",
+            recipientUserId: "rollback-user",
+            payloadJson: { attributionId: "rollback-attribution", inviteeName: "Перша" },
+            state: "PROCESSING",
+            attemptCount: 2,
+            nextAttemptAt: joinedNextAttemptAt,
+            claimToken: "joined-claim-token",
+            claimedUntil: joinedClaimedUntil,
+            createdAt,
+            updatedAt
+          },
+          {
+            id: "rollback-payout-notification",
+            logicalKey: "REFERRAL_PAYOUT:rollback-reward",
+            kind: "REFERRAL_PAYOUT_GRANTED",
+            recipientUserId: "rollback-user",
+            payloadJson: { rewardId: "rollback-reward", level: 3 },
+            state: "SENT",
+            attemptCount: 1,
+            nextAttemptAt: payoutNextAttemptAt,
+            sentAt: payoutSentAt,
+            createdAt,
+            updatedAt
+          }
+        ]
+      });
+      const oldKindRows = [
+        {
+          id: "rollback-joined-notification",
+          logicalKey: "REFERRAL_JOINED:rollback-attribution",
+          kind: "REFERRAL_JOINED",
+          recipientUserId: "rollback-user",
+          payloadJson: { attributionId: "rollback-attribution", inviteeName: "Перша" },
+          state: "PROCESSING",
+          attemptCount: 2,
+          nextAttemptAt: joinedNextAttemptAt,
+          claimToken: "joined-claim-token",
+          claimedUntil: joinedClaimedUntil,
+          sentAt: null,
+          createdAt,
+          updatedAt
+        },
+        {
+          id: "rollback-payout-notification",
+          logicalKey: "REFERRAL_PAYOUT:rollback-reward",
+          kind: "REFERRAL_PAYOUT_GRANTED",
+          recipientUserId: "rollback-user",
+          payloadJson: { rewardId: "rollback-reward", level: 3 },
+          state: "SENT",
+          attemptCount: 1,
+          nextAttemptAt: payoutNextAttemptAt,
+          claimToken: null,
+          claimedUntil: null,
+          sentAt: payoutSentAt,
+          createdAt,
+          updatedAt
+        }
+      ];
+      const readOldKindRows = () => rollbackPrisma.referralNotificationOutbox.findMany({
+        where: { id: { in: oldKindRows.map(({ id }) => id) } },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          logicalKey: true,
+          kind: true,
+          recipientUserId: true,
+          payloadJson: true,
+          state: true,
+          attemptCount: true,
+          nextAttemptAt: true,
+          claimToken: true,
+          claimedUntil: true,
+          sentAt: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
       await applySqlFile(
         rollbackPrisma,
         `prisma/migrations/${ACHIEVEMENT_NOTIFICATION_MIGRATION}/migration.sql`
       );
+      await expect(readOldKindRows()).resolves.toEqual(oldKindRows);
+      await rollbackPrisma.referralNotificationOutbox.create({
+        data: {
+          id: "rollback-achievement-notification",
+          logicalKey: "REFERRAL_ACHIEVEMENT:rollback-user:achievement.referral.first-arrival",
+          kind: "REFERRAL_ACHIEVEMENT_UNLOCKED",
+          recipientUserId: "rollback-user",
+          payloadJson: {
+            achievementId: "achievement.referral.first-arrival",
+            title: "Один кухоль уже зайнято"
+          },
+          nextAttemptAt: new Date("2026-08-20T13:15:03.000Z")
+        }
+      });
       await expect(tableNames(rollbackPrisma)).resolves.toContain("referral_rewards");
 
       await applySqlFile(
         rollbackPrisma,
         `prisma/migrations/${ACHIEVEMENT_NOTIFICATION_MIGRATION}/rollback.sql`
       );
+      await expect(readOldKindRows()).resolves.toEqual(oldKindRows);
+      await expect(rollbackPrisma.referralNotificationOutbox.count({
+        where: { kind: "REFERRAL_ACHIEVEMENT_UNLOCKED" }
+      })).resolves.toBe(0);
       await applySqlFile(rollbackPrisma, `prisma/migrations/${MIGRATION}/rollback.sql`);
       const tables = await tableNames(rollbackPrisma);
       expect(tables).not.toContain("referral_invite_codes");

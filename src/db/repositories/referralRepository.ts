@@ -29,6 +29,10 @@ export interface ReferralArrivalChronicleRecord {
 
 export interface ReferralAchievementReconciliationRecord {
   inviterUserId: string;
+  achievementId:
+    | "achievement.referral.first-arrival"
+    | "achievement.referral.thirteen-arrivals";
+  arrivalCount: 1 | 13;
   sourceId: string;
   occurredAt: Date;
 }
@@ -140,9 +144,9 @@ export interface ReferralRepository {
   ): Promise<{ pending: number; granted: number }>;
   listUnrecordedArrivalChronicles(limit: number): Promise<ReferralArrivalChronicleRecord[]>;
   markArrivalChronicleRecorded(attributionId: string, characterId: string, recordedAt: Date): Promise<boolean>;
-  countArrivedForInviterUserId(inviterUserId: string): Promise<number>;
   listReferralAchievementReconciliationRecords(
-    limit: number
+    limit: number,
+    inviterUserId?: string
   ): Promise<ReferralAchievementReconciliationRecord[]>;
   enqueueReferralAchievementNotifications(
     inviterUserId: string,

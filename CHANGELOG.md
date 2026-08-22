@@ -7,7 +7,7 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.6] - 12026-08-20 - Referral Foundation and Automatic Milestone Rewards
+## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards
 
 ### Added
 - Added a default-off public `📨 Поклик до Квестарні` flow on the Korchma board and `/invite`, with one stable User-level `ref1_*` share link, atomic fresh-player first-touch attribution and five-row inviter history; an eligible link now continues directly into ordinary onboarding without a consent card.
@@ -35,7 +35,7 @@ This project follows a simple pre-1.0 versioning policy:
 - Player help now lists every enabled production command in one focused section, including referral and the full guild command family, with a catalog regression preventing silent omissions.
 - Exhausted fresh-capture conflicts now stop before presence without consuming eligibility; referral arrivals persist frozen Chronicle evidence and reconcile the single `referral.arrived` row after write failure or process restart.
 - Referral scheduling now proves immediate non-overlapping startup, queued wake-ups after Telegram actions, clean in-flight shutdown, flag-aware recovery and per-row failure isolation so newly earned rewards do not wait for dashboard refresh and one corrupt or unexpected reward cannot starve later due work.
-- Referral-achievement recovery now runs independently from the Chronicle backlog, reprojects authoritative first/thirteenth-arrival achievements onto replacement Characters, and keeps each unlock notice unique at User level; fail-closed fresh-capture replies now retain a controlled same-link retry button without exposing the token in text or callbacks.
+- Referral-achievement recovery now runs independently from the Chronicle backlog, preserves the first/thirteenth milestone attribution IDs and persisted arrival timestamps across dashboard recovery, scheduler replay and Character replacement, and keeps each unlock notice unique at User level; fail-closed fresh-capture replies retain a controlled same-link retry button without exposing the token in text or callbacks.
 
 ## [0.4.5] - 12026-08-18 - Guild Foundation, Emoji Crests and Invitation Cards
 

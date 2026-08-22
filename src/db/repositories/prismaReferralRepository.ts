@@ -679,70 +679,77 @@ export class PrismaReferralRepository implements ReferralRepository {
     return result.count === 1;
   }
 
-  countArrivedForInviterUserId(inviterUserId: string): Promise<number> {
-    return this.prisma.referralAttribution.count({
-      where: { inviterUserId, status: "ACCEPTED", arrivedAt: { not: null } }
-    });
-  }
-
   async listReferralAchievementReconciliationRecords(
-    limit: number
+    limit: number,
+    inviterUserId?: string
   ): Promise<ReferralAchievementReconciliationRecord[]> {
     const rows = await this.prisma.$queryRaw<Array<{
       inviterUserId: string;
+      achievementId: ReferralAchievementReconciliationRecord["achievementId"];
+      arrivalCount: bigint | number;
       sourceId: string;
       occurredAt: bigint | Date;
     }>>(Prisma.sql`
+      WITH ranked_arrivals AS (
+        SELECT
+          arrival."inviter_user_id" AS "inviterUserId",
+          arrival."id" AS "sourceId",
+          arrival."arrived_at" AS "occurredAt",
+          ROW_NUMBER() OVER (
+            PARTITION BY arrival."inviter_user_id"
+            ORDER BY arrival."arrived_at" ASC, arrival."id" ASC
+          ) AS "arrivalCount"
+        FROM "referral_attributions" AS arrival
+        WHERE arrival."status" = 'ACCEPTED'
+          AND arrival."arrived_at" IS NOT NULL
+          AND (${inviterUserId ?? null} IS NULL OR arrival."inviter_user_id" = ${inviterUserId ?? null})
+      ), milestone_evidence AS (
+        SELECT
+          ranked."inviterUserId",
+          ranked."sourceId",
+          ranked."occurredAt",
+          ranked."arrivalCount",
+          CASE ranked."arrivalCount"
+            WHEN 1 THEN 'achievement.referral.first-arrival'
+            WHEN 13 THEN 'achievement.referral.thirteen-arrivals'
+          END AS "achievementId"
+        FROM ranked_arrivals AS ranked
+        WHERE ranked."arrivalCount" IN (1, 13)
+      )
       SELECT
         character."user_id" AS "inviterUserId",
-        (
-          SELECT first_arrival."id"
-          FROM "referral_attributions" AS first_arrival
-          WHERE first_arrival."inviter_user_id" = character."user_id"
-            AND first_arrival."status" = 'ACCEPTED'
-            AND first_arrival."arrived_at" IS NOT NULL
-          ORDER BY first_arrival."arrived_at" ASC, first_arrival."id" ASC
-          LIMIT 1
-        ) AS "sourceId",
-        MIN(arrival."arrived_at") AS "occurredAt"
+        evidence."achievementId",
+        evidence."arrivalCount",
+        evidence."sourceId",
+        evidence."occurredAt"
       FROM "characters" AS character
-      INNER JOIN "referral_attributions" AS arrival
-        ON arrival."inviter_user_id" = character."user_id"
-        AND arrival."status" = 'ACCEPTED'
-        AND arrival."arrived_at" IS NOT NULL
-      GROUP BY character."id", character."user_id"
-      HAVING (
-        COUNT(*) >= 1 AND (
+      INNER JOIN milestone_evidence AS evidence
+        ON evidence."inviterUserId" = character."user_id"
+      WHERE (
           NOT EXISTS (
             SELECT 1 FROM "character_achievements" AS achievement
             WHERE achievement."character_id" = character."id"
-              AND achievement."achievement_id" = 'achievement.referral.first-arrival'
+              AND achievement."achievement_id" = evidence."achievementId"
           ) OR NOT EXISTS (
             SELECT 1 FROM "referral_notification_outbox" AS notification
             WHERE notification."recipient_user_id" = character."user_id"
               AND notification."kind" = 'REFERRAL_ACHIEVEMENT_UNLOCKED'
-              AND notification."logical_key" LIKE 'REFERRAL_ACHIEVEMENT:%:achievement.referral.first-arrival'
+              AND (
+                notification."logical_key" = (
+                  'REFERRAL_ACHIEVEMENT:' || character."user_id" || ':' || evidence."achievementId"
+                ) OR notification."logical_key" LIKE (
+                  'REFERRAL_ACHIEVEMENT:%:' || evidence."achievementId"
+                )
+              )
           )
         )
-      ) OR (
-        COUNT(*) >= 13 AND (
-          NOT EXISTS (
-            SELECT 1 FROM "character_achievements" AS achievement
-            WHERE achievement."character_id" = character."id"
-              AND achievement."achievement_id" = 'achievement.referral.thirteen-arrivals'
-          ) OR NOT EXISTS (
-            SELECT 1 FROM "referral_notification_outbox" AS notification
-            WHERE notification."recipient_user_id" = character."user_id"
-              AND notification."kind" = 'REFERRAL_ACHIEVEMENT_UNLOCKED'
-              AND notification."logical_key" LIKE 'REFERRAL_ACHIEVEMENT:%:achievement.referral.thirteen-arrivals'
-          )
-        )
-      )
-      ORDER BY MIN(arrival."arrived_at") ASC, character."user_id" ASC
+      ORDER BY evidence."occurredAt" ASC, character."user_id" ASC, evidence."arrivalCount" ASC
       LIMIT ${limit}
     `);
     return rows.map((row) => ({
       inviterUserId: row.inviterUserId,
+      achievementId: row.achievementId,
+      arrivalCount: Number(row.arrivalCount) as 1 | 13,
       sourceId: row.sourceId,
       occurredAt: row.occurredAt instanceof Date
         ? row.occurredAt

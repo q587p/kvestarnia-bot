@@ -26,7 +26,8 @@ describe("ReferralService recovery", () => {
       earnedByMilestone: { LEVEL_3: 0, LEVEL_5: 0, LEVEL_8: 0, LEVEL_13: 0 }
     });
     const repository = referralRepository({
-      getDashboard
+      getDashboard,
+      listReferralAchievementReconciliationRecords: vi.fn().mockResolvedValue([])
     });
     const service = makeService(repository, { foundationEnabled: true, payoutsEnabled: true });
 
@@ -49,9 +50,27 @@ describe("ReferralService recovery", () => {
     expect(getDashboard).toHaveBeenCalledWith(42n, NOW);
   });
 
-  it("tracks rewardless first and thirteenth arrival achievements from authoritative counts", async () => {
+  it("tracks referral achievements from their canonical milestone evidence in threshold order", async () => {
     const trackEvent = vi.fn().mockResolvedValue([]);
-    const enqueueReferralAchievementNotifications = vi.fn().mockResolvedValue(2);
+    const enqueueReferralAchievementNotifications = vi.fn().mockResolvedValue(1);
+    const firstArrivedAt = new Date("2026-08-19T12:01:00.000Z");
+    const thirteenthArrivedAt = new Date("2026-08-19T12:13:00.000Z");
+    const listReferralAchievementReconciliationRecords = vi.fn().mockResolvedValue([
+      {
+        inviterUserId: "inviter-user",
+        achievementId: "achievement.referral.first-arrival",
+        arrivalCount: 1,
+        sourceId: "attribution-1",
+        occurredAt: firstArrivedAt
+      },
+      {
+        inviterUserId: "inviter-user",
+        achievementId: "achievement.referral.thirteen-arrivals",
+        arrivalCount: 13,
+        sourceId: "attribution-13",
+        occurredAt: thirteenthArrivedAt
+      }
+    ]);
     const repository = referralRepository({
       getDashboard: vi.fn().mockResolvedValue({
         inviterUserId: "inviter-user",
@@ -64,7 +83,7 @@ describe("ReferralService recovery", () => {
         pendingStageTotal: 0,
         earnedByMilestone: { LEVEL_3: 0, LEVEL_5: 0, LEVEL_8: 0, LEVEL_13: 0 }
       }),
-      countArrivedForInviterUserId: vi.fn().mockResolvedValue(13),
+      listReferralAchievementReconciliationRecords,
       enqueueReferralAchievementNotifications
     });
     const service = new ReferralService(
@@ -77,14 +96,31 @@ describe("ReferralService recovery", () => {
     );
 
     await expect(service.getDashboard(42n)).resolves.toMatchObject({ state: "ready", arrivedTotal: 13 });
-    expect(trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+    expect(listReferralAchievementReconciliationRecords).toHaveBeenCalledWith(2, "inviter-user");
+    expect(trackEvent).toHaveBeenNthCalledWith(1, {
       type: "referral.arrivals",
       characterId: "inviter-character",
-      count: 13
-    }));
-    expect(enqueueReferralAchievementNotifications).toHaveBeenCalledWith(
+      count: 1,
+      sourceId: "attribution-1",
+      occurredAt: firstArrivedAt
+    });
+    expect(trackEvent).toHaveBeenNthCalledWith(2, {
+      type: "referral.arrivals",
+      characterId: "inviter-character",
+      count: 13,
+      sourceId: "attribution-13",
+      occurredAt: thirteenthArrivedAt
+    });
+    expect(enqueueReferralAchievementNotifications).toHaveBeenNthCalledWith(
+      1,
       "inviter-user",
-      ["achievement.referral.first-arrival", "achievement.referral.thirteen-arrivals"],
+      ["achievement.referral.first-arrival"],
+      NOW
+    );
+    expect(enqueueReferralAchievementNotifications).toHaveBeenNthCalledWith(
+      2,
+      "inviter-user",
+      ["achievement.referral.thirteen-arrivals"],
       NOW
     );
   });
@@ -101,7 +137,6 @@ describe("ReferralService recovery", () => {
     const markArrivalChronicleRecorded = vi.fn().mockResolvedValue(true);
     const repository = referralRepository({
       listUnrecordedArrivalChronicles: vi.fn().mockResolvedValue([row]),
-      countArrivedForInviterUserId: vi.fn().mockResolvedValue(1),
       enqueueReferralAchievementNotifications: vi.fn().mockResolvedValue(1),
       markArrivalChronicleRecorded
     });
@@ -132,13 +167,14 @@ describe("ReferralService recovery", () => {
 
     const listReferralAchievementReconciliationRecords = vi.fn().mockResolvedValue([{
       inviterUserId: "inviter-user",
+      achievementId: "achievement.referral.first-arrival",
+      arrivalCount: 1,
       sourceId: "attribution-1",
       occurredAt: NOW
     }]);
     const achievementService = new ReferralService(
       referralRepository({
         listReferralAchievementReconciliationRecords,
-        countArrivedForInviterUserId: vi.fn().mockResolvedValue(1),
         enqueueReferralAchievementNotifications: vi.fn()
       }),
       characters,
@@ -152,6 +188,48 @@ describe("ReferralService recovery", () => {
       reconciled: 0
     });
     expect(listReferralAchievementReconciliationRecords).toHaveBeenCalledWith(13);
+  });
+
+  it("does not let thirteenth-arrival evidence backfill a failed first-arrival projection", async () => {
+    const trackEvent = vi.fn().mockRejectedValueOnce(new Error("first projection failed"));
+    const repository = referralRepository({
+      listReferralAchievementReconciliationRecords: vi.fn().mockResolvedValue([
+        {
+          inviterUserId: "inviter-user",
+          achievementId: "achievement.referral.first-arrival",
+          arrivalCount: 1,
+          sourceId: "attribution-1",
+          occurredAt: new Date("2026-08-19T12:01:00.000Z")
+        },
+        {
+          inviterUserId: "inviter-user",
+          achievementId: "achievement.referral.thirteen-arrivals",
+          arrivalCount: 13,
+          sourceId: "attribution-13",
+          occurredAt: new Date("2026-08-19T12:13:00.000Z")
+        }
+      ]),
+      enqueueReferralAchievementNotifications: vi.fn()
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const service = new ReferralService(
+      repository,
+      { findByUserId: vi.fn().mockResolvedValue({ id: "inviter-character" }) } as unknown as CharacterRepository,
+      { foundationEnabled: true, payoutsEnabled: true, devHelpersEnabled: false },
+      { trackEvent } as unknown as AchievementService,
+      undefined,
+      () => NOW
+    );
+
+    await expect(service.reconcileReferralAchievements()).resolves.toEqual({
+      due: 2,
+      reconciled: 0
+    });
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      count: 1,
+      sourceId: "attribution-1"
+    }));
   });
 
   it("isolates and reschedules one unexpected due reward failure without starving the batch", async () => {
