@@ -590,7 +590,7 @@ describe("PrismaItemUpgradeRepository integration", () => {
     expect(transfer.status).toBe(dismantle.state === "dismantled" ? "draft" : "pending");
     expect(transfer.resultJson).toEqual(dismantle.state === "dismantled"
       ? null
-      : expect.objectContaining({ senderDebited: true }));
+      : expect.objectContaining({ postalCustody: "sender-debited" }));
     await expect(prisma.characterItem.count({
       where: { characterId: receiverCharacterId, itemId: panPlusTwoItemId }
     })).resolves.toBe(0);

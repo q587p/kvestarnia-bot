@@ -15,6 +15,11 @@ export const PLAYER_FACING_EXCLUSIVE_ACTION_ICONS = {
       "src/bot/keyboards/itemUpgradeKeyboard.ts",
       "src/bot/presenters/itemUpgradePresenter.ts"
     ]
+  },
+  "superseded-group-combat-card": {
+    icon: "🗃️",
+    symbol: "SUPERSEDED_GROUP_COMBAT_CARD_ICON",
+    allowedBotFiles: ["src/bot/groupCombatCardDelivery.ts"]
   }
 } as const;
 
@@ -26,3 +31,5 @@ export const PLAYER_FACING_ADMIN_ICON_EXCEPTIONS: ReadonlyArray<{
 
 export const FRIENDLY_CHEST_ICON = PLAYER_FACING_EXCLUSIVE_ACTION_ICONS["friendly-chest"].icon;
 export const ITEM_DISMANTLE_ICON = PLAYER_FACING_EXCLUSIVE_ACTION_ICONS["item-dismantle"].icon;
+export const SUPERSEDED_GROUP_COMBAT_CARD_ICON =
+  PLAYER_FACING_EXCLUSIVE_ACTION_ICONS["superseded-group-combat-card"].icon;

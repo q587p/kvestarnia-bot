@@ -172,3 +172,17 @@ Future live status guardrails:
 4. Патч + тест на exploit.
 5. Компенсація або rollback.
 6. Коротке чесне повідомлення спільноті.
+
+## 0.4.7 terminal battle artifacts
+
+Completed battle results, journals and statistics are unlisted capability-link
+artifacts rather than private account data. Anyone holding the valid opaque
+battle/result token may read the terminal artifact without participant,
+Character or private-chat authorization. This grants no discovery or indexing:
+unknown and malformed tokens return the same generic not-found response.
+
+Every public terminal read is non-settling and strictly read-only. Active
+actions, inventories, hidden choices, unrevealed actions and mutable
+viewer-specific state remain participant-authorized. Presenters expose only the
+authoritative journal/statistics projection and never Telegram ids, RNG seeds,
+internal authorization data or hidden inventory.

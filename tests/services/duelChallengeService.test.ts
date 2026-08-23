@@ -227,6 +227,15 @@ describe("DuelChallengeService", () => {
     await expect(service.getStatisticsForTelegramUser(3n, created.challenge.inviteToken)).resolves.toEqual({
       state: "not-found"
     });
+    await expect(service.getTerminalResultByToken(created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "resolved",
+      result: { challengerScore: accepted.result.challengerScore, targetScore: accepted.result.targetScore }
+    });
+    await expect(service.getTerminalStatisticsByToken(created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "ready",
+      mode: "quick"
+    });
+    expect(activityEvents.duelCompletions).toHaveLength(1);
 
     await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
       confirmed: true,

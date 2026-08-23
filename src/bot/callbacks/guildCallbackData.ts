@@ -25,7 +25,7 @@ export type GuildCallback =
   | { type: "party-invite"; memberId: string; version: number }
   | { type: "transfer-accept"; version: number }
   | { type: "member-select"; action: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number }
-  | { type: "leave-open" | "delete-open" | "leave" | "delete"; version: number }
+  | { type: "leave-open" | "delete-open" | "leave-confirm" | "delete-confirm" | "leave-legacy" | "delete-legacy"; version: number }
   | { type: "leave-cancel" | "delete-cancel" }
   | { type: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number };
 
@@ -77,8 +77,8 @@ export const makeGuildLeaveOpenCallbackData = (version: number): string => `${PR
 export const makeGuildDeleteOpenCallbackData = (version: number): string => `${PREFIX}:zo:${version.toString(36)}`;
 export const makeGuildLeaveCancelCallbackData = (): string => `${PREFIX}:ln`;
 export const makeGuildDeleteCancelCallbackData = (): string => `${PREFIX}:zn`;
-export const makeGuildLeaveCallbackData = (version: number): string => `${PREFIX}:l:${version.toString(36)}`;
-export const makeGuildDeleteCallbackData = (version: number): string => `${PREFIX}:z:${version.toString(36)}`;
+export const makeGuildLeaveCallbackData = (version: number): string => `${PREFIX}:ly:${version.toString(36)}`;
+export const makeGuildDeleteCallbackData = (version: number): string => `${PREFIX}:zy:${version.toString(36)}`;
 export const makeGuildMemberMutationCallbackData = (
   action: "transfer" | "promote" | "demote" | "kick",
   memberId: string,
@@ -193,12 +193,22 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
       ? ok({ type: "crest-view-guild", guildId: first, publicAccess: true, page: Number.parseInt(second, 36) })
       : err("invalid-token");
   }
-  if (action === "lo" || action === "zo" || action === "l" || action === "z") {
+  if (action === "lo" || action === "zo" || action === "ly" || action === "zy" || action === "l" || action === "z") {
     const version = parseVersion(first, second);
     return version === null
       ? err("invalid-version")
       : ok({
-          type: action === "lo" ? "leave-open" : action === "zo" ? "delete-open" : action === "l" ? "leave" : "delete",
+          type: action === "lo"
+            ? "leave-open"
+            : action === "zo"
+              ? "delete-open"
+              : action === "ly"
+                ? "leave-confirm"
+                : action === "zy"
+                  ? "delete-confirm"
+                  : action === "l"
+                    ? "leave-legacy"
+                    : "delete-legacy",
           version
         });
   }

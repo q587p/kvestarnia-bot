@@ -90,7 +90,7 @@ describe("support command and start deep links", () => {
 
   it("opens duel deep links as saved result cards with rematch actions", async () => {
     const onboardingStart = vi.fn();
-    const acceptForTelegramUser = vi.fn().mockResolvedValue({
+    const resolved = {
       state: "resolved",
       challenge: makeDuelChallenge("abc_DEF12"),
       challenger: makeCharacterSummary("Kyjivan BooksDragon"),
@@ -104,7 +104,9 @@ describe("support command and start deep links", () => {
         swing: 0,
         flavorKey: "paperwork-stall"
       }
-    });
+    };
+    const acceptForTelegramUser = vi.fn();
+    const getTerminalResultByToken = vi.fn().mockResolvedValue(resolved);
     const calls = await captureMessageCalls(
       "/start duel_abc_DEF12",
       servicesWith({
@@ -112,7 +114,8 @@ describe("support command and start deep links", () => {
           start: onboardingStart
         },
         duel: {
-          acceptForTelegramUser
+          acceptForTelegramUser,
+          getTerminalResultByToken
         }
       } as Partial<BotServices>),
       {
@@ -123,9 +126,8 @@ describe("support command and start deep links", () => {
     const keyboard = JSON.stringify(message?.payload.reply_markup);
 
     expect(onboardingStart).not.toHaveBeenCalled();
-    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
-      expectedMode: "quick"
-    });
+    expect(getTerminalResultByToken).toHaveBeenCalledWith("abc_DEF12");
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
     expect(String(message?.payload.text)).toContain("⚡ <b>Результат миттєвої дуелі</b>");
     expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
     expect(keyboard).toContain("v1:duel:share:abc_DEF12");
@@ -162,6 +164,7 @@ describe("support command and start deep links", () => {
       result: challenge.result
     };
     const acceptForTelegramUser = vi.fn().mockResolvedValue(resolved);
+    const getTerminalResultByToken = vi.fn().mockResolvedValue(resolved);
     const getByToken = vi.fn().mockResolvedValue(resolved);
     const getTurnBasedSessionByToken = vi.fn().mockResolvedValue(session);
 
@@ -170,23 +173,22 @@ describe("support command and start deep links", () => {
       servicesWith({
         duel: {
           acceptForTelegramUser,
+          getTerminalResultByToken,
           getByToken,
           getTurnBasedSessionByToken
         }
       } as Partial<BotServices>)
     );
-    const edits = calls.filter((call) => call.method === "editMessageText");
-    const resultEdit = edits.find((call) => call.payload.message_id === 20);
-    const keyboard = JSON.stringify(resultEdit?.payload.reply_markup);
+    const resultMessage = calls.find((call) => call.method === "sendMessage");
+    const keyboard = JSON.stringify(resultMessage?.payload.reply_markup);
 
-    expect(acceptForTelegramUser).toHaveBeenCalledWith(42n, "abc_DEF12", {
-      expectedMode: "turn-based"
-    });
-    expect(getTurnBasedSessionByToken).toHaveBeenCalledWith("abc_DEF12");
-    expect(resultEdit?.payload.chat_id).toBe(42);
-    expect(String(resultEdit?.payload.text)).toContain("Результат покрокової дуелі");
+    expect(getTerminalResultByToken).toHaveBeenCalledWith("abc_DEF12");
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    expect(getTurnBasedSessionByToken).not.toHaveBeenCalled();
+    expect(resultMessage?.payload.chat_id).toBe(42);
+    expect(String(resultMessage?.payload.text)).toContain("Результат покрокової дуелі");
     expect(keyboard).toContain("v1:duel:rematch:abc_DEF12");
-    expect(calls.filter((call) => call.method === "sendMessage")).toHaveLength(0);
+    expect(calls.filter((call) => call.method === "editMessageText")).toHaveLength(0);
   });
 
   it("keeps active turn-based /start deep links private in private chats", async () => {
@@ -531,7 +533,7 @@ async function captureMessageCalls(
 }
 
 function servicesWith(overrides: Partial<BotServices> = {}): BotServices {
-  return {
+  const services = {
     adventure: {},
     cellarErrand: {},
     fight: {},
@@ -555,6 +557,10 @@ function servicesWith(overrides: Partial<BotServices> = {}): BotServices {
     tavern: {},
     ...overrides
   } as unknown as BotServices;
+  if (services.duel && typeof services.duel.getTerminalResultByToken !== "function") {
+    services.duel.getTerminalResultByToken = vi.fn().mockResolvedValue({ state: "not-terminal" });
+  }
+  return services;
 }
 
 function expectNoUnsafeRewardClaims(text: string): void {

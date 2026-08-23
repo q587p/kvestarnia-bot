@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -26,8 +26,13 @@ describe("player-facing interaction safety scope", () => {
         const path = file.slice(repositoryRoot.length + 1).replace(/\\/gu, "/");
         const usesOwnedSymbol = source.includes(owner.symbol);
         const containsRawIcon = source.includes(owner.icon) && path !== registryFile;
+        const permittedException = PLAYER_FACING_ADMIN_ICON_EXCEPTIONS.some(
+          (exception) => exception.icon === owner.icon && exception.file === path
+        );
 
-        return (usesOwnedSymbol && !allowed.has(path)) || containsRawIcon ? [`${concept}:${path}`] : [];
+        return ((usesOwnedSymbol && !allowed.has(path)) || containsRawIcon) && !permittedException
+          ? [`${concept}:${path}`]
+          : [];
       });
 
       expect(violations).toEqual([]);
@@ -36,9 +41,25 @@ describe("player-facing interaction safety scope", () => {
 
   it("allows cross-concept repeats only through named admin/dev exceptions", () => {
     for (const exception of PLAYER_FACING_ADMIN_ICON_EXCEPTIONS) {
+      const owner = Object.values(PLAYER_FACING_EXCLUSIVE_ACTION_ICONS).find(
+        (candidate) => candidate.icon === exception.icon
+      );
+      expect(owner).toBeDefined();
       expect(exception.file).toMatch(/(?:admin|dev)/iu);
       expect(exception.reason.trim().length).toBeGreaterThan(0);
+      const absolutePath = join(repositoryRoot, exception.file);
+      expect(existsSync(absolutePath)).toBe(true);
+      const source = readFileSync(absolutePath, "utf8");
+      expect(source.includes(exception.icon) || Boolean(owner && source.includes(owner.symbol))).toBe(true);
     }
+  });
+
+  it("actually applies a named admin/dev exception while preserving other violations", () => {
+    const violations = collectRegisteredIconViolations(
+      { "src/bot/admin/example.ts": "const button = '♻️';", "src/bot/plain.ts": "const button = '♻️';" },
+      [{ icon: "♻️", file: "src/bot/admin/example.ts", reason: "Named test exception." }]
+    );
+    expect(violations).toEqual(["friendly-chest:src/bot/plain.ts"]);
   });
 
   it("pins the durable icon-ownership and irreversible-confirmation rules", () => {
@@ -55,4 +76,18 @@ function walkTypeScriptFiles(directory: string): string[] {
     const path = join(directory, entry.name);
     return entry.isDirectory() ? walkTypeScriptFiles(path) : entry.isFile() && entry.name.endsWith(".ts") ? [path] : [];
   });
+}
+
+function collectRegisteredIconViolations(
+  files: Readonly<Record<string, string>>,
+  exceptions: ReadonlyArray<{ icon: string; file: string; reason: string }>
+): string[] {
+  return Object.entries(PLAYER_FACING_EXCLUSIVE_ACTION_ICONS).flatMap(([concept, owner]) =>
+    Object.entries(files).flatMap(([path, source]) => {
+      const allowed = path === registryFile || owner.allowedBotFiles.some((file) => file === path);
+      const permitted = exceptions.some((exception) => exception.icon === owner.icon && exception.file === path);
+      const violates = (source.includes(owner.symbol) && !allowed) || (source.includes(owner.icon) && path !== registryFile);
+      return violates && !permitted ? [`${concept}:${path}`] : [];
+    })
+  );
 }

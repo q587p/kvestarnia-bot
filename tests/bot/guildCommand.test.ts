@@ -1378,7 +1378,7 @@ describe("guild command routes", () => {
     await bot.handleUpdate(callbackUpdate(makeGuildLeaveOpenCallbackData(7), 203));
     const yesCallback = confirmationCallbacks(edits[2])
       .find((button) => button.text.startsWith("✅"))?.callback_data;
-    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "leave", version: 7 } });
+    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "leave-confirm", version: 7 } });
 
     await bot.handleUpdate(callbackUpdate(yesCallback ?? "", 204));
 
@@ -1425,13 +1425,53 @@ describe("guild command routes", () => {
     await bot.handleUpdate(callbackUpdate(makeGuildDeleteOpenCallbackData(7), 207));
     const yesCallback = confirmationCallbacks(edits[2])
       .find((button) => button.text.startsWith("✅"))?.callback_data;
-    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "delete", version: 7 } });
+    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "delete-confirm", version: 7 } });
 
     await bot.handleUpdate(callbackUpdate(yesCallback ?? "", 208));
 
     expect(deleteForTelegramUser).toHaveBeenCalledTimes(1);
     expect(deleteForTelegramUser).toHaveBeenCalledWith(42n, 7);
     expect(String(edits[3]?.text)).toContain("<b>Нічна</b> розпущено");
+  });
+
+  it.each([
+    ["v1:g:l:7", "leave" as const],
+    ["v1:g:z:7", "delete" as const]
+  ])("treats literal deployed legacy callback %s as read-only intent", async (literal, action) => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const leaveForTelegramUser = vi.fn();
+    const deleteForTelegramUser = vi.fn();
+    const edits: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") edits.push(payload);
+      return Promise.resolve(method === "answerCallbackQuery"
+        ? { ok: true, result: true }
+        : { ok: true, result: { message_id: 13 } });
+    });
+    registerSocialBotModule(bot, {
+      services: {
+        guilds: guildService({
+          getHubForTelegramUser: vi.fn().mockResolvedValue(
+            action === "leave" ? readyGuildHub() : readySoloLeaderGuildHub()
+          ),
+          leaveForTelegramUser,
+          deleteForTelegramUser
+        })
+      },
+      options: {}
+    } as unknown as BotModuleDependencies);
+
+    await bot.handleUpdate(callbackUpdate(literal, action === "leave" ? 209 : 210));
+
+    expect(leaveForTelegramUser).not.toHaveBeenCalled();
+    expect(deleteForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edits[0]?.text)).toContain(action === "leave"
+      ? "Підтвердити вихід із ґільдії?"
+      : "Підтвердити розпуск ґільдії?");
+    const affirmative = confirmationCallbacks(edits[0]).find((button) => button.text.startsWith("✅"))?.callback_data;
+    expect(affirmative).toBe(action === "leave" ? "v1:g:ly:7" : "v1:g:zy:7");
   });
 });
 

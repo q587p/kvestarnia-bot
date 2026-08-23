@@ -152,6 +152,63 @@ export async function handleDuelCallback(
     await safeAnswerCallbackQuery(ctx, options);
   };
 
+  if (callback.type === "journal") {
+    const result = await service.getTurnBasedJournalByToken(callback.token);
+    if (result.state !== "ready") {
+      await answerCallback({ text: result.state === "not-ready" ? "Журнал бою буде після завершення дуелі." : "Журнал цієї дуелі не знайшовся." });
+      return;
+    }
+    await answerCallback();
+    await sendText(ctx, "edit", presentTurnBasedDuelJournal(result, callback.page), {
+      state: "journal", token: callback.token, page: callback.page, totalPages: result.rounds.length
+    });
+    return;
+  }
+
+  if (callback.type === "statistics") {
+    const result = typeof service.getTerminalStatisticsByToken === "function"
+      ? await service.getTerminalStatisticsByToken(callback.token)
+      : { state: "not-found" as const };
+    if (result.state === "not-found") {
+      await answerCallback({ text: "Статистика цієї дуелі не знайшлася." });
+      return;
+    }
+    if (result.state === "not-ready" || result.state === "active") {
+      await answerCallback({ text: "Статистика відкриється після завершення дуелі." });
+      return;
+    }
+    await answerCallback();
+    await sendText(ctx, "edit", presentDuelStatistics(result), {
+      state: "result", token: callback.token, mode: result.mode
+    });
+    return;
+  }
+
+  if (callback.type === "share" || callback.type === "view") {
+    const terminal = typeof service.getTerminalResultByToken === "function"
+      ? await service.getTerminalResultByToken(callback.token)
+      : { state: "not-found" as const };
+    if (terminal.state === "resolved") {
+      await answerCallback();
+      if (callback.type === "share") {
+        await ctx.reply(presentDuelResultShare(terminal), HTML_MESSAGE_OPTIONS);
+      } else {
+        await sendText(ctx, "edit", presentDuelView(terminal, { inviteUrl: null }), {
+          state: "result", token: callback.token, mode: terminal.challenge.mode
+        });
+      }
+      return;
+    }
+    if (terminal.state === "not-found") {
+      await answerCallback({ text: "Запис дуелі не знайшовся." });
+      return;
+    }
+    if (callback.type === "share") {
+      await answerCallback({ text: "Картка доступна тільки для збереженого результату." });
+      return;
+    }
+  }
+
   if (!telegramUserId) {
     await answerCallback();
     await sendText(ctx, "edit", "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
@@ -607,77 +664,6 @@ export async function handleDuelCallback(
     if (result.state === "pending") {
       await notifyTargetedRematchInvite(ctx, result, inviteUrl);
     }
-    return;
-  }
-
-  if (callback.type === "journal") {
-    const result = await service.getTurnBasedJournalByToken(callback.token);
-
-    if (result.state === "not-found") {
-      await answerCallback({ text: "Журнал цієї дуелі не знайшовся." });
-      return;
-    }
-
-    if (result.state === "not-ready") {
-      await answerCallback({ text: "Журнал бою буде після завершення дуелі." });
-      return;
-    }
-
-    await answerCallback();
-    await sendText(
-      ctx,
-      "edit",
-      presentTurnBasedDuelJournal(result, callback.page),
-      { state: "journal", token: callback.token, page: callback.page, totalPages: result.rounds.length }
-    );
-    return;
-  }
-
-  if (callback.type === "statistics") {
-    if (!isPrivateChat(ctx)) {
-      await answerCallback({ text: "Особиста статистика доступна лише у приватному чаті з ботом." });
-      return;
-    }
-    const telegramUserId = telegramUserIdFromContext(ctx.from);
-    if (telegramUserId === null) {
-      await answerCallback({ text: "Не вдалося підтвердити учасника дуелі." });
-      return;
-    }
-    const result = await service.getStatisticsForTelegramUser(telegramUserId, callback.token);
-    if (result.state === "not-found") {
-      await answerCallback({ text: "Статистика цієї дуелі не знайшлася для вашого пригодника." });
-      return;
-    }
-    if (result.state === "active") {
-      await answerCallback();
-      await showCanonicalTurnBasedDuelCard(ctx, result.view, service, "edit");
-      return;
-    }
-    if (result.state === "not-ready") {
-      await answerCallback({ text: "Статистика відкриється після завершення дуелі." });
-      return;
-    }
-
-    await answerCallback();
-    await sendText(
-      ctx,
-      "edit",
-      presentDuelStatistics(result),
-      { state: "result", token: callback.token, mode: result.mode }
-    );
-    return;
-  }
-
-  if (callback.type === "share") {
-    const result = await service.getByToken(callback.token);
-
-    if (result.state !== "resolved") {
-      await answerCallback({ text: "Картка доступна тільки для збереженого результату." });
-      return;
-    }
-
-    await answerCallback();
-    await ctx.reply(presentDuelResultShare(result), HTML_MESSAGE_OPTIONS);
     return;
   }
 

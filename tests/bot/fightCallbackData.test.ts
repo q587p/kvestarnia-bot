@@ -28,11 +28,12 @@ describe("fight callback data", () => {
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });
 
-  it("binds starter Mimic statistics to the immutable completion date", () => {
-    const data = makeMimicFightStatisticsCallbackData("2026-08-22");
+  it("binds starter Mimic statistics to the opaque durable artifact token", () => {
+    const token = "123e4567-e89b-42d3-a456-426614174000";
+    const data = makeMimicFightStatisticsCallbackData(token);
     expect(parseFightCallbackData(data)).toEqual({
       ok: true,
-      value: { type: "mimic-statistics", localDate: "2026-08-22" }
+      value: { type: "mimic-statistics", artifactToken: token }
     });
     expect(Buffer.byteLength(data, "utf8")).toBeLessThanOrEqual(TELEGRAM_CALLBACK_DATA_LIMIT);
   });

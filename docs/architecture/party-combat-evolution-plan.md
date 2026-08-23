@@ -101,9 +101,10 @@ the current eligible roster. The scheduled start is system-owned and resolves
 the current leader and joined roster transactionally instead of authorizing
 against a due-list snapshot; manual early start still requires the current
 leader. Invalid closure is conditional on the exact PartySession version
-observed by that failed start. Terminal private participant callbacks from the superseded
-recruiting card render the immutable combat result; public or foreign callbacks
-stay non-disclosing.
+observed by that failed start. A terminal callback from the superseded
+recruiting card renders only the immutable capability-scoped combat result,
+journal or statistics projection; active and mutable controls remain private
+and participant-authorized.
 
 ## Targeting and ability parity
 

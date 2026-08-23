@@ -22,13 +22,13 @@ This project follows a simple pre-1.0 versioning policy:
 - Inserted this bundle as the sole `0.4.7` plan and shifted the still-unimplemented accepted sequence without reordering it: Guild Weekly Goal through Guild Cosmetic Progression now occupy `0.4.8` through `0.4.15`.
 
 ### Security
-- Battle statistics are read-only terminal projections bound to the requesting participant and authoritative persisted combat state; callback payloads stay within Telegram limits and do not expose private opponent state.
+- Completed battle results, journals and statistics are unlisted capability-link artifacts readable by any holder of the opaque terminal token without participant, Character or private-chat authorization. Reads use authoritative persisted terminal state, stay non-settling, and do not expose Telegram identity, hidden choices, inventory or other private mutable state.
 - Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipment, item-use, gift/postal transfer, Mantok Chest, Level Barter, Shynok sale and duplicate-confirmation races share one per-character/item serialization point with bounded retry; exhausted contention returns stable domain outcomes, equipped/protected/reserved/zero-value/last-copy restricted gear is rejected transactionally, and contention can consume at most one item and one payment.
 
 ### Fixed
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
-- The Forge now places `🔩 Розібрати манатку` in its first keyboard row before sorting controls. A tested global icon-ownership registry keeps dismantling distinct from `♻️` Friendly Chest recycling and the separate `🗃️` replaced-card notice.
-- Guild hub leave and disband actions now open explicit affirmative/negative confirmation cards; opening or declining the confirmation is read-only, and only the current-version affirmative callback may change membership.
+- The Forge now places `🔩 Розібрати манатку` in its first keyboard row before sorting controls. The registered exclusive-icon ownership check keeps dismantling distinct from `♻️` Friendly Chest recycling and gives the separate `🗃️` replaced-card notice its own shared owner.
+- Guild hub leave and disband actions now open explicit affirmative/negative confirmation cards. Literal legacy `l`/`z` callbacks only reopen a current confirmation; only distinct current-version `ly`/`zy` affirmatives may change membership.
 - PartyBoss retaliation keeps the exact pre-statistics damage formula; contribution measurement is isolated from HP, knockout, counter and reward state, while capped HP deltas prevent overkill and self-heal duplication.
 - Solo and Training critical-fumble self-damage remains part of truthful hero damage taken but is never credited to an enemy contribution row, including fatal, multi-enemy and heal-capped turns.
 - Daily Korchma featured rewards now use the runtime item slot as the equippability authority, excluding matching consumables and every non-weapon/armor/accessory candidate without changing canonical candidate weights.

@@ -337,7 +337,7 @@ export type FightLookupResult =
       questProgress: ThirteenSmallProblemsProgress;
     } & RecoveryNoticeField)
   | ({ state: "ready"; character: CharacterSummary } & RecoveryNoticeField)
-  | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean; localDate: string } & RecoveryNoticeField);
+  | ({ state: "already-completed"; character: CharacterSummary; questAvailable: boolean; localDate: string; artifactToken: string } & RecoveryNoticeField);
 
 type LeasedSoloCombatSessionLookup =
   | { state: "none" }
@@ -355,12 +355,14 @@ export type FightResult =
       reward: FightReward;
       levelChange: RewardLevelChange;
       achievementUnlocks: AchievementUnlock[];
+      artifactToken: string;
     }
   | {
       state: "already-completed";
       character: CharacterSummary;
       questAvailable: boolean;
       localDate: string;
+      artifactToken: string;
     };
 
 export interface MimicShawarmaStatisticsPayload {
@@ -390,6 +392,17 @@ export interface MimicShawarmaStatisticsPayload {
 export type MimicShawarmaStatisticsResult =
   | { state: "not-found" }
   | { state: "ready"; character: CharacterSummary; statistics: MimicShawarmaStatisticsPayload };
+
+export type PublicMimicShawarmaArtifactResult =
+  | { state: "not-found" }
+  | {
+      state: "ready";
+      artifactToken: string;
+      character: CharacterSummary;
+      action: FightAction;
+      combat: CombatProbeResult;
+      statistics: MimicShawarmaStatisticsPayload;
+    };
 
 export type PersistentFightTurnResult =
   | { state: "no-character" }
@@ -472,9 +485,13 @@ export type PersistentFightSnapshotResult =
       character: CharacterSummary;
       session: SoloCombatSessionRecord;
       monster: MonsterContent | null;
-      questProgress: ThirteenSmallProblemsProgress;
+      questProgress: ThirteenSmallProblemsProgress | null;
       fightReward: PersistentFightReward | null;
     };
+
+export type PublicPersistentFightArtifactResult =
+  | Extract<PersistentFightSnapshotResult, { state: "found" }>
+  | { state: "active" | "not-found" };
 
 export interface PersistentFightCombatItemMenuEntry {
   itemId: string;
@@ -1031,7 +1048,7 @@ export class FightService {
           character: snapshot.character,
           session: snapshot.session,
           monster: snapshot.monster,
-          questProgress: snapshot.questProgress
+          questProgress: snapshot.questProgress!
         };
       }
 
@@ -1773,6 +1790,30 @@ export class FightService {
     };
   }
 
+  async getPublicTerminalFightArtifact(sessionId: string): Promise<PublicPersistentFightArtifactResult> {
+    if (!this.combatSessions?.findPublicArtifactById && !this.combatSessions?.findPublicTerminalById) {
+      return { state: "not-found" };
+    }
+    const artifact = this.combatSessions.findPublicArtifactById
+      ? await this.combatSessions.findPublicArtifactById(sessionId)
+      : await this.combatSessions.findPublicTerminalById!(sessionId);
+    if (
+      !artifact ||
+      isTrainingDoppelgangerMonsterId(artifact.session.monsterId)
+    ) {
+      return { state: "not-found" };
+    }
+    if ((artifact.session.state?.status ?? artifact.session.status) === "active") return { state: "active" };
+    return {
+      state: "found",
+      character: summarizeCharacter(artifact.character),
+      session: artifact.session,
+      monster: findPersistentFightMonster(artifact.session),
+      questProgress: null,
+      fightReward: buildPersistentFightRewardReplay(artifact.session)
+    };
+  }
+
   async listPersistentFightCombatItemsForTelegramUser(
     telegramUserId: bigint,
     sessionId: string,
@@ -2383,7 +2424,8 @@ export class FightService {
         state: "already-completed",
         character: characterSummary,
         questAvailable: !existingAdventure,
-        localDate
+        localDate,
+        artifactToken: existingFight.id
       };
     }
 
@@ -2477,7 +2519,8 @@ export class FightService {
         state: "already-completed",
         character: summarizeCharacter(claim.character),
         questAvailable: !existingAdventure,
-        localDate
+        localDate,
+        artifactToken: claim.action.id
       };
     }
 
@@ -2505,7 +2548,8 @@ export class FightService {
         itemGrants: enrichRewardItemGrants(claim.itemGrants)
       },
       levelChange: claim.levelChange,
-      achievementUnlocks
+      achievementUnlocks,
+      artifactToken: claim.action.id
     };
   }
 
@@ -2523,6 +2567,21 @@ export class FightService {
     const statistics = readMimicShawarmaStatistics(record?.resultJson);
     return character && statistics
       ? { state: "ready", character: summarizeCharacter(character), statistics }
+      : { state: "not-found" };
+  }
+
+  async getPublicMimicShawarmaArtifact(artifactToken: string): Promise<PublicMimicShawarmaArtifactResult> {
+    const artifact = await this.dailyActions.findPublicArtifactById?.(artifactToken, {
+      key: MIMIC_SHAWARMA_COMBAT_PROBE_KEY
+    });
+    const payload = readMimicShawarmaArtifact(artifact?.action.resultJson);
+    return artifact && payload
+      ? {
+          state: "ready",
+          artifactToken,
+          character: summarizeCharacter(artifact.character),
+          ...payload
+        }
       : { state: "not-found" };
   }
 
@@ -6271,4 +6330,33 @@ function readMimicShawarmaStatistics(value: unknown): MimicShawarmaStatisticsPay
   const hero = parseSide(parsed.hero);
   const enemy = parseSide(parsed.enemy);
   return hero && enemy ? { version: 1, hero, enemy } : null;
+}
+
+function readMimicShawarmaArtifact(value: unknown): {
+  action: FightAction;
+  combat: CombatProbeResult;
+  statistics: MimicShawarmaStatisticsPayload;
+} | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  const action = candidate.action;
+  const combat = candidate.combat;
+  const statistics = readMimicShawarmaStatistics(value);
+  if (!statistics || (action !== "attack" && action !== "receipt" && action !== "flee")) return null;
+  if (!combat || typeof combat !== "object" || Array.isArray(combat)) return null;
+  const parsedCombat = combat as Record<string, unknown>;
+  const numericKeys = [
+    "playerHpPreview",
+    "playerHpMaxPreview",
+    "enemyHpPreview",
+    "enemyHpMaxPreview",
+    "playerDamage",
+    "enemyDamage"
+  ] as const;
+  if (
+    parsedCombat.action !== action ||
+    (parsedCombat.outcome !== "win" && parsedCombat.outcome !== "messy-win" && parsedCombat.outcome !== "flee") ||
+    numericKeys.some((key) => !Number.isFinite(parsedCombat[key]))
+  ) return null;
+  return { action, combat: parsedCombat as unknown as CombatProbeResult, statistics };
 }

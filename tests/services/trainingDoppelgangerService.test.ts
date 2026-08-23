@@ -117,6 +117,35 @@ describe("TrainingDoppelgangerService", () => {
     expect(world.resourceMutations).toBe(0);
   });
 
+  it("reads a terminal Training artifact by opaque session id without viewer or persistence writes", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world);
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) throw new Error("Expected active training.");
+    await expect(service.getPublicTerminalArtifact(started.session.id)).resolves.toEqual({ state: "active" });
+    await expect(service.getPublicTerminalArtifact("123e4567-e89b-42d3-a456-426614174999"))
+      .resolves.toEqual({ state: "not-found" });
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      status: "won",
+      state: { ...started.session.state, status: "won" }
+    });
+    const before = JSON.stringify([...world.sessions.entries()]);
+
+    await expect(service.getPublicTerminalArtifact(started.session.id)).resolves.toMatchObject({
+      state: "ready",
+      character: { name: "Мандрівник" },
+      session: { id: started.session.id, status: "won" }
+    });
+    await service.getPublicTerminalArtifact(started.session.id);
+
+    expect(JSON.stringify([...world.sessions.entries()])).toBe(before);
+    expect(world.actions.size).toBe(0);
+    expect(world.cooldowns.size).toBe(0);
+    expect(world.resourceMutations).toBe(0);
+  });
+
   it("keeps Training self-fumble damage truthful without crediting it to the doppelganger", async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId, { hpCurrent: 66, hpMax: 66 });
@@ -757,9 +786,9 @@ describe("TrainingDoppelgangerService", () => {
     )).toHaveLength(1);
   });
 
-  it.each(["journal", "view"] as const)(
-    "records the first %s-lazily-settled terminal session without a second recovery call",
-    async (callbackType) => {
+  it(
+    "records the first view-lazily-settled terminal session without a second recovery call",
+    async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId, {
       currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
@@ -804,9 +833,7 @@ describe("TrainingDoppelgangerService", () => {
       }
     } as unknown as BotServices;
 
-    const callback = callbackType === "journal"
-      ? { type: "journal" as const, sessionId: started.session.id, page: 0 }
-      : { type: "view" as const, sessionId: started.session.id };
+    const callback = { type: "view" as const, sessionId: started.session.id };
 
     await handleTrainingDoppelgangerCallback(ctx, callback, services);
 
@@ -1671,6 +1698,22 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     sessionId: string
   ): Promise<SoloCombatSessionRecord | null> {
     return Promise.resolve(this.sessions.get(sessionId) ?? null);
+  }
+
+  findPublicTerminalById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    const character = session
+      ? [...this.charactersByTelegramUserId.values()].find((candidate) => candidate.id === session.characterId)
+      : null;
+    return Promise.resolve(session && session.status !== "active" && character ? { session, character } : null);
+  }
+
+  findPublicArtifactById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    const character = session
+      ? [...this.charactersByTelegramUserId.values()].find((candidate) => candidate.id === session.characterId)
+      : null;
+    return Promise.resolve(session && character ? { session, character } : null);
   }
 
   createForTelegramUser(

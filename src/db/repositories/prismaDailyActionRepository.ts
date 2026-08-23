@@ -29,6 +29,17 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
   ) {}
 
+  async findPublicArtifactById(actionId: string, input: { key: string }) {
+    const record = await this.prisma.dailyAction.findFirst({
+      where: { id: actionId, key: input.key },
+      include: { character: true }
+    });
+
+    return record
+      ? { action: record, character: record.character }
+      : null;
+  }
+
   async findForTelegramUser(
     telegramUserId: bigint,
     input: { key: string; localDate: string }

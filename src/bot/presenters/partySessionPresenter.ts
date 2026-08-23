@@ -804,24 +804,33 @@ function presentPartyBossQueuedActionPlan(
   }
 }
 
-export function presentPartyBossStatistics(session: PartyBossSessionRecord, viewerCharacterId: string | null): string {
-  const participant = viewerCharacterId
-    ? session.state.participants.find((entry) => entry.characterId === viewerCharacterId)
-    : undefined;
-  if (!participant) {
-    return "📊 <b>Статистика бою</b>\n\nЦя картка доступна лише учасникам бою.";
-  }
-  const statistics = participant.statistics;
-  const values = statistics
-    ? statistics
-    : { damage: null, healing: null, guardPrevented: null, control: null, damageTaken: null, actions: null, specialActions: null, guardedTurns: null };
+export function presentPartyBossStatistics(session: PartyBossSessionRecord): string {
+  const unavailable = { damage: null, healing: null, guardPrevented: null, control: null, damageTaken: null, actions: null, specialActions: null, guardedTurns: null };
+  const participantRows = session.state.participants.map((participant) =>
+    presentBattleContributionLine(participant.name, participant.statistics ?? unavailable)
+  );
+  const allParticipantsHaveStatistics = session.state.participants.every((participant) => participant.statistics);
+  const bossValues = {
+    ...unavailable,
+    damage: allParticipantsHaveStatistics
+      ? session.state.participants.reduce((total, participant) => total + participant.statistics!.damageTaken, 0)
+      : null,
+    damageTaken: allParticipantsHaveStatistics
+      ? session.state.participants.reduce((total, participant) => total + participant.statistics!.damage, 0)
+      : null,
+    actions: session.state.roundLog.reduce((total, round) => total + round.bossRetaliations.length, 0)
+  };
   return [
     "📊 <b>Статистика бою</b>",
     "",
-    presentBattleContributionLine(participant.name, values),
+    "<b>Пригодники:</b>",
+    ...participantRows,
+    "",
+    "<b>Супротивник:</b>",
+    presentBattleContributionLine(session.state.boss.name ?? "Бос", bossValues),
     "",
     ...presentBattleContributionLegend(),
-    ...(!statistics ? ["", "Старий запис не містить точних лічильників, тому показано «—»."] : [])
+    ...(!allParticipantsHaveStatistics ? ["", "Старий запис не містить усіх точних лічильників, тому показано «—»."] : [])
   ].join("\n");
 }
 

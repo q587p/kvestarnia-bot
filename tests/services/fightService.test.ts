@@ -247,6 +247,18 @@ describe("FightService", () => {
       state: "ready",
       statistics: { hero: { damage: 8 }, enemy: { damage: 3 } }
     });
+    if (result.state === "completed") {
+      const writesBeforePublicReads = dailyActions.createCount;
+      await expect(service.getPublicMimicShawarmaArtifact(result.artifactToken)).resolves.toMatchObject({
+        state: "ready",
+        artifactToken: result.artifactToken,
+        character: { name: "Мандрівник" },
+        action: "attack",
+        statistics: { hero: { damage: 8 }, enemy: { damage: 3 } }
+      });
+      await service.getPublicMimicShawarmaArtifact(result.artifactToken);
+      expect(dailyActions.createCount).toBe(writesBeforePublicReads);
+    }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       xp: 15,
       gold: 3,
@@ -554,6 +566,46 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(0);
     expect(sessions.lastStatusMark).toBeNull();
     expect(JSON.stringify(await sessions.findByIdForTelegramUserId(telegramUserId, session.id))).toBe(before);
+  });
+
+  it("reads a terminal solo artifact by opaque session id without viewer identity or settlement writes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25 });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const active = makeActivePersistentSession({
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    });
+    const terminal = sessions.addSession({
+      ...active,
+      status: "won",
+      state: active.state ? { ...active.state, status: "won" } : null
+    });
+    const stillActive = sessions.addSession(makeActivePersistentSession({
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      characterId: "character-42",
+      monsterId: "monster.deadline-spider"
+    }));
+    const service = new FightService({ characters, dailyActions, clock: fixedClock, combatSessions: sessions });
+    const before = JSON.stringify(terminal);
+
+    await expect(service.getPublicTerminalFightArtifact(stillActive.id)).resolves.toEqual({ state: "active" });
+    await expect(service.getPublicTerminalFightArtifact("123e4567-e89b-42d3-a456-426614174999"))
+      .resolves.toEqual({ state: "not-found" });
+
+    await expect(service.getPublicTerminalFightArtifact(terminal.id)).resolves.toMatchObject({
+      state: "found",
+      character: { name: "Мандрівник" },
+      session: { id: terminal.id, status: "won" },
+      questProgress: null
+    });
+    await service.getPublicTerminalFightArtifact(terminal.id);
+
+    expect(sessions.updateCount).toBe(0);
+    expect(sessions.lastStatusMark).toBeNull();
+    expect(JSON.stringify(await sessions.findByIdForTelegramUserId(telegramUserId, terminal.id))).toBe(before);
   });
 
   it("uses a supplied authoritative solo lease without rereading combat ownership", async () => {
@@ -7904,6 +7956,14 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return [...this.actions.values()];
   }
 
+  async findPublicArtifactById(actionId: string, input: { key: string }) {
+    const action = this.records.find((candidate) => candidate.id === actionId && candidate.key === input.key);
+    if (!action) return null;
+    const telegramUserId = BigInt(action.characterId.replace("character-", ""));
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    return character ? { action, character } : null;
+  }
+
   failNextFindForKey(key: string): void {
     this.failFindKeys.add(key);
   }
@@ -8554,6 +8614,22 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     }
 
     return cloneSession(session);
+  }
+
+  async findPublicTerminalById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status === "active") return null;
+    const telegramUserId = BigInt(session.characterId.replace("character-", ""));
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    return character ? { session: cloneSession(session), character } : null;
+  }
+
+  async findPublicArtifactById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) return null;
+    const telegramUserId = BigInt(session.characterId.replace("character-", ""));
+    const character = await this.characters.findByTelegramUserId(telegramUserId);
+    return character ? { session: cloneSession(session), character } : null;
   }
 
   async createForTelegramUser(

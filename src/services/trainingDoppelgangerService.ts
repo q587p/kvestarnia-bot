@@ -112,6 +112,17 @@ export type TrainingDoppelgangerSnapshotResult =
       reward: TrainingDoppelgangerRewardClaim | null;
     };
 
+export type PublicTrainingDoppelgangerArtifactResult =
+  | { state: "not-found" }
+  | { state: "active" }
+  | {
+      state: "ready";
+      character: CharacterSummary;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: null;
+    };
+
 export type TrainingDoppelgangerTurnResult =
   | { state: "no-character" }
   | { state: "level-gated"; character: CharacterSummary; minLevel: number }
@@ -592,6 +603,27 @@ export class TrainingDoppelgangerService {
       character,
       doppelganger: buildDoppelgangerCopy(character, session.state),
       session,
+      reward: null
+    };
+  }
+
+  async getPublicTerminalArtifact(sessionId: string): Promise<PublicTrainingDoppelgangerArtifactResult> {
+    const artifact = this.combatSessions.findPublicArtifactById
+      ? await this.combatSessions.findPublicArtifactById(sessionId)
+      : await this.combatSessions.findPublicTerminalById?.(sessionId);
+    if (
+      !artifact ||
+      !isTrainingDoppelgangerMonsterId(artifact.session.monsterId)
+    ) {
+      return { state: "not-found" };
+    }
+    if ((artifact.session.state?.status ?? artifact.session.status) === "active") return { state: "active" };
+    const character = summarizeCharacter(artifact.character);
+    return {
+      state: "ready",
+      character,
+      doppelganger: buildDoppelgangerCopy(character, artifact.session.state),
+      session: artifact.session,
       reward: null
     };
   }

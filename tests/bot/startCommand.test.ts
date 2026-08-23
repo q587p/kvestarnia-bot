@@ -12,6 +12,107 @@ import type { TavernGameService } from "../../src/services/tavernGameService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 
 describe("start command", () => {
+  it("opens a completed duel deep link for a non-participant without starting onboarding or acceptance", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const terminal = {
+      state: "resolved" as const,
+      challenge: {
+        id: "duel-public",
+        challengerCharacterId: "challenger-id",
+        targetCharacterId: "target-id",
+        contextChatId: null,
+        inviteToken: "publicDuel13",
+        mode: "quick" as const,
+        status: "resolved" as const,
+        expiresAt: new Date("2026-08-23T10:00:00.000Z"),
+        resolvedAt: new Date("2026-08-23T09:00:00.000Z"),
+        result: null,
+        createdAt: new Date("2026-08-23T08:00:00.000Z"),
+        updatedAt: new Date("2026-08-23T09:00:00.000Z"),
+        challenger: null,
+        target: null
+      },
+      challenger: { ...existingCharacterSummary, name: "Автор Виклику" },
+      target: { ...existingCharacterSummary, name: "Ціль Виклику" },
+      result: {
+        outcome: "target" as const,
+        winnerCharacterId: "target-id",
+        loserCharacterId: "challenger-id",
+        challengerScore: 7,
+        targetScore: 9,
+        swing: 0,
+        flavorKey: "paperwork-stall" as const
+      }
+    };
+    const getTerminalResultByToken = vi.fn().mockResolvedValue(terminal);
+    const acceptForTelegramUser = vi.fn();
+    const onboardingStart = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerStartCommand(bot, { start: onboardingStart } as unknown as OnboardingService, {
+      duel: { getTerminalResultByToken, acceptForTelegramUser } as never
+    });
+
+    await bot.handleUpdate({
+      update_id: 587,
+      message: {
+        message_id: 587,
+        date: 1,
+        chat: { id: 9999, type: "private" },
+        from: { id: 9999, is_bot: false, first_name: "Спостерігач" },
+        text: "/start duel_publicDuel13",
+        entities: [{ offset: 0, length: 6, type: "bot_command" }]
+      }
+    });
+
+    expect(getTerminalResultByToken).toHaveBeenCalledWith("publicDuel13");
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    expect(onboardingStart).not.toHaveBeenCalled();
+    expect(String(sent[0]?.text)).toContain("Результат миттєвої дуелі");
+    expect(JSON.stringify(sent[0]?.reply_markup)).toContain("📊 Статистика");
+  });
+
+  it("returns a generic response for an unknown duel token without onboarding or acceptance", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const acceptForTelegramUser = vi.fn();
+    const onboardingStart = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerStartCommand(bot, { start: onboardingStart } as unknown as OnboardingService, {
+      duel: {
+        getTerminalResultByToken: vi.fn().mockResolvedValue({ state: "not-found" }),
+        acceptForTelegramUser
+      } as never
+    });
+
+    await bot.handleUpdate({
+      update_id: 588,
+      message: {
+        message_id: 588,
+        date: 1,
+        chat: { id: 9999, type: "private" },
+        from: { id: 9999, is_bot: false, first_name: "Спостерігач" },
+        text: "/start duel_unknown13",
+        entities: [{ offset: 0, length: 6, type: "bot_command" }]
+      }
+    });
+
+    expect(acceptForTelegramUser).not.toHaveBeenCalled();
+    expect(onboardingStart).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toBe("Виклик не знайшовся.");
+  });
+
   it("turns a shared guild deep link into the canonical invite flow", async () => {
     const bot = new Bot("test-token", {
       botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }

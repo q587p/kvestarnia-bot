@@ -1344,10 +1344,15 @@ describe("handleDuelCallback", () => {
   });
 
   it.each(["group", "supergroup"] as const)(
-    "never reads or renders participant statistics in a %s chat",
+    "renders completed capability-linked statistics in a %s chat without participant lookup",
     async (chatType) => {
       const getStatisticsForTelegramUser = vi.fn();
-      const service = serviceWith({ getStatisticsForTelegramUser });
+      const getTerminalStatisticsByToken = vi.fn().mockResolvedValue({
+        state: "ready",
+        mode: "quick",
+        view: makeResolvedQuickView()
+      });
+      const service = serviceWith({ getStatisticsForTelegramUser, getTerminalStatisticsByToken });
       const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, chatType);
 
       await handleDuelCallback(ctx, { type: "statistics", token: TOKEN }, service, {
@@ -1355,28 +1360,29 @@ describe("handleDuelCallback", () => {
       });
 
       expect(getStatisticsForTelegramUser).not.toHaveBeenCalled();
-      expect(answerCallbackQuery).toHaveBeenCalledWith({
-        text: "Особиста статистика доступна лише у приватному чаті з ботом."
-      });
-      expect(editMessageText).not.toHaveBeenCalled();
+      expect(getTerminalStatisticsByToken).toHaveBeenCalledWith(TOKEN);
+      expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+      expect(messageText(editMessageText)).toContain("📊 <b>Статистика дуелі</b>");
     }
   );
 
-  it("renders participant-authorized quick-duel scores without invoking settlement", async () => {
-    const getStatisticsForTelegramUser = vi.fn().mockResolvedValue({
+  it("renders public quick-duel scores without invoking settlement", async () => {
+    const getTerminalStatisticsByToken = vi.fn().mockResolvedValue({
       state: "ready",
       mode: "quick",
       view: makeResolvedQuickView()
     });
+    const getStatisticsForTelegramUser = vi.fn();
     const getByToken = vi.fn();
-    const service = serviceWith({ getStatisticsForTelegramUser, getByToken });
+    const service = serviceWith({ getTerminalStatisticsByToken, getStatisticsForTelegramUser, getByToken });
     const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, "private");
 
     await handleDuelCallback(ctx, { type: "statistics", token: TOKEN }, service, {
       presence: createPresence()
     });
 
-    expect(getStatisticsForTelegramUser).toHaveBeenCalledWith(42n, TOKEN);
+    expect(getTerminalStatisticsByToken).toHaveBeenCalledWith(TOKEN);
+    expect(getStatisticsForTelegramUser).not.toHaveBeenCalled();
     expect(getByToken).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
     expect(messageText(editMessageText)).toContain("📊 <b>Статистика дуелі</b>");
@@ -1795,27 +1801,21 @@ describe("handleDuelCallback", () => {
     expect(reply.mock.calls[0]?.[1]).toEqual({ parse_mode: "HTML" });
   });
 
-  it("keeps a recovered duel result usable when quest notification delivery fails", async () => {
+  it("keeps a recovered duel result strictly read-only even when it contains historical quest evidence", async () => {
     const getByToken = vi.fn().mockResolvedValue(makeResolvedQuickView([
       questProgressUpdate(42n)
     ]));
     const service = serviceWith({ getByToken });
     const { ctx, sendMessage } = createCallbackContext(42);
-    sendMessage.mockRejectedValue(new Error("Telegram unavailable"));
-
     await expect(handleDuelCallback(ctx, { type: "view", token: TOKEN }, service, {
       presence: createPresence()
     })).resolves.toBeUndefined();
 
     expect(getByToken).toHaveBeenCalledWith(TOKEN);
-    expect(sendMessage).toHaveBeenCalledWith(
-      42,
-      expect.stringContaining("Зараховано миттєву дуель"),
-      { parse_mode: "HTML" }
-    );
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("notifies both duel participants once and does not resend on idempotent result replay", async () => {
+  it("does not resend participant notifications during repeated public result replay", async () => {
     const getByToken = vi.fn()
       .mockResolvedValueOnce(makeResolvedQuickView([
         questProgressUpdate(42n),
@@ -1832,9 +1832,7 @@ describe("handleDuelCallback", () => {
       presence: createPresence()
     });
 
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage.mock.calls[0]?.[0]).toBe(42);
-    expect(sendMessage.mock.calls[1]?.[0]).toBe(99);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("replays expired cards as terminal result cards", async () => {
@@ -1961,6 +1959,12 @@ function serviceWith(methods: Partial<DuelChallengeService>): DuelChallengeServi
     claimTurnBasedMessageReference: vi.fn().mockResolvedValue({ claimed: true, session: null }),
     releaseTurnBasedMessageReference: vi.fn().mockResolvedValue({ released: true, session: null }),
     getByToken: vi.fn(() => Promise.resolve(lastView ?? ({ state: "not-found" } as const))),
+    getTerminalResultByToken: methods.getTerminalResultByToken ?? methods.getByToken ??
+      vi.fn(() => Promise.resolve(lastView ?? ({ state: "not-found" } as const))),
+    getTerminalStatisticsByToken: methods.getTerminalStatisticsByToken ??
+      (methods.getStatisticsForTelegramUser
+        ? vi.fn((token: string) => methods.getStatisticsForTelegramUser!(42n, token))
+        : vi.fn().mockResolvedValue({ state: "not-found" })),
     ...methods,
     ...(trackedAccept ? { acceptForTelegramUser: trackedAccept } : {})
   } as DuelChallengeService;

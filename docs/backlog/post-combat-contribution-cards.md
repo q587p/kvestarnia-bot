@@ -13,14 +13,18 @@ shipped combat surface where the mode stores enough truthful evidence.
 
 - The `0.4.2` left-passage party attack keeps statistics behind a separate
   button beside its journal.
-- Big Barrel and raid results receive an equivalent private participant
-  statistics card using canonical stored contribution fields.
+- Big Barrel and raid results receive an equivalent terminal capability-link
+  statistics card using canonical stored contribution fields for the full
+  authoritative roster.
 - The audited expansion covers ordinary one- and multi-enemy PvE, Training
   Doppelgänger, turn-based duels and every other shipped combat/result replay.
 - Each combat mode maps only persisted facts it can prove. Missing dimensions
   are omitted or labelled as unavailable; they are never inferred from authored
   ability values or reconstructed from incomplete prose.
-- Terminal, stale-card and journal replay show the same immutable statistics.
+- Completed result, journal and statistics replay is unlisted but readable by
+  any holder of the valid opaque battle/result token, including a non-participant
+  without a Character and from shared group cards. Active controls remain
+  participant-authorized.
 - Reuse the eight-dimension Ukrainian legend: damage dealt, healing, prevented
   damage, weakened response/control, damage taken, committed actions, special
   attacks and defensive turns.

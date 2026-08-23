@@ -65,6 +65,8 @@ presentFightLevelRetired,
 presentFightNoCharacter,
 presentFightResult,
 presentMimicShawarmaStatistics,
+presentPublicMimicShawarmaJournal,
+presentPublicMimicShawarmaResult,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
 presentPersistentFightGearUnavailableNotice,
@@ -230,7 +232,53 @@ export async function handleTrainingDoppelgangerCallback(
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
-  if (!telegramUserId || !services.trainingDoppelganger) {
+  if (!services.trainingDoppelganger) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
+    const artifact = typeof services.trainingDoppelganger.getPublicTerminalArtifact === "function"
+      ? await services.trainingDoppelganger.getPublicTerminalArtifact(callback.sessionId)
+      : { state: "not-found" as const };
+    if (artifact.state === "ready") {
+      const result = { ...artifact, state: "found" as const };
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "statistics") {
+        await safeEditMessageText(ctx, presentTrainingDoppelgangerStatistics(result), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerStatisticsKeyboard(result.session)
+        });
+      } else if (callback.type === "journal") {
+        await safeEditMessageText(ctx, presentTrainingDoppelgangerJournal(result, callback.page), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentTrainingDoppelganger({
+          state: "terminal",
+          character: result.character,
+          doppelganger: result.doppelganger,
+          session: result.session,
+          reward: null
+        }), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+        });
+      }
+      return;
+    }
+    if (artifact.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: "Запис не знайшовся або бій ще триває." });
+      return;
+    }
+  }
+
+  if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
@@ -293,23 +341,11 @@ export async function handleTrainingDoppelgangerCallback(
     return;
   }
 
-  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
-    if (callback.type === "statistics" && ctx.chat?.type !== "private") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
-        show_alert: true
-      });
-      return;
-    }
-    const result = callback.type === "statistics"
-      ? await services.trainingDoppelganger.getTrainingDoppelgangerStatisticsForTelegramUser(
-          telegramUserId,
-          callback.sessionId
-        )
-      : await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
-          telegramUserId,
-          callback.sessionId
-        );
+  if (callback.type === "view") {
+    const result = await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
+      telegramUserId,
+      callback.sessionId
+    );
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -324,21 +360,6 @@ export async function handleTrainingDoppelgangerCallback(
         "",
         "Можливо, старий бланк уже прибрали зі стійки. Спробуйте /spar ще раз."
       ].join("\n"));
-      return;
-    }
-
-    if (callback.type === "statistics") {
-      if ((result.session.state?.status ?? result.session.status) === "active") {
-        await safeAnswerCallbackQuery(ctx, {
-          text: "Статистика відкриється після завершення тренування."
-        });
-        return;
-      }
-      await safeAnswerCallbackQuery(ctx);
-      await safeEditMessageText(ctx, presentTrainingDoppelgangerStatistics(result), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildTrainingDoppelgangerStatisticsKeyboard(result.session)
-      });
       return;
     }
 
@@ -358,15 +379,6 @@ export async function handleTrainingDoppelgangerCallback(
       : [];
 
     await safeAnswerCallbackQuery(ctx);
-
-    if (callback.type === "journal") {
-      await safeEditMessageText(ctx, presentTrainingDoppelgangerJournal(result, callback.page), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
-      });
-      await notifyTrainingQuestProgress(ctx, questProgressUpdates);
-      return;
-    }
 
     const trainingView =
       (result.session.state?.status ?? result.session.status) === "active"
@@ -422,32 +434,70 @@ async function handleFightCallback(
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
-  if (!telegramUserId) {
-    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
-    return;
-  }
-
-  if (callback.type === "mimic-statistics") {
-    if (ctx.chat?.type !== "private") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
-        show_alert: true
-      });
-      return;
-    }
-    const result = await services.fight.getMimicShawarmaStatisticsForTelegramUser(
-      telegramUserId,
-      callback.localDate
-    );
+  if (
+    callback.type === "mimic-result" ||
+    callback.type === "mimic-journal" ||
+    callback.type === "mimic-statistics"
+  ) {
+    const result = typeof services.fight.getPublicMimicShawarmaArtifact === "function"
+      ? await services.fight.getPublicMimicShawarmaArtifact(callback.artifactToken)
+      : { state: "not-found" as const };
     if (result.state === "not-found") {
-      await safeAnswerCallbackQuery(ctx, { text: "Статистика цього бою не знайшлася." });
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
       return;
     }
     await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentMimicShawarmaStatistics(result), {
-      ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildFightResultKeyboard("already-completed", result.character, callback.localDate)
-    });
+    await safeEditMessageText(
+      ctx,
+      callback.type === "mimic-result"
+        ? presentPublicMimicShawarmaResult(result)
+        : callback.type === "mimic-journal"
+          ? presentPublicMimicShawarmaJournal(result)
+          : presentMimicShawarmaStatistics(result),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildFightResultKeyboard("already-completed", result.character, result.artifactToken)
+      }
+    );
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
+    const publicResult = typeof services.fight.getPublicTerminalFightArtifact === "function"
+      ? await services.fight.getPublicTerminalFightArtifact(callback.sessionId)
+      : { state: "no-character" as const };
+    if (publicResult.state === "found") {
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "statistics") {
+        await safeEditMessageText(ctx, presentPersistentFightStatistics(publicResult), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightStatisticsKeyboard(publicResult.session)
+        });
+      } else if (callback.type === "journal") {
+        await safeEditMessageText(ctx, presentPersistentFightJournal(publicResult, callback.page), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightJournalKeyboard(publicResult.session, callback.page)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentPersistentFightSnapshot(publicResult), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightResultKeyboard(publicResult.session, publicResult.character)
+        });
+      }
+      return;
+    }
+    if (publicResult.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: "Запис не знайшовся або бій ще триває." });
+      return;
+    }
+  }
+
+  if (!telegramUserId) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
 
@@ -610,23 +660,11 @@ async function handleFightCallback(
     return;
   }
 
-  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
-    if (callback.type === "statistics" && ctx.chat?.type !== "private") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
-        show_alert: true
-      });
-      return;
-    }
-    const result = callback.type === "statistics"
-      ? await services.fight.getPersistentFightStatisticsForTelegramUser(
-          telegramUserId,
-          callback.sessionId
-        )
-      : await services.fight.getPersistentFightSnapshotForTelegramUser(
-          telegramUserId,
-          callback.sessionId
-        );
+  if (callback.type === "view") {
+    const result = await services.fight.getPersistentFightSnapshotForTelegramUser(
+      telegramUserId,
+      callback.sessionId
+    );
 
     if (result.state === "no-character") {
       await safeAnswerCallbackQuery(ctx);
@@ -652,30 +690,7 @@ async function handleFightCallback(
       });
     }
 
-    if (callback.type === "statistics") {
-      if ((result.session.state?.status ?? result.session.status) === "active") {
-        await safeAnswerCallbackQuery(ctx, {
-          text: "Статистика відкриється після завершення бою."
-        });
-        return;
-      }
-      await safeAnswerCallbackQuery(ctx);
-      await safeEditMessageText(ctx, presentPersistentFightStatistics(result), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightStatisticsKeyboard(result.session)
-      });
-      return;
-    }
-
     await safeAnswerCallbackQuery(ctx);
-
-    if (callback.type === "journal") {
-      await safeEditMessageText(ctx, presentPersistentFightJournal(result, callback.page), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightJournalKeyboard(result.session, callback.page)
-      });
-      return;
-    }
 
     await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
       ...HTML_MESSAGE_OPTIONS,
@@ -950,7 +965,7 @@ async function handleFightCallback(
     reply_markup: buildFightResultKeyboard(
       result.state,
       result.character,
-      result.state === "completed" ? result.reward.localDate : result.localDate
+      result.artifactToken
     )
   });
   if (result.state === "completed") {

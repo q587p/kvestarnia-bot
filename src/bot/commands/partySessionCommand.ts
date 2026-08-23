@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import type { PartySessionCallback } from "../callbacks/partySessionCallbackData";
 import type { PartyBossService } from "../../services/partyBossService";
 import type { GroupCombatService } from "../../services/groupCombatService";
+import type { GroupCombatSessionRecord } from "../../db/repositories/groupCombatRepository";
 import type { PartyRaidChatService } from "../../services/partyRaidChatService";
 import type { PresencePerson, PresenceService } from "../../services/presenceService";
 import {
@@ -144,6 +145,43 @@ export async function handlePartySessionCallback(
   options: PartySessionCommandOptions
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
+
+  if (
+    options.partyBoss &&
+    (callback.type === "view" || callback.type === "boss-journal" || callback.type === "boss-statistics")
+  ) {
+    const boss = callback.type === "boss-journal" && typeof options.partyBoss.getJournalPageByPartyInviteToken === "function"
+      ? await options.partyBoss.getJournalPageByPartyInviteToken(callback.token, callback.page)
+      : await options.partyBoss.getByPartyInviteToken(callback.token);
+    if (boss && boss.status !== "active") {
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "boss-journal") {
+        await safeEditMessageText(ctx, presentPartyBossJournal(boss, callback.page), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPartyBossJournalKeyboard(boss, boss.journal?.page ?? callback.page ?? Math.max(0, boss.state.roundLog.length - 1))
+        });
+      } else if (callback.type === "boss-statistics") {
+        await safeEditMessageText(ctx, presentPartyBossStatistics(boss), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPartyBossStatisticsKeyboard(boss)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentPartyBoss(boss, { viewerCharacterId: null }), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPartyBossKeyboard(boss, null)
+        });
+      }
+      return;
+    }
+    if (!boss && callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: boss ? "Запис відкриється після завершення бою." : "Бій не знайшовся." });
+      return;
+    }
+  }
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
@@ -587,13 +625,6 @@ export async function handlePartySessionCallback(
   }
 
   if (callback.type === "boss-statistics") {
-    if (ctx.chat?.type !== "private") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
-        show_alert: true
-      });
-      return;
-    }
     if (!options.partyBoss?.isEnabled()) {
       await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
       return;
@@ -612,7 +643,7 @@ export async function handlePartySessionCallback(
       }), { session: boss, viewerCharacterId, partyBoss: options.partyBoss, partyRaidChat: options.partyRaidChat, telegramUserId });
       return;
     }
-    await safeEditMessageText(ctx, presentPartyBossStatistics(boss, viewerCharacterId), {
+    await safeEditMessageText(ctx, presentPartyBossStatistics(boss), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPartyBossStatisticsKeyboard(boss)
     });
@@ -1047,6 +1078,29 @@ export async function sendPartyJoinFromStartPayload(
     return true;
   }
 
+  let existingGroupCombat: GroupCombatSessionRecord | null = null;
+  if (isLeftPassage && options.groupCombat) {
+    existingGroupCombat = await options.groupCombat.findByToken(token);
+    if (existingGroupCombat && existingGroupCombat.status !== "active") {
+      await ctx.reply(presentGroupCombat(existingGroupCombat, null), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildGroupCombatKeyboard(existingGroupCombat, null)
+      });
+      return true;
+    }
+  }
+
+  if (!options.requireLeftPassage && options.partyBoss) {
+    const terminalPartyBoss = await options.partyBoss.getByPartyInviteToken(token);
+    if (terminalPartyBoss && terminalPartyBoss.status !== "active") {
+      await ctx.reply(presentPartyBoss(terminalPartyBoss, { viewerCharacterId: null }), {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildPartyBossKeyboard(terminalPartyBoss, null)
+      });
+      return true;
+    }
+  }
+
   if (!options.requireLeftPassage && options.partyBoss && await options.partyBoss.getByPartyInviteToken(token)) {
     await sendCanonicalPartyPreparationCard(
       ctx,
@@ -1067,7 +1121,7 @@ export async function sendPartyJoinFromStartPayload(
   }
 
   if (isLeftPassage && options.groupCombat) {
-    const groupSession = await options.groupCombat.findByToken(token);
+    const groupSession = existingGroupCombat;
     const groupViewer = groupSession?.participants.find(
       (participant) => participant.telegramUserId === telegramUserId
     );

@@ -35,6 +35,8 @@ import {
   makeFightItemsCallbackData,
   makeFightJournalCallbackData,
   makeFightStatisticsCallbackData,
+  makeMimicFightJournalCallbackData,
+  makeMimicFightResultCallbackData,
   makeMimicFightStatisticsCallbackData,
   makeFightItemUseCallbackData,
   makeFightPassageAttackCallbackData,
@@ -77,16 +79,24 @@ export function buildFightKeyboard(character?: CharacterSummary): InlineKeyboard
 export function buildFightResultKeyboard(
   state: FightResultKeyboardState,
   character?: CharacterSummary,
-  localDate?: string
+  artifactToken?: string
 ): InlineKeyboard {
   if (state === "already-completed") {
     const keyboard = new InlineKeyboard();
-    if (localDate) keyboard.text("📊 Статистика", makeMimicFightStatisticsCallbackData(localDate)).row();
+    if (artifactToken) {
+      keyboard.text("⚔️ Підсумок", makeMimicFightResultCallbackData(artifactToken)).row();
+      keyboard.text("📜 Журнал", makeMimicFightJournalCallbackData(artifactToken)).row();
+      keyboard.text("📊 Статистика", makeMimicFightStatisticsCallbackData(artifactToken)).row();
+    }
     return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
   const keyboard = buildFightKeyboard(character);
-  if (localDate) keyboard.row().text("📊 Статистика", makeMimicFightStatisticsCallbackData(localDate));
+  if (artifactToken) {
+    keyboard.row().text("⚔️ Підсумок", makeMimicFightResultCallbackData(artifactToken));
+    keyboard.row().text("📜 Журнал", makeMimicFightJournalCallbackData(artifactToken));
+    keyboard.row().text("📊 Статистика", makeMimicFightStatisticsCallbackData(artifactToken));
+  }
   return keyboard;
 }
 

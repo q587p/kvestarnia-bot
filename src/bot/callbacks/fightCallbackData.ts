@@ -20,8 +20,10 @@ export type FightCallback =
     }
   | {
       type: "mimic-statistics";
-      localDate: string;
+      artifactToken: string;
     }
+  | { type: "mimic-result"; artifactToken: string }
+  | { type: "mimic-journal"; artifactToken: string }
   | {
       type: "turn";
       sessionId: string;
@@ -69,6 +71,8 @@ export type FightCallback =
 
 const MIMIC_PREFIX = "v1:fight:mimic";
 const MIMIC_STATISTICS_PREFIX = "v1:fight:mstats";
+const MIMIC_RESULT_PREFIX = "v1:fight:mview";
+const MIMIC_JOURNAL_PREFIX = "v1:fight:mlog";
 const TURN_PREFIX = "v1:fight:turn";
 const ITEM_PREFIX = "v1:fight:item";
 const ITEMS_PREFIX = "v1:fight:items";
@@ -135,8 +139,16 @@ export function makeFightJournalCallbackData(input: {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
 }
 
-export function makeMimicFightStatisticsCallbackData(localDate: string): string {
-  return `${MIMIC_STATISTICS_PREFIX}:${localDate.split("-").join("")}`;
+export function makeMimicFightStatisticsCallbackData(artifactToken: string): string {
+  return `${MIMIC_STATISTICS_PREFIX}:${artifactToken}`;
+}
+
+export function makeMimicFightResultCallbackData(artifactToken: string): string {
+  return `${MIMIC_RESULT_PREFIX}:${artifactToken}`;
+}
+
+export function makeMimicFightJournalCallbackData(artifactToken: string): string {
+  return `${MIMIC_JOURNAL_PREFIX}:${artifactToken}`;
 }
 
 export function makeFightStatisticsCallbackData(sessionId: string): string {
@@ -334,14 +346,24 @@ export function parseFightCallbackData(
     });
   }
 
-  if (data.startsWith(`${MIMIC_STATISTICS_PREFIX}:`)) {
-    const [, section, scene, dayToken, ...rest] = data.split(":");
-    if (section !== "fight" || scene !== "mstats" || rest.length > 0 || !/^\d{8}$/.test(dayToken ?? "")) {
+  if (
+    data.startsWith(`${MIMIC_STATISTICS_PREFIX}:`) ||
+    data.startsWith(`${MIMIC_RESULT_PREFIX}:`) ||
+    data.startsWith(`${MIMIC_JOURNAL_PREFIX}:`)
+  ) {
+    const [, section, scene, artifactToken, ...rest] = data.split(":");
+    if (
+      section !== "fight" ||
+      (scene !== "mstats" && scene !== "mview" && scene !== "mlog") ||
+      rest.length > 0 ||
+      !artifactToken ||
+      !sessionIdPattern.test(artifactToken)
+    ) {
       return err("invalid-prefix");
     }
     return ok({
-      type: "mimic-statistics",
-      localDate: `${dayToken!.slice(0, 4)}-${dayToken!.slice(4, 6)}-${dayToken!.slice(6, 8)}`
+      type: scene === "mstats" ? "mimic-statistics" : scene === "mview" ? "mimic-result" : "mimic-journal",
+      artifactToken
     });
   }
 

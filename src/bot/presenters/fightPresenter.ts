@@ -19,6 +19,7 @@ import type {
   FightLookupResult,
   FightResult,
   MimicShawarmaStatisticsResult,
+  PublicMimicShawarmaArtifactResult,
   PersistentFightSnapshotResult,
   PersistentFightPreviewResult,
   ProblemQuestIssueNextLookupResult,
@@ -536,6 +537,43 @@ export function presentPersistentFightJournal(
       satedRecipientHtml: escapeHtml(result.character.name)
     })],
     noticeLines: notices
+  });
+}
+
+export function presentPublicMimicShawarmaResult(
+  result: Extract<PublicMimicShawarmaArtifactResult, { state: "ready" }>
+): string {
+  return [
+    presentActionHeading(result.action),
+    presentCharacterHeader(result.character),
+    "",
+    `❤️ Пригодник: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`,
+    `🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
+    result.combat.outcome === "flee"
+      ? "🏃 Сутичка завершилася відступом."
+      : "🎉 Сутичку завершено перемогою."
+  ].join("\n");
+}
+
+export function presentPublicMimicShawarmaJournal(
+  result: Extract<PublicMimicShawarmaArtifactResult, { state: "ready" }>
+): string {
+  return presentBattleJournalPage({
+    title: "📜 <b>Журнал бою</b>",
+    headerLines: [presentCharacterHeader(result.character)],
+    turn: 1,
+    page: 0,
+    totalPages: 1,
+    actorRows: [`❤️ Пригодник: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`],
+    opponentRows: [`🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`],
+    actionLines: [
+      result.action === "attack"
+        ? "Пригодник атакує підозрілу шаурму."
+        : result.action === "receipt"
+          ? "Пригодник вимагає чек і перемагає бюрократією."
+          : "Пригодник тактично відступає."
+    ]
   });
 }
 

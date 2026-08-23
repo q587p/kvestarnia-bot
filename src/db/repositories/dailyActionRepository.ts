@@ -19,6 +19,11 @@ export interface DailyActionRecord {
   createdAt: Date;
 }
 
+export interface PublicDailyActionArtifactRecord {
+  action: DailyActionRecord;
+  character: CharacterRecord;
+}
+
 export interface ItemGrant {
   itemId: string;
   quantity: number;
@@ -139,6 +144,11 @@ export type ClaimDailyActionResult =
     };
 
 export interface DailyActionRepository {
+  findPublicArtifactById?(
+    actionId: string,
+    input: { key: string }
+  ): Promise<PublicDailyActionArtifactRecord | null>;
+
   findForTelegramUser(
     telegramUserId: bigint,
     input: { key: string; localDate: string }

@@ -611,11 +611,14 @@ export async function handleGuildCallback(
     });
     return;
   }
-  if (callback.type === "leave-open" || callback.type === "delete-open") {
+  if (
+    callback.type === "leave-open" || callback.type === "delete-open" ||
+    callback.type === "leave-legacy" || callback.type === "delete-legacy"
+  ) {
     await sendSelfMutationConfirmation(
       ctx,
       service,
-      callback.type === "leave-open" ? "leave" : "delete",
+      callback.type === "leave-open" || callback.type === "leave-legacy" ? "leave" : "delete",
       "edit",
       callback.version
     );
@@ -636,10 +639,10 @@ export async function handleGuildCallback(
   }
   let result: GuildMemberMutationRepositoryResult;
   switch (callback.type) {
-    case "leave":
+    case "leave-confirm":
       result = await service.leaveForTelegramUser(actor, callback.version);
       break;
-    case "delete":
+    case "delete-confirm":
       result = await service.deleteForTelegramUser(actor, callback.version);
       break;
     case "transfer":

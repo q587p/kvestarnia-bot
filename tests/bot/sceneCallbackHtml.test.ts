@@ -6901,6 +6901,7 @@ describe("scene callback HTML options", () => {
           getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
           getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
           getByToken: vi.fn().mockResolvedValue(resolved.view),
+          getTerminalResultByToken: vi.fn().mockResolvedValue({ state: "not-terminal" }),
           resolveTurnBasedActionForTelegramUser
         } as unknown as BotServices["duel"],
         tavern: pendingFridayBarrelServices()
@@ -7753,56 +7754,109 @@ describe("scene callback HTML options", () => {
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["group", "supergroup"] as const)(
-    "rejects all viewer-specific solo statistics in a %s before any statistics read",
+  it.each(["private", "group", "supergroup"] as const)(
+    "routes capability-linked terminal statistics from a %s without owner-scoped reads",
     async (chatType) => {
       const getPersistentFightStatisticsForTelegramUser = vi.fn();
       const getMimicShawarmaStatisticsForTelegramUser = vi.fn();
       const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn();
+      const persistent = persistentSession("monster.deadline-spider");
+      const terminalPersistent = {
+        ...persistent,
+        status: "won" as const,
+        state: { ...persistent.state, status: "won" as const, monster: { ...persistent.state.monster, hp: 0 } }
+      };
+      const training = terminalTrainingSession();
+      const getPublicTerminalFightArtifact = vi.fn().mockResolvedValue({
+        state: "found" as const,
+        character,
+        session: terminalPersistent,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast"]
+        },
+        questProgress: null,
+        fightReward: null
+      });
+      const getPublicMimicShawarmaArtifact = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        artifactToken: "123e4567-e89b-42d3-a456-426614174002",
+        character,
+        action: "attack" as const,
+        combat: {
+          action: "attack" as const,
+          outcome: "win" as const,
+          playerHpPreview: 20,
+          playerHpMaxPreview: 20,
+          enemyHpPreview: 0,
+          enemyHpMaxPreview: 8,
+          playerDamage: 8,
+          enemyDamage: 0
+        },
+        statistics: {
+          version: 1 as const,
+          hero: { damage: 8, damageTaken: 0, actions: 1, specialActions: 0, guardedTurns: 0 },
+          enemy: { damage: 0, damageTaken: 8, actions: 0 }
+        }
+      });
+      const getPublicTerminalArtifact = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: training,
+        reward: null
+      });
       const services = servicesWith({
         fight: {
           getPersistentFightStatisticsForTelegramUser,
-          getMimicShawarmaStatisticsForTelegramUser
+          getMimicShawarmaStatisticsForTelegramUser,
+          getPublicTerminalFightArtifact,
+          getPublicMimicShawarmaArtifact
         },
-        trainingDoppelganger: { getTrainingDoppelgangerStatisticsForTelegramUser }
+        trainingDoppelganger: { getTrainingDoppelgangerStatisticsForTelegramUser, getPublicTerminalArtifact }
       });
       const callbacks = [
         makeFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174000"),
-        makeMimicFightStatisticsCallbackData("2026-08-22"),
+        makeMimicFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174002"),
         makeTrainingDoppelgangerStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174001")
       ];
 
       for (const callbackData of callbacks) {
         const calls = await captureApiCalls(callbackData, services, { chatType });
-        expect(calls.find((call) => call.method === "answerCallbackQuery")?.payload)
-          .toMatchObject({ show_alert: true });
+        expect(calls.find((call) => call.method === "answerCallbackQuery")?.payload).toBeDefined();
+        expect(String(calls.find((call) => call.method === "editMessageText")?.payload.text))
+          .toContain("📊 <b>Статистика");
       }
 
       expect(getPersistentFightStatisticsForTelegramUser).not.toHaveBeenCalled();
       expect(getMimicShawarmaStatisticsForTelegramUser).not.toHaveBeenCalled();
       expect(getTrainingDoppelgangerStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getPublicTerminalFightArtifact).toHaveBeenCalledTimes(1);
+      expect(getPublicMimicShawarmaArtifact).toHaveBeenCalledTimes(1);
+      expect(getPublicTerminalArtifact).toHaveBeenCalledTimes(1);
     }
   );
 
-  it("routes solo and Training statistics through their strictly read-only service methods", async () => {
+  it("routes solo and Training statistics through token-scoped strictly read-only methods", async () => {
     const getPersistentFightSnapshotForTelegramUser = vi.fn();
     const getTrainingDoppelgangerSnapshotForTelegramUser = vi.fn();
-    const getPersistentFightStatisticsForTelegramUser = vi.fn().mockResolvedValue({
-      state: "not-found" as const,
-      character
-    });
-    const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn().mockResolvedValue({
-      state: "not-found" as const,
-      character
-    });
+    const getPersistentFightStatisticsForTelegramUser = vi.fn();
+    const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn();
+    const getPublicTerminalFightArtifact = vi.fn().mockResolvedValue({ state: "no-character" as const });
+    const getPublicTerminalArtifact = vi.fn().mockResolvedValue({ state: "not-found" as const });
     const services = servicesWith({
       fight: {
         getPersistentFightSnapshotForTelegramUser,
-        getPersistentFightStatisticsForTelegramUser
+        getPersistentFightStatisticsForTelegramUser,
+        getPublicTerminalFightArtifact
       },
       trainingDoppelganger: {
         getTrainingDoppelgangerSnapshotForTelegramUser,
-        getTrainingDoppelgangerStatisticsForTelegramUser
+        getTrainingDoppelgangerStatisticsForTelegramUser,
+        getPublicTerminalArtifact
       }
     });
 
@@ -7815,8 +7869,10 @@ describe("scene callback HTML options", () => {
       services
     );
 
-    expect(getPersistentFightStatisticsForTelegramUser).toHaveBeenCalledTimes(1);
-    expect(getTrainingDoppelgangerStatisticsForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(getPublicTerminalFightArtifact).toHaveBeenCalledTimes(1);
+    expect(getPublicTerminalArtifact).toHaveBeenCalledTimes(1);
+    expect(getPersistentFightStatisticsForTelegramUser).not.toHaveBeenCalled();
+    expect(getTrainingDoppelgangerStatisticsForTelegramUser).not.toHaveBeenCalled();
     expect(getPersistentFightSnapshotForTelegramUser).not.toHaveBeenCalled();
     expect(getTrainingDoppelgangerSnapshotForTelegramUser).not.toHaveBeenCalled();
   });
@@ -8251,7 +8307,7 @@ describe("scene callback HTML options", () => {
       callbackData,
       servicesWith({
         fight: {
-          getPersistentFightSnapshotForTelegramUser: () =>
+          getPublicTerminalFightArtifact: () =>
             Promise.resolve({
               state: "found" as const,
               character,
@@ -11047,6 +11103,9 @@ function productionTurnDuelService(
       Promise.resolve({ ...getCurrent(), transitioned: false })
     );
   const getByToken = vi.fn<DuelChallengeService["getByToken"]>(() => Promise.resolve(getCurrent()));
+  const getTerminalResultByToken = vi.fn<DuelChallengeService["getTerminalResultByToken"]>(() =>
+    Promise.resolve({ state: "not-terminal" })
+  );
   const getTurnBasedRouteForTelegramUser = vi.fn<
     DuelChallengeService["getTurnBasedRouteForTelegramUser"]
   >((_telegramUserId, inviteToken) => inviteToken === getCurrent().challenge.inviteToken
@@ -11068,6 +11127,7 @@ function productionTurnDuelService(
       getActiveTurnBasedForTelegramUser,
       acceptForTelegramUser,
       getByToken,
+      getTerminalResultByToken,
       getTurnBasedRouteForTelegramUser,
       getTurnBasedSessionByToken,
       claimTurnBasedMessageReference,

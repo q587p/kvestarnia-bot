@@ -245,6 +245,39 @@ export async function handleGroupCombatCallback(
     refreshLeftPassagePreview?: (ctx: Context) => Promise<void>;
   } = {}
 ): Promise<void> {
+  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
+    const artifact = await service.findByToken(callback.token);
+    if (artifact && artifact.status !== "active") {
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "journal") {
+        await safeEditMessageText(ctx, presentGroupCombatJournal(artifact, callback.page), {
+          parse_mode: "HTML",
+          reply_markup: buildGroupCombatJournalKeyboard(artifact, callback.page)
+        });
+      } else if (callback.type === "statistics") {
+        await safeEditMessageText(ctx, presentGroupCombatStatistics(artifact), {
+          parse_mode: "HTML",
+          reply_markup: buildGroupCombatStatisticsKeyboard(artifact)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentGroupCombat(artifact, null), {
+          parse_mode: "HTML",
+          reply_markup: buildGroupCombatKeyboard(artifact, null)
+        });
+      }
+      return;
+    }
+    if (!artifact) {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, {
+        text: artifact ? "Запис відкриється після завершення бою." : "Бойовий запис не знайшовся."
+      });
+      return;
+    }
+  }
   const telegramUserId = telegramUserIdFromContext(ctx.from);
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: "Квестарня не впізнала пригодника.", show_alert: true });
@@ -478,57 +511,6 @@ export async function handleGroupCombatCallback(
         reply_markup: keyboard
       }
     );
-    return;
-  }
-  if (callback.type === "journal") {
-    if (session.status === "active") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Журнал відкриється після завершення бою.",
-        show_alert: true
-      });
-      await deliverGroupCombatParticipantCard(
-        ctx.api,
-        service,
-        session.id,
-        viewer.characterId,
-        { forceRefresh: true }
-      );
-      return;
-    }
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentGroupCombatJournal(session, callback.page), {
-      parse_mode: "HTML",
-      reply_markup: buildGroupCombatJournalKeyboard(session, callback.page)
-    });
-    return;
-  }
-  if (callback.type === "statistics") {
-    if (ctx.chat?.type !== "private") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Особиста статистика відкривається лише в приватному чаті з Квестарнею.",
-        show_alert: true
-      });
-      return;
-    }
-    if (session.status === "active") {
-      await safeAnswerCallbackQuery(ctx, {
-        text: "Статистика відкриється після завершення бою.",
-        show_alert: true
-      });
-      await deliverGroupCombatParticipantCard(
-        ctx.api,
-        service,
-        session.id,
-        viewer.characterId,
-        { forceRefresh: true }
-      );
-      return;
-    }
-    await safeAnswerCallbackQuery(ctx);
-    await safeEditMessageText(ctx, presentGroupCombatStatistics(session), {
-      parse_mode: "HTML",
-      reply_markup: buildGroupCombatStatisticsKeyboard(session)
-    });
     return;
   }
   if (callback.type === "view") {

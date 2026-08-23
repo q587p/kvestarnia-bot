@@ -170,6 +170,18 @@ export function registerStartCommand(
     }
 
     if (payload.type === "duel" && options.duel) {
+      const terminal = await options.duel.getTerminalResultByToken(payload.token);
+      if (terminal.state === "resolved") {
+        await ctx.reply(presentDuelView(terminal, { inviteUrl: null }), {
+          parse_mode: "HTML",
+          reply_markup: buildDuelResultKeyboard(terminal.challenge.inviteToken, terminal.challenge.mode)
+        });
+        return;
+      }
+      if (terminal.state === "not-found") {
+        await ctx.reply("Виклик не знайшовся.");
+        return;
+      }
       const result = await options.duel.acceptForTelegramUser(player.telegramUserId, payload.token, {
         expectedMode: payload.mode ?? "quick"
       });

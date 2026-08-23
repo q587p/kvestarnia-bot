@@ -198,7 +198,7 @@ export function buildGroupCombatAbilityTargetKeyboard(
 
 export function buildGroupCombatKeyboard(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string
+  viewerCharacterId: string | null
 ): InlineKeyboard {
   if (session.status !== "active") {
     return buildGroupCombatActionMenuKeyboard(session, viewerCharacterId, "attack");
@@ -206,7 +206,7 @@ export function buildGroupCombatKeyboard(
   const viewer = session.state.participants.find(
     (participant) => participant.characterId === viewerCharacterId
   );
-  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+  if (!viewerCharacterId || !viewer || !isActiveGroupCombatParticipant(viewer)) {
     return new InlineKeyboard().text(
       groupCombatReplyButtons.refresh,
       makeGroupCombatViewCallbackData(session.partyInviteToken)
@@ -311,7 +311,7 @@ export function buildGroupCombatKeyboard(
 
 export function buildGroupCombatActionMenuKeyboard(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string,
+  viewerCharacterId: string | null,
   menu: GroupCombatActionMenu
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -334,7 +334,7 @@ export function buildGroupCombatActionMenuKeyboard(
       : keyboard;
   }
   const viewer = session.state.participants.find((participant) => participant.characterId === viewerCharacterId);
-  if (!viewer || !isActiveGroupCombatParticipant(viewer)) {
+  if (!viewerCharacterId || !viewer || !isActiveGroupCombatParticipant(viewer)) {
     return keyboard.text("🔎 Оновити", makeGroupCombatViewCallbackData(session.partyInviteToken));
   }
 
@@ -388,7 +388,7 @@ export function buildGroupCombatActionMenuKeyboard(
   function addAbilityButtons(action: Extract<GroupCombatActionKey, "class" | "race" | "gear">, payloadKey?: string, optionIndex = 0): void {
     for (const button of listGroupCombatAbilityActionButtons(
       session,
-      viewerCharacterId,
+      viewerCharacterId!,
       action,
       optionIndex,
       payloadKey

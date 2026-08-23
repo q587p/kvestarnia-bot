@@ -52,7 +52,7 @@ describe("duel decision keyboards", () => {
     expect(keyboard.flat().map((button) => button.text)).not.toContain("📖 Детальніше");
   });
 
-  it("exposes private terminal statistics for quick and turn-based duel results", () => {
+  it("exposes capability-scoped terminal statistics for quick and turn-based duel results", () => {
     expect(buildDuelResultKeyboard(TOKEN, "quick").inline_keyboard.flat()).toContainEqual({
       text: "📊 Статистика",
       callback_data: makeDuelStatisticsCallbackData(TOKEN)

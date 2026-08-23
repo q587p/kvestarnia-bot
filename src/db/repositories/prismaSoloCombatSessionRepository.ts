@@ -637,6 +637,27 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
     return this.mapSoloCombatSessionRecord(record);
   }
 
+  async findPublicTerminalById(sessionId: string) {
+    const artifact = await this.findPublicArtifactById(sessionId);
+    return artifact?.session.status === "active" ? null : artifact;
+  }
+
+  async findPublicArtifactById(sessionId: string) {
+    const record = await this.prisma.soloCombatSession.findFirst({
+      where: { id: sessionId },
+      include: { character: true }
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    return {
+      session: this.mapSoloCombatSessionRecord(record)!,
+      character: record.character
+    };
+  }
+
   async createForTelegramUser(
     telegramUserId: bigint,
     input: CreateSoloCombatSessionInput,
