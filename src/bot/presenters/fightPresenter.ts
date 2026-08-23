@@ -20,6 +20,7 @@ import type {
   FightResult,
   MimicShawarmaStatisticsResult,
   PublicMimicShawarmaArtifactResult,
+  PublicPersistentFightArtifactResult,
   PersistentFightSnapshotResult,
   PersistentFightPreviewResult,
   ProblemQuestIssueNextLookupResult,
@@ -485,10 +486,10 @@ export function presentPersistentFightGearUnavailableNotice(
 }
 
 export function presentPersistentFightSnapshot(
-  result: Extract<PersistentFightSnapshotResult, { state: "found" }>
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>
 ): string {
   return presentPersistentFightState({
-    character: result.character,
+    character: result.character as CharacterSummary,
     session: result.session,
     monster: result.monster,
     questProgress: result.questProgress,
@@ -497,7 +498,7 @@ export function presentPersistentFightSnapshot(
 }
 
 export function presentPersistentFightJournal(
-  result: Extract<PersistentFightSnapshotResult, { state: "found" }>,
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>,
   requestedPage: number
 ): string {
   const log = getPersistentFightJournalEntries(result.session.state ?? null);
@@ -578,7 +579,7 @@ export function presentPublicMimicShawarmaJournal(
 }
 
 export function presentMimicShawarmaStatistics(
-  result: Extract<MimicShawarmaStatisticsResult, { state: "ready" }>
+  result: Extract<MimicShawarmaStatisticsResult | PublicMimicShawarmaArtifactResult, { state: "ready" }>
 ): string {
   return [
     "📊 <b>Статистика бою</b>",
@@ -591,7 +592,7 @@ export function presentMimicShawarmaStatistics(
 }
 
 export function presentPersistentFightStatistics(
-  result: Extract<PersistentFightSnapshotResult, { state: "found" }>
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>
 ): string {
   const state = result.session.state;
   const statistics = state?.statistics;

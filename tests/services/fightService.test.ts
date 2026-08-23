@@ -88,6 +88,14 @@ import {
   PRESENCE_LOCATION_KORCHMA_RANGER_CORNER
 } from "../../src/services/presenceService";
 import { getCombatItemUseKey } from "../../src/services/combatItemUse";
+import {
+  presentMimicShawarmaStatistics,
+  presentPersistentFightJournal,
+  presentPersistentFightSnapshot,
+  presentPersistentFightStatistics,
+  presentPublicMimicShawarmaJournal,
+  presentPublicMimicShawarmaResult
+} from "../../src/bot/presenters/fightPresenter";
 
 const telegramUserId = 42n;
 
@@ -249,14 +257,35 @@ describe("FightService", () => {
     });
     if (result.state === "completed") {
       const writesBeforePublicReads = dailyActions.createCount;
-      await expect(service.getPublicMimicShawarmaArtifact(result.artifactToken)).resolves.toMatchObject({
+      const firstPublicRead = await service.getPublicMimicShawarmaArtifact(result.artifactToken);
+      expect(firstPublicRead).toMatchObject({
         state: "ready",
         artifactToken: result.artifactToken,
         character: { name: "Мандрівник" },
         action: "attack",
         statistics: { hero: { damage: 8 }, enemy: { damage: 3 } }
       });
-      await service.getPublicMimicShawarmaArtifact(result.artifactToken);
+      characters.patch(telegramUserId, {
+        name: "Перейменований після бою",
+        raceId: "race.orc-ish",
+        classId: "class.mage",
+        guildCrest: "⚔️",
+        remortCount: 1
+      });
+      const replay = await service.getPublicMimicShawarmaArtifact(result.artifactToken);
+      expect(replay).toEqual(firstPublicRead);
+      if (firstPublicRead.state !== "ready" || replay.state !== "ready") {
+        throw new Error("Expected public Mimic artifact.");
+      }
+      expect([
+        presentPublicMimicShawarmaResult(replay),
+        presentPublicMimicShawarmaJournal(replay),
+        presentMimicShawarmaStatistics(replay)
+      ]).toEqual([
+        presentPublicMimicShawarmaResult(firstPublicRead),
+        presentPublicMimicShawarmaJournal(firstPublicRead),
+        presentMimicShawarmaStatistics(firstPublicRead)
+      ]);
       expect(dailyActions.createCount).toBe(writesBeforePublicReads);
     }
     await expect(characters.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
@@ -588,16 +617,22 @@ describe("FightService", () => {
       characterId: "character-42",
       monsterId: "monster.deadline-spider"
     }));
+    const wrongKind = sessions.addSession({
+      ...terminal,
+      id: "123e4567-e89b-42d3-a456-426614174002",
+      monsterId: TRAINING_DOPPELGANGER_MONSTER_ID
+    });
     const service = new FightService({ characters, dailyActions, clock: fixedClock, combatSessions: sessions });
     const before = JSON.stringify(terminal);
 
     await expect(service.getPublicTerminalFightArtifact(stillActive.id)).resolves.toEqual({ state: "active" });
     await expect(service.getPublicTerminalFightArtifact("123e4567-e89b-42d3-a456-426614174999"))
       .resolves.toEqual({ state: "not-found" });
+    await expect(service.getPublicTerminalFightArtifact(wrongKind.id)).resolves.toEqual({ state: "not-found" });
 
     await expect(service.getPublicTerminalFightArtifact(terminal.id)).resolves.toMatchObject({
       state: "found",
-      character: { name: "Мандрівник" },
+      character: { name: "Пригодник", title: "Пригодник зі старого запису" },
       session: { id: terminal.id, status: "won" },
       questProgress: null
     });
@@ -606,6 +641,55 @@ describe("FightService", () => {
     expect(sessions.updateCount).toBe(0);
     expect(sessions.lastStatusMark).toBeNull();
     expect(JSON.stringify(await sessions.findByIdForTelegramUserId(telegramUserId, terminal.id))).toBe(before);
+  });
+
+  it("keeps a newly created solo result, journal, and statistics byte-stable after live identity changes", async () => {
+    const characters = new FakeCharacterRepository();
+    characters.add(telegramUserId, { xp: 25, name: "Первісне Ім'я" });
+    const dailyActions = new FakeDailyActionRepository(characters);
+    const sessions = new FakeSoloCombatSessionRepository(characters);
+    const service = new FightService({ characters, dailyActions, clock: fixedClock, combatSessions: sessions });
+    const started = await service.getFightForTelegramUser(telegramUserId);
+    if (started.state !== "persistent-active" || !started.session.state) {
+      throw new Error("Expected a persistent fight.");
+    }
+    expect(started.session.state.publicIdentity).toMatchObject({
+      version: 1,
+      name: "Первісне Ім'я",
+      raceId: "race.human-ish",
+      classId: "class.warrior"
+    });
+    sessions.addSession({
+      ...started.session,
+      status: "won",
+      state: { ...started.session.state, status: "won" }
+    });
+    const first = await service.getPublicTerminalFightArtifact(started.session.id);
+    if (first.state !== "found") throw new Error("Expected terminal artifact.");
+    const rendered = [
+      presentPersistentFightSnapshot(first),
+      presentPersistentFightJournal(first, 0),
+      presentPersistentFightStatistics(first)
+    ];
+    const writesBefore = sessions.updateCount;
+
+    characters.patch(telegramUserId, {
+      name: "Нове Ім'я",
+      raceId: "race.orc-ish",
+      classId: "class.mage",
+      guildCrest: "⚔️",
+      level: 13,
+      xp: 1300,
+      remortCount: 1
+    });
+    const replay = await service.getPublicTerminalFightArtifact(started.session.id);
+    if (replay.state !== "found") throw new Error("Expected replay artifact.");
+    expect([
+      presentPersistentFightSnapshot(replay),
+      presentPersistentFightJournal(replay, 0),
+      presentPersistentFightStatistics(replay)
+    ]).toEqual(rendered);
+    expect(sessions.updateCount).toBe(writesBefore);
   });
 
   it("uses a supplied authoritative solo lease without rereading combat ownership", async () => {
@@ -7956,12 +8040,9 @@ class FakeDailyActionRepository implements DailyActionRepository {
     return [...this.actions.values()];
   }
 
-  async findPublicArtifactById(actionId: string, input: { key: string }) {
+  findPublicArtifactById(actionId: string, input: { key: string }) {
     const action = this.records.find((candidate) => candidate.id === actionId && candidate.key === input.key);
-    if (!action) return null;
-    const telegramUserId = BigInt(action.characterId.replace("character-", ""));
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
-    return character ? { action, character } : null;
+    return Promise.resolve(action ? { action } : null);
   }
 
   failNextFindForKey(key: string): void {
@@ -8616,20 +8697,14 @@ class FakeSoloCombatSessionRepository implements SoloCombatSessionRepository {
     return cloneSession(session);
   }
 
-  async findPublicTerminalById(sessionId: string) {
+  findPublicTerminalById(sessionId: string) {
     const session = this.sessions.get(sessionId);
-    if (!session || session.status === "active") return null;
-    const telegramUserId = BigInt(session.characterId.replace("character-", ""));
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
-    return character ? { session: cloneSession(session), character } : null;
+    return Promise.resolve(!session || session.status === "active" ? null : { session: cloneSession(session) });
   }
 
-  async findPublicArtifactById(sessionId: string) {
+  findPublicArtifactById(sessionId: string) {
     const session = this.sessions.get(sessionId);
-    if (!session) return null;
-    const telegramUserId = BigInt(session.characterId.replace("character-", ""));
-    const character = await this.characters.findByTelegramUserId(telegramUserId);
-    return character ? { session: cloneSession(session), character } : null;
+    return Promise.resolve(session ? { session: cloneSession(session) } : null);
   }
 
   async createForTelegramUser(

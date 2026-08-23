@@ -1,6 +1,4 @@
 import type { CombatLifeState, CombatSettlementStatus, CombatState, CombatStatus } from "../../domain/combat";
-import type { CharacterRecord } from "./characterRepository";
-
 export type SoloCombatSessionStatus = CombatStatus;
 
 export interface SoloCombatRewardRecord {
@@ -38,7 +36,6 @@ export interface DueSoloCombatSessionRecord extends SoloCombatSessionRecord {
 
 export interface PublicSoloCombatArtifactRecord {
   session: SoloCombatSessionRecord;
-  character: CharacterRecord;
 }
 
 export interface CreateSoloCombatSessionInput {

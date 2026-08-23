@@ -10,8 +10,166 @@ import { PRESENCE_LOCATION_KORCHMA_BAR } from "../../src/services/presenceServic
 import type { OnboardingService } from "../../src/services/onboardingService";
 import type { TavernGameService } from "../../src/services/tavernGameService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { buildTerminalBattleArtifactStartPayload } from "../../src/bot/terminalBattleArtifactLink";
 
 describe("start command", () => {
+  it.each(["private", "group", "supergroup"] as const)(
+    "opens solo, Training, and Mimic capability URLs for a non-participant without a Character in %s chat",
+    async (chatType) => {
+      const bot = new Bot("test-token", {
+        botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+      });
+      const onboardingStart = vi.fn();
+      const sent: Array<Record<string, unknown>> = [];
+      const tokens = {
+        solo: "123e4567-e89b-42d3-a456-426614174010",
+        training: "123e4567-e89b-42d3-a456-426614174011",
+        mimic: "123e4567-e89b-42d3-a456-426614174012"
+      } as const;
+      const identity = {
+        version: 1 as const,
+        name: "Заморожене Ім'я",
+        title: "Заморожений Титул",
+        guildCrest: "🛡️",
+        level: 8,
+        raceId: "race.human-ish",
+        raceName: "Людисько",
+        classId: "class.warrior",
+        className: "Воїн"
+      };
+      const soloSession = terminalArtifactSession(tokens.solo, "normal", "monster.deadline-spider", identity);
+      const trainingSession = terminalArtifactSession(
+        tokens.training,
+        "training",
+        "monster.training-doppelganger",
+        identity
+      );
+      const getPublicTerminalFightArtifact = vi.fn().mockResolvedValue({
+        state: "found",
+        character: identity,
+        session: soloSession,
+        monster: null,
+        questProgress: null,
+        fightReward: null
+      });
+      const getPublicTerminalArtifact = vi.fn().mockResolvedValue({
+        state: "ready",
+        character: identity,
+        doppelganger: {
+          name: "Сумлінний Допельґанґер",
+          raceName: "Людисько",
+          className: "Воїн",
+          title: "Копія",
+          level: 8,
+          spawnMode: "COPY_TARGET",
+          source: "target",
+          copiedEquipmentCount: 0
+        },
+        session: trainingSession,
+        reward: null
+      });
+      const getPublicMimicShawarmaArtifact = vi.fn().mockResolvedValue({
+        state: "ready",
+        artifactToken: tokens.mimic,
+        character: identity,
+        action: "attack",
+        combat: {
+          action: "attack",
+          outcome: "win",
+          playerHpPreview: 20,
+          playerHpMaxPreview: 22,
+          enemyHpPreview: 0,
+          enemyHpMaxPreview: 8,
+          playerDamage: 8,
+          enemyDamage: 2
+        },
+        statistics: zeroMimicStatistics()
+      });
+      bot.api.config.use((_prev, method, payload) => {
+        if (method === "sendMessage") sent.push(payload);
+        return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+      });
+      registerStartCommand(bot, { start: onboardingStart } as unknown as OnboardingService, {
+        fight: { getPublicTerminalFightArtifact, getPublicMimicShawarmaArtifact } as never,
+        trainingDoppelganger: { getPublicTerminalArtifact } as never,
+        botUsername: "kvestarnia_bot"
+      });
+
+      for (const [index, kind] of (["solo", "training", "mimic"] as const).entries()) {
+        const payload = buildTerminalBattleArtifactStartPayload(kind, tokens[kind]);
+        if (!payload) throw new Error("Expected artifact payload.");
+        await bot.handleUpdate({
+          update_id: 600 + index,
+          message: {
+            message_id: 600 + index,
+            date: 1,
+            chat: { id: -9999, type: chatType },
+            from: { id: 9999, is_bot: false, first_name: "Спостерігач" },
+            text: `/start ${payload}`,
+            entities: [{ offset: 0, length: 6, type: "bot_command" }]
+          }
+        });
+      }
+
+      expect(getPublicTerminalFightArtifact).toHaveBeenCalledWith(tokens.solo);
+      expect(getPublicTerminalArtifact).toHaveBeenCalledWith(tokens.training);
+      expect(getPublicMimicShawarmaArtifact).toHaveBeenCalledWith(tokens.mimic);
+      expect(onboardingStart).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(3);
+      expect(sent.every((message) => JSON.stringify(message.reply_markup).includes("t.me/share/url"))).toBe(true);
+      expect(sent.map((message) => String(message.text)).join("\n")).toContain("Заморожене Ім'я");
+    }
+  );
+
+  it("fails closed with one generic response for active, malformed, wrong-kind, and unavailable artifact tokens", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const onboardingStart = vi.fn();
+    const sent: Array<Record<string, unknown>> = [];
+    const token = "123e4567-e89b-42d3-a456-426614174020";
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(payload);
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerStartCommand(bot, { start: onboardingStart } as unknown as OnboardingService, {
+      fight: {
+        getPublicTerminalFightArtifact: vi.fn().mockResolvedValue({ state: "active" }),
+        getPublicMimicShawarmaArtifact: vi.fn().mockResolvedValue({ state: "not-found" })
+      } as never,
+      trainingDoppelganger: {
+        getPublicTerminalArtifact: vi.fn().mockResolvedValue({ state: "not-found" })
+      } as never
+    });
+
+    const payloads = [
+      `ba1_s_${token}`,
+      `ba1_t_${token}`,
+      `ba1_m_${token}`,
+      "ba1_s_not-a-uuid",
+      `ba1_x_${token}`,
+      "ba1"
+    ];
+    for (const [index, payload] of payloads.entries()) {
+      await bot.handleUpdate({
+        update_id: 650 + index,
+        message: {
+          message_id: 650 + index,
+          date: 1,
+          chat: { id: 9999, type: "private" },
+          from: { id: 9999, is_bot: false, first_name: "Спостерігач" },
+          text: `/start ${payload}`,
+          entities: [{ offset: 0, length: 6, type: "bot_command" }]
+        }
+      });
+    }
+
+    expect(onboardingStart).not.toHaveBeenCalled();
+    expect(sent.map((message) => message.text)).toEqual(
+      payloads.map(() => "Бойовий запис не знайшовся або ще не готовий до перегляду.")
+    );
+  });
+
   it("opens a completed duel deep link for a non-participant without starting onboarding or acceptance", async () => {
     const bot = new Bot("test-token", {
       botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
@@ -427,6 +585,71 @@ const existingCharacterSummary: CharacterSummary = {
   stats: { strength: 8, dexterity: 10, intelligence: 6, charisma: 5, luck: 7 },
   levelBonus: { hpMax: 4, manaMax: 2, primaryStat: { stat: "intelligence", bonus: 1 } }
 };
+
+function terminalArtifactSession(
+  id: string,
+  source: "normal" | "training",
+  monsterId: string,
+  publicIdentity: Record<string, unknown>
+) {
+  const now = new Date("2026-08-23T10:00:00.000Z");
+  return {
+    id,
+    characterId: "character-owner",
+    monsterId,
+    status: "won" as const,
+    turn: 1,
+    state: {
+      id,
+      source,
+      publicIdentity,
+      turn: 1,
+      status: "won" as const,
+      hero: { hp: 20, hpMax: 22, mana: 10, manaMax: 10, guildCrest: "🛡️" },
+      monster: {
+        hp: 0,
+        hpMax: 8,
+        level: 3,
+        name: source === "training" ? "Сумлінний Допельґанґер" : "Дедлайновий Павук",
+        raceId: "race.human-ish",
+        raceName: "Людисько",
+        classId: "class.warrior",
+        className: "Воїн",
+        title: "Копія"
+      },
+      statistics: {
+        version: 1,
+        hero: zeroContribution(),
+        enemies: { "enemy:1": zeroContribution() }
+      }
+    },
+    reward: null,
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: new Date("2026-08-23T11:00:00.000Z")
+  };
+}
+
+function zeroContribution() {
+  return {
+    damage: 0,
+    healing: 0,
+    guardPrevented: 0,
+    control: 0,
+    damageTaken: 0,
+    actions: 0,
+    specialActions: 0,
+    guardedTurns: 0
+  };
+}
+
+function zeroMimicStatistics() {
+  return {
+    version: 1 as const,
+    hero: zeroContribution(),
+    enemy: zeroContribution()
+  };
+}
 
 function tavernGameSession(overrides: Record<string, unknown> = {}) {
   const now = new Date("2026-07-02T10:00:00.000Z");

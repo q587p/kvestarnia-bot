@@ -13,6 +13,7 @@ import {
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
 import type { BardInspirationCombatStateV1 } from "../noncombat/bardSupport";
+import type { PublicCombatantIdentityV1 } from "./publicCombatantIdentity";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
@@ -176,6 +177,7 @@ export interface CombatStatisticsTurnEvidenceV1 {
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  publicIdentity?: PublicCombatantIdentityV1;
   life?: CombatLifeState;
   settlement?: CombatSettlementState;
   threat?: CombatThreatState;
@@ -531,6 +533,7 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {}),
     ...(state.threatExclusion ? { threatExclusion: { ...state.threatExclusion } } : {}),
+    ...(state.publicIdentity ? { publicIdentity: { ...state.publicIdentity } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),

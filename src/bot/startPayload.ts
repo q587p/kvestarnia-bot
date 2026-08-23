@@ -1,5 +1,11 @@
+import {
+  parseTerminalBattleArtifactStartPayload,
+  type TerminalBattleArtifactStartPayload
+} from "./terminalBattleArtifactLink";
+
 export type StartPayload =
   | { type: "none" }
+  | TerminalBattleArtifactStartPayload
   | { type: "duel"; token: string; mode?: "quick" | "turn-based" }
   | { type: "party"; token: string }
   | { type: "guild-invite"; token: string }
@@ -28,6 +34,11 @@ export function parseStartPayload(raw: string | undefined): StartPayload {
 
   if (payload === "support_thanks") {
     return { type: "support-thanks" };
+  }
+
+  const terminalArtifact = parseTerminalBattleArtifactStartPayload(payload);
+  if (terminalArtifact) {
+    return terminalArtifact;
   }
 
   const referral = payload.match(/^ref1_([A-Za-z0-9_-]{16})$/);

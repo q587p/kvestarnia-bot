@@ -3,8 +3,10 @@ import {
   selectDoppelgangerLine,
   type CombatState,
   type CombatTurnLogEntry,
-  type CombatTurnSummary
+  type CombatTurnSummary,
+  type PublicCombatantIdentityV1
 } from "../../domain/combat";
+import type { CharacterSummary } from "../../domain/characters/characterSummary";
 import type {
   TrainingDoppelgangerLookupResult,
   TrainingDoppelgangerSnapshotResult,
@@ -114,7 +116,13 @@ export function presentTrainingDoppelgangerAnotherFight(
 }
 
 export function presentTrainingDoppelganger(
-  result: Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }>
+  result: Extract<TrainingDoppelgangerLookupResult, { state: "active" | "terminal" }> | {
+    state: "terminal";
+    character: PublicCombatantIdentityV1;
+    doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"];
+    session: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"];
+    reward: null;
+  }
 ): string {
   return presentTrainingDoppelgangerState({
     character: result.character,
@@ -198,7 +206,7 @@ export function presentTrainingDoppelgangerTurn(
 }
 
 function presentTrainingDoppelgangerState(input: {
-  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"];
+  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"] | PublicCombatantIdentityV1;
   doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"];
   session: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"];
   reward?: Extract<TrainingDoppelgangerTurnResult, { state: "updated" }>["reward"];
@@ -251,7 +259,7 @@ function presentTrainingDoppelgangerState(input: {
   }
 
   if (input.reward) {
-    lines.push("", ...presentTrainingReward(input.reward, input.character));
+    lines.push("", ...presentTrainingReward(input.reward, input.character as CharacterSummary));
   }
 
   if (state?.status === "won") {
@@ -290,7 +298,13 @@ function presentTrainingDoppelgangerState(input: {
 }
 
 export function presentTrainingDoppelgangerJournal(
-  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>,
+  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }> | {
+    state: "found";
+    character: PublicCombatantIdentityV1;
+    doppelganger: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["doppelganger"];
+    session: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"];
+    reward: null;
+  },
   requestedPage: number
 ): string {
   const log = result.session.state?.turnLog ?? [];
@@ -336,7 +350,13 @@ export function presentTrainingDoppelgangerJournal(
 }
 
 export function presentTrainingDoppelgangerStatistics(
-  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>
+  result: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }> | {
+    state: "found";
+    character: PublicCombatantIdentityV1;
+    doppelganger: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["doppelganger"];
+    session: Extract<TrainingDoppelgangerSnapshotResult, { state: "found" }>["session"];
+    reward: null;
+  }
 ): string {
   const statistics = result.session.state?.statistics;
   const unavailable = unavailableTrainingContributionValues();
@@ -574,7 +594,7 @@ function presentAllyAbilityResults(summary: CombatTurnSummary): string[] {
 }
 
 function presentTrainingCounterFlavor(
-  character: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["character"],
+  character: Pick<CharacterSummary, "classId" | "className" | "raceId" | "raceName" | "title" | "name">,
   doppelganger: Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["doppelganger"],
   state: NonNullable<Extract<TrainingDoppelgangerLookupResult, { state: "active" }>["session"]["state"]>
 ): string | null {

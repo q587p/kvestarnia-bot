@@ -101,6 +101,7 @@ presentTrainingDoppelgangerTurn
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
+import { buildTerminalBattleArtifactUrl } from "../terminalBattleArtifactLink";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import {
@@ -125,7 +126,7 @@ const HTML_MESSAGE_OPTIONS = {
 
 export function registerCombatBotModule(
   bot: Bot,
-  { services }: BotModuleDependencies
+  { services, options }: BotModuleDependencies
 ): void {
   bot.command("fight", async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
@@ -151,7 +152,7 @@ export function registerCombatBotModule(
     /^v1:spar:/,
     (data) => parseWhenAvailable(data, parseTrainingDoppelgangerCallbackData, services.trainingDoppelganger),
     async (ctx, callback) => {
-      await handleTrainingDoppelgangerCallback(ctx, callback, services);
+      await handleTrainingDoppelgangerCallback(ctx, callback, services, options.botUsername);
     }
   );
 
@@ -160,7 +161,7 @@ export function registerCombatBotModule(
     /^v1:fight:/,
     parseFightCallbackData,
     async (ctx, callback) => {
-      await handleFightCallback(ctx, callback, services);
+      await handleFightCallback(ctx, callback, services, options.botUsername);
     }
   );
 
@@ -228,7 +229,8 @@ function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServ
 export async function handleTrainingDoppelgangerCallback(
   ctx: Context,
   callback: TrainingDoppelgangerCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -263,7 +265,9 @@ export async function handleTrainingDoppelgangerCallback(
           reward: null
         }), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+          reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
+            artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
+          })
         });
       }
       return;
@@ -334,7 +338,11 @@ export async function handleTrainingDoppelgangerCallback(
       ...(result.state === "not-found"
         ? {}
         : {
-            reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+            reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
+              artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
+                ? null
+                : buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
+            })
           })
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
@@ -398,7 +406,11 @@ export async function handleTrainingDoppelgangerCallback(
 
     await safeEditMessageText(ctx, presentTrainingDoppelganger(trainingView), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+      reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
+        artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
+          ? null
+          : buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
+      })
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
@@ -430,7 +442,8 @@ async function notifyTrainingQuestProgress(
 async function handleFightCallback(
   ctx: Context,
   callback: FightCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -456,7 +469,12 @@ async function handleFightCallback(
           : presentMimicShawarmaStatistics(result),
       {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildFightResultKeyboard("already-completed", result.character, result.artifactToken)
+        reply_markup: buildFightResultKeyboard(
+          "already-completed",
+          result.character,
+          result.artifactToken,
+          { artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "mimic", result.artifactToken) }
+        )
       }
     );
     return;
@@ -481,7 +499,9 @@ async function handleFightCallback(
       } else {
         await safeEditMessageText(ctx, presentPersistentFightSnapshot(publicResult), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightResultKeyboard(publicResult.session, publicResult.character)
+          reply_markup: buildPersistentFightResultKeyboard(publicResult.session, publicResult.character, {
+            artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "solo", publicResult.session.id)
+          })
         });
       }
       return;
@@ -695,6 +715,9 @@ async function handleFightCallback(
     await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPersistentFightResultKeyboard(result.session, result.character, {
+        artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
+          ? null
+          : buildTerminalBattleArtifactUrl(botUsername, "solo", result.session.id),
         includeCombatItems:
           result.session.status === "active" &&
           result.session.state?.status === "active" &&
@@ -742,6 +765,9 @@ async function handleFightCallback(
         await safeEditMessageText(ctx, presentPersistentFightSnapshot(snapshot), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightResultKeyboard(snapshot.session, snapshot.character, {
+            artifactUrl: (snapshot.session.state?.status ?? snapshot.session.status) === "active"
+              ? null
+              : buildTerminalBattleArtifactUrl(botUsername, "solo", snapshot.session.id),
             includeCombatItems:
               snapshot.session.status === "active" &&
               snapshot.session.state?.status === "active" &&
@@ -876,6 +902,9 @@ async function handleFightCallback(
           result.state === "not-found" || result.state === "needs-rest"
             ? undefined
             : buildPersistentFightResultKeyboard(result.session, result.character, {
+                artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
+                  ? null
+                  : buildTerminalBattleArtifactUrl(botUsername, "solo", result.session.id),
                 includeCombatItems
               })
       };
@@ -965,7 +994,12 @@ async function handleFightCallback(
     reply_markup: buildFightResultKeyboard(
       result.state,
       result.character,
-      result.artifactToken
+      result.artifactToken,
+      {
+        artifactUrl: result.artifactToken
+          ? buildTerminalBattleArtifactUrl(botUsername, "mimic", result.artifactToken)
+          : null
+      }
     )
   });
   if (result.state === "completed") {

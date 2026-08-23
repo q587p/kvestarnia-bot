@@ -21,7 +21,6 @@ export interface DailyActionRecord {
 
 export interface PublicDailyActionArtifactRecord {
   action: DailyActionRecord;
-  character: CharacterRecord;
 }
 
 export interface ItemGrant {

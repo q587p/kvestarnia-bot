@@ -8,6 +8,8 @@ import type { PartySessionService } from "../../services/partySessionService";
 import type { TavernGameService } from "../../services/tavernGameService";
 import type { GuildService } from "../../services/guildService";
 import type { ReferralService } from "../../services/referralService";
+import type { FightService } from "../../services/fightService";
+import type { TrainingDoppelgangerService } from "../../services/trainingDoppelgangerService";
 import {
   PRESENCE_LOCATION_KORCHMA_BAR,
   type PresenceService
@@ -22,6 +24,8 @@ import {
   buildDuelResultKeyboard
 } from "../keyboards/duelKeyboard";
 import { buildMainMenuKeyboard } from "../keyboards/mainMenuKeyboard";
+import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "../keyboards/fightKeyboard";
+import { buildTrainingDoppelgangerKeyboard } from "../keyboards/trainingDoppelgangerKeyboard";
 import { buildReferralCaptureRetryKeyboard } from "../keyboards/referralKeyboard";
 import { buildGenderKeyboard } from "../keyboards/onboardingKeyboard";
 import { getReferralCaptureResult } from "../middleware/registerReferralMiddleware";
@@ -37,8 +41,14 @@ import {
   presentReferralCaptureRetry
 } from "../presenters/referralPresenter";
 import { presentSupportThanks } from "../presenters/supportPresenter";
+import {
+  presentPersistentFightSnapshot,
+  presentPublicMimicShawarmaResult
+} from "../presenters/fightPresenter";
+import { presentTrainingDoppelganger } from "../presenters/trainingDoppelgangerPresenter";
 import { presentTavernGameActionResult } from "../presenters/tavernGamePresenter";
 import { parseStartPayload } from "../startPayload";
+import { buildTerminalBattleArtifactUrl } from "../terminalBattleArtifactLink";
 import { sendPartyJoinFromStartPayload } from "./partySessionCommand";
 import { sendGuildInviteFromTargetCode } from "./guildCommand";
 import {
@@ -60,6 +70,8 @@ export interface StartCommandOptions {
   tavernGames?: TavernGameService;
   guilds?: GuildService;
   referrals?: ReferralService;
+  fight?: FightService;
+  trainingDoppelganger?: TrainingDoppelgangerService;
   presence?: PresenceService;
   botUsername?: string | undefined;
   duelBotUsername?: string | undefined;
@@ -84,6 +96,16 @@ export function registerStartCommand(
 
     if (!player) {
       await ctx.reply("Квестарня не впізнала мандрівника. Спробуйте ще раз із особистого акаунта.");
+      return;
+    }
+
+    if (payload.type === "terminal-battle-artifact") {
+      await sendTerminalBattleArtifactFromStartPayload(ctx, payload, options);
+      return;
+    }
+
+    if (payload.type === "unknown" && /^ba1(?:_|$)/i.test(payload.raw)) {
+      await replyTerminalBattleArtifactNotFound(ctx);
       return;
     }
 
@@ -282,6 +304,64 @@ export function registerStartCommand(
       reply_markup: buildGenderKeyboard()
     });
   });
+}
+
+async function sendTerminalBattleArtifactFromStartPayload(
+  ctx: Context,
+  payload: Extract<ReturnType<typeof parseStartPayload>, { type: "terminal-battle-artifact" }>,
+  options: StartCommandOptions
+): Promise<void> {
+  const artifactUrl = buildTerminalBattleArtifactUrl(
+    options.botUsername,
+    payload.kind,
+    payload.token
+  );
+
+  if (payload.kind === "solo" && options.fight) {
+    const result = await options.fight.getPublicTerminalFightArtifact(payload.token);
+    if (result.state === "found") {
+      await ctx.reply(presentPersistentFightSnapshot(result), {
+        parse_mode: "HTML",
+        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character, { artifactUrl })
+      });
+      return;
+    }
+  } else if (payload.kind === "training" && options.trainingDoppelganger) {
+    const result = await options.trainingDoppelganger.getPublicTerminalArtifact(payload.token);
+    if (result.state === "ready") {
+      await ctx.reply(presentTrainingDoppelganger({
+        state: "terminal",
+        character: result.character,
+        doppelganger: result.doppelganger,
+        session: result.session,
+        reward: null
+      }), {
+        parse_mode: "HTML",
+        reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, { artifactUrl })
+      });
+      return;
+    }
+  } else if (payload.kind === "mimic" && options.fight) {
+    const result = await options.fight.getPublicMimicShawarmaArtifact(payload.token);
+    if (result.state === "ready") {
+      await ctx.reply(presentPublicMimicShawarmaResult(result), {
+        parse_mode: "HTML",
+        reply_markup: buildFightResultKeyboard(
+          "already-completed",
+          result.character,
+          result.artifactToken,
+          { artifactUrl }
+        )
+      });
+      return;
+    }
+  }
+
+  await replyTerminalBattleArtifactNotFound(ctx);
+}
+
+async function replyTerminalBattleArtifactNotFound(ctx: Context): Promise<void> {
+  await ctx.reply("Бойовий запис не знайшовся або ще не готовий до перегляду.");
 }
 
 export async function sendTavernGameJoinFromStartPayload(

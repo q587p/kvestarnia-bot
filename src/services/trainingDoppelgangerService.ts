@@ -18,7 +18,9 @@ import type {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   expireCombat,
+  buildLegacyPublicCombatantIdentity,
   freezeCombatLife,
+  freezePublicCombatantIdentity,
   isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
@@ -26,7 +28,8 @@ import {
   resolveCombatTurn,
   startCombat,
   type CombatActionType,
-  type CombatState
+  type CombatState,
+  type PublicCombatantIdentityV1
 } from "../domain/combat";
 import {
   buildTrainingDoppelgangerCombatStatsFromState,
@@ -117,7 +120,7 @@ export type PublicTrainingDoppelgangerArtifactResult =
   | { state: "active" }
   | {
       state: "ready";
-      character: CharacterSummary;
+      character: PublicCombatantIdentityV1;
       doppelganger: TrainingDoppelgangerCopy;
       session: SoloCombatSessionRecord;
       reward: null;
@@ -390,6 +393,7 @@ export class TrainingDoppelgangerService {
     });
     state.turnExpiresAt = getTrainingTurnExpiry(now).toISOString();
     state.source = "training";
+    state.publicIdentity = freezePublicCombatantIdentity(character);
     state.life = freezeCombatLife({
       characterId: base.characterId,
       remortCount: character.remortCount ?? 0,
@@ -618,7 +622,9 @@ export class TrainingDoppelgangerService {
       return { state: "not-found" };
     }
     if ((artifact.session.state?.status ?? artifact.session.status) === "active") return { state: "active" };
-    const character = summarizeCharacter(artifact.character);
+    const character = artifact.session.state?.publicIdentity ?? buildLegacyPublicCombatantIdentity({
+      guildCrest: artifact.session.state?.hero.guildCrest
+    });
     return {
       state: "ready",
       character,
@@ -1869,7 +1875,7 @@ export class TrainingDoppelgangerService {
 }
 
 function buildDoppelgangerCopy(
-  character: CharacterSummary,
+  character: Pick<CharacterSummary, "raceName" | "className" | "title" | "level">,
   state?: SoloCombatSessionRecord["state"]
 ): TrainingDoppelgangerCopy {
   const trace = state?.monster.debugTrace ?? state?.lastTurn?.debugTrace;

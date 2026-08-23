@@ -2,6 +2,29 @@ import { describe, expect, it, vi } from "vitest";
 import { PrismaDailyActionRepository } from "../../src/db/repositories/prismaDailyActionRepository";
 
 describe("PrismaDailyActionRepository bounded helpers", () => {
+  it("reads public DailyAction artifacts without joining the mutable Character", async () => {
+    const action = {
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      characterId: "character-owner",
+      key: "starter.mimic-shawarma.combat-probe",
+      localDate: "2026-08-23",
+      rewardXp: 0,
+      rewardGold: 0,
+      spentGold: 0,
+      resultJson: { version: 1 },
+      createdAt: new Date("2026-08-23T10:00:00.000Z")
+    };
+    const findFirst = vi.fn().mockResolvedValue(action);
+    const repository = new PrismaDailyActionRepository({
+      dailyAction: { findFirst }
+    } as unknown as ConstructorParameters<typeof PrismaDailyActionRepository>[0]);
+
+    await expect(repository.findPublicArtifactById(action.id, { key: action.key })).resolves.toEqual({ action });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: action.id, key: action.key }
+    });
+  });
+
   it("loads all current-life quest keys through one capped query", async () => {
     const prisma = createPrismaMock({ manyDailyActions: [] });
     const repository = new PrismaDailyActionRepository(prisma.client);

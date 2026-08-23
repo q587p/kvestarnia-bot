@@ -88,6 +88,36 @@ describe("start payload parser", () => {
     });
   });
 
+  it("parses strict versioned terminal battle artifact payloads", () => {
+    const token = "123e4567-e89b-42d3-a456-426614174000";
+    expect(parseStartPayload(`ba1_s_${token}`)).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "solo",
+      token
+    });
+    expect(parseStartPayload(`ba1_t_${token}`)).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "training",
+      token
+    });
+    expect(parseStartPayload(`ba1_m_${token}`)).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "mimic",
+      token
+    });
+
+    for (const payload of [
+      `ba1_x_${token}`,
+      "ba1_s_not-a-uuid",
+      "ba1_s_123e4567-e89b-02d3-a456-426614174000",
+      "ba1_s_123e4567-e89b-42d3-7456-426614174000",
+      `BA1_s_${token}`,
+      `ba2_s_${token}`
+    ]) {
+      expect(parseStartPayload(payload)).toMatchObject({ type: "unknown" });
+    }
+  });
+
   it("marks long or invalid payloads unsafe without throwing", () => {
     expect(parseStartPayload("x".repeat(80))).toEqual({
       type: "unknown",

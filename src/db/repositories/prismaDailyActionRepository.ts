@@ -31,13 +31,10 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
 
   async findPublicArtifactById(actionId: string, input: { key: string }) {
     const record = await this.prisma.dailyAction.findFirst({
-      where: { id: actionId, key: input.key },
-      include: { character: true }
+      where: { id: actionId, key: input.key }
     });
 
-    return record
-      ? { action: record, character: record.character }
-      : null;
+    return record ? { action: record } : null;
   }
 
   async findForTelegramUser(

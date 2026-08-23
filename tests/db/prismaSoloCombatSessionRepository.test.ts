@@ -12,6 +12,31 @@ import {
 import { FakeRandomSource } from "../../src/shared/random";
 
 describe("PrismaSoloCombatSessionRepository", () => {
+  it("reads public artifacts without joining the mutable Character", async () => {
+    const findFirst = vi.fn().mockResolvedValue(makeSoloCombatRow({
+      ...activeCombatState,
+      status: "won",
+      publicIdentity: {
+        version: 1,
+        name: "Архівна Героїня",
+        title: "Пані Незмінного Протоколу",
+        level: 8,
+        raceId: "race.human-ish",
+        raceName: "Людисько",
+        classId: "class.warrior",
+        className: "Воїн"
+      }
+    }));
+    const repository = new PrismaSoloCombatSessionRepository({
+      soloCombatSession: { findFirst }
+    } as unknown as ConstructorParameters<typeof PrismaSoloCombatSessionRepository>[0]);
+
+    await expect(repository.findPublicArtifactById("session-public")).resolves.toMatchObject({
+      session: { state: { publicIdentity: { name: "Архівна Героїня" } } }
+    });
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: "session-public" } });
+  });
+
   it("returns null when updating a disappeared solo fight row", async () => {
     const repository = new PrismaSoloCombatSessionRepository(
       fakePrismaThatCannotFindSoloCombatRows()

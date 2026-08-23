@@ -20,6 +20,7 @@ import {
   combatActionButtonLabels,
   type CombatActionKeyboardButton
 } from "./combatActionKeyboardLayout";
+import { buildTerminalBattleArtifactShareUrl } from "../terminalBattleArtifactLink";
 
 export function buildTrainingDoppelgangerStartKeyboard(
   choices: readonly TrainingDoppelgangerStartChoice[]
@@ -35,25 +36,27 @@ export function buildTrainingDoppelgangerStartKeyboard(
 
 export function buildTrainingDoppelgangerKeyboard(
   session?: SoloCombatSessionRecord,
-  character?: CharacterSummary
+  character?: CharacterSummary | Pick<CharacterSummary, "name" | "title" | "guildCrest">,
+  options: { artifactUrl?: string | null | undefined } = {}
 ): InlineKeyboard {
   if (session?.state?.status === "active" && character) {
+    const activeCharacter = character as CharacterSummary;
     const turn = session.state.turn;
     const availability = getCombatActionAvailability(session.state, {
-      classId: character.classId,
-      raceId: character.raceId
+      classId: activeCharacter.classId,
+      raceId: activeCharacter.raceId
     });
     const abilityButtons: CombatActionKeyboardButton[] = [];
 
     if (availability.skill.available) {
       abilityButtons.push({
-        label: getPersistentFightSkillLabel(character),
+        label: getPersistentFightSkillLabel(activeCharacter),
         callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
       });
     }
 
     if (availability.race.available) {
-      const raceLabel = getPersistentFightRaceAbilityLabel(character);
+      const raceLabel = getPersistentFightRaceAbilityLabel(activeCharacter);
       if (raceLabel) {
         abilityButtons.push({
           label: raceLabel,
@@ -96,6 +99,12 @@ export function buildTrainingDoppelgangerKeyboard(
       "📊 Статистика",
       makeTrainingDoppelgangerStatisticsCallbackData(session.id)
     ).row();
+    if (options.artifactUrl) {
+      keyboard.url(
+        "🔗 Поділитися записом",
+        buildTerminalBattleArtifactShareUrl(options.artifactUrl)
+      ).row();
+    }
   }
 
   return keyboard.text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));

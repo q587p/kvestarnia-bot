@@ -59,6 +59,11 @@ import {
   FightingCornerQuestService,
   FIGHTING_CORNER_QUEST_KEYS
 } from "../../src/services/fightingCornerQuestService";
+import {
+  presentTrainingDoppelganger,
+  presentTrainingDoppelgangerJournal,
+  presentTrainingDoppelgangerStatistics
+} from "../../src/bot/presenters/trainingDoppelgangerPresenter";
 
 const telegramUserId = 42n;
 const fixedNow = () => new Date("2026-06-17T09:30:00.000Z");
@@ -126,6 +131,15 @@ describe("TrainingDoppelgangerService", () => {
     await expect(service.getPublicTerminalArtifact(started.session.id)).resolves.toEqual({ state: "active" });
     await expect(service.getPublicTerminalArtifact("123e4567-e89b-42d3-a456-426614174999"))
       .resolves.toEqual({ state: "not-found" });
+    world.sessions.set("123e4567-e89b-42d3-a456-426614174998", {
+      ...started.session,
+      id: "123e4567-e89b-42d3-a456-426614174998",
+      monsterId: "monster.deadline-spider",
+      status: "won",
+      state: { ...started.session.state, status: "won" }
+    });
+    await expect(service.getPublicTerminalArtifact("123e4567-e89b-42d3-a456-426614174998"))
+      .resolves.toEqual({ state: "not-found" });
     world.sessions.set(started.session.id, {
       ...started.session,
       status: "won",
@@ -133,11 +147,40 @@ describe("TrainingDoppelgangerService", () => {
     });
     const before = JSON.stringify([...world.sessions.entries()]);
 
-    await expect(service.getPublicTerminalArtifact(started.session.id)).resolves.toMatchObject({
+    const first = await service.getPublicTerminalArtifact(started.session.id);
+    expect(first).toMatchObject({
       state: "ready",
       character: { name: "Мандрівник" },
       session: { id: started.session.id, status: "won" }
     });
+    if (first.state !== "ready") throw new Error("Expected terminal Training artifact.");
+    const firstSnapshot = { ...first, state: "found" as const };
+    const rendered = [
+      presentTrainingDoppelganger({ ...first, state: "terminal", reward: null }),
+      presentTrainingDoppelgangerJournal(firstSnapshot, 0),
+      presentTrainingDoppelgangerStatistics(firstSnapshot)
+    ];
+    world.addCharacter(telegramUserId, {
+      name: "Нова особа після тренування",
+      raceId: "race.orc-ish",
+      classId: "class.mage",
+      guildCrest: "⚔️",
+      level: 13,
+      xp: 1300,
+      remortCount: 1
+    });
+    const replay = await service.getPublicTerminalArtifact(started.session.id);
+    expect(replay).toMatchObject({
+      state: "ready",
+      character: { name: "Мандрівник", raceId: "race.human-ish", classId: "class.warrior", level: 3 }
+    });
+    if (replay.state !== "ready") throw new Error("Expected replay Training artifact.");
+    const replaySnapshot = { ...replay, state: "found" as const };
+    expect([
+      presentTrainingDoppelganger({ ...replay, state: "terminal", reward: null }),
+      presentTrainingDoppelgangerJournal(replaySnapshot, 0),
+      presentTrainingDoppelgangerStatistics(replaySnapshot)
+    ]).toEqual(rendered);
     await service.getPublicTerminalArtifact(started.session.id);
 
     expect(JSON.stringify([...world.sessions.entries()])).toBe(before);
@@ -1702,18 +1745,12 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
 
   findPublicTerminalById(sessionId: string) {
     const session = this.sessions.get(sessionId);
-    const character = session
-      ? [...this.charactersByTelegramUserId.values()].find((candidate) => candidate.id === session.characterId)
-      : null;
-    return Promise.resolve(session && session.status !== "active" && character ? { session, character } : null);
+    return Promise.resolve(session && session.status !== "active" ? { session } : null);
   }
 
   findPublicArtifactById(sessionId: string) {
     const session = this.sessions.get(sessionId);
-    const character = session
-      ? [...this.charactersByTelegramUserId.values()].find((candidate) => candidate.id === session.characterId)
-      : null;
-    return Promise.resolve(session && character ? { session, character } : null);
+    return Promise.resolve(session ? { session } : null);
   }
 
   createForTelegramUser(

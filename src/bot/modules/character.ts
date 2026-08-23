@@ -106,6 +106,10 @@ export function registerCharacterBotModule(
       ...(services.tavernGames ? { tavernGames: services.tavernGames } : {}),
       ...(services.guilds ? { guilds: services.guilds } : {}),
       ...(services.referrals ? { referrals: services.referrals } : {}),
+      fight: services.fight,
+      ...(services.trainingDoppelganger
+        ? { trainingDoppelganger: services.trainingDoppelganger }
+        : {}),
       presence: services.presence,
       botUsername: options.botUsername,
       duelBotUsername: options.botUsername

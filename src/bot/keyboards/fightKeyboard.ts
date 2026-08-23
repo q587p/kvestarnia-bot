@@ -62,6 +62,7 @@ import {
   combatActionButtonLabels,
   type CombatActionKeyboardButton
 } from "./combatActionKeyboardLayout";
+import { buildTerminalBattleArtifactShareUrl } from "../terminalBattleArtifactLink";
 
 export type FightResultKeyboardState = "completed" | "already-completed";
 
@@ -78,8 +79,9 @@ export function buildFightKeyboard(character?: CharacterSummary): InlineKeyboard
 
 export function buildFightResultKeyboard(
   state: FightResultKeyboardState,
-  character?: CharacterSummary,
-  artifactToken?: string
+  character?: CharacterSummary | Pick<CharacterSummary, "name" | "title" | "guildCrest">,
+  artifactToken?: string,
+  options: { artifactUrl?: string | null | undefined } = {}
 ): InlineKeyboard {
   if (state === "already-completed") {
     const keyboard = new InlineKeyboard();
@@ -88,10 +90,16 @@ export function buildFightResultKeyboard(
       keyboard.text("📜 Журнал", makeMimicFightJournalCallbackData(artifactToken)).row();
       keyboard.text("📊 Статистика", makeMimicFightStatisticsCallbackData(artifactToken)).row();
     }
+    if (options.artifactUrl) {
+      keyboard.url(
+        "🔗 Поділитися записом",
+        buildTerminalBattleArtifactShareUrl(options.artifactUrl)
+      ).row();
+    }
     return keyboard.text("📋 До справ", makePlaceCallbackData("quest-table"));
   }
 
-  const keyboard = buildFightKeyboard(character);
+  const keyboard = buildFightKeyboard(character as CharacterSummary | undefined);
   if (artifactToken) {
     keyboard.row().text("⚔️ Підсумок", makeMimicFightResultCallbackData(artifactToken));
     keyboard.row().text("📜 Журнал", makeMimicFightJournalCallbackData(artifactToken));
@@ -167,14 +175,21 @@ export function buildPersistentFightKeyboard(
 
 export function buildPersistentFightResultKeyboard(
   session: SoloCombatSessionRecord,
-  character: CharacterSummary,
-  options: { includeCombatItems?: boolean } = {}
+  character: CharacterSummary | Pick<CharacterSummary, "name" | "title" | "guildCrest">,
+  options: { includeCombatItems?: boolean; artifactUrl?: string | null | undefined } = {}
 ): InlineKeyboard {
   if (session.state?.status !== "active") {
     const navigation = getPersistentFightReturnNavigation(session);
     const keyboard = new InlineKeyboard();
 
     addPersistentFightJournalButton(keyboard, session);
+
+    if (options.artifactUrl) {
+      keyboard.url(
+        "🔗 Поділитися записом",
+        buildTerminalBattleArtifactShareUrl(options.artifactUrl)
+      ).row();
+    }
 
     if (navigation.allowNewFight) {
       keyboard.text("⚔️ Новий бій", makePlaceCallbackData(navigation.newFightPlace)).row();
@@ -183,7 +198,7 @@ export function buildPersistentFightResultKeyboard(
     return keyboard.text(navigation.returnLabel, makePlaceCallbackData(navigation.returnPlace));
   }
 
-  return buildPersistentFightKeyboard(session, character, options);
+  return buildPersistentFightKeyboard(session, character as CharacterSummary, options);
 }
 
 export function buildPersistentFightItemsKeyboard(input: {

@@ -22,6 +22,25 @@ describe("solo combat state JSON parser", () => {
     expect(parseCombatState(legacyState)).toEqual(legacyState);
   });
 
+  it("round-trips a valid public identity snapshot and drops a malformed one without rejecting combat", () => {
+    const publicIdentity = {
+      version: 1,
+      name: "Архівна Героїня",
+      title: "Пані Незмінного Протоколу",
+      guildCrest: "🛡️",
+      level: 8,
+      raceId: "race.human-ish",
+      raceName: "Людисько",
+      classId: "class.warrior",
+      className: "Воїн"
+    };
+    expect(parseCombatState({ ...legacyState, publicIdentity })?.publicIdentity).toEqual(publicIdentity);
+    expect(parseCombatState({
+      ...legacyState,
+      publicIdentity: { ...publicIdentity, level: 0 }
+    })?.publicIdentity).toBeUndefined();
+  });
+
   it("round-trips player ability fumble state and replay summaries", () => {
     const fumble = {
       abilityId: "ability.race.dry-tide",

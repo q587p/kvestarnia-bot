@@ -65,6 +65,9 @@ import {
   startCombat,
   decideThreatEscalation,
   findThreatEscalationLine,
+  buildLegacyPublicCombatantIdentity,
+  freezePublicCombatantIdentity,
+  parsePublicCombatantIdentity,
   selectThreatEscalationLineId,
   THREAT_ESCALATION_LINE_VERSION,
   THREAT_ESCALATION_REQUIRED_WINS,
@@ -75,7 +78,8 @@ import {
   type CombatEnemyState,
   type CombatState,
   type DrinkCombatModifiers,
-  type MonsterCombatStats
+  type MonsterCombatStats,
+  type PublicCombatantIdentityV1
 } from "../domain/combat";
 import { SOLO_COMBAT_LEASE_KIND } from "../domain/combat/combatLeaseRegistry";
 import {
@@ -398,7 +402,7 @@ export type PublicMimicShawarmaArtifactResult =
   | {
       state: "ready";
       artifactToken: string;
-      character: CharacterSummary;
+      character: PublicCombatantIdentityV1;
       action: FightAction;
       combat: CombatProbeResult;
       statistics: MimicShawarmaStatisticsPayload;
@@ -490,7 +494,14 @@ export type PersistentFightSnapshotResult =
     };
 
 export type PublicPersistentFightArtifactResult =
-  | Extract<PersistentFightSnapshotResult, { state: "found" }>
+  | {
+      state: "found";
+      character: PublicCombatantIdentityV1;
+      session: SoloCombatSessionRecord;
+      monster: MonsterContent | null;
+      questProgress: null;
+      fightReward: PersistentFightReward | null;
+    }
   | { state: "active" | "not-found" };
 
 export interface PersistentFightCombatItemMenuEntry {
@@ -1806,7 +1817,9 @@ export class FightService {
     if ((artifact.session.state?.status ?? artifact.session.status) === "active") return { state: "active" };
     return {
       state: "found",
-      character: summarizeCharacter(artifact.character),
+      character: artifact.session.state?.publicIdentity ?? buildLegacyPublicCombatantIdentity({
+        guildCrest: artifact.session.state?.hero.guildCrest
+      }),
       session: artifact.session,
       monster: findPersistentFightMonster(artifact.session),
       questProgress: null,
@@ -2268,6 +2281,7 @@ export class FightService {
     });
     state.turnExpiresAt = getTurnExpiry(now).toISOString();
     state.source = options.source ?? "normal";
+    state.publicIdentity = freezePublicCombatantIdentity(characterSummary);
     state.life = freezeCombatLife({
       characterId: character.id,
       remortCount,
@@ -2482,6 +2496,7 @@ export class FightService {
     });
     const localDate = toIsoDate(this.clock());
     const statistics = buildMimicShawarmaStatistics(characterSummary, combat);
+    const publicIdentity = freezePublicCombatantIdentity(characterSummary);
     const baseReward = MIMIC_SHAWARMA_COMBAT_REWARDS[action];
     const reward = {
       ...baseReward,
@@ -2497,7 +2512,8 @@ export class FightService {
         version: 1,
         action,
         combat,
-        statistics
+        statistics,
+        publicIdentity
       }
     });
 
@@ -2579,8 +2595,10 @@ export class FightService {
       ? {
           state: "ready",
           artifactToken,
-          character: summarizeCharacter(artifact.character),
-          ...payload
+          character: payload.publicIdentity,
+          action: payload.action,
+          combat: payload.combat,
+          statistics: payload.statistics
         }
       : { state: "not-found" };
   }
@@ -4785,6 +4803,7 @@ export class FightService {
     }
     state.turnExpiresAt = getTurnExpiry(input.now).toISOString();
     state.source = input.source;
+    state.publicIdentity = freezePublicCombatantIdentity(input.characterSummary);
     state.life = freezeCombatLife({
       characterId: input.character.id,
       remortCount,
@@ -6336,12 +6355,15 @@ function readMimicShawarmaArtifact(value: unknown): {
   action: FightAction;
   combat: CombatProbeResult;
   statistics: MimicShawarmaStatisticsPayload;
+  publicIdentity: PublicCombatantIdentityV1;
 } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
   const action = candidate.action;
   const combat = candidate.combat;
   const statistics = readMimicShawarmaStatistics(value);
+  const publicIdentity = parsePublicCombatantIdentity(candidate.publicIdentity) ??
+    buildLegacyPublicCombatantIdentity();
   if (!statistics || (action !== "attack" && action !== "receipt" && action !== "flee")) return null;
   if (!combat || typeof combat !== "object" || Array.isArray(combat)) return null;
   const parsedCombat = combat as Record<string, unknown>;
@@ -6358,5 +6380,10 @@ function readMimicShawarmaArtifact(value: unknown): {
     (parsedCombat.outcome !== "win" && parsedCombat.outcome !== "messy-win" && parsedCombat.outcome !== "flee") ||
     numericKeys.some((key) => !Number.isFinite(parsedCombat[key]))
   ) return null;
-  return { action, combat: parsedCombat as unknown as CombatProbeResult, statistics };
+  return {
+    action,
+    combat: parsedCombat as unknown as CombatProbeResult,
+    statistics,
+    publicIdentity
+  };
 }

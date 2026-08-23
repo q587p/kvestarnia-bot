@@ -24,6 +24,7 @@ import {
   markCombatSettlementForfeitedByRemort,
   parseCombatAnalyticsState,
   parseMonsterAbilityRuntimeState,
+  parsePublicCombatantIdentity,
   THREAT_ESCALATION_REQUIRED_WINS,
   THREAT_ESCALATION_LINE_VERSION
 } from "../../domain/combat";
@@ -643,19 +644,13 @@ export class PrismaSoloCombatSessionRepository implements SoloCombatSessionRepos
   }
 
   async findPublicArtifactById(sessionId: string) {
-    const record = await this.prisma.soloCombatSession.findFirst({
-      where: { id: sessionId },
-      include: { character: true }
-    });
+    const record = await this.prisma.soloCombatSession.findFirst({ where: { id: sessionId } });
 
     if (!record) {
       return null;
     }
 
-    return {
-      session: this.mapSoloCombatSessionRecord(record)!,
-      character: record.character
-    };
+    return { session: this.mapSoloCombatSessionRecord(record)! };
   }
 
   async createForTelegramUser(
@@ -1863,6 +1858,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   const turn = intOrNull(value.turn);
   const status = parseStateStatus(value.status);
   const source = parseCombatSource(value.source);
+  const publicIdentity = parsePublicCombatantIdentity(value.publicIdentity);
   const life = parseCombatLife(value.life);
   const settlement = parseCombatSettlement(value.settlement);
   const threat = parseCombatThreat(value.threat);
@@ -1899,6 +1895,7 @@ export function parseCombatState(value: unknown): CombatState | null {
   return {
     ...(typeof value.id === "string" ? { id: value.id } : {}),
     ...(source ? { source } : {}),
+    ...(publicIdentity ? { publicIdentity } : {}),
     ...(life ? { life } : {}),
     ...(settlement ? { settlement } : {}),
     ...(threat ? { threat } : {}),
