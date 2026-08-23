@@ -13,6 +13,7 @@ import type { ShynokDrinkStateRecord, ShynokRepository } from "../db/repositorie
 import { items } from "../content";
 import type { CharacterSummary } from "../domain/characters/characterSummary";
 import type { StatKey } from "../domain/characters/starterStats";
+import { RESPONSIBLE_PANIC_BANDAGE_ITEM_ID } from "../domain/itemCraft";
 import {
   applyPriestBlessingBonusToSummary,
   normalizePriestBlessingBonus
@@ -425,24 +426,21 @@ function resolveRestoreToFullItemId(
     return null;
   }
 
-  for (const row of inventoryRows) {
-    if (row.quantity <= 0) {
-      continue;
-    }
-
-    const item = items.find((candidate) => candidate.id === row.itemId);
-    const effect = item ? getItemUseEffect(item) : null;
-    if (!effect || effect.kind !== "heal-hp" || effect.amount <= 0) {
-      continue;
-    }
-
-    const neededQuantity = Math.ceil((character.hpMax - character.hpCurrent) / Math.max(1, effect.amount));
-    if (row.quantity >= neededQuantity) {
-      return row.itemId;
-    }
+  const row = inventoryRows.find(
+    (candidate) => candidate.itemId === RESPONSIBLE_PANIC_BANDAGE_ITEM_ID && candidate.quantity > 0
+  );
+  if (!row) {
+    return null;
   }
 
-  return null;
+  const item = items.find((candidate) => candidate.id === row.itemId);
+  const effect = item ? getItemUseEffect(item) : null;
+  if (!effect || effect.kind !== "heal-hp" || effect.amount <= 0) {
+    return null;
+  }
+
+  const neededQuantity = Math.ceil((character.hpMax - character.hpCurrent) / Math.max(1, effect.amount));
+  return row.quantity >= neededQuantity ? row.itemId : null;
 }
 
 function presentHeroActivePriestBlessing(state: PriestBlessingRecord | null): HeroActivePriestBlessing | null {

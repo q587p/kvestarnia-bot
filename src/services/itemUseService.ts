@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { items } from "../content";
 import { findItemContent } from "../content/itemLookup";
 import type { ItemContent } from "../content/schema";
+import { RESPONSIBLE_PANIC_BANDAGE_ITEM_ID } from "../domain/itemCraft";
 import {
   createItemUseFingerprint,
   getItemUseEffect,
@@ -16,7 +17,7 @@ import type {
 } from "../db/repositories/itemUseRepository";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 
-export const BANDAGE_ITEM_ID = "item.responsible-panic-bandage";
+export const BANDAGE_ITEM_ID = RESPONSIBLE_PANIC_BANDAGE_ITEM_ID;
 const ITEM_USE_TTL_MINUTES = 23;
 
 export type ItemUseAvailability =

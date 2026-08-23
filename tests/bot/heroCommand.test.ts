@@ -411,6 +411,24 @@ describe("hero command", () => {
     expect(replies[0]?.text).not.toContain("Здоров’я знову повне");
   });
 
+  it("does not render an unusable restore-to-full shortcut on the character card", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const heroService = {
+      findByTelegramUserId: () => Promise.resolve({
+        state: "existing-character" as const,
+        character: { ...character, hpCurrent: 8, hpMax: 22 },
+        inventoryGoldValue: 56,
+        activeDrink: null,
+        activeCosmeticTitle: null,
+        restoreToFullItemId: null
+      })
+    } as unknown as HeroService;
+
+    await sendHero(makeReplyContext(replies), heroService, "reply");
+
+    expect(flatInlineButtonTexts(replies[0]?.options)).not.toContain("🧻 До відновлення");
+  });
+
   it("hides Varenyk self-feeding when the Hero lookup reports the class-specific adventure gate", async () => {
     const replies: Array<{ text: string; options: unknown }> = [];
     const heroService = {
