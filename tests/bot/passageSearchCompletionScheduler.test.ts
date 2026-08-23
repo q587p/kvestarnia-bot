@@ -5,6 +5,12 @@ import type { PassageSearchActionRecord } from "../../src/db/repositories/passag
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import type { PassageSearchCheckResult } from "../../src/services/passageSearchService";
+import {
+  findTerminalBattleArtifactShareButtons,
+  inspectSingleTerminalBattleArtifactShare
+} from "../helpers/terminalBattleArtifactShare";
+
+const terminalFightId = "123e4567-e89b-42d3-a456-426614174020";
 
 describe("passage search completion scheduler", () => {
   it("sends one completion message for a due running search with a chat target", async () => {
@@ -103,7 +109,7 @@ describe("passage search completion scheduler", () => {
     const scheduler = createPassageSearchCompletionScheduler(
       { passageSearch: passageSearch as never, fight: fight as never },
       bot,
-      { intervalMs: 60_000 }
+      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
     );
 
     scheduler.start();
@@ -120,11 +126,44 @@ describe("passage search completion scheduler", () => {
     expect(sendMessage.mock.calls[2]?.[1]).toContain("що робимо?");
     expect(sendMessage.mock.calls[2]?.[2] as { parse_mode?: string }).toMatchObject({ parse_mode: "HTML" });
     expect(sendMessage.mock.calls[2]?.[2]).toHaveProperty("reply_markup");
+    expect(findTerminalBattleArtifactShareButtons(
+      (sendMessage.mock.calls[2]?.[2] as { reply_markup?: unknown }).reply_markup
+    )).toEqual([]);
     expect(fight.recordPersistentFightMessageReference).toHaveBeenCalledWith(
       42587n,
       "session-danger",
       { chatId: "42", messageId: 587 }
     );
+  });
+
+  it("delivers a terminal passage-attack result with one typed capability share URL", async () => {
+    const action = makeAction({ chatId: "42" });
+    const result = terminalMonsterAttackResult(action);
+    const passageSearch = {
+      listDueRunningSearches: vi.fn()
+        .mockResolvedValueOnce([{ telegramUserId: 42587n, action }])
+        .mockResolvedValue([]),
+      resolveDueSearch: vi.fn().mockResolvedValue(result)
+    };
+    const recordPersistentFightMessageReference = vi.fn();
+    const { bot, sendMessage } = fakeBot();
+    const scheduler = createPassageSearchCompletionScheduler(
+      {
+        passageSearch: passageSearch as never,
+        fight: { recordPersistentFightMessageReference } as never
+      },
+      bot,
+      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+    );
+
+    scheduler.start();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    scheduler.stop();
+
+    expect(inspectSingleTerminalBattleArtifactShare(
+      (sendMessage.mock.calls[1]?.[2] as { reply_markup?: unknown }).reply_markup
+    ).parsed).toMatchObject({ kind: "solo", token: terminalFightId });
+    expect(recordPersistentFightMessageReference).not.toHaveBeenCalled();
   });
 });
 
@@ -173,6 +212,40 @@ function monsterAttackResult(action: PassageSearchActionRecord): PassageSearchCh
         tags: ["test"]
       },
       questProgress: null
+    }
+  };
+}
+
+function terminalMonsterAttackResult(action: PassageSearchActionRecord): PassageSearchCheckResult {
+  const session = persistentSession();
+  const terminalSession: SoloCombatSessionRecord = {
+    ...session,
+    id: terminalFightId,
+    status: "won",
+    state: {
+      ...session.state!,
+      id: terminalFightId,
+      status: "won",
+      monster: { ...session.state!.monster, hp: 0 }
+    }
+  };
+  return {
+    state: "monster-attack",
+    character,
+    action,
+    fight: {
+      state: "persistent-terminal",
+      character,
+      session: terminalSession,
+      monster: {
+        id: "monster.first",
+        name: "Перший Довжелезний Мешканець",
+        description: "Тестовий мешканець Низу.",
+        level: 4,
+        tags: ["test"]
+      },
+      questProgress: null,
+      fightReward: null
     }
   };
 }

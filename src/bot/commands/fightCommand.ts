@@ -52,6 +52,7 @@ import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { systemClock } from "../../shared/time";
+import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -60,6 +61,7 @@ export interface FightCommandOptions {
   tavernRaid?: TavernRaidService;
   passageSearch?: PassageSearchService | undefined;
   guildFoundationEnabled?: boolean;
+  botUsername?: string | undefined;
 }
 
 export function registerFightCommand(
@@ -165,7 +167,8 @@ export async function sendFight(
     await sendResultText(presentFightTrainingActive(result), {
       type: "training-active",
       character: result.character,
-      session: result.session
+      session: result.session,
+      botUsername: options?.botUsername
     });
     return;
   }
@@ -214,7 +217,8 @@ export async function sendFight(
         type: "persistent-fight",
         character: result.character,
         session: result.session,
-        includeCombatItems
+        includeCombatItems,
+        botUsername: options?.botUsername
       });
       await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
       return;
@@ -224,7 +228,8 @@ export async function sendFight(
       type: "persistent-fight",
       character: result.character,
       session: result.session,
-      includeCombatItems
+      includeCombatItems,
+      botUsername: options?.botUsername
     });
     await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
@@ -273,7 +278,8 @@ export async function sendFight(
     const messageId = await sendResultText(presentPersistentFight(result), {
       type: "persistent-fight",
       character: result.character,
-      session: result.session
+      session: result.session,
+      botUsername: options?.botUsername
     });
     await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
@@ -394,6 +400,7 @@ async function sendText(
         type: "training-active";
         character: CharacterSummary;
         session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
+        botUsername?: string | undefined;
       }
     | { type: "fight"; character: CharacterSummary }
     | {
@@ -401,6 +408,7 @@ async function sendText(
         character: CharacterSummary;
         session: Parameters<typeof buildPersistentFightResultKeyboard>[0];
         includeCombatItems?: boolean;
+        botUsername?: string | undefined;
       } = false
 ): Promise<number | null> {
   const options = keyboard
@@ -449,14 +457,29 @@ async function sendText(
                   ]
                 }
               : keyboard.type === "training-active"
-              ? buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
+              ? buildTrainingDoppelgangerKeyboard(
+                  keyboard.session,
+                  keyboard.character,
+                  buildSessionTerminalBattleArtifactKeyboardOptions(
+                    keyboard.botUsername,
+                    "training",
+                    keyboard.session!
+                  )
+                )
               : keyboard.type === "persistent-fight"
               ? buildPersistentFightResultKeyboard(
                   keyboard.session,
                   keyboard.character,
-                  keyboard.includeCombatItems === undefined
-                    ? {}
-                    : { includeCombatItems: keyboard.includeCombatItems }
+                  {
+                    ...buildSessionTerminalBattleArtifactKeyboardOptions(
+                      keyboard.botUsername,
+                      "solo",
+                      keyboard.session
+                    ),
+                    ...(keyboard.includeCombatItems === undefined
+                      ? {}
+                      : { includeCombatItems: keyboard.includeCombatItems })
+                  }
                 )
               : buildFightKeyboard(keyboard.character)
       }

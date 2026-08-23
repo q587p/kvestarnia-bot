@@ -101,7 +101,10 @@ presentTrainingDoppelgangerTurn
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
-import { buildTerminalBattleArtifactUrl } from "../terminalBattleArtifactLink";
+import {
+  buildMimicTerminalBattleArtifactKeyboardOptions,
+  buildSessionTerminalBattleArtifactKeyboardOptions
+} from "../terminalBattleArtifactLink";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import {
@@ -136,13 +139,15 @@ export function registerCombatBotModule(
     presence: services.presence,
     tavernRaid: services.tavern,
     passageSearch: services.passageSearch,
-    guildFoundationEnabled: services.guilds?.isEnabled() === true
+    guildFoundationEnabled: services.guilds?.isEnabled() === true,
+    botUsername: options.botUsername
   });
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
       presence: services.presence,
       tavernRaid: services.tavern,
-      fightingCornerQuest: services.fightingCornerQuest
+      fightingCornerQuest: services.fightingCornerQuest,
+      botUsername: options.botUsername
     });
     registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
@@ -265,9 +270,11 @@ export async function handleTrainingDoppelgangerCallback(
           reward: null
         }), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
-            artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
-          })
+          reply_markup: buildTrainingDoppelgangerKeyboard(
+            result.session,
+            result.character,
+            buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+          )
         });
       }
       return;
@@ -338,11 +345,11 @@ export async function handleTrainingDoppelgangerCallback(
       ...(result.state === "not-found"
         ? {}
         : {
-            reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
-              artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
-                ? null
-                : buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
-            })
+            reply_markup: buildTrainingDoppelgangerKeyboard(
+              result.session,
+              result.character,
+              buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+            )
           })
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
@@ -406,11 +413,11 @@ export async function handleTrainingDoppelgangerCallback(
 
     await safeEditMessageText(ctx, presentTrainingDoppelganger(trainingView), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character, {
-        artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
-          ? null
-          : buildTerminalBattleArtifactUrl(botUsername, "training", result.session.id)
-      })
+      reply_markup: buildTrainingDoppelgangerKeyboard(
+        result.session,
+        result.character,
+        buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+      )
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
@@ -473,7 +480,11 @@ async function handleFightCallback(
           "already-completed",
           result.character,
           result.artifactToken,
-          { artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "mimic", result.artifactToken) }
+          buildMimicTerminalBattleArtifactKeyboardOptions(
+            botUsername,
+            "already-completed",
+            result.artifactToken
+          )
         )
       }
     );
@@ -499,9 +510,11 @@ async function handleFightCallback(
       } else {
         await safeEditMessageText(ctx, presentPersistentFightSnapshot(publicResult), {
           ...HTML_MESSAGE_OPTIONS,
-          reply_markup: buildPersistentFightResultKeyboard(publicResult.session, publicResult.character, {
-            artifactUrl: buildTerminalBattleArtifactUrl(botUsername, "solo", publicResult.session.id)
-          })
+          reply_markup: buildPersistentFightResultKeyboard(
+            publicResult.session,
+            publicResult.character,
+            buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", publicResult.session)
+          )
         });
       }
       return;
@@ -715,9 +728,7 @@ async function handleFightCallback(
     await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPersistentFightResultKeyboard(result.session, result.character, {
-        artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
-          ? null
-          : buildTerminalBattleArtifactUrl(botUsername, "solo", result.session.id),
+        ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", result.session),
         includeCombatItems:
           result.session.status === "active" &&
           result.session.state?.status === "active" &&
@@ -765,9 +776,7 @@ async function handleFightCallback(
         await safeEditMessageText(ctx, presentPersistentFightSnapshot(snapshot), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightResultKeyboard(snapshot.session, snapshot.character, {
-            artifactUrl: (snapshot.session.state?.status ?? snapshot.session.status) === "active"
-              ? null
-              : buildTerminalBattleArtifactUrl(botUsername, "solo", snapshot.session.id),
+            ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", snapshot.session),
             includeCombatItems:
               snapshot.session.status === "active" &&
               snapshot.session.state?.status === "active" &&
@@ -902,9 +911,7 @@ async function handleFightCallback(
           result.state === "not-found" || result.state === "needs-rest"
             ? undefined
             : buildPersistentFightResultKeyboard(result.session, result.character, {
-                artifactUrl: (result.session.state?.status ?? result.session.status) === "active"
-                  ? null
-                  : buildTerminalBattleArtifactUrl(botUsername, "solo", result.session.id),
+                ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", result.session),
                 includeCombatItems
               })
       };
@@ -995,11 +1002,11 @@ async function handleFightCallback(
       result.state,
       result.character,
       result.artifactToken,
-      {
-        artifactUrl: result.artifactToken
-          ? buildTerminalBattleArtifactUrl(botUsername, "mimic", result.artifactToken)
-          : null
-      }
+      buildMimicTerminalBattleArtifactKeyboardOptions(
+        botUsername,
+        result.state,
+        result.artifactToken
+      )
     )
   });
   if (result.state === "completed") {

@@ -16,6 +16,10 @@ import {
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
 import { TRAINING_DOPPELGANGER_MONSTER_ID } from "../../src/domain/trainingDoppelganger";
+import {
+  findTerminalBattleArtifactShareButtons,
+  inspectSingleTerminalBattleArtifactShare
+} from "../helpers/terminalBattleArtifactShare";
 import type { FightService } from "../../src/services/fightService";
 import {
   PRESENCE_ADVENTURE_MIMIC_FIGHT,
@@ -49,7 +53,8 @@ describe("fight command", () => {
 
     await sendFight(makeContext(replies), fightService, "reply", {
       presence,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: true,
+      botUsername: "kvestarnia_bot"
     });
 
     expect(replies[0]?.text).toBe("Квести видають усередині.");
@@ -85,7 +90,8 @@ describe("fight command", () => {
 
     await sendFight(makeContext(replies), fightService, "reply", {
       presence,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: true,
+      botUsername: "kvestarnia_bot"
     });
 
     expect(replies[0]?.text).toContain("⚔️ Сутичка з підозрілим монстром");
@@ -158,7 +164,8 @@ describe("fight command", () => {
 
     await sendFight(makeContext(replies), fightService, "reply", {
       presence,
-      requireKorchmaInterior: true
+      requireKorchmaInterior: true,
+      botUsername: "kvestarnia_bot"
     });
 
     expect(replies).toHaveLength(1);
@@ -180,6 +187,7 @@ describe("fight command", () => {
       text: "🗡️ Вдарити",
       callback_data: "v1:fight:turn:123e4567-e89b-12d3-a456-426614174000:1:attack"
     });
+    expect(findTerminalBattleArtifactShareButtons(options.reply_markup)).toEqual([]);
     expect(presence.marks[0]).toMatchObject({
       currentAdventureId: PRESENCE_ADVENTURE_SOLO_FIGHT
     });
@@ -248,7 +256,10 @@ describe("fight command", () => {
       recordPersistentFightMessageReference
     } as unknown as FightService;
 
-    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply", { presence });
+    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply", {
+      presence,
+      botUsername: "kvestarnia_bot"
+    });
 
     expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
@@ -262,7 +273,14 @@ describe("fight command", () => {
     };
 
     expect(options.parse_mode).toBe("HTML");
-    expect(options.reply_markup.inline_keyboard.flat()).toEqual([
+    expect(inspectSingleTerminalBattleArtifactShare(options.reply_markup).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "solo",
+      token: terminalSession.id
+    });
+    expect(options.reply_markup.inline_keyboard.flat().filter(
+      (button) => button.text !== "🔗 Поділитися записом"
+    )).toEqual([
       { text: "📜 Журнал бою", callback_data: "v1:fight:log:123e4567-e89b-12d3-a456-426614174000:0" },
       { text: "📊 Статистика", callback_data: "v1:fight:stats:123e4567-e89b-12d3-a456-426614174000" },
       { text: "⚔️ Новий бій", callback_data: makePlaceCallbackData("deep-straight") },

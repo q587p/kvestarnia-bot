@@ -262,7 +262,8 @@ export function createRuntime(input: {
                 trainingDoppelganger: services.trainingDoppelganger
               }
             : { fight: services.fight, fightingCornerQuest: services.fightingCornerQuest },
-        bot
+        bot,
+        { botUsername: config.botUsername }
       );
       equipmentAttunementScheduler = dependencies.createEquipmentAttunementScheduler(
         services.equipment,
@@ -283,7 +284,7 @@ export function createRuntime(input: {
         passageSearchCompletionScheduler = dependencies.createPassageSearchCompletionScheduler({
           passageSearch: services.passageSearch,
           fight: services.fight
-        }, bot);
+        }, bot, { botUsername: config.botUsername });
       }
       if (services.partySessions && services.partyBoss) {
         partyBossRecruitingStartScheduler = dependencies.createPartyBossRecruitingStartScheduler({

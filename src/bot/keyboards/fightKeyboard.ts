@@ -105,6 +105,12 @@ export function buildFightResultKeyboard(
     keyboard.row().text("📜 Журнал", makeMimicFightJournalCallbackData(artifactToken));
     keyboard.row().text("📊 Статистика", makeMimicFightStatisticsCallbackData(artifactToken));
   }
+  if (options.artifactUrl) {
+    keyboard.row().url(
+      "🔗 Поділитися записом",
+      buildTerminalBattleArtifactShareUrl(options.artifactUrl)
+    );
+  }
   return keyboard;
 }
 

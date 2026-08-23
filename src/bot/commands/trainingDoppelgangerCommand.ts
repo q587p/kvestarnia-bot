@@ -32,6 +32,7 @@ import {
 import { safeEditMessageText } from "../safeEditMessageText";
 import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
+import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -40,6 +41,7 @@ export interface TrainingDoppelgangerCommandOptions {
   tavernRaid?: TavernRaidService;
   fightingCornerQuest?: Pick<FightingCornerQuestService, "recordTrainingSessionSafely">;
   now?: () => Date;
+  botUsername?: string | undefined;
 }
 
 export function registerTrainingDoppelgangerCommand(
@@ -139,7 +141,8 @@ export async function sendTrainingDoppelganger(
     const messageId = await sendText(ctx, "reply", presentTrainingDoppelganger(result), {
       type: "session",
       session: result.session,
-      character: result.character
+      character: result.character,
+      botUsername: options.botUsername
     });
     await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
     return;
@@ -153,7 +156,8 @@ export async function sendTrainingDoppelganger(
   const messageId = await sendText(ctx, mode, presentTrainingDoppelganger(result), {
     type: "session",
     session: result.session,
-    character: result.character
+    character: result.character,
+    botUsername: options.botUsername
   });
   await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
   for (const update of questProgressUpdates) {
@@ -217,6 +221,7 @@ async function sendText(
         type: "session";
         session: Parameters<typeof buildTrainingDoppelgangerKeyboard>[0];
         character: Parameters<typeof buildTrainingDoppelgangerKeyboard>[1];
+        botUsername?: string | undefined;
       } = false
 ): Promise<number | null> {
   const options = keyboard
@@ -229,7 +234,15 @@ async function sendText(
               ? buildTrainingDoppelgangerKeyboard()
               : keyboard.type === "start-choice"
               ? buildTrainingDoppelgangerStartKeyboard(keyboard.choices)
-              : buildTrainingDoppelgangerKeyboard(keyboard.session, keyboard.character)
+              : buildTrainingDoppelgangerKeyboard(
+                  keyboard.session,
+                  keyboard.character,
+                  buildSessionTerminalBattleArtifactKeyboardOptions(
+                    keyboard.botUsername,
+                    "training",
+                    keyboard.session!
+                  )
+                )
       }
     : ({ parse_mode: "HTML" as const } satisfies ReplyOptions);
 

@@ -39,7 +39,7 @@ export function createBot(token: string, services: BotServices, options: BotOpti
     registerReferralMiddleware(bot, services.referrals);
   }
   registerRaidChatBotModule(bot, { services, options });
-  registerCombatLockMiddleware(bot, services);
+  registerCombatLockMiddleware(bot, services, { botUsername: options.botUsername });
   registerGuildPassageSearchGuard(bot, services);
   registerPresenceMiddleware(bot, services.presence, {
     guildFoundationEnabled: services.guilds?.isEnabled() === true

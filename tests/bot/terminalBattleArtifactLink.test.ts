@@ -31,4 +31,11 @@ describe("terminal battle artifact link contract", () => {
     expect(buildTerminalBattleArtifactUrl("kvestarnia_bot", "solo", "not-a-uuid")).toBeNull();
     expect(parseTerminalBattleArtifactStartPayload("ba1_s_not-a-uuid")).toBeNull();
   });
+
+  it.each([undefined, "", "bad/name", "1bot", "abcd"])(
+    "suppresses an invalid bot username %s",
+    (botUsername) => {
+      expect(buildTerminalBattleArtifactUrl(botUsername, "solo", token)).toBeNull();
+    }
+  );
 });
