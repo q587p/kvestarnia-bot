@@ -52,7 +52,10 @@ import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
 import type { PersistentFightDifficultyId } from "../../services/fightService";
 import { getMunchkinLocationAt, type MunchkinLocation } from "../../domain/levelBarter/munchkinSchedule";
 import { systemClock } from "../../shared/time";
-import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "../terminalBattleArtifactLink";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -92,6 +95,10 @@ export async function sendFight(
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
+  const botUsername = resolveTerminalBattleArtifactBotUsername(
+    options?.botUsername,
+    () => ctx.me.username
+  );
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
@@ -168,7 +175,7 @@ export async function sendFight(
       type: "training-active",
       character: result.character,
       session: result.session,
-      botUsername: options?.botUsername
+      botUsername
     });
     return;
   }
@@ -218,7 +225,7 @@ export async function sendFight(
         character: result.character,
         session: result.session,
         includeCombatItems,
-        botUsername: options?.botUsername
+        botUsername
       });
       await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
       return;
@@ -229,7 +236,7 @@ export async function sendFight(
       character: result.character,
       session: result.session,
       includeCombatItems,
-      botUsername: options?.botUsername
+      botUsername
     });
     await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;
@@ -279,7 +286,7 @@ export async function sendFight(
       type: "persistent-fight",
       character: result.character,
       session: result.session,
-      botUsername: options?.botUsername
+      botUsername
     });
     await recordPersistentFightMessage(ctx, fightService, telegramUserId, result.session.id, messageId);
     return;

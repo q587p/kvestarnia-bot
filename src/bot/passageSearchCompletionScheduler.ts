@@ -8,7 +8,10 @@ import { buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
 import { presentPersistentFight, presentPersistentFightIntro } from "./presenters/fightPresenter";
 import { presentPassageSearch } from "./presenters/passageSearchPresenter";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
-import { buildSessionTerminalBattleArtifactKeyboardOptions } from "./terminalBattleArtifactLink";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "./terminalBattleArtifactLink";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -32,6 +35,10 @@ export function createPassageSearchCompletionScheduler(
 
     running = true;
     try {
+      const botUsername = resolveTerminalBattleArtifactBotUsername(
+        options.botUsername,
+        () => bot.botInfo.username
+      );
       const dueSearches = await services.passageSearch.listDueRunningSearches(
         options.limit === undefined ? {} : { limit: options.limit }
       );
@@ -53,7 +60,7 @@ export function createPassageSearchCompletionScheduler(
           due.telegramUserId,
           chatId,
           result,
-          options.botUsername
+          botUsername
         );
       }
     } finally {

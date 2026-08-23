@@ -428,6 +428,7 @@ export async function handleTrainingDoppelgangerCallback(
     presence: services.presence,
     tavernRaid: services.tavern,
     fightingCornerQuest: services.fightingCornerQuest,
+    botUsername,
     requireKorchmaInterior: true,
     ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });

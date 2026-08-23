@@ -32,7 +32,10 @@ import {
 import { safeEditMessageText } from "../safeEditMessageText";
 import { presentFightingCornerQuestProgressNotification } from "../presenters/fightingCornerQuestPresenter";
 import { sendPendingRaidBlockIfNeeded } from "./pendingRaidGuard";
-import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "../terminalBattleArtifactLink";
 
 type ReplyOptions = Parameters<Context["reply"]>[1];
 
@@ -67,6 +70,10 @@ export async function sendTrainingDoppelganger(
   }
 ): Promise<void> {
   const telegramUserId = telegramUserIdFromContext(ctx.from);
+  const botUsername = resolveTerminalBattleArtifactBotUsername(
+    options.botUsername,
+    () => ctx.me.username
+  );
 
   if (!telegramUserId) {
     await sendText(ctx, mode, "Квестарня не впізнала мандрівника. Спробуйте ще раз.");
@@ -142,7 +149,7 @@ export async function sendTrainingDoppelganger(
       type: "session",
       session: result.session,
       character: result.character,
-      botUsername: options.botUsername
+      botUsername
     });
     await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
     return;
@@ -157,7 +164,7 @@ export async function sendTrainingDoppelganger(
     type: "session",
     session: result.session,
     character: result.character,
-    botUsername: options.botUsername
+    botUsername
   });
   await recordTrainingMessage(ctx, service, telegramUserId, result.session.id, messageId);
   for (const update of questProgressUpdates) {

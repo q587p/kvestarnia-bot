@@ -11,7 +11,10 @@ import { presentPersistentFightTurn } from "./presenters/fightPresenter";
 import { presentTrainingDoppelgangerTurn } from "./presenters/trainingDoppelgangerPresenter";
 import { presentFightingCornerQuestProgressNotification } from "./presenters/fightingCornerQuestPresenter";
 import { isMessageNotModifiedError } from "./safeEditMessageText";
-import { buildSessionTerminalBattleArtifactKeyboardOptions } from "./terminalBattleArtifactLink";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "./terminalBattleArtifactLink";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -36,6 +39,10 @@ export function createCombatTurnTimeoutScheduler(
 
     running = true;
     try {
+      const botUsername = resolveTerminalBattleArtifactBotUsername(
+        options.botUsername,
+        () => bot.botInfo.username
+      );
       const dueOptions = options.limit === undefined ? {} : { limit: options.limit };
       const duePersistent = await services.fight.listDuePersistentFightTurns(dueOptions);
 
@@ -43,7 +50,7 @@ export function createCombatTurnTimeoutScheduler(
         const result = await services.fight.resolveDuePersistentFightTurn(due);
 
         if (result.state !== "skipped") {
-          await notifyPersistentFight(services.fight, bot, result, options.botUsername);
+          await notifyPersistentFight(services.fight, bot, result, botUsername);
         }
       }
 
@@ -65,7 +72,7 @@ export function createCombatTurnTimeoutScheduler(
               services.trainingDoppelganger,
               bot,
               result,
-              options.botUsername
+              botUsername
             );
             await notifyTrainingQuestProgress(bot, questUpdates);
           }

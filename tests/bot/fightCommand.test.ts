@@ -256,10 +256,7 @@ describe("fight command", () => {
       recordPersistentFightMessageReference
     } as unknown as FightService;
 
-    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply", {
-      presence,
-      botUsername: "kvestarnia_bot"
-    });
+    await sendFight(makeContextWithMessage(replies, 777), fightService, "reply", { presence });
 
     expect(replies[0]?.text).toContain("🎉 Ви перемогли");
     expect(replies[0]?.text).toContain("Винагорода за бій");
@@ -1037,6 +1034,12 @@ function questProgress(wins: number, completed = false) {
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
   return {
+    me: {
+      id: 123456,
+      is_bot: true,
+      first_name: "Квестарня",
+      username: "kvestarnia_bot"
+    },
     from: {
       id: 42,
       is_bot: false,
@@ -1054,6 +1057,12 @@ function makeContextWithMessage(
   messageId: number
 ): Context {
   return {
+    me: {
+      id: 123456,
+      is_bot: true,
+      first_name: "Квестарня",
+      username: "kvestarnia_bot"
+    },
     chat: {
       id: 42,
       type: "private"

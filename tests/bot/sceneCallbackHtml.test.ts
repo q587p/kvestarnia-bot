@@ -42,6 +42,7 @@ import {
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
 import {
+  makeTrainingDoppelgangerModeCallbackData,
   makeTrainingDoppelgangerStatisticsCallbackData,
   makeTrainingDoppelgangerTurnCallbackData
 } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
@@ -129,6 +130,8 @@ type RecordPersistentFightMessageReferenceMock = (
   sessionId: string,
   reference: { chatId: string; messageId: number }
 ) => Promise<void>;
+
+const TERMINAL_LINK_ROUTE_SESSION_ID = "123e4567-e89b-42d3-a456-426614174040";
 
 describe("scene callback HTML options", () => {
   afterEach(() => {
@@ -7862,6 +7865,128 @@ describe("scene callback HTML options", () => {
       .toMatchObject({ kind: "training", token: session.id });
   });
 
+  it.each([
+    {
+      name: "main-menu current-location route",
+      run: (status: "active" | "won") => captureTextApiCalls(
+        mainMenuLocationButtons.deepLevel1,
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.deep.level1")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "tavern/deep callback route",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("deep-level1"),
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.deep")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "quest fight route",
+      run: (status: "active" | "won") => captureApiCalls(
+        makeQuestCallbackData("fight-descend"),
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "passage-search guard handoff",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("hall"),
+        terminalLinkRouteServices(status, {
+          passageSearch: {
+            getActiveSearch: () => Promise.resolve(passageSearchMonsterAttackResult())
+          }
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "persistent-fight navigation fallback",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("deep-straight"),
+        terminalLinkRouteServices(status, {
+          fight: {
+            previewPersistentFightForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+          },
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "combat stale-selection recovery fallback",
+      run: (status: "active" | "won") => captureApiCalls(
+        "v1:fight:pass:deep-straight:token13",
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    }
+  ])("uses ctx.me for one terminal capability link on the $name", async ({ run }) => {
+    const terminalCalls = await run("won");
+    const terminalShares = terminalCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    );
+
+    expect(terminalShares).toHaveLength(1);
+    expect(inspectSingleTerminalBattleArtifactShare({
+      inline_keyboard: [terminalShares]
+    }).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "solo",
+      token: TERMINAL_LINK_ROUTE_SESSION_ID
+    });
+
+    const activeCalls = await run("active");
+    expect(activeCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    )).toEqual([]);
+  });
+
+  it("uses ctx.me for the Training mode callback terminal link and keeps its active card link-free", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-24T10:00:00.000Z"));
+
+    const run = (status: "active" | "won") => captureApiCalls(
+      makeTrainingDoppelgangerModeCallbackData("copy-target"),
+      servicesWith({
+        trainingDoppelganger: {
+          getOrStartForTelegramUser: () => Promise.resolve(trainingRouteResult(status)),
+          recordTrainingDoppelgangerMessageReference: () => Promise.resolve()
+        },
+        presence: terminalLinkRoutePresence("location.korchma.fighting_corner")
+      }),
+      { messageResults: true }
+    );
+
+    const terminalCalls = await run("won");
+    const terminalShares = terminalCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    );
+    expect(terminalShares).toHaveLength(1);
+    expect(inspectSingleTerminalBattleArtifactShare({
+      inline_keyboard: [terminalShares]
+    }).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "training",
+      token: terminalTrainingSession().id
+    });
+
+    const activeCalls = await run("active");
+    expect(activeCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    )).toEqual([]);
+  });
+
   it.each(["private", "group", "supergroup"] as const)(
     "routes capability-linked terminal statistics from a %s without owner-scoped reads",
     async (chatType) => {
@@ -10896,6 +11021,61 @@ function terminalTrainingSession() {
   };
 }
 
+function terminalLinkFightOverview(status: "active" | "won") {
+  const base = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+  const session = {
+    ...base,
+    id: TERMINAL_LINK_ROUTE_SESSION_ID,
+    status,
+    state: {
+      ...base.state,
+      id: TERMINAL_LINK_ROUTE_SESSION_ID,
+      status,
+      monster: {
+        ...base.state.monster,
+        hp: status === "won" ? 0 : base.state.monster.hp
+      }
+    }
+  };
+  const shared = {
+    character: {
+      ...character,
+      level: 3,
+      currentLocationId: "location.korchma.deep.level1.straight"
+    },
+    session,
+    monster: {
+      id: "monster.deadline-spider",
+      name: "Павук дедлайнів",
+      description: "Плете павутину з «сьогодні швиденько».",
+      level: 2,
+      tags: ["beast", "time", "web"]
+    },
+    questProgress: null
+  };
+
+  return status === "active"
+    ? { state: "persistent-active" as const, started: false, ...shared }
+    : { state: "persistent-terminal" as const, ...shared, fightReward: null };
+}
+
+function trainingRouteResult(status: "active" | "won") {
+  return status === "active"
+    ? {
+        state: "active" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: trainingSession()
+      }
+    : {
+        state: "terminal" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: terminalTrainingSession(),
+        reward: null
+      };
+}
+
 function trainingMonster() {
   return {
     id: TRAINING_DOPPELGANGER_MONSTER_ID,
@@ -11510,6 +11690,40 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
     },
     ...overrides
   } as unknown as BotServices;
+}
+
+function terminalLinkRouteServices(
+  status: "active" | "won",
+  overrides: Partial<BotServices> & {
+    fight?: Partial<BotServices["fight"]>;
+  } = {}
+): BotServices {
+  const { fight: fightOverrides = {}, ...remainingOverrides } = overrides;
+
+  return servicesWith({
+    ...remainingOverrides,
+    fight: {
+      getFightOverviewForTelegramUser: () => Promise.resolve(terminalLinkFightOverview(status)),
+      recordPersistentFightMessageReference: () => Promise.resolve(),
+      ...fightOverrides
+    }
+  } as Partial<BotServices>);
+}
+
+function terminalLinkRoutePresence(locationId: string): BotServices["presence"] {
+  return {
+    markAction: () => Promise.resolve(),
+    getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getCurrentPlaceForTelegramUser: () => Promise.resolve({
+      state: "ready",
+      locationId,
+      locationName: "Тестова місцина",
+      insideKorchma: true
+    }),
+    getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+  } as unknown as BotServices["presence"];
 }
 
 async function captureApiCalls(

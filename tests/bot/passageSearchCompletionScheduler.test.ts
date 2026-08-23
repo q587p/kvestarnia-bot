@@ -109,7 +109,7 @@ describe("passage search completion scheduler", () => {
     const scheduler = createPassageSearchCompletionScheduler(
       { passageSearch: passageSearch as never, fight: fight as never },
       bot,
-      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+      { intervalMs: 60_000 }
     );
 
     scheduler.start();
@@ -153,7 +153,7 @@ describe("passage search completion scheduler", () => {
         fight: { recordPersistentFightMessageReference } as never
       },
       bot,
-      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+      { intervalMs: 60_000 }
     );
 
     scheduler.start();
@@ -172,6 +172,12 @@ function fakeBot(): { bot: Bot; sendMessage: ReturnType<typeof vi.fn> } {
 
   return {
     bot: {
+      botInfo: {
+        id: 123456,
+        is_bot: true,
+        first_name: "Квестарня",
+        username: "kvestarnia_bot"
+      },
       api: { sendMessage }
     } as unknown as Bot,
     sendMessage

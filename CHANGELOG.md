@@ -27,6 +27,7 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - The character card now offers `🧻 До відновлення` only when the inventory contains enough supported ordinary panic bandages. Dense Bandages and other healing consumables no longer produce a shortcut that the restore-to-full service must reject.
+- Terminal solo and Training cards now resolve the bot username centrally from the initialized grammY context when a navigation caller omits the configured value; timeout and passage-search schedulers use the initialized bot identity as the same safe fallback. Main-menu, Korchma/Nyz, quest, passage-search, stale-recovery and Training-mode routes therefore keep one valid capability link without adding links to active combat cards.
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
 - The Forge now places `🔩 Розібрати манатку` in its first keyboard row before sorting controls. The registered exclusive-icon ownership check keeps dismantling distinct from `♻️` Friendly Chest recycling and gives the separate `🗃️` replaced-card notice its own shared owner.
 - Guild hub leave and disband actions now open explicit affirmative/negative confirmation cards. Literal legacy `l`/`z` callbacks only reopen a current confirmation; only distinct current-version `ly`/`zy` affirmatives may change membership.

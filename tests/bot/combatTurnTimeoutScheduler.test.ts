@@ -157,7 +157,7 @@ describe("combat turn timeout scheduler", () => {
     const scheduler = createCombatTurnTimeoutScheduler(
       { fight: fight as unknown as FightService },
       bot,
-      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+      { intervalMs: 60_000 }
     );
 
     scheduler.start();
@@ -283,7 +283,7 @@ describe("combat turn timeout scheduler", () => {
     const scheduler = createCombatTurnTimeoutScheduler(
       { fight: fight as unknown as FightService },
       bot,
-      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+      { intervalMs: 60_000 }
     );
 
     scheduler.start();
@@ -335,7 +335,7 @@ describe("combat turn timeout scheduler", () => {
         trainingDoppelganger: training as unknown as TrainingDoppelgangerService
       },
       bot,
-      { intervalMs: 60_000, botUsername: "kvestarnia_bot" }
+      { intervalMs: 60_000 }
     );
 
     scheduler.start();
@@ -430,6 +430,12 @@ function fakeBot(overrides: FakeBotOverrides = {}): FakeBot {
 
   return {
     bot: {
+      botInfo: {
+        id: 123456,
+        is_bot: true,
+        first_name: "Квестарня",
+        username: "kvestarnia_bot"
+      },
       api: {
         editMessageText,
         sendMessage

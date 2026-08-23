@@ -3,7 +3,8 @@ import { buildFightResultKeyboard, buildPersistentFightResultKeyboard } from "..
 import { buildTrainingDoppelgangerKeyboard } from "../../src/bot/keyboards/trainingDoppelgangerKeyboard";
 import {
   buildMimicTerminalBattleArtifactKeyboardOptions,
-  buildSessionTerminalBattleArtifactKeyboardOptions
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
 } from "../../src/bot/terminalBattleArtifactLink";
 import type { SoloCombatSessionRecord } from "../../src/db/repositories/soloCombatSessionRepository";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
@@ -85,6 +86,23 @@ describe("terminal battle artifact delivery options", () => {
       id: soloToken,
       status: "unknown"
     })).toEqual({ artifactUrl: null });
+  });
+
+  it("prefers configured identity and safely falls back to the initialized runtime bot identity", () => {
+    expect(resolveTerminalBattleArtifactBotUsername(
+      "configured_bot",
+      () => "runtime_bot"
+    )).toBe("configured_bot");
+    expect(resolveTerminalBattleArtifactBotUsername(
+      undefined,
+      () => "runtime_bot"
+    )).toBe("runtime_bot");
+    expect(resolveTerminalBattleArtifactBotUsername(
+      undefined,
+      () => {
+        throw new Error("bot identity unavailable");
+      }
+    )).toBeUndefined();
   });
 });
 

@@ -97,3 +97,18 @@ export function buildMimicTerminalBattleArtifactKeyboardOptions(
 export function buildTerminalBattleArtifactShareUrl(artifactUrl: string): string {
   return `https://t.me/share/url?url=${encodeURIComponent(artifactUrl)}`;
 }
+
+export function resolveTerminalBattleArtifactBotUsername(
+  configured: string | undefined,
+  readRuntimeUsername: () => string | undefined
+): string | undefined {
+  if (configured !== undefined) {
+    return configured;
+  }
+
+  try {
+    return readRuntimeUsername();
+  } catch {
+    return undefined;
+  }
+}

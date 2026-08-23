@@ -41,7 +41,6 @@ describe("training doppelganger command", () => {
       "reply",
       {
         presence: capturingPresence(),
-        botUsername: "kvestarnia_bot",
         now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     );
@@ -367,6 +366,12 @@ describe("training doppelganger command", () => {
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
   return {
+    me: {
+      id: 123456,
+      is_bot: true,
+      first_name: "Квестарня",
+      username: "kvestarnia_bot"
+    },
     from: {
       id: 42,
       first_name: "Тестовий"
