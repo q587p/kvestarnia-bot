@@ -27,6 +27,7 @@ import type {
 } from "../../services/guildService";
 import { escapeHtml } from "./telegramHtml";
 import { guildInviteShareText } from "../../content/guildInviteCopy";
+import { GUILD_WEEKLY_GOAL_ICON } from "../itemActionIcons";
 
 export function presentGuildHub(
   result: GuildHubRepositoryResult,
@@ -131,6 +132,15 @@ export function presentGuildView(
       : []),
     ...(guild.leadershipNomineeName
       ? [`👑 Провід запропоновано: <b>${escapeHtml(guild.leadershipNomineeName)}</b>. Передача станеться лише після прийняття.`]
+      : []),
+    ...(guild.weeklyGoal
+      ? [
+          "",
+          `${GUILD_WEEKLY_GOAL_ICON} <b>Тижневий спільний клопіт · ${escapeHtml(guild.weeklyGoal.periodKey)}</b>`,
+          guild.weeklyGoal.completedAt
+            ? `Завершено: <b>${guild.weeklyGoal.targetCount}/${guild.weeklyGoal.targetCount}</b>. Внесок не дає бойової сили й не множить здобич.`
+            : `Звичайні успішні походи ґільдійною ватагою: <b>${guild.weeklyGoal.progressCount}/${guild.weeklyGoal.targetCount}</b>. Зараховується весь ручний внесок — удар, захист і підтримка.`
+        ]
       : []),
     "",
     "<b>Склад</b>",

@@ -140,6 +140,7 @@ async function handleMenuCallback(
       includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
       includeGuild: services.guilds !== undefined,
       includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
+      includeGuildWeeklyDev: services.guilds?.areWeeklyDevHelpersEnabled?.() ?? false,
       includeReferral: services.referrals?.isFoundationEnabled() ?? false,
       includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
     }), {
@@ -176,6 +177,7 @@ async function handleHelpCallback(
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
     includeGuild: services.guilds !== undefined,
     includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
+    includeGuildWeeklyDev: services.guilds?.areWeeklyDevHelpersEnabled?.() ?? false,
     includeReferral: services.referrals?.isFoundationEnabled() ?? false,
     includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
   }, page), {

@@ -102,6 +102,23 @@ describe("GroupCombatService", () => {
     });
   });
 
+  it("freezes weekly-goal eligibility only for production starts while the kill switch is enabled", async () => {
+    const { repository, startReadyLeftPassage } = repositoryFixture();
+    startReadyLeftPassage.mockResolvedValue({ state: "not-found" });
+    const service = new GroupCombatService(repository, {
+      enabled: true,
+      devHelpersEnabled: false,
+      leftPassagePartyAttackEnabled: true,
+      guildWeeklyGoalEnabled: true
+    });
+
+    await service.startReadyLeftPassage("party-token-weekly");
+
+    expect(startReadyLeftPassage).toHaveBeenCalledWith(expect.objectContaining({
+      guildWeeklyGoalEligible: true
+    }));
+  });
+
   it("does not rescan a recently attempted card delivery before the retry window", async () => {
     const {
       repository,
@@ -236,6 +253,25 @@ describe("GroupCombatService", () => {
     await service.settleParticipant("left-session", 42n);
 
     expect(trackEventSafely).not.toHaveBeenCalled();
+  });
+
+  it("reconciles weekly receipts on both fresh and replayed settlement paths", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
+    settleParticipant.mockResolvedValue({ state: "replayed", receipt: leftPassageReceipt() });
+    const recordTerminalSession = vi.fn().mockResolvedValue({ state: "replayed" });
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false, guildWeeklyGoalEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { recordTerminalSession } as never
+    );
+
+    await service.settleParticipant("left-session", 42n);
+
+    expect(recordTerminalSession).toHaveBeenCalledWith("left-session");
   });
 
   it("returns one standard notice when a pending participant retry settles", async () => {

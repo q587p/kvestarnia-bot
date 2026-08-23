@@ -3,6 +3,33 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Prisma schema", () => {
+  it("stores capped guild weekly periods and immutable session/contributor receipts", () => {
+    const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+    const migration = readFileSync(join(
+      process.cwd(),
+      "prisma",
+      "migrations",
+      "20260824090000_guild_weekly_goal",
+      "migration.sql"
+    ), "utf8");
+
+    for (const model of [
+      "GuildWeeklyGoalPeriod",
+      "GuildWeeklyContribution",
+      "GuildWeeklyContributorReceipt"
+    ]) {
+      expect(schema).toContain(`model ${model}`);
+    }
+    expect(schema).toContain("guildWeeklyGoalEligible Boolean");
+    expect(schema).toContain("guildNameSnapshot String");
+    expect(schema).toContain("guildCrestSnapshot String");
+    expect(schema).toContain("@@unique([guildId, periodKey, goalKey])");
+    expect(schema).toContain("@@unique([contributionId, userId])");
+    expect(migration).toContain("guild_weekly_goal_eligible");
+    expect(migration).toContain("guild_weekly_contributions_group_combat_session_id_key");
+    expect(migration).toContain("guild_weekly_contributor_receipts_contribution_id_user_id_key");
+  });
+
   it("stores User-level referral attribution, immutable reward entitlements, and leased outbox delivery", () => {
     const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const migration = readFileSync(join(

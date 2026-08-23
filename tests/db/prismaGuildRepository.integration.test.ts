@@ -23,6 +23,7 @@ import { PublicActivityEventPublisher } from "../../src/services/publicActivityE
 
 const MIGRATION = "20260802230000_guild_foundation";
 const CREST_MIGRATION = "20260806120000_guild_custom_crests";
+const WEEKLY_GOAL_MIGRATION = "20260824090000_guild_weekly_goal";
 const NOW = new Date("2026-08-02T20:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -40,6 +41,7 @@ describe("PrismaGuildRepository integration", () => {
     await createBaseSchema(prisma);
     await applySqlFile(prisma, `prisma/migrations/${MIGRATION}/migration.sql`);
     await applySqlFile(prisma, `prisma/migrations/${CREST_MIGRATION}/migration.sql`);
+    await applySqlFile(prisma, `prisma/migrations/${WEEKLY_GOAL_MIGRATION}/migration.sql`);
     repository = new PrismaGuildRepository(prisma);
   }, 60_000);
 
@@ -1432,24 +1434,27 @@ describe("PrismaGuildRepository integration", () => {
         originKind: "nyz-left-passage-party.v1",
         participantCharacterIds: ["rollback-user-character"]
       });
-      await rollbackPrisma.groupCombatSession.create({
-        data: {
-          id: "rollback-combat",
-          partySessionId: "rollback-party",
-          encounterKey: "rollback",
-          rulesVersion: "v1",
-          status: "won",
-          turn: 1,
-          version: 1,
-          deliveryRevision: 1,
-          deliveryPending: false,
-          stateJson: {},
-          turnExpiresAt: NOW,
-          completedAt: NOW,
-          createdAt: NOW,
-          updatedAt: NOW
-        }
-      });
+      await rollbackPrisma.$executeRawUnsafe(
+        `INSERT INTO group_combat_sessions (
+          id, party_session_id, encounter_key, rules_version, status, turn, version,
+          delivery_revision, delivery_pending, state_json, turn_expires_at, completed_at,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "rollback-combat",
+        "rollback-party",
+        "rollback",
+        "v1",
+        "won",
+        1,
+        1,
+        1,
+        false,
+        JSON.stringify({}),
+        NOW,
+        NOW,
+        NOW,
+        NOW
+      );
       const unrelatedCounts = { users: 1, characters: 1, parties: 1, combats: 1 };
       await applySqlFile(rollbackPrisma, `prisma/migrations/${CREST_MIGRATION}/rollback.sql`);
       expect(await tableNames(rollbackPrisma)).toContain("guilds");

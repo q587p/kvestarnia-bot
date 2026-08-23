@@ -218,6 +218,21 @@ export function registerGuildCommands(
           : "Спершу створіть пригодника через /start.");
     });
   }
+  if (service.areWeeklyDevHelpersEnabled?.()) {
+    bot.command("dev_guild_weekly", async (ctx) => {
+      const actor = telegramUserIdFromContext(ctx.from);
+      if (!actor) return;
+      if (commandArgs(ctx).toLocaleLowerCase("uk-UA") === "finish") {
+        const result = await service.completeWeeklyGoalForDev(actor);
+        await ctx.reply(result.state === "ready"
+          ? `Dev: тижневий клопіт ${result.progress.periodKey} має ${result.progress.progressCount}/${result.progress.targetCount}.`
+          : "Dev: спершу потрібні персонаж і чинна ґільдія.");
+        return;
+      }
+      const repaired = await service.repairWeeklyGoalForDev();
+      await ctx.reply(`Dev: відновлено внесків ${repaired.recorded}, перераховано періодів ${repaired.recomputed}. Додайте «finish», щоб закрити поточний клопіт для карткового QA.`);
+    });
+  }
 }
 
 export async function handleGuildCallback(

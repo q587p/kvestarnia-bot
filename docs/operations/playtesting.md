@@ -401,6 +401,20 @@ PartySession/GroupCombatSession. Окремо пройди `Спуск до Ни
 generic lobby. `/dev_guild_gold` готує лише creation gold і не має існувати у
 production.
 
+## Тижнева справа ґільдії
+
+Повний чотириакаунтовий пакет:
+[`0.4.8-guild-weekly-goal-qa.md`](../qa/0.4.8-guild-weekly-goal-qa.md).
+Ручний результат на фінальній голові pending. У checkout `.env` постав
+`NODE_ENV=development`, `GUILD_FOUNDATION_ENABLED=true`,
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і
+`GUILD_WEEKLY_GOAL_ENABLED=true`, потім refresh/status isolated runtime.
+Перевір partial/full progress, рівний внесок підтримки, terminal replay,
+leave/kick/remort після завершення, repair/restart, новий київський тиждень і
+flag off/on. Окремий nonmember мусить зберегти звичайний party route.
+`/dev_guild_weekly` ремонтує current receipts, а аргумент `finish` прискорює
+completion; у production команда відсутня.
+
 ## Сервісні команди
 
 - `/version` — показує поточну версію бота.
@@ -435,6 +449,7 @@ production.
   left-passage party прогоном.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 - `/dev_guild_gold` — у локальному режимі за ввімкненої guild foundation доводить золото до суми створення ґільдії; у production команда відсутня.
+- `/dev_guild_weekly [finish]` — у локальному режимі ремонтує тижневу справу ґільдії з receipts або завершує її для QA; у production команда відсутня.
 
 ## Межі поточного smoke
 

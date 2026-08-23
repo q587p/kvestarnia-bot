@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.8] - 12026-08-24 - Guild Weekly Goal and GroupCombat Ability Parity
+
+### Added
+- Added one default-off Kyiv/Holocene guild goal for thirteen successful ordinary left-passage party expeditions, with immutable session and contributor receipts, capped progress, historical membership-at-completion checks and a compact private guild-hub recap.
+- Added a rewardless completion achievement, one privacy-safe guild Chronicle fact and aggregate period/receipt metrics without individual rankings or message content.
+- Added receipt-derived restart/admin repair plus non-production `/dev_guild_weekly` and `/dev_guild_weekly finish` helpers, both production-unregistered even when the rollout flag is enabled.
+- Added a typed PartyBoss/Big Barrel to GroupCombat contract for all nine catalog class abilities plus the unknown-class fallback, and separately owned backlog entries for the four genuinely raid-phase-specific specializations.
+
+### Changed
+- Ordinary production GroupCombat starts now freeze weekly-goal eligibility, and terminal settlement/replay/repair reconcile the same receipt without changing ordinary combat rewards, availability or settlement evidence.
+- Added `GUILD_WEEKLY_GOAL_ENABLED=false` as a deploy-safe kill switch; disabling it hides weekly UI and blocks new eligibility/writes while preserving existing receipts and ordinary party expeditions.
+
+### Security
+- Guild selection uses active historical membership at the terminal timestamp, freezes contributor Character/remort identity plus the completion guild name/crest, caps progress at the canonical thirteenth expedition and publishes no participant identity, role, location, token or private timestamp.
+- Additive migration `20260824090000_guild_weekly_goal` stores periods and unique session/contributor receipts without mutating earlier guild or GroupCombat migrations.
+
 All notable project changes are documented here.
 
 This project follows a simple pre-1.0 versioning policy:

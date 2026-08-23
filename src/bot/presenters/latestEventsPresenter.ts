@@ -1,6 +1,7 @@
 import type { ActivityEventPage, ActivityEventRecord } from "../../db/repositories/activityEventRepository";
 import type { LatestEventFilter } from "../../services/activityEventService";
 import { escapeHtml } from "./telegramHtml";
+import { GUILD_WEEKLY_GOAL_ICON } from "../itemActionIcons";
 
 const FALLBACK_ACTOR = "Пригодник без таблички";
 const MAX_DYNAMIC_NAME_LENGTH = 32;
@@ -142,6 +143,11 @@ function renderEventRow(event: ActivityEventRecord): string {
       const crest = readPayloadString(event.payload, "crest");
       const guild = `${crest ? `${escapeHtml(crest)} ` : ""}${subject}`;
       return `🏰 ${time} | У Квестарні постала ґільдія «${guild}». Писар підкреслив це двічі.`;
+    }
+    case "guild.weekly_goal_completed": {
+      const crest = readPayloadString(event.payload, "crest");
+      const guild = `${crest ? `${escapeHtml(crest)} ` : ""}${subject}`;
+      return `${GUILD_WEEKLY_GOAL_ICON} ${time} | Ґільдія «${guild}» закрила тижневий спільний клопіт. Писар погодився не рахувати внесок у децибелах.`;
     }
     case "character.level_reached": {
       const level = readPayloadNumber(event.payload, "level");

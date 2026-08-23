@@ -16,6 +16,7 @@ import type { DailyActionRepository } from "../db/repositories/dailyActionReposi
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
+import type { GuildWeeklyGoalService } from "./guildWeeklyGoalService";
 
 export { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
 
@@ -50,13 +51,15 @@ export class GroupCombatService {
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
       guildIdentityEnabled?: boolean;
+      guildWeeklyGoalEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
     private readonly resolveQuestMarkers?: (
       telegramUserId: bigint
     ) => Promise<unknown>,
-    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">
+    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">,
+    private readonly guildWeeklyGoals?: GuildWeeklyGoalService
   ) {}
 
   isEnabled(): boolean {
@@ -115,7 +118,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -128,7 +132,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -141,7 +146,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -272,6 +278,7 @@ export class GroupCombatService {
     }
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     const pending = await this.settlePendingWithNotices(limit);
+    await this.guildWeeklyGoals?.repairCurrentPeriod(limit).catch(() => undefined);
     return { repaired, settlementNotices: pending.settlementNotices };
   }
 
@@ -281,6 +288,12 @@ export class GroupCombatService {
       telegramUserId,
       now: this.now()
     });
+    if (
+      (result.state === "settled" || result.state === "replayed") &&
+      result.receipt.policy === "left-passage-party"
+    ) {
+      await this.guildWeeklyGoals?.recordTerminalSession(sessionId).catch(() => undefined);
+    }
     if (
       result.state !== "settled" ||
       result.receipt.policy !== "left-passage-party" ||

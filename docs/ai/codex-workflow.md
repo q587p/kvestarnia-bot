@@ -46,6 +46,7 @@ For these changes:
 - Use one fresh Codex thread per versioned task.
 - Use `$kvestarnia-version-task` for the main implementation.
 - Before starting the next versioned task, fetch and verify `origin/main` against the expected package version and release/task content. Do not treat "branch commit is not an ancestor of `origin/main`" as a blocker by itself, because squash merges produce different commit hashes; compare the tree/content diff and continue from `origin/main` when the required content is present.
+- When a user supplies an archive of task docs/prompts and directly asks to implement or start it, treat the live request as authorization and the archive as the scoped input contract. Reconcile embedded status/instructions against the verified baseline, then finish the owning task through validation, commit, push, ready PR and scoped CI; do not stop at extraction, summary or prompt delivery unless inspection-only or partial work was explicitly requested.
 - Update `package.json` version only when the task includes a version bump.
 - If version moves, keep `package.json`, `package-lock.json`, `CHANGELOG.md`, and `news.md` in lockstep unless the user narrows scope.
 - Update `CHANGELOG.md` and `news.md` only for release-oriented changes.
@@ -201,18 +202,14 @@ PR body should include:
 
 ## Current roadmap guard
 
-The current repository release is package `0.4.0`; the `0.3.x` line is closed.
-Its bounded 2–3×2–3 group-combat proof is default-off, hard-disabled in
-production and rewardless. Repository state does not prove deployment,
-production availability or manual Telegram QA.
+The current merged repository release is package `0.4.7`; the active versioned
+task is `0.4.8` Guild Weekly Goal. Repository state does not prove deployment,
+production availability or manual Telegram QA. Use the current task contract and
+verified `origin/main`; do not launch an archived draft verbatim.
 
-`0.4.1` is the next planned version and owns group-combat parity/hardening; do
-not start it implicitly. Later accepted work adds a small guild membership
-shell, the first production party
-expedition and one weekly goal. After that proof, versioned bounded Old Altar,
-greeting, Shynok food, consumable, resale and recycling tasks may ship without
-implying a broad shop/market rewrite. Use the current version task; do not launch
-an archived `0.2.x-*` draft verbatim.
+After the weekly-goal proof, the accepted bounded sequence continues with Old
+Altar, greeting, Shynok food, consumable, resale and recycling tasks without
+implying a broad shop/market rewrite.
 
 Do not jump into guild bank/shared custody, player-set market/auction, guild wars,
 public matchmaking, >3×3 combat, Redis/jobs, broad PvP or Mini App UI unless a

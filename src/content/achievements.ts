@@ -34,6 +34,7 @@ export const achievementTriggerTypes = [
   "item.used",
   "guild.created",
   "guild.joined",
+  "guild.weekly_goal_completed",
   "equipment.item_equipped",
   "item-upgrade.succeeded",
   "item-upgrade.failed",
@@ -887,6 +888,17 @@ export const achievements = [
     sortOrder: 78.195,
     status: "enabled",
     trigger: { type: "guild.joined", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.weekly-goal-completed",
+    category: "weird",
+    title: "Тринадцять печаток, жодної зайвої",
+    description: "допомогти ґільдії вперше закрити тижневий спільний клопіт звичайними ватагами.",
+    hidden: false,
+    lockedDescription: "допомогти ґільдії закрити тижневий спільний клопіт.",
+    sortOrder: 78.197,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_completed", threshold: 1 }
   },
   {
     id: "achievement.bandage.first-used",

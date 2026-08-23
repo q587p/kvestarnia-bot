@@ -25,7 +25,7 @@ export function registerHelpCommand(
     tavernGameService?: Pick<TavernGameService, "isEnabled"> | undefined;
     fightingCornerQuestService?: Pick<FightingCornerQuestService, "isDevHelperEnabled"> | undefined;
     healthRecoveryNotificationService?: Pick<HealthRecoveryNotificationService, "areDevHelpersEnabled"> | undefined;
-    guildService?: Pick<GuildService, "areDevHelpersEnabled"> | undefined;
+    guildService?: Pick<GuildService, "areDevHelpersEnabled" | "areWeeklyDevHelpersEnabled"> | undefined;
     referralService?: Pick<ReferralService, "isFoundationEnabled" | "areDevHelpersEnabled"> | undefined;
   } = {}
 ): void {
@@ -43,6 +43,7 @@ export function registerHelpCommand(
     includeHpRecovery: options.healthRecoveryNotificationService?.areDevHelpersEnabled() ?? false,
     includeGuild: options.guildService !== undefined,
     includeGuildDev: options.guildService?.areDevHelpersEnabled() ?? false,
+    includeGuildWeeklyDev: options.guildService?.areWeeklyDevHelpersEnabled?.() ?? false,
     includeReferral: options.referralService?.isFoundationEnabled() ?? false,
     includeReferralDev: options.referralService?.areDevHelpersEnabled() ?? false
   };

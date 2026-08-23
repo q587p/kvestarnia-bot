@@ -68,6 +68,7 @@ export interface GroupCombatSessionRecord {
   settlementPlan: GroupCombatSettlementPlan | null;
   turnExpiresAt: Date;
   completedAt: Date | null;
+  guildWeeklyGoalEligible?: boolean;
   participants: GroupCombatParticipantRecord[];
   queuedActions: GroupCombatQueuedActionRecord[];
 }
@@ -166,6 +167,7 @@ export interface GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startDueProof(input: {
@@ -173,6 +175,7 @@ export interface GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startLeftPassageForTelegramUser(input: {
@@ -181,6 +184,7 @@ export interface GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startDueLeftPassage(input: {
@@ -188,6 +192,7 @@ export interface GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   startReadyLeftPassage(input: {
@@ -195,6 +200,7 @@ export interface GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult>;
 
   submitActionForTelegramUser(input: {

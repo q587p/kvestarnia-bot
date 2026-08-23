@@ -25,7 +25,7 @@
 | Foundation і solo loop | закрито | `0.0.x`–`0.1.0` |
 | Social Combat & Interactions | закрито | `0.1.x`–`0.2.x` |
 | Closed Alpha Readiness / Season Zero Foundation | закрито в репозиторії | `0.3.0`–`0.3.17` |
-| Party Progression | активна | `0.4.6` merged; `0.4.7` universal statistics, Korchma rewards and dismantling у PR #196 |
+| Party Progression | активна | `0.4.7` merged in PR #196; `0.4.8` Guild Weekly Goal active on `codex/0.4.8-guild-weekly-goal` |
 | Economy expansion / seasons | пізніше | після доказу retention груп і ґільдій |
 
 Наявність коду не дорівнює production-доступности. Для feature-flagged систем
@@ -216,14 +216,25 @@ Kyiv-day exact-once identity, але дає `13` Іскрокаменів, щі�
 за класом і durable receipt; bulk, failure chance, buyback і resale integration
 не входять.
 
+PR `#196` merged this repository release. Deployment, production availability
+and Manual Telegram QA remain separate unproven evidence.
+
 ### 0.4.8 — Guild weekly goal
 
-Одна тижнева групова мета, що використовує звичайні PartySession +
-GroupCombatSession. Нагорода social/cosmetic first; учасники без ґільдій не
-втрачають базову solo/party progression. Цей slice також проводить явний аудит
-кожного класового прийому, що вже працює у PartyBoss/Big Barrel: або додає
-рівнозначну типізовану дію в GroupCombat із тестами, або документує raid-only
-причину та окремого майбутнього власника.
+Active implementation on `codex/0.4.8-guild-weekly-goal`: one default-off
+Kyiv/Holocene goal counts successful ordinary left-passage party expeditions
+through immutable guild/session/contributor receipts. Historical membership at
+terminal completion is authoritative; manual support counts equally; progress
+caps at thirteen. Completion is rewardless, adds no combat power or reward
+multiplier and emits only one privacy-safe guild Chronicle fact plus rewardless
+contributor achievements. Nonmembers and flag-off deployments keep ordinary
+party progression unchanged.
+
+The PartyBoss/Big Barrel audit confirms nine catalog class abilities plus the
+unknown-class fallback share the typed combat resolver with GroupCombat. Four recruitment/boss-response mechanics
+remain explicitly raid-only with separate backlog ownership. Automated checks,
+owning PR and CI are gates; Manual Telegram QA, merge, migration deployment,
+target flag and production availability remain pending evidence.
 
 ### 0.4.9 — Старий жертовник
 

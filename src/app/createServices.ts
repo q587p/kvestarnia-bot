@@ -25,6 +25,7 @@ import { FightingCornerQuestService } from "../services/fightingCornerQuestServi
 import { HeroService } from "../services/heroService";
 import { GroupCombatService } from "../services/groupCombatService";
 import { GuildService } from "../services/guildService";
+import { GuildWeeklyGoalService } from "../services/guildWeeklyGoalService";
 import { HealthRecoveryNotificationService } from "../services/healthRecoveryNotificationService";
 import { HuntService } from "../services/huntService";
 import { InventoryService } from "../services/inventoryService";
@@ -68,6 +69,15 @@ export function createServices(
   const activityEvents = new ActivityEventService(repositories.activityEvents);
   const publicActivityEvents = new PublicActivityEventPublisher(activityEvents);
   const achievements = new AchievementService(repositories.achievements);
+  const guildWeeklyGoals = new GuildWeeklyGoalService(
+    repositories.guildWeeklyGoals,
+    {
+      enabled: config.guildFoundationEnabled && config.guildWeeklyGoalEnabled,
+      devHelpersEnabled: nonProduction && config.guildFoundationEnabled && config.guildWeeklyGoalEnabled
+    },
+    undefined,
+    achievements
+  );
   const combatBalanceAnalytics = new CombatBalanceAnalyticsService(
     repositories.combatBalanceAnalytics,
     { enabled: config.combatBalanceAnalyticsEnabled }
@@ -132,13 +142,15 @@ export function createServices(
       enabled: true,
       devHelpersEnabled: nonProduction && config.groupCombatProofEnabled,
       leftPassagePartyAttackEnabled: config.leftPassagePartyAttackEnabled,
-      guildIdentityEnabled: config.guildFoundationEnabled
+      guildIdentityEnabled: config.guildFoundationEnabled,
+      guildWeeklyGoalEnabled: config.guildFoundationEnabled && config.guildWeeklyGoalEnabled
     },
     undefined,
     achievements,
     (telegramUserId) =>
       buildQuestMarkerSnapshotForTelegramUser(telegramUserId, services),
-    repositories.dailyActions
+    repositories.dailyActions,
+    guildWeeklyGoals
   );
   const partySessions = new PartySessionService(repositories.partySessions, {
     enabled: nonProduction ||
@@ -258,7 +270,7 @@ export function createServices(
     guilds: new GuildService(repositories.guilds, partySessions, {
       enabled: config.guildFoundationEnabled,
       devHelpersEnabled: nonProduction && config.guildFoundationEnabled
-    }, undefined, achievements, publicActivityEvents),
+    }, undefined, achievements, publicActivityEvents, guildWeeklyGoals),
     inventory: new InventoryService(repositories.inventory),
     itemCraft: new ItemCraftService(repositories.itemCraft, undefined, achievements),
     itemUpgrades: new ItemUpgradeService(

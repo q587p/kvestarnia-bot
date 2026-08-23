@@ -37,6 +37,7 @@ import { systemClock, type Clock } from "../shared/time";
 import type { AchievementService, AchievementUnlock } from "./achievementService";
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import type { PartySessionService } from "./partySessionService";
+import type { GuildWeeklyGoalService } from "./guildWeeklyGoalService";
 import { PRESENCE_LOCATION_KORCHMA_DEEP } from "./presenceService";
 
 export const GUILD_CREATION_PREVIEW_TTL_MS = 13 * 60 * 1000;
@@ -110,7 +111,8 @@ export class GuildService {
     private readonly options: GuildServiceOptions,
     private readonly clock: Clock = systemClock,
     private readonly achievements?: AchievementService,
-    private readonly activityEvents?: PublicActivityEventPublisher
+    private readonly activityEvents?: PublicActivityEventPublisher,
+    private readonly weeklyGoals?: GuildWeeklyGoalService
   ) {}
 
   isEnabled(): boolean {
@@ -121,8 +123,28 @@ export class GuildService {
     return this.isEnabled() && this.options.devHelpersEnabled === true;
   }
 
-  getHubForTelegramUser(telegramUserId: bigint, page = 0): Promise<GuildHubRepositoryResult> {
-    return this.guilds.getHubForTelegramUser(telegramUserId, this.clock(), page);
+  async getHubForTelegramUser(telegramUserId: bigint, page = 0): Promise<GuildHubRepositoryResult> {
+    const result = await this.guilds.getHubForTelegramUser(telegramUserId, this.clock(), page);
+    if (result.state !== "ready" || !this.weeklyGoals?.isEnabled()) return result;
+    const weekly = await this.weeklyGoals.getCurrentForTelegramUser(telegramUserId)
+      .catch(() => ({ state: "disabled" as const }));
+    return weekly.state === "ready"
+      ? { ...result, guild: { ...result.guild, weeklyGoal: weekly.progress } }
+      : result;
+  }
+
+  areWeeklyDevHelpersEnabled(): boolean {
+    return this.weeklyGoals?.areDevHelpersEnabled() === true;
+  }
+
+  completeWeeklyGoalForDev(telegramUserId: bigint) {
+    return this.weeklyGoals?.completeCurrentForDev(telegramUserId) ?? Promise.resolve({ state: "disabled" as const });
+  }
+
+  repairWeeklyGoalForDev() {
+    return this.areWeeklyDevHelpersEnabled()
+      ? this.weeklyGoals!.repairCurrentPeriod(93)
+      : Promise.resolve({ recorded: 0, recomputed: 0 });
   }
 
   getNestForTelegramUser(telegramUserId: bigint): Promise<GuildPublicReadResult<GuildNestRepositoryResult>> {

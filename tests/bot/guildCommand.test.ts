@@ -68,11 +68,13 @@ describe("guild command routes", () => {
     registerGuildCommands(bot, guildService({
       isEnabled: () => false,
       areDevHelpersEnabled: () => false,
+      areWeeklyDevHelpersEnabled: () => false,
       getHubForTelegramUser
     }), { botUsername: "kvestarnia_bot" });
 
     await bot.handleUpdate(commandUpdate("/guild"));
     await bot.handleUpdate(commandUpdate("/dev_guild_gold", 2));
+    await bot.handleUpdate(commandUpdate("/dev_guild_weekly finish", 3));
 
     expect(getHubForTelegramUser).toHaveBeenCalledWith(42n, 0);
     expect(replies).toHaveLength(1);

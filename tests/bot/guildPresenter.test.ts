@@ -294,7 +294,18 @@ describe("guild presenter privacy", () => {
         hasPreviousPage: false,
         hasNextPage: false,
         leadershipNomineeName: null,
-        viewerIsLeadershipNominee: false
+        viewerIsLeadershipNominee: false,
+        weeklyGoal: {
+          guildId: "guild-id",
+          guildName: "Тиха Печатка",
+          guildCrest: "🛡️",
+          periodId: "period-id",
+          periodKey: "12026-W35",
+          progressCount: 8,
+          targetCount: 13,
+          completedAt: null,
+          contributorCharacterIds: ["character-a", "character-b"]
+        }
       },
       incomingInvites: []
     }, now);
@@ -354,7 +365,18 @@ describe("guild presenter privacy", () => {
         hasPreviousPage: true,
         hasNextPage: true,
         leadershipNomineeName: null,
-        viewerIsLeadershipNominee: false
+        viewerIsLeadershipNominee: false,
+        weeklyGoal: {
+          guildId: "guild-id",
+          guildName: "Тиха Печатка",
+          guildCrest: "🛡️",
+          periodId: "period-id",
+          periodKey: "12026-W35",
+          progressCount: 8,
+          targetCount: 13,
+          completedAt: null,
+          contributorCharacterIds: ["character-a", "character-b"]
+        }
       },
       incomingInvites: []
     };
@@ -363,6 +385,9 @@ describe("guild presenter privacy", () => {
 
     expect(result.guild.members.length + result.guild.outgoingInvites.length).toBe(5);
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4096);
+    expect(text).toContain("Тижневий спільний клопіт · 12026-W35");
+    expect(text).toContain("8/13");
+    expect(text).toContain("удар, захист і підтримка");
     expect(keyboard.flat().every((button) =>
       !("callback_data" in button) || Buffer.byteLength(button.callback_data, "utf8") <= 64
     )).toBe(true);

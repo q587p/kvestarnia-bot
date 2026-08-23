@@ -552,6 +552,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, input.telegramUserId, "proof");
   }
@@ -561,6 +562,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "proof");
   }
@@ -571,6 +573,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, input.telegramUserId, "left-passage");
   }
@@ -580,6 +583,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "left-passage", "due");
   }
@@ -589,6 +593,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
     now: Date;
     turnExpiresAt: Date;
     includeGuildIdentity?: boolean;
+    guildWeeklyGoalEligible?: boolean;
   }): Promise<GroupCombatStartResult> {
     return this.startCombat(input, null, "left-passage", "ready");
   }
@@ -599,6 +604,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
       now: Date;
       turnExpiresAt: Date;
       includeGuildIdentity?: boolean;
+      guildWeeklyGoalEligible?: boolean;
     },
     manualLeaderTelegramUserId: bigint | null,
     mode: "proof" | "left-passage",
@@ -891,6 +897,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
             version: 1,
             stateJson: state as unknown as Prisma.InputJsonValue,
             turnExpiresAt: input.turnExpiresAt,
+            guildWeeklyGoalEligible: input.guildWeeklyGoalEligible === true,
             participants: {
               create: frozen.map((row) => {
                 const partyParticipant = party.participants.find(

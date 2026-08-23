@@ -4,6 +4,7 @@ export const activityEventTypes = [
   "character.created",
   "referral.arrived",
   "guild.created",
+  "guild.weekly_goal_completed",
   "character.level_reached",
   "party.raid_won",
   "party.encounter_won",

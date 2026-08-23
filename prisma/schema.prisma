@@ -181,6 +181,8 @@ model Guild {
   invites        GuildInvite[]
   audits         GuildAudit[]
   crestUploadDrafts GuildCrestUploadDraft[]
+  weeklyGoalPeriods GuildWeeklyGoalPeriod[]
+  weeklyContributions GuildWeeklyContribution[]
 
   @@index([leaderUserId])
   @@index([founderUserId])
@@ -322,6 +324,57 @@ model GuildAudit {
   @@index([guildId, occurredAt])
   @@index([eventType, occurredAt])
   @@map("guild_audits")
+}
+
+model GuildWeeklyGoalPeriod {
+  id            String   @id @default(uuid())
+  guildId       String   @map("guild_id")
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Restrict)
+    periodKey     String   @map("period_key")
+    goalKey       String   @map("goal_key")
+    guildNameSnapshot String @map("guild_name_snapshot")
+    guildCrestSnapshot String @map("guild_crest_snapshot")
+    targetCount   Int      @map("target_count")
+  progressCount Int      @default(0) @map("progress_count")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  contributions GuildWeeklyContribution[]
+
+  @@unique([guildId, periodKey, goalKey])
+  @@index([periodKey, completedAt])
+  @@map("guild_weekly_goal_periods")
+}
+
+model GuildWeeklyContribution {
+  id                   String                 @id @default(uuid())
+  periodId             String                 @map("period_id")
+  period               GuildWeeklyGoalPeriod  @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  guildId              String                 @map("guild_id")
+  guild                Guild                  @relation(fields: [guildId], references: [id], onDelete: Restrict)
+  groupCombatSessionId String                 @unique @map("group_combat_session_id")
+  groupCombatSession   GroupCombatSession     @relation(fields: [groupCombatSessionId], references: [id], onDelete: Restrict)
+  expeditionCompletedAt DateTime              @map("expedition_completed_at")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  contributors         GuildWeeklyContributorReceipt[]
+
+  @@unique([periodId, groupCombatSessionId])
+  @@index([guildId, expeditionCompletedAt])
+  @@map("guild_weekly_contributions")
+}
+
+model GuildWeeklyContributorReceipt {
+  id             String                    @id @default(uuid())
+  contributionId String                    @map("contribution_id")
+  contribution   GuildWeeklyContribution   @relation(fields: [contributionId], references: [id], onDelete: Restrict)
+  userId         String                    @map("user_id")
+  characterId    String                    @map("character_id")
+  remortCount    Int                       @map("remort_count")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+
+  @@unique([contributionId, userId])
+  @@index([userId, createdAt])
+  @@map("guild_weekly_contributor_receipts")
 }
 
 model Character {
@@ -1513,6 +1566,7 @@ model GroupCombatSession {
   deliveryPending Boolean     @default(true) @map("delivery_pending")
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
+  guildWeeklyGoalEligible Boolean @default(false) @map("guild_weekly_goal_eligible")
   repairState     String?      @map("repair_state")
   repairReason    String?      @map("repair_reason")
   stateJson      Json         @map("state_json")
@@ -1526,6 +1580,7 @@ model GroupCombatSession {
   actions        GroupCombatAction[]
   passageEncounter PendingPassageEncounter?
   uiPublicationClaims GroupCombatUiPublicationClaim[]
+  weeklyContribution GuildWeeklyContribution?
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])

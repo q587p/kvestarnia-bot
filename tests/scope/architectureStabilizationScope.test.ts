@@ -73,6 +73,7 @@ const expectedCommandAliasInventory = [
   "dev_group_combat",
   "dev_group_combat_timeout",
   "dev_guild_gold",
+  "dev_guild_weekly",
   "dev_heal",
   "dev_help",
   "dev_hp_recovery_due",

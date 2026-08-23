@@ -63,6 +63,7 @@ HP_RECOVERY_NOTIFICATIONS_ENABLED=false
 GROUP_COMBAT_PROOF_ENABLED=false
 LEFT_PASSAGE_PARTY_ATTACK_ENABLED=false
 GUILD_FOUNDATION_ENABLED=false
+GUILD_WEEKLY_GOAL_ENABLED=false
 REFERRAL_FOUNDATION_ENABLED=false
 REFERRAL_REWARD_PAYOUTS_ENABLED=false
 DEV_GRANT_COMMANDS_ENABLED=false
@@ -168,6 +169,15 @@ SQL rollback дозволений лише на погодженій isolated/re
 enablement потрібен audited abandoned-leader operator runbook; presence/location
 не є доказом неактивности.
 
+`GUILD_WEEKLY_GOAL_ENABLED=true` за одночасно ввімкнених guild foundation і
+left-passage party attack показує в приватній картці ґільдії поточний
+Kyiv/Holocene тижневий журнал і записує exact-once receipts за успішні звичайні
+ґільдійні походи. Deploy-safe default — `false`: вимкнення ховає тижневий рядок
+і блокує нові weekly eligibility/writes, але не вимикає звичайну групову атаку й
+не видаляє старі receipts. `/dev_guild_weekly` ремонтує поточний період із
+receipts, а `/dev_guild_weekly finish` завершує його для локальної QA; обидва
+шляхи production-unregistered навіть за ввімкнених прапорців.
+
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 
 Приватний рейд-чат 0.3.15 не має окремого конфігураційного ключа: він працює всередині наявної поверхні `BIG_BARREL_BROTHER_RAID_ENABLED=true`. Вимкнення батьківського прапорця ховає нові читання, записи й кнопки та запускає фонове очищення старих карток. Для локальної перевірки достатньо ввімкнути Big Barrel; `/dev_raid_chat` усе одно не реєструється у production.
@@ -211,6 +221,7 @@ DEV_GRANT_COMMANDS_ENABLED=true
 - `/dev_group_combat <party-token>` — за `GROUP_COMBAT_PROOF_ENABLED=true` дозволяє ватажкові раніше запустити приховану rewardless-сутичку 2–3×2–3 з наявного current-life складу ватаги; без ручної дії її запускає трьохвилинний scheduler. Приватна DM-картка збору ватажка має рівнозначну кнопку `⚔️ Dev: гуртова сутичка`, а групова картка її не показує. Саму команду можна надіслати з групи, але публічні proof-callback-и не мутують стан і не показують підсумок. У production команда, кнопка, callback і scheduler не реєструються, не показуються й не мутують стан навіть з увімкненим прапорцем.
 - `/dev_group_combat_timeout <party-token>` — у non-production переводить активну гуртову сутичку вказаного збору через одну поточну межу timeout і доставляє оновлені картки; не потребує ввімкнення production-входу. У production не реєструється, не показується й не мутує стан.
 - `/dev_guild_gold` — за `GUILD_FOUNDATION_ENABLED=true` у non-production доводить золото поточного персонажа до суми створення ґільдії; у production не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
+- `/dev_guild_weekly [finish]` — за трьох ввімкнених guild/party/weekly прапорців у non-production ремонтує поточний тижневий період із receipts або завершує його для QA; у production не реєструється, не показується й не мутує стан.
 - `/dev_raid_chat fill [14..131] | clear | expire composer|retention` — наповнює або очищає поточний Big Barrel чат і прискорює строки для перевірки newest-13, ліміту, composer та retention; доступна лише поза production, коли ввімкнений наявний Big Barrel прапорець.
 - `/dev_hp_recovery_due` — за `HP_RECOVERY_NOTIFICATIONS_ENABLED=true` у non-production ранить поточного персонажа, переносить recovery anchor у минуле й ставить один due generation у довговічну чергу; повідомлення напряму не надсилає. У production команда не реєструється, не показується й не мутує стан навіть з увімкненим rollout-прапорцем.
 - `/dev_reset_bard_performance` — без аргументів очищає локальний cooldown виступу й Натхнення; `grant 1|2|3|5` видає Натхнення відповідної сили на 13 хвилин. Не скидає музику вже активного рейду: для цього використовуйте наявний локальний reset або новий рейд.

@@ -4,6 +4,7 @@ import { GuildService } from "../../src/services/guildService";
 import type { PartySessionService } from "../../src/services/partySessionService";
 import type { AchievementService } from "../../src/services/achievementService";
 import type { PublicActivityEventPublisher } from "../../src/services/publicActivityEventPublisher";
+import type { GuildWeeklyGoalService } from "../../src/services/guildWeeklyGoalService";
 
 describe("GuildService rollout isolation", () => {
   it("keeps every mutation inert while the guild rollout is disabled", async () => {
@@ -223,6 +224,28 @@ describe("GuildService rollout isolation", () => {
       founderAchievementUnlocks: [founderUnlock],
       achievementUnlocks: [joinerUnlock]
     });
+  });
+
+  it("keeps the ordinary guild hub available when the optional weekly read fails", async () => {
+    const hub = { state: "ready", guild: { id: "guild-1" } };
+    const repository = {
+      getHubForTelegramUser: vi.fn().mockResolvedValue(hub)
+    };
+    const weeklyGoals = {
+      isEnabled: () => true,
+      getCurrentForTelegramUser: vi.fn().mockRejectedValue(new Error("weekly unavailable"))
+    };
+    const service = new GuildService(
+      repository as unknown as GuildRepository,
+      {} as PartySessionService,
+      { enabled: true },
+      undefined,
+      undefined,
+      undefined,
+      weeklyGoals as unknown as GuildWeeklyGoalService
+    );
+
+    await expect(service.getHubForTelegramUser(42n)).resolves.toBe(hub);
   });
 
   it("re-emits the same activation fact on repository replay so the chronicle dedupe can recover", async () => {
