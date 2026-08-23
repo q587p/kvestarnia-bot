@@ -210,23 +210,23 @@ describe("dev adventure reset command", () => {
 
   it("resets the daily Korchma round in local environments", async () => {
     const replies: string[] = [];
-    const seenUserIds: bigint[] = [];
+    const seen: Array<{ telegramUserId: bigint; mode: string | undefined }> = [];
     const bot = createTestBot(replies, {
       devReset: enabledDevReset(),
       adventure: {
         resetCurrentPeriodForTelegramUser: () => Promise.resolve({ state: "reset", periodToken: "period93" })
       } as unknown as AdventureService,
       dailyKorchmaRound: {
-        resetTodayForDev: (telegramUserId: bigint) => {
-          seenUserIds.push(telegramUserId);
+        resetTodayForDev: (telegramUserId: bigint, mode?: string) => {
+          seen.push({ telegramUserId, mode });
           return Promise.resolve("reset");
         }
       } as unknown as DailyKorchmaRoundService
     });
 
-    await bot.handleUpdate(commandUpdate("/dev_reset_korchma_round"));
+    await bot.handleUpdate(commandUpdate("/dev_reset_korchma_round hit"));
 
-    expect(seenUserIds).toEqual([42n]);
+    expect(seen).toEqual([{ telegramUserId: 42n, mode: "hit" }]);
     expect(replies).toEqual([
       "Корчмарський обхід скинуто для поточного київського дня. Наступне відкриття заново підніме сьогоднішні папірці з-під кухля."
     ]);
@@ -251,7 +251,7 @@ describe("dev adventure reset command", () => {
     await bot.handleUpdate(commandUpdate("/dev_reset_korchma_round"));
 
     expect(called).toBe(false);
-    expect(replies).toEqual(["Ця команда доступна лише в локальній майстерні."]);
+    expect(replies).toEqual([]);
   });
 
   it("resets the monster rest cooldown in local environments", async () => {

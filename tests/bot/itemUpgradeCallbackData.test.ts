@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeItemDismantleConfirmCallbackData,
+  makeItemDismantleListCallbackData,
+  makeItemDismantlePreviewCallbackData,
   makeItemUpgradeAttemptCallbackData,
   makeItemUpgradeListCallbackData,
   makeItemUpgradePagePromptCallbackData,
@@ -10,6 +13,39 @@ import {
 import { TELEGRAM_CALLBACK_DATA_LIMIT } from "../../src/bot/callbacks/onboardingCallbackData";
 
 describe("item upgrade callback data", () => {
+  it("round-trips compact dismantling list, preview and guarded confirmation callbacks", () => {
+    const list = makeItemDismantleListCallbackData(2);
+    const preview = makeItemDismantlePreviewCallbackData("item.pan-of-persuasion.plus-2");
+    const confirm = makeItemDismantleConfirmCallbackData({
+      itemId: "item.pan-of-persuasion.plus-2",
+      expectedQuantity: 13,
+      expectedRemortCount: 2,
+      expectedYield: 9,
+      payment: "mana",
+      rulesFingerprint: "a1b2c3d4",
+      guard: "e5f60718"
+    });
+    expect([list, preview, confirm].every((value) => Buffer.byteLength(value, "utf8") <= TELEGRAM_CALLBACK_DATA_LIMIT)).toBe(true);
+    expect(parseItemUpgradeCallbackData(list)).toEqual({ ok: true, value: { type: "dismantle-list", page: 2 } });
+    expect(parseItemUpgradeCallbackData(preview)).toEqual({
+      ok: true,
+      value: { type: "dismantle-preview", itemId: "item.pan-of-persuasion.plus-2" }
+    });
+    expect(parseItemUpgradeCallbackData(confirm)).toEqual({
+      ok: true,
+      value: {
+        type: "dismantle-confirm",
+        itemId: "item.pan-of-persuasion.plus-2",
+        expectedQuantity: 13,
+        expectedRemortCount: 2,
+        expectedYield: 9,
+        payment: "mana",
+        rulesFingerprint: "a1b2c3d4",
+        guard: "e5f60718"
+      }
+    });
+  });
+
   it("serializes compact list, preview and attempt callbacks", () => {
     const list = makeItemUpgradeListCallbackData();
     const listPage = makeItemUpgradeListCallbackData(3);

@@ -35,6 +35,15 @@ Use English for Codex-facing workflow materials:
 - internal implementation notes intended mainly for Codex
 - PR titles/bodies, commit messages, and test names when practical
 
+This language rule also covers every ready-to-paste Codex prompt delivered
+directly in chat, including new-task, continuation, review-fix, integration,
+QA and release follow-up prompts. The surrounding review or discussion may be
+Ukrainian, and exact player-facing copy inside the prompt stays Ukrainian, but
+the prompt's operational instructions must be English. Never translate a Codex
+prompt into Ukrainian merely because the conversation with the user is
+Ukrainian; treat a non-English handoff prompt as a blocking prompt-quality
+defect and correct it before delivery.
+
 Use Ukrainian for:
 
 - all player-facing Telegram text
@@ -125,6 +134,26 @@ destructive database reset or another action that needs genuinely new authority.
 an unrequested work session running or hanging beyond one hour; at that boundary,
 stop and provide a recoverable handoff unless the user explicitly requested a
 longer-running session.
+2d. Never treat a model turn boundary, context compaction, token budget, tool
+runtime, internal deadline, elapsed work time below the explicit one-hour
+boundary, or an incomplete but still actionable scope as a blocker, terminal
+condition, or permission to stop. These are internal execution details, not user
+constraints. When the environment can continue in another pass, continue the
+same owning task automatically and preserve its state; do not emit a partial
+final response merely because one pass is ending.
+2e. Unless the user explicitly requests a checkpoint, partial implementation,
+draft PR, early publication or narrower scope, never self-declare a "safe
+checkpoint", silently reduce the accepted contract, open a knowingly incomplete
+PR, or hand incomplete work back as the requested result. A versioned task may
+end only when every required runtime path, regression, release surface,
+documentation update, commit, push, ready PR and requested CI follow-up is done,
+or when a genuine external blocker prevents further safe progress. Difficulty,
+remaining work, or the convenience of preserving progress is not a blocker.
+Before any final implementation response, compare the branch against the task
+contract and explicitly verify that no required section remains pending. If a
+true external blocker appears, commit and push recoverable in-scope work to the
+owning branch when authorized, then report the exact external condition without
+calling the task complete.
 3. Do not rewrite architecture unless the task requires it.
 4. Do not add production dependencies without a clear reason.
 5. Do not run global formatters on the whole repo unless explicitly requested.
@@ -146,7 +175,10 @@ longer-running session.
 18c. Every player-facing timer, cooldown or wait blocker must state the remaining wait from canonical `availableAt`/`now` data. Do not use vague copy such as "still resting" as the only explanation. A callback alert may summarize the blocker, but it must not be the only surface when it is easy to miss: render the remaining duration in the durable card or a separate Telegram message, and cover that visible duration with a focused test.
 18d. A private playable state must never leave the chat without any visible controls. At least one authoritative control surface must remain available at all times: the persistent main reply keyboard, a mode-specific reply keyboard, or inline buttons on the canonical card. During active combat, a living actor must have currently legal combat actions and a participant who cannot act must have at least `🔎 Оновити`; outside combat, the current main navigation must remain reachable. Intro, refresh, `/start`, scheduler, retry, error, replacement, stale/restarted delivery and concurrent paths must neither remove the only keyboard nor publish a newest actionable card without buttons. Success, notification and achievement messages produced by a menu flow must retain an appropriate recovery/menu control when they become the newest player-visible message. Prefer redundant persistent navigation plus inline state-specific controls when Telegram reply-keyboard convergence is unreliable. Cover the real send/edit order and assert both retained chat-level controls and non-empty canonical-card `reply_markup`.
 18e. Every player-facing denial or blocked action must explain, in player terms, what action was attempted, which current condition or authority is missing, and what the player can do next. Do not use a generic `не можна`, `не знайдено` or `спершу треба` as the whole durable response when the server can safely distinguish the actor's own state. Preserve privacy-uniform wording for another player's hidden state, but be specific about the viewer's own role, membership, location, resources or active mode. Keep an appropriate recovery/menu control visible and add a focused regression for the explanatory copy and navigation.
-19. Within one message, keyboard, card, or journal, prefer distinct icons for distinct actions, places, states, skills, abilities, effects, and notices. This includes class/race combat abilities, noncombat techniques, equipment-granted actions, item effects, cooldown/status notices, and raid or quest actions; inspect the content label together with every presenter, button, and result line where it appears. Do not reuse a location/surface icon for a quest row or action shown in the same UI; do not reuse an ability or item icon for an unrelated effect or notice. When two different concepts can appear on the same or adjacent player-facing surfaces, choose different icons and add a focused regression assertion for the distinction. Reusing icons is acceptable only for the same semantic concept or similar navigation such as back buttons or pagination.
+18f. A feature described as an unlisted capability-link artifact is complete only when one typed central contract produces a valid shareable URL and the matching `/start` consumer resolves it before onboarding, Character, participant and private-chat authorization. Every authoritative terminal card producer—including interactive completion, command reopen, callback replacement, combat-lock recovery, restart/stale recovery, scheduler and quest/adventure delivery—must expose exactly one link directly on that result card; reaching a later journal/statistics card, forwarding the message or relying on another producer does not close the transport contract. Keep Telegram start parameters within 64 bytes, validate bot username, opaque token and artifact kind strictly, suppress links on active cards, return one privacy-uniform response for malformed, unknown, wrong-kind, active or unavailable tokens, and cover each real producer plus producer/consumer round trips and non-participant access in tests. Forwarded callback buttons alone are not a capability-link transport.
+18g. Replay-stable public artifacts must freeze their minimum public presentation identity inside the authoritative versioned artifact when it is created. Terminal result, journal and statistics reads must render that snapshot without joining mutable live owner records, backfilling rows, settling rewards or performing viewer-specific writes. Legacy artifacts may use a documented generic fallback derived only from stored artifact fields; never reconstruct old public identity from a current Character. Preserve participant authorization for every active or mutable control and pin snapshot stability after rename, title, guild, level or remort changes with focused tests.
+19. Player-facing icons have one global semantic owner across keyboards, cards, presenters, journals and notices. The same icon may repeat only for the same concept or the same navigation meaning such as back, refresh or pagination; it must never identify a different action, place, state, skill, item, effect or notice anywhere else in ordinary player UI, even when the surfaces are not currently adjacent. New or changed exclusive action icons must be added to the canonical player-facing icon ownership registry and its scope test, and every affected label/presenter/result line must use the shared constant. Cross-concept reuse is forbidden in ordinary player UI. It is allowed only on an admin/dev-only surface named in the registry's explicit exception allowlist with a reason and focused test; an unlisted exception is a release blocker.
+19a. A player-triggered action whose primary effect is difficult to reverse must never mutate on its first button or command intent. Show a short consequence-specific confirmation with explicit affirmative and negative controls; the intent and negative path must be read-only, and only the version/token-bound affirmative callback may mutate after rechecking current authority and state. Stale affirmations fail closed. This includes leaving or disbanding a guild, remort, account deletion, irreversible custody transfer, dismantling, and consuming a protected, unique or otherwise non-recoverable item. Any deliberate one-tap exception requires an explicit product decision in the task/PR body and a production-shaped regression.
 20. Do not show exact future reward amounts, drop names, manatky, hidden odds, or percentage chances in player-facing pre-commit choices. Before the player commits, use qualitative risk/reward language; exact values may appear after resolution, in tests, in `CHANGELOG.md`, or in internal docs. The sole current exception is the owner-approved exact four-stage referral bundles on the inviter's private dashboard; keep those exact future bundles out of public invitation copy, invitee onboarding, lore and `news.md`.
 21. No pay-to-win. Monetization may support cosmetics, comfort, or server support, but not unfair combat power.
 22. When adding any player-facing runtime gameplay loop with timers, cooldowns, random offers, pending sessions, retries, once-per-period gates, or class/social ability waits, add a narrow non-production `/dev_*` command that makes local/manual QA faster without weakening production rules. This is mandatory before the task is PR-ready unless the task doc and PR body explicitly explain why a helper would be unsafe or useless for that exact gate. Feature flags may enable production gameplay surfaces, but must not enable `/dev_*` handlers, `/dev_help` entries, Telegram menu/help visibility, or dev-only callback mutations when `NODE_ENV=production`. Any new `/dev_*` command needs tests proving production config cannot register, show, or mutate through it, including when a feature-specific dev-helper flag is set. Document the helper in the task doc, developer setup notes, compact context when relevant, and PR body before calling the task complete.
@@ -206,7 +238,7 @@ PR defaults:
 - For implementation work, "done", "complete", or "PR-ready" means the branch has been committed, pushed to the remote, and a GitHub PR has been opened unless the user explicitly asked to stop before publishing.
 - Before a final handoff after commits, run `git status -sb` or an equivalent branch/upstream check. If the current branch is ahead of its upstream, push it before reporting completion; if pushing is blocked, report the exact blocker. Do not leave committed work only on the local checkout unless the user explicitly asked for local-only work.
 - Do not give a final implementation summary after only local edits/checks unless the user explicitly asked for local-only work. The final response must include the `main` PR link, or a concrete blocker that prevented creating/updating that PR.
-- Prefer ready-for-review PRs; create a draft PR only when the user explicitly asks for draft state or the work is knowingly incomplete.
+- Prefer ready-for-review PRs. Create or convert to a draft PR only when the user explicitly asks for draft state, a checkpoint or early publication; knowingly incomplete work by itself is not permission to publish a draft PR or stop the implementation.
 - If an active PR already exists for the current work, add follow-ups to that same branch and PR unless the user explicitly asks for a separate branch or a separate PR. If there is already an open fixes branch/PR for the release or bugfix batch, put the next related fix there instead of creating a new branch/PR for each fix. Before opening any new PR, check whether the current task belongs to an already-open PR and update that PR instead when it does.
 - Treat every correction, rule update, documentation note or future-backlog item
   requested while working on an explicitly named PR as a follow-up to that same

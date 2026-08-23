@@ -1663,7 +1663,7 @@ describe("handlePartySessionCallback", () => {
   it("keeps the boss journal closed while the battle is active", async () => {
     const session = makeBossSession();
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
-    const { ctx, editMessageText } = createCallbackContext();
+    const { ctx, editMessageText, answerCallbackQuery } = createCallbackContext();
 
     await handlePartySessionCallback(
       ctx,
@@ -1675,11 +1675,11 @@ describe("handlePartySessionCallback", () => {
       }
     );
 
-    expect(messageText(editMessageText)).toContain("Журнал відкриється після бою");
-    expect(messageText(editMessageText)).toContain("<b>Бій: 1 хід</b>");
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({ text: "Запис відкриється після завершення бою." });
   });
 
-  it("hides the active boss one-use shortcut when no useful combat items are available", async () => {
+  it("does not load private combat items from an active public journal intent", async () => {
     const session = makeBossSession();
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
     const hasCombatItemsForTelegramUser = vi.fn().mockResolvedValue(false);
@@ -1698,9 +1698,8 @@ describe("handlePartySessionCallback", () => {
       }
     );
 
-    expect(hasCombatItemsForTelegramUser).toHaveBeenCalledWith(42n, session.partyInviteToken, 1);
-    expect(keyboardJson(editMessageText)).toContain("v1:party:ba:partyABC12:1:a");
-    expect(keyboardJson(editMessageText)).not.toContain("v1:party:bm:partyABC12:1");
+    expect(hasCombatItemsForTelegramUser).not.toHaveBeenCalled();
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it("refreshes the leader recruiting card after another player joins", async () => {
@@ -1900,7 +1899,7 @@ describe("handlePartySessionCallback", () => {
     }
   );
 
-  it("renders a terminal GroupCombat result from the stale recruiting card for a private participant", async () => {
+  it("renders a terminal GroupCombat result from the stale recruiting card for its participant", async () => {
     const party = {
       ...makeSession("completed"),
       version: 2,
@@ -1935,11 +1934,51 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("v1:gc:v:partyABC12");
   });
 
-  it("opens a settled GroupCombat result with journal and statistics from a party deep link", async () => {
+  it.each(["group", "supergroup"] as const)(
+    "renders the full completed PartyBoss roster in a %s through the capability token",
+    async (chatType) => {
+      const session = makeBossSession({ status: "won" });
+      session.status = "won";
+      session.state.participants.forEach((participant, index) => {
+        participant.statistics = {
+          version: 1, damage: 10 + index, healing: 0, guardPrevented: 0, control: 0,
+          damageTaken: 3 + index, actions: 1, specialActions: 0, guardedTurns: 0
+        };
+      });
+      const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
+      const { ctx, answerCallbackQuery, editMessageText } = createCallbackContext(42, {
+        id: -100587,
+        type: chatType
+      });
+
+      await handlePartySessionCallback(
+        ctx,
+        { type: "boss-statistics", token: "partyABC12" },
+        serviceWith({}),
+        {
+          presence: {} as PresenceService,
+          partyBoss: {
+            isEnabled: () => true,
+            getByPartyInviteToken
+          } as unknown as PartyBossService
+        }
+      );
+
+      expect(getByPartyInviteToken).toHaveBeenCalledWith("partyABC12");
+      expect(answerCallbackQuery).toHaveBeenCalledWith(undefined);
+      expect(messageText(editMessageText)).toContain("Тестова Лідерка");
+      expect(messageText(editMessageText)).toContain("Друга Учасниця");
+      expect(messageText(editMessageText)).toContain("Контрольний Бос");
+    }
+  );
+
+  it("opens a settled GroupCombat result for a non-participant without a Character from its deep link", async () => {
     const party = {
       ...makeSession("completed"),
       version: 2,
-      activeLeaderKey: null
+      activeLeaderKey: null,
+      originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
+      originKind: LEFT_PASSAGE_PARTY_ORIGIN_KIND
     };
     const groupSession = makeTerminalGroupCombatSession();
     Object.assign(groupSession.participants[0]!, {
@@ -1953,7 +1992,7 @@ describe("handlePartySessionCallback", () => {
       session: party
     });
     const findByToken = vi.fn().mockResolvedValue(groupSession);
-    const { ctx, reply, editMessageText } = createCallbackContext(42);
+    const { ctx, reply, editMessageText } = createCallbackContext(9999);
 
     await expect(sendPartyJoinFromStartPayload(
       ctx,
@@ -1961,6 +2000,7 @@ describe("handlePartySessionCallback", () => {
       party.inviteToken,
       {
         botUsername: "kvestarnia_test_bot",
+        requireLeftPassage: true,
         groupCombat: {
           areDevHelpersEnabled: () => true,
           findByToken
@@ -1969,6 +2009,7 @@ describe("handlePartySessionCallback", () => {
     )).resolves.toBe(true);
 
     expect(findByToken).toHaveBeenCalledWith(party.inviteToken);
+    expect(joinByTokenForTelegramUser).not.toHaveBeenCalled();
     expect(String(reply.mock.calls[0]?.[0])).toContain("✅ Доказову сутичку виграно");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📜 Журнал");
     expect(JSON.stringify(reply.mock.calls[0]?.[1])).toContain("📊 Статистика");
@@ -2458,7 +2499,7 @@ describe("handlePartySessionCallback", () => {
       .toContain(`nyz_left_attack_${session.inviteToken}`);
   });
 
-  it("reopens a completed left-passage result after terminal exit delivery finished", async () => {
+  it("reopens a completed left-passage result without replacing participant delivery state", async () => {
     const session = {
       ...makeSession("completed"),
       originLocationId: PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT,
@@ -2503,28 +2544,14 @@ describe("handlePartySessionCallback", () => {
 
     expect(handled).toBe(true);
     expect(joinLeftPassageByTokenForTelegramUser).not.toHaveBeenCalled();
-    expect(sendMessage).toHaveBeenCalledWith(
-      93,
-      expect.stringContaining("Доказову сутичку виграно"),
-      expect.objectContaining({ parse_mode: "HTML" })
-    );
-    expect(replaceCompletedParticipantTerminalCard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: groupSession.id,
-        telegramUserId: 93n,
-        expectedDeliveryRevision: groupSession.deliveryRevision,
-        expectedReferenceVersion: 3,
-        previousChatId: 93n,
-        terminalCard: { chatId: 93n, messageId: 95 }
-      })
-    );
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(replaceCompletedParticipantTerminalCard).not.toHaveBeenCalled();
+    expect(String(reply.mock.calls[0]?.[0])).toContain("Доказову сутичку виграно");
     expect(viewer).toMatchObject({
       exitDeliveryState: "completed",
       settlementStatus: "completed",
-      messageId: 95,
-      referenceVersion: 4
+      referenceVersion: 3
     });
-    expect(reply).not.toHaveBeenCalled();
   });
 
   it.each(["active", "terminal"] as const)(
@@ -2995,7 +3022,7 @@ describe("handlePartySessionCallback", () => {
     expect(keyboardJson(editMessageText)).toContain("🎲 Інший текст");
   });
 
-  it("opens a completed party boss result from a party deep link before falling back to recruiting join", async () => {
+  it("opens a completed party boss result for a non-participant without a Character from its deep link", async () => {
     const session = makeBossSession({
       status: "won",
       participants: [
@@ -3015,7 +3042,7 @@ describe("handlePartySessionCallback", () => {
     session.status = "won";
     const getByPartyInviteToken = vi.fn().mockResolvedValue(session);
     const joinByTokenForTelegramUser = vi.fn();
-    const { ctx, reply } = createCallbackContext(93);
+    const { ctx, reply } = createCallbackContext(9999);
 
     const handled = await sendPartyJoinFromStartPayload(
       ctx,

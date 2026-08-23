@@ -112,6 +112,11 @@ describe("party boss reducer", () => {
     });
     expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.contribution.submittedActions).toBe(1);
     expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.contribution.timeoutActions).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-1")?.statistics?.actions).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "character-2")?.statistics).toMatchObject({
+      actions: 0,
+      guardedTurns: 0
+    });
   });
 
   it("spends Lament as a zero-damage action and reduces one focused boss response", () => {
@@ -191,6 +196,10 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations).toHaveLength(2);
     expect(result.round.bossRetaliations.every((entry) => entry.lamentPreventedDamage === 3)).toBe(true);
     expect(result.round.bardMusic?.remainingBossResponses).toBe(1);
+    expect(result.state.participants.find((entry) => entry.characterId === "bard")?.statistics?.control)
+      .toBe(6);
+    expect(result.state.participants.find((entry) => entry.characterId === "ally")?.statistics?.control)
+      .toBe(0);
   });
 
   it("applies Lament after guard reductions and before the broad Ward", () => {
@@ -503,6 +512,32 @@ describe("party boss reducer", () => {
       consecutiveDefends: 1,
       abilityDamageReduction: 2
     });
+  });
+
+  it("keeps PartyBoss damage, HP, counters, and rewards identical when statistics are absent", () => {
+    const tracked = createPartyBossState({
+      partySessionId: "party-statistics-formula-regression",
+      variant: "big-barrel",
+      now: new Date("2026-08-22T10:00:00.000Z"),
+      participants: [participant("leader", "Вартова", { hp: 100, level: 8, armor: 7 })]
+    });
+    tracked.participants[0]!.resources.guard = { consecutiveDefends: 1 };
+    const untracked = structuredClone(tracked);
+    delete untracked.participants[0]!.statistics;
+    const input = {
+      now: new Date("2026-08-22T10:01:00.000Z"),
+      seed: "party-statistics-formula-regression",
+      actions: [{ characterId: "leader", action: "attack", origin: "manual" }] as const
+    };
+
+    const withStatistics = resolvePartyBossRound({ state: tracked, ...input });
+    const withoutStatistics = resolvePartyBossRound({ state: untracked, ...input });
+
+    expect(withStatistics.round.bossRetaliations).toEqual(withoutStatistics.round.bossRetaliations);
+    expect(withStatistics.state.participants[0]?.resources.hp)
+      .toBe(withoutStatistics.state.participants[0]?.resources.hp);
+    expect(withStatistics.state.boss.hp).toBe(withoutStatistics.state.boss.hp);
+    expect(withStatistics.state.result).toEqual(withoutStatistics.state.result);
   });
 
   it("applies borrowed equipment healing and guard in party boss rounds", () => {
@@ -1318,6 +1353,7 @@ describe("party boss reducer", () => {
       ...(committed ? {} : { itemUnavailableReason: "effect-unavailable" })
     });
     expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(committed ? 1 : 0);
+    expect(result.state.participants[0]?.statistics?.actions ?? 0).toBe(committed ? 1 : 0);
     expect(result.round.bossRetaliations[0]).toMatchObject({
       damage: expectedDamage,
       ...(committed
@@ -1373,6 +1409,7 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations[0]).toMatchObject({ damage: 0 });
     expect(result.round.bossRetaliations[0]?.itemResponseItemId).toBeUndefined();
     expect(result.state.participants[0]?.contribution.itemUses ?? 0).toBe(0);
+    expect(result.state.participants[0]?.statistics?.actions ?? 0).toBe(0);
   });
 
   it.each([
@@ -1410,6 +1447,8 @@ describe("party boss reducer", () => {
     expect(result.round.bossRetaliations[0]?.characterId).toBe("leader");
     expect(result.round.bossRetaliations[0]?.itemResponseKind).toBe(targeted ? "evade" : undefined);
     expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.contribution.itemUses ?? 0).toBe(targeted ? 1 : 0);
+    expect(result.state.participants.find((entry) => entry.characterId === ownerId)?.statistics?.actions ?? 0)
+      .toBe(targeted ? 1 : 0);
   });
 
   it("makes Big Barrel Brother hit the leader first and then the previous round top damage contributor", () => {
@@ -1557,6 +1596,10 @@ describe("party boss reducer", () => {
       redirectedAttackKind: "broad",
       bossAttacksRemaining: 2
     });
+    expect(resolved.state.participants[0]?.statistics).toMatchObject({
+      actions: 1,
+      control: 1
+    });
   });
 
   it("applies one broad Kharakternyk ward response to the redirected Taunt target", () => {
@@ -1592,6 +1635,8 @@ describe("party boss reducer", () => {
       usesMax: 2
     });
     expect(resolved.round.wardSign?.preventedDamage).toBeGreaterThan(0);
+    expect(resolved.state.participants.find((entry) => entry.characterId === "ally")?.statistics?.guardPrevented)
+      .toBeGreaterThanOrEqual(resolved.round.wardSign?.preventedDamage ?? 0);
   });
 
   it("redirects a focused response into the taunting Protocol 13-Z signer", () => {

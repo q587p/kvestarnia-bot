@@ -59,6 +59,9 @@ buildItemUsePreviewKeyboard,
 buildItemUseResultKeyboard
 } from "../keyboards/inventoryKeyboard";
 import {
+buildItemDismantleListKeyboard,
+buildItemDismantlePreviewKeyboard,
+buildItemDismantleResultKeyboard,
 buildItemUpgradePreviewKeyboard,
 buildItemUpgradeResultKeyboard,
 buildItemUpgradeUnlockResultKeyboard
@@ -90,6 +93,9 @@ presentItemCraftPreview,
 presentItemCraftResult
 } from "../presenters/itemCraftPresenter";
 import {
+presentItemDismantleList,
+presentItemDismantlePreview,
+presentItemDismantleResult,
 presentItemUpgradeAttempt,
 presentItemUpgradePreview,
 presentItemUpgradeUnlock
@@ -619,6 +625,48 @@ async function handleItemUpgradeCallback(
         force_reply: true,
         input_field_placeholder: getItemUpgradePagePromptPlaceholder(action.totalPages)
       }
+    });
+    return;
+  }
+
+  if (action.type === "dismantle-list") {
+    const result = await services.itemUpgrades.listDismantleForTelegramUser(telegramUserId);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentItemDismantleList(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemDismantleListKeyboard(result, action.page)
+    });
+    return;
+  }
+
+  if (action.type === "dismantle-preview") {
+    const result = await services.itemUpgrades.previewDismantleForTelegramUser(telegramUserId, action.itemId);
+    await safeAnswerCallbackQuery(ctx, { show_alert: result.state !== "ready" });
+    await safeEditMessageText(ctx, presentItemDismantlePreview(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemDismantlePreviewKeyboard(result)
+    });
+    return;
+  }
+
+  if (action.type === "dismantle-confirm") {
+    const result = await services.itemUpgrades.dismantleForTelegramUser(telegramUserId, {
+      itemId: action.itemId,
+      expectedQuantity: action.expectedQuantity,
+      expectedRemortCount: action.expectedRemortCount,
+      expectedYield: action.expectedYield,
+      payment: action.payment,
+      rulesFingerprint: action.rulesFingerprint,
+      guard: action.guard
+    });
+    await safeAnswerCallbackQuery(ctx, result.state === "dismantled"
+      ? { text: "Манатку розібрано." }
+      : result.state === "replayed"
+        ? { text: "Показано збережений чек." }
+        : { show_alert: true });
+    await safeEditMessageText(ctx, presentItemDismantleResult(result), {
+      ...HTML_MESSAGE_OPTIONS,
+      reply_markup: buildItemDismantleResultKeyboard()
     });
     return;
   }

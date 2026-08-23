@@ -24,3 +24,4 @@ export const DAILY_KORCHMA_ROUND_OFFER_KEY = "quest.korchma-daily-round.offer";
 export const DAILY_KORCHMA_ROUND_REROLL_KEY = "quest.korchma-daily-round.reroll";
 export const DAILY_KORCHMA_ROUND_STEP_KEY = "quest.korchma-daily-round.step";
 export const DAILY_KORCHMA_ROUND_REWARD_KEY = "quest.korchma-daily-round.reward";
+export const DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY = "quest.korchma-daily-round.dev-identity";

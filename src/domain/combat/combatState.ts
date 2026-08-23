@@ -13,6 +13,7 @@ import {
 import type { MonsterContextSnapshotV1 } from "./monsterContext";
 import type { VarenykSatedCombatStateV1 } from "../noncombat/varenykSatedSupport";
 import type { BardInspirationCombatStateV1 } from "../noncombat/bardSupport";
+import type { PublicCombatantIdentityV1 } from "./publicCombatantIdentity";
 
 export type CombatStatus = "active" | "won" | "lost" | "fled" | "expired";
 export const COMBAT_TURN_LOG_MAX_ENTRIES = 587;
@@ -143,9 +144,40 @@ export interface CombatEnemyState extends CombatMonsterState {
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
 }
 
+export interface CombatContributionDimensionsV1 {
+  damage: number;
+  healing: number | null;
+  guardPrevented: number | null;
+  control: number | null;
+  damageTaken: number;
+  actions: number;
+  specialActions: number;
+  guardedTurns: number;
+}
+
+export interface CombatStatisticsStateV1 {
+  version: 1;
+  hero: CombatContributionDimensionsV1;
+  enemies: Record<string, CombatContributionDimensionsV1>;
+}
+
+export interface CombatStatisticsEnemyTurnEvidenceV1 {
+  damage: number;
+  healing: number;
+  guardPrevented: number;
+  control: number;
+}
+
+export interface CombatStatisticsTurnEvidenceV1 {
+  heroGuardPrevented: number;
+  heroControl: number;
+  enemies: Record<string, CombatStatisticsEnemyTurnEvidenceV1>;
+}
+
 export interface CombatState {
   id?: string;
   source?: "normal" | "yeger" | "adventure" | "training";
+  publicIdentity?: PublicCombatantIdentityV1;
   life?: CombatLifeState;
   settlement?: CombatSettlementState;
   threat?: CombatThreatState;
@@ -197,6 +229,7 @@ export interface CombatState {
   drinkModifiers?: DrinkCombatModifiers;
   equipmentAbilities?: CombatEquipmentAbilityState;
   enemyStatuses?: CombatEnemyStatusesState;
+  statistics?: CombatStatisticsStateV1;
   monsterRuntime?: MonsterAbilityRuntimeStateV1;
   lastTurn?: CombatTurnSummary;
   turnLog?: CombatTurnLogEntry[];
@@ -339,6 +372,7 @@ export interface CombatTurnSummary {
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatEnemyPressureSkipSummary[];
   itemResponse?: CombatItemResponseSummary;
+  statisticsEvidence?: CombatStatisticsTurnEvidenceV1;
   debugTrace?: CombatDebugTrace;
 }
 
@@ -467,6 +501,7 @@ export function startCombat(input: StartCombatInput): CombatState {
       ...combatEnemyToMonster(primaryEnemy)
     },
     ...(inputEnemies.length > 1 ? { enemies: inputEnemies } : {}),
+    statistics: createCombatStatisticsState(inputEnemies),
     ...(monsterRuntime ? { monsterRuntime } : {})
   };
 }
@@ -498,6 +533,7 @@ export function cloneCombatState(state: CombatState): CombatState {
         }
       : {}),
     ...(state.threatExclusion ? { threatExclusion: { ...state.threatExclusion } } : {}),
+    ...(state.publicIdentity ? { publicIdentity: { ...state.publicIdentity } } : {}),
     ...(state.originLocationId ? { originLocationId: state.originLocationId } : {}),
     ...(state.completedAt ? { completedAt: state.completedAt } : {}),
     ...(state.turnExpiresAt ? { turnExpiresAt: state.turnExpiresAt } : {}),
@@ -532,6 +568,7 @@ export function cloneCombatState(state: CombatState): CombatState {
       ? { equipmentAbilities: cloneEquipmentAbilityState(state.equipmentAbilities) }
       : {}),
     ...(state.enemyStatuses ? { enemyStatuses: cloneEnemyStatusesState(state.enemyStatuses) } : {}),
+    ...(state.statistics ? { statistics: cloneCombatStatisticsState(state.statistics) } : {}),
     ...(monsterRuntime ? { monsterRuntime } : {}),
     ...(state.lastTurn
       ? {
@@ -851,6 +888,19 @@ export function cloneCombatTurnSummary(summary: CombatTurnSummary): CombatTurnSu
       ? { enemyPressureSkips: summary.enemyPressureSkips.map((entry) => ({ ...entry })) }
       : {}),
     ...(summary.itemResponse ? { itemResponse: { ...summary.itemResponse } } : {}),
+    ...(summary.statisticsEvidence
+      ? {
+          statisticsEvidence: {
+            ...summary.statisticsEvidence,
+            enemies: Object.fromEntries(
+              Object.entries(summary.statisticsEvidence.enemies).map(([enemyId, values]) => [
+                enemyId,
+                { ...values }
+              ])
+            )
+          }
+        }
+      : {}),
     ...(summary.enemyResults
       ? { enemyResults: summary.enemyResults.map((entry) => ({ ...entry })) }
       : {}),
@@ -964,6 +1014,159 @@ export function cloneCombatEnemyState(enemy: CombatEnemyState): CombatEnemyState
     ...(enemy.debugTrace ? { debugTrace: { ...enemy.debugTrace } } : {}),
     ...(enemy.contextModifiers ? { contextModifiers: { ...enemy.contextModifiers } } : {}),
     ...(runtime ? { monsterRuntime: runtime } : {})
+  };
+}
+
+export function cloneCombatStatisticsState(
+  state: CombatStatisticsStateV1
+): CombatStatisticsStateV1 {
+  return {
+    version: 1,
+    hero: { ...state.hero },
+    enemies: Object.fromEntries(
+      Object.entries(state.enemies).map(([enemyId, values]) => [enemyId, { ...values }])
+    )
+  };
+}
+
+export function recordCombatStatisticsTurn(input: {
+  state: CombatState;
+  previousState: CombatState;
+  summary: CombatTurnSummary;
+}): void {
+  if (!input.state.statistics) {
+    return;
+  }
+
+  const statistics = cloneCombatStatisticsState(input.state.statistics);
+  const previousEnemies = new Map(
+    normalizeCombatEnemies(input.previousState).map((enemy) => [enemy.enemyId, enemy])
+  );
+  const currentEnemies = new Map(
+    normalizeCombatEnemies(input.state).map((enemy) => [enemy.enemyId, enemy])
+  );
+  let totalDamageDealt = 0;
+
+  for (const [enemyId, current] of currentEnemies) {
+    const previous = previousEnemies.get(enemyId);
+    const values = statistics.enemies[enemyId] ?? emptyCombatContributionDimensions({ healing: 0 });
+    const evidence = input.summary.statisticsEvidence?.enemies[enemyId];
+    const healing = Math.max(0, Math.floor(evidence?.healing ?? 0));
+    const damageTaken = previous ? Math.max(0, previous.hp + healing - current.hp) : 0;
+    totalDamageDealt += damageTaken;
+    values.healing = (values.healing ?? 0) + healing;
+    values.guardPrevented = (values.guardPrevented ?? 0) +
+      Math.max(0, Math.floor(evidence?.guardPrevented ?? 0));
+    values.control = (values.control ?? 0) +
+      Math.max(0, Math.floor(evidence?.control ?? 0));
+    values.damageTaken += damageTaken;
+    statistics.enemies[enemyId] = values;
+  }
+
+  const heroHealing = Math.max(0, Math.floor(input.summary.heroHealing ?? 0)) +
+    Math.max(0, Math.floor(input.summary.satedRecovery?.hpRestored ?? 0));
+  const heroDamageTaken = Math.max(
+    0,
+    input.previousState.hero.hp + heroHealing - input.state.hero.hp
+  );
+  const heroSelfDamage = Math.max(0, Math.min(
+    heroDamageTaken,
+    Math.floor(input.summary.fumble?.selfDamage ?? 0)
+  ));
+  const enemyDamageBudget = heroDamageTaken - heroSelfDamage;
+  const manualAction = (input.summary.actionOrigin ?? "manual") === "manual" &&
+    input.summary.action !== "skip";
+
+  statistics.hero.damage += totalDamageDealt;
+  statistics.hero.healing = (statistics.hero.healing ?? 0) + heroHealing;
+  statistics.hero.guardPrevented = (statistics.hero.guardPrevented ?? 0) +
+    Math.max(0, Math.floor(input.summary.statisticsEvidence?.heroGuardPrevented ?? 0));
+  statistics.hero.control = (statistics.hero.control ?? 0) +
+    Math.max(0, Math.floor(input.summary.statisticsEvidence?.heroControl ?? 0));
+  statistics.hero.damageTaken += heroDamageTaken;
+  statistics.hero.actions += manualAction ? 1 : 0;
+  statistics.hero.specialActions += manualAction &&
+    (input.summary.action === "skill" || input.summary.action === "race" || input.summary.action === "gear")
+    ? 1
+    : 0;
+  statistics.hero.guardedTurns += manualAction && input.summary.action === "defend" ? 1 : 0;
+
+  const enemyActions = input.summary.enemyActions && input.summary.enemyActions.length > 0
+    ? input.summary.enemyActions
+    : input.summary.monsterAction
+      ? [{
+          enemyId: "enemy:1",
+          monsterId: input.state.monster.id,
+          monsterDamage: heroDamageTaken,
+          monsterAction: input.summary.monsterAction
+        }]
+      : [];
+  let attributedEnemyDamage = 0;
+  if (input.summary.statisticsEvidence) {
+    for (const [enemyId, evidence] of Object.entries(input.summary.statisticsEvidence.enemies)) {
+      const values = statistics.enemies[enemyId];
+      if (!values) continue;
+      const appliedDamage = Math.max(0, Math.min(
+        enemyDamageBudget - attributedEnemyDamage,
+        Math.floor(evidence.damage)
+      ));
+      values.damage += appliedDamage;
+      attributedEnemyDamage += appliedDamage;
+    }
+  }
+  for (const action of enemyActions) {
+    const values = statistics.enemies[action.enemyId];
+    if (!values || !action.monsterAction) {
+      continue;
+    }
+    if (!input.summary.statisticsEvidence) {
+      const appliedDamage = Math.max(0, Math.min(
+        enemyDamageBudget - attributedEnemyDamage,
+        Math.floor(action.monsterDamage)
+      ));
+      values.damage += appliedDamage;
+      attributedEnemyDamage += appliedDamage;
+    }
+    values.actions += 1;
+    values.specialActions += action.monsterAction === "skill" ? 1 : 0;
+    values.guardedTurns += action.monsterAction === "defend" ? 1 : 0;
+  }
+  if (
+    !input.summary.statisticsEvidence &&
+    enemyActions.length > 0 &&
+    attributedEnemyDamage < enemyDamageBudget
+  ) {
+    const primary = statistics.enemies[enemyActions[0]?.enemyId ?? "enemy:1"];
+    if (primary) {
+      primary.damage += enemyDamageBudget - attributedEnemyDamage;
+    }
+  }
+
+  input.state.statistics = statistics;
+}
+
+function createCombatStatisticsState(enemies: readonly CombatEnemyState[]): CombatStatisticsStateV1 {
+  return {
+    version: 1,
+    hero: emptyCombatContributionDimensions({ healing: 0 }),
+    enemies: Object.fromEntries(
+      enemies.map((enemy) => [enemy.enemyId, emptyCombatContributionDimensions({ healing: 0 })])
+    )
+  };
+}
+
+function emptyCombatContributionDimensions(input: {
+  healing: number | null;
+}): CombatContributionDimensionsV1 {
+  return {
+    damage: 0,
+    healing: input.healing,
+    guardPrevented: 0,
+    control: 0,
+    damageTaken: 0,
+    actions: 0,
+    specialActions: 0,
+    guardedTurns: 0
   };
 }
 

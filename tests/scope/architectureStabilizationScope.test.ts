@@ -152,7 +152,7 @@ describe("0.2.2 architecture stabilization scope", () => {
     ];
 
     expect(source).toContain("installMessageFreshnessTracking(bot)");
-    expect(source).toContain("registerCombatLockMiddleware(bot, services)");
+    expect(source).toContain("registerCombatLockMiddleware(bot, services, { botUsername: options.botUsername })");
     expect(source).toContain("registerGuildPassageSearchGuard(bot, services)");
     expect(source).toContain("registerPresenceMiddleware(bot, services.presence, {");
     expect(source.indexOf("registerGuildPassageSearchGuard(bot, services)"))

@@ -55,12 +55,17 @@ import {
 } from "../../domain/combat/combatLeaseRegistry";
 import { GROUP_COMBAT_CALLBACK_ROUTE_PATTERN } from "../callbacks/groupCombatCallbackData";
 import { isGuildRoute } from "../guildRoute";
+import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
 };
 
-export function registerCombatLockMiddleware(bot: Bot, services: BotServices): void {
+export function registerCombatLockMiddleware(
+  bot: Bot,
+  services: BotServices,
+  options: { botUsername?: string | undefined } = {}
+): void {
   bot.use(async (ctx, next) => {
     const measurement = beginUpdateComponent("combatLock");
     try {
@@ -189,6 +194,7 @@ export function registerCombatLockMiddleware(bot: Bot, services: BotServices): v
       if (await redirectCombatLockIfNeeded(ctx, telegramUserId, services, {
         refreshPresence: !isDuelRoute(ctx),
         preserveCallbackSource: preservesHistoricalCanonicalSource,
+        botUsername: options.botUsername,
         ...(duelRouteToken ? { activeDuel: precheckedActiveDuel ?? null } : {})
       })) {
         return;
@@ -373,6 +379,7 @@ async function redirectCombatLockIfNeeded(
     refreshPresence: boolean;
     preserveCallbackSource?: boolean;
     activeDuel?: Extract<DuelChallengeView, { state: "active" }> | null;
+    botUsername?: string | undefined;
   } = { refreshPresence: true }
 ): Promise<boolean> {
   if (services.combatLeases) {
@@ -487,6 +494,7 @@ async function redirectFightLockIfNeeded(
   options: {
     refreshPresence: boolean;
     preserveCallbackSource?: boolean;
+    botUsername?: string | undefined;
   },
   authoritativeLease?: ActiveCombatLeaseRecord | null
 ): Promise<boolean> {
@@ -511,7 +519,11 @@ async function redirectFightLockIfNeeded(
       });
     }
     const messageId = await sendCombatLockText(ctx, presentCombatLockRedirect(presentPersistentFight(lock)), {
-      reply_markup: buildPersistentFightResultKeyboard(lock.session, lock.character),
+      reply_markup: buildPersistentFightResultKeyboard(
+        lock.session,
+        lock.character,
+        buildSessionTerminalBattleArtifactKeyboardOptions(options.botUsername, "solo", lock.session)
+      ),
       preserveCallbackSource: options.preserveCallbackSource
     });
     await recordCombatLockPersistentFightMessage(ctx, services.fight, telegramUserId, lock.session.id, messageId);
@@ -536,7 +548,15 @@ async function redirectFightLockIfNeeded(
 
     if (training?.state === "active") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        reply_markup: buildTrainingDoppelgangerKeyboard(
+          training.session,
+          training.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(
+            options.botUsername,
+            "training",
+            training.session
+          )
+        ),
         preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
@@ -544,7 +564,15 @@ async function redirectFightLockIfNeeded(
 
     if (training?.state === "terminal") {
       await sendCombatLockText(ctx, presentCombatLockRedirect(presentTrainingDoppelganger(training)), {
-        reply_markup: buildTrainingDoppelgangerKeyboard(training.session, training.character),
+        reply_markup: buildTrainingDoppelgangerKeyboard(
+          training.session,
+          training.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(
+            options.botUsername,
+            "training",
+            training.session
+          )
+        ),
         preserveCallbackSource: options.preserveCallbackSource
       });
       return true;
@@ -554,7 +582,15 @@ async function redirectFightLockIfNeeded(
       ctx,
       "🥊 Тренування вже триває.\n\nСпершу завершіть цей бій, тоді корчма знову відпустить вас до інших справ.",
       {
-        reply_markup: buildTrainingDoppelgangerKeyboard(lock.session, lock.character),
+        reply_markup: buildTrainingDoppelgangerKeyboard(
+          lock.session,
+          lock.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(
+            options.botUsername,
+            "training",
+            lock.session
+          )
+        ),
         preserveCallbackSource: options.preserveCallbackSource
       }
     );

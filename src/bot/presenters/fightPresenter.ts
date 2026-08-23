@@ -18,6 +18,9 @@ import { getCombatMantokAbilityGrantsByIds, items } from "../../content";
 import type {
   FightLookupResult,
   FightResult,
+  MimicShawarmaStatisticsResult,
+  PublicMimicShawarmaArtifactResult,
+  PublicPersistentFightArtifactResult,
   PersistentFightSnapshotResult,
   PersistentFightPreviewResult,
   ProblemQuestIssueNextLookupResult,
@@ -37,6 +40,11 @@ import { presentRewardAmount, presentRewardBlock } from "./rewardPresenter";
 import { escapeHtml, presentCharacterHeader } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
+import {
+  presentBattleContributionLegend,
+  presentBattleContributionLine,
+  type BattleContributionValues
+} from "./battleContributionPresenter";
 import {
   presentCombatActionCooldownNotice,
   presentCombatSupportEffectLine
@@ -478,10 +486,10 @@ export function presentPersistentFightGearUnavailableNotice(
 }
 
 export function presentPersistentFightSnapshot(
-  result: Extract<PersistentFightSnapshotResult, { state: "found" }>
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>
 ): string {
   return presentPersistentFightState({
-    character: result.character,
+    character: result.character as CharacterSummary,
     session: result.session,
     monster: result.monster,
     questProgress: result.questProgress,
@@ -490,7 +498,7 @@ export function presentPersistentFightSnapshot(
 }
 
 export function presentPersistentFightJournal(
-  result: Extract<PersistentFightSnapshotResult, { state: "found" }>,
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>,
   requestedPage: number
 ): string {
   const log = getPersistentFightJournalEntries(result.session.state ?? null);
@@ -531,6 +539,103 @@ export function presentPersistentFightJournal(
     })],
     noticeLines: notices
   });
+}
+
+export function presentPublicMimicShawarmaResult(
+  result: Extract<PublicMimicShawarmaArtifactResult, { state: "ready" }>
+): string {
+  return [
+    presentActionHeading(result.action),
+    presentCharacterHeader(result.character),
+    "",
+    `❤️ Пригодник: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`,
+    `🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`,
+    "",
+    result.combat.outcome === "flee"
+      ? "🏃 Сутичка завершилася відступом."
+      : "🎉 Сутичку завершено перемогою."
+  ].join("\n");
+}
+
+export function presentPublicMimicShawarmaJournal(
+  result: Extract<PublicMimicShawarmaArtifactResult, { state: "ready" }>
+): string {
+  return presentBattleJournalPage({
+    title: "📜 <b>Журнал бою</b>",
+    headerLines: [presentCharacterHeader(result.character)],
+    turn: 1,
+    page: 0,
+    totalPages: 1,
+    actorRows: [`❤️ Пригодник: ${result.combat.playerHpPreview}/${result.combat.playerHpMaxPreview}`],
+    opponentRows: [`🌯 Мімік-шаурма: ${result.combat.enemyHpPreview}/${result.combat.enemyHpMaxPreview}`],
+    actionLines: [
+      result.action === "attack"
+        ? "Пригодник атакує підозрілу шаурму."
+        : result.action === "receipt"
+          ? "Пригодник вимагає чек і перемагає бюрократією."
+          : "Пригодник тактично відступає."
+    ]
+  });
+}
+
+export function presentMimicShawarmaStatistics(
+  result: Extract<MimicShawarmaStatisticsResult | PublicMimicShawarmaArtifactResult, { state: "ready" }>
+): string {
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    presentBattleContributionLine(result.character.name, result.statistics.hero),
+    presentBattleContributionLine("Мімік-шаурма", result.statistics.enemy),
+    "",
+    ...presentBattleContributionLegend()
+  ].join("\n");
+}
+
+export function presentPersistentFightStatistics(
+  result: Extract<PersistentFightSnapshotResult | PublicPersistentFightArtifactResult, { state: "found" }>
+): string {
+  const state = result.session.state;
+  const statistics = state?.statistics;
+  const unavailable = unavailableContributionValues();
+  const enemies = state ? normalizeCombatEnemies(state) : [];
+  const heroName = result.character.guildCrest
+    ? `${result.character.guildCrest} ${result.character.name}`
+    : result.character.name;
+  const heroRow = presentBattleContributionLine(
+    heroName,
+    statistics?.hero ?? unavailable
+  );
+  const enemyRows = enemies.map((enemy, index) => presentBattleContributionLine(
+    enemy.name ?? `Монстр ${index + 1}`,
+    statistics?.enemies[enemy.enemyId] ?? unavailable
+  ));
+
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    "<b>Легенда:</b>",
+    ...presentBattleContributionLegend(),
+    "",
+    "<b>Пригодник:</b>",
+    heroRow,
+    ...(enemyRows.length > 0 ? ["", "<b>Монстри:</b>", ...enemyRows] : []),
+    ...(!statistics
+      ? ["", "Старий запис не містить повної бойової статистики; невідомі значення позначено «—»."]
+      : [])
+  ].join("\n");
+}
+
+function unavailableContributionValues(): BattleContributionValues {
+  return {
+    damage: null,
+    healing: null,
+    guardPrevented: null,
+    control: null,
+    damageTaken: null,
+    actions: null,
+    specialActions: null,
+    guardedTurns: null
+  };
 }
 
 function presentJournalTurnNotices(entry: CombatTurnLogEntry): string[] {

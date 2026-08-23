@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildItemDismantleListKeyboard,
+  buildItemDismantlePreviewKeyboard,
   buildItemUpgradeListKeyboard,
   buildItemUpgradePreviewKeyboard
 } from "../../src/bot/keyboards/itemUpgradeKeyboard";
@@ -9,12 +11,44 @@ import {
 } from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { parseItemCallbackData } from "../../src/bot/callbacks/itemCallbackData";
 import type {
+  ItemDismantleListResult,
+  ItemDismantlePreviewResult,
   ItemUpgradeListResult,
   ItemUpgradePreviewResult
 } from "../../src/services/itemUpgradeService";
 import type { CharacterSummary } from "../../src/domain/characters/characterSummary";
+import { FRIENDLY_CHEST_ICON, ITEM_DISMANTLE_ICON } from "../../src/bot/itemActionIcons";
 
 describe("item upgrade keyboard", () => {
+  it("paginates every dismantling candidate and carries the frozen confirmation guard", () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({
+      itemId: `item.test-upgrade-${index + 1}`,
+      name: `Манатка ${index + 1}`,
+      quantity: 1,
+      enhancementLevel: 0,
+      rarity: "common" as const,
+      isSetPiece: false,
+      yield: 1
+    }));
+    const list = { state: "ready", character, items } satisfies ItemDismantleListResult;
+    expect(buttonTexts(buildItemDismantleListKeyboard(list)).filter((text) => text.startsWith("🔩 Манатка"))).toHaveLength(10);
+    expect(buttonTexts(buildItemDismantleListKeyboard(list, 1)).filter((text) => text.startsWith("🔩 Манатка"))).toHaveLength(2);
+
+    const preview = {
+      state: "ready",
+      character,
+      item: { ...items[0]!, itemId: "item.pan-of-persuasion", quantity: 2, yield: 1 },
+      payment: "gold",
+      paymentAmount: 5,
+      available: 20,
+      expectedRemortCount: 0,
+      rulesFingerprint: "a1b2c3d4",
+      guard: "e5f60718"
+    } satisfies ItemDismantlePreviewResult;
+    expect(buttonCallbacks(buildItemDismantlePreviewKeyboard(preview)).join("\n")).toContain("v1:up:dc:");
+    expect(buttonTexts(buildItemDismantlePreviewKeyboard(preview))).toContain("🔩 Підтвердити розбір");
+  });
+
   it("marks equipped upgrade candidates with the equip icon", () => {
     const keyboard = buildItemUpgradeListKeyboard(readyList({
       items: [
@@ -82,8 +116,8 @@ describe("item upgrade keyboard", () => {
     const newest = buttonTexts(buildItemUpgradeListKeyboard(readyList({ items }), 0, "date-desc"));
     const byName = buttonTexts(buildItemUpgradeListKeyboard(readyList({ items }), 0, "name-asc"));
 
-    expect(newest.slice(2, 5)).toEqual(["✨ Альфа", "✨ Гама", "✨ Бета"]);
-    expect(byName.slice(2, 5)).toEqual(["✨ Альфа", "✨ Бета", "✨ Гама"]);
+    expect(newest.slice(3, 6)).toEqual(["✨ Альфа", "✨ Гама", "✨ Бета"]);
+    expect(byName.slice(3, 6)).toEqual(["✨ Альфа", "✨ Бета", "✨ Гама"]);
   });
 
   it("shows sort controls and preserves sort through pagination", () => {
@@ -95,6 +129,11 @@ describe("item upgrade keyboard", () => {
     );
     const keyboard = buildItemUpgradeListKeyboard(readyList({ items }), 1, "name-asc");
 
+    expect(buttonRows(keyboard).slice(0, 2)).toEqual([
+      ["🔩 Розібрати манатку"],
+      ["🕒 Нові спершу", "🔤 Я-А"]
+    ]);
+    expect(ITEM_DISMANTLE_ICON).not.toBe(FRIENDLY_CHEST_ICON);
     expect(buttonTexts(keyboard)).toContain("🕒 Нові спершу");
     expect(buttonTexts(keyboard)).toContain("🔤 Я-А");
     expect(buttonCallbacks(keyboard)).toContain(makeItemUpgradeListCallbackData(0, "date-desc"));
@@ -274,6 +313,10 @@ function character(overrides: Partial<CharacterSummary> = {}): CharacterSummary 
 
 function buttonTexts(keyboard: { inline_keyboard: Array<Array<{ text: string }>> } | undefined): string[] {
   return keyboard?.inline_keyboard.flat().map((button) => button.text) ?? [];
+}
+
+function buttonRows(keyboard: { inline_keyboard: Array<Array<{ text: string }>> } | undefined): string[][] {
+  return keyboard?.inline_keyboard.map((row) => row.map((button) => button.text)) ?? [];
 }
 
 function buttonCallbacks(

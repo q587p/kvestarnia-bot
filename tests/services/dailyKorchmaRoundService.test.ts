@@ -10,13 +10,15 @@ import type {
 import { DAILY_KORCHMA_ROUND_REQUIRED_STEPS } from "../../src/content/dailyKorchmaRoundContent";
 import {
   DAILY_KORCHMA_ROUND_OFFER_KEY,
+  DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY,
   DAILY_KORCHMA_ROUND_REROLL_KEY,
   DAILY_KORCHMA_ROUND_REWARD_KEY,
   DAILY_KORCHMA_ROUND_STEP_KEY
 } from "../../src/services/dailyActionKeys";
 import {
   DailyKorchmaRoundService,
-  calculateDailyKorchmaRoundReward
+  calculateDailyKorchmaRoundReward,
+  getDailyKorchmaIdentityChancePercent
 } from "../../src/services/dailyKorchmaRoundService";
 import {
   PRESENCE_LOCATION_KORCHMA_HALL,
@@ -29,6 +31,78 @@ const telegramUserId = 587n;
 const now = new Date("2026-06-28T09:00:00.000Z");
 
 describe("DailyKorchmaRoundService", () => {
+  it("lets LUCK improve only the bounded identity-branch chance", () => {
+    expect(getDailyKorchmaIdentityChancePercent(1)).toBe(13);
+    expect(getDailyKorchmaIdentityChancePercent(6)).toBe(13);
+    expect(getDailyKorchmaIdentityChancePercent(7)).toBe(14);
+    expect(getDailyKorchmaIdentityChancePercent(16)).toBe(23);
+    expect(getDailyKorchmaIdentityChancePercent(999)).toBe(23);
+  });
+
+  it.each([
+    ["hit", false, true],
+    ["miss", false, false],
+    ["forced-pity", true, true]
+  ] as const)("pins the Korchma dev-helper %s identity mode", async (mode, forced, hasItem) => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    await expect(world.service.resetTodayForDev(telegramUserId, mode)).resolves.toBe("reset");
+
+    const claimed = await completeOfferForClaim(world);
+    expect(claimed.state).toBe("reward-claimed");
+    const plan = readRecordedIdentityPlan(world, "2026-06-28");
+
+    expect(plan).toMatchObject({ forced });
+    expect(typeof plan?.itemId === "string").toBe(hasItem);
+    expect(world.daily.records.some((record) =>
+      record.key === DAILY_KORCHMA_ROUND_DEV_IDENTITY_KEY && record.localDate === "2026-06-28"
+    )).toBe(true);
+  });
+
+  it("forces pity after six planned identity items were not actually applied", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    for (let index = 0; index < 6; index += 1) {
+      await world.daily.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+        localDate: `2026-06-${String(22 + index).padStart(2, "0")}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { identityPlan: { itemId: `item.planned-${index}` } },
+        itemGrants: []
+      });
+    }
+
+    await completeOfferForClaim(world);
+
+    const plan = readRecordedIdentityPlan(world, "2026-06-28");
+    expect(plan?.forced).toBe(true);
+    expect(plan?.pityMisses).toBe(6);
+    expect(typeof plan?.itemId).toBe("string");
+  });
+
+  it("resets pity only for a planned identity item present in appliedItemGrants", async () => {
+    const world = new FakeWorld(makeCharacter({ level: 13 }));
+    for (let index = 0; index < 6; index += 1) {
+      const itemId = `item.planned-${index}`;
+      await world.daily.claimForTelegramUser(telegramUserId, {
+        key: DAILY_KORCHMA_ROUND_REWARD_KEY,
+        localDate: `2026-06-${String(22 + index).padStart(2, "0")}`,
+        rewardXp: 0,
+        rewardGold: 0,
+        resultJson: { identityPlan: { itemId } },
+        itemGrants: index === 5 ? [{ itemId, quantity: 1 }] : []
+      });
+    }
+    await expect(world.service.resetTodayForDev(telegramUserId, "miss")).resolves.toBe("reset");
+
+    await completeOfferForClaim(world);
+
+    expect(readRecordedIdentityPlan(world, "2026-06-28")).toMatchObject({
+      forced: false,
+      pityMisses: 5,
+      itemId: null
+    });
+  });
+
   it("locks level 1 without an existing offer and creates a stable level 3 offer with one yard and two interiors", async () => {
     const world = new FakeWorld(makeCharacter({ level: 1 }));
     let result = await world.service.getForTelegramUser(telegramUserId);
@@ -555,12 +629,12 @@ describe("DailyKorchmaRoundService", () => {
     });
 
     expect(claimed.state).toBe("reward-claimed");
-    expect(claimed.state === "reward-claimed" ? claimed.reward.itemGrants : []).toEqual([
+    expect(claimed.state === "reward-claimed" ? claimed.reward.itemGrants : []).toEqual(expect.arrayContaining([
       expect.objectContaining({
         itemId: ISKROKAMIN_ITEM_ID,
-        quantity: 1
+        quantity: 13
       })
-    ]);
+    ]));
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
 
     const replay = await world.service.claimReward(telegramUserId, {
@@ -569,12 +643,12 @@ describe("DailyKorchmaRoundService", () => {
     });
 
     expect(replay.state).toBe("reward-replayed");
-    expect(replay.state === "reward-replayed" ? replay.reward.itemGrants : []).toEqual([
+    expect(replay.state === "reward-replayed" ? replay.reward.itemGrants : []).toEqual(expect.arrayContaining([
       expect.objectContaining({
         itemId: ISKROKAMIN_ITEM_ID,
-        quantity: 1
+        quantity: 13
       })
-    ]);
+    ]));
     expect(world.daily.records.filter((record) => record.key === DAILY_KORCHMA_ROUND_REWARD_KEY)).toHaveLength(1);
   });
 
@@ -592,12 +666,12 @@ describe("DailyKorchmaRoundService", () => {
     expect(calculateDailyKorchmaRoundReward({ ...base, characterLevel: 3 })).toEqual(level3);
     expect(level3.xp).toBeGreaterThanOrEqual(7);
     expect(level3.xp).toBeLessThanOrEqual(9);
-    expect(level3.gold).toBeGreaterThanOrEqual(4);
-    expect(level3.gold).toBeLessThanOrEqual(6);
+    expect(level3.gold).toBeGreaterThanOrEqual(17);
+    expect(level3.gold).toBeLessThanOrEqual(19);
     expect(level13.xp).toBeGreaterThanOrEqual(27);
     expect(level13.xp).toBeLessThanOrEqual(39);
-    expect(level13.gold).toBeGreaterThanOrEqual(14);
-    expect(level13.gold).toBeLessThanOrEqual(26);
+    expect(level13.gold).toBeGreaterThanOrEqual(27);
+    expect(level13.gold).toBeLessThanOrEqual(39);
   });
 
   it("does not create a third step row when another callback completes a second scene inside the claim boundary", async () => {
@@ -703,6 +777,28 @@ async function readyOffer(world: FakeWorld) {
   }
 
   return result.offer;
+}
+
+async function completeOfferForClaim(world: FakeWorld) {
+  const offer = await readyOffer(world);
+  await recordMarkerStep(world, offer, 0);
+  await recordMarkerStep(world, offer, 1);
+  world.locationId = PRESENCE_LOCATION_KORCHMA_QUEST_TABLE;
+  return world.service.claimReward(telegramUserId, {
+    dayToken: offer.dayToken,
+    lifeToken: offer.lifeToken
+  });
+}
+
+function readRecordedIdentityPlan(world: FakeWorld, localDate: string) {
+  const record = world.daily.records.find((candidate) =>
+    candidate.key === DAILY_KORCHMA_ROUND_REWARD_KEY && candidate.localDate === localDate
+  );
+  return (record?.resultJson as { identityPlan?: {
+    forced: boolean;
+    pityMisses: number;
+    itemId: string | null;
+  } } | null)?.identityPlan;
 }
 
 async function markerLookup(
@@ -903,6 +999,17 @@ class FakeDailyActionRepository implements DailyActionRepository {
     );
   }
 
+  listLatestForTelegramUser(
+    id: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    if (id !== telegramUserId || !this.world.character) return Promise.resolve(null);
+    return Promise.resolve(this.records
+      .filter((record) => record.key === input.key)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, input.take));
+  }
+
   listForTelegramUser(id: bigint, input: { key: string }): Promise<DailyActionRecord[] | null> {
     this.broadListCalls += 1;
     if (id !== telegramUserId || !this.world.character) {
@@ -1023,10 +1130,12 @@ class FakeDailyActionRepository implements DailyActionRepository {
       xp: this.world.character.xp + input.rewardXp,
       gold: this.world.character.gold + input.rewardGold
     };
-    const appliedItemGrants =
-      input.questIskrokaminBonus === true && this.world.character.level >= 4
+    const appliedItemGrants = [
+      ...(input.itemGrants ?? []).map(({ itemId, quantity }) => ({ itemId, quantity })),
+      ...(input.questIskrokaminBonus === true && this.world.character.level >= 4
         ? [{ itemId: ISKROKAMIN_ITEM_ID, quantity: 1 }]
-        : [];
+        : [])
+    ];
     const action: DailyActionRecord = {
       id: `daily-action-${this.actions.size + 1}`,
       characterId: this.world.character.id,

@@ -10,6 +10,7 @@ import {
 import {
   makeTrainingDoppelgangerJournalCallbackData,
   makeTrainingDoppelgangerModeCallbackData,
+  makeTrainingDoppelgangerStatisticsCallbackData,
   makeTrainingDoppelgangerTurnCallbackData,
   makeTrainingDoppelgangerViewCallbackData
 } from "../callbacks/trainingDoppelgangerCallbackData";
@@ -19,6 +20,7 @@ import {
   combatActionButtonLabels,
   type CombatActionKeyboardButton
 } from "./combatActionKeyboardLayout";
+import { buildTerminalBattleArtifactShareUrl } from "../terminalBattleArtifactLink";
 
 export function buildTrainingDoppelgangerStartKeyboard(
   choices: readonly TrainingDoppelgangerStartChoice[]
@@ -34,25 +36,27 @@ export function buildTrainingDoppelgangerStartKeyboard(
 
 export function buildTrainingDoppelgangerKeyboard(
   session?: SoloCombatSessionRecord,
-  character?: CharacterSummary
+  character?: CharacterSummary | Pick<CharacterSummary, "name" | "title" | "guildCrest">,
+  options: { artifactUrl?: string | null | undefined } = {}
 ): InlineKeyboard {
   if (session?.state?.status === "active" && character) {
+    const activeCharacter = character as CharacterSummary;
     const turn = session.state.turn;
     const availability = getCombatActionAvailability(session.state, {
-      classId: character.classId,
-      raceId: character.raceId
+      classId: activeCharacter.classId,
+      raceId: activeCharacter.raceId
     });
     const abilityButtons: CombatActionKeyboardButton[] = [];
 
     if (availability.skill.available) {
       abilityButtons.push({
-        label: getPersistentFightSkillLabel(character),
+        label: getPersistentFightSkillLabel(activeCharacter),
         callbackData: makeTrainingDoppelgangerTurnCallbackData({ sessionId: session.id, turn, action: "skill" })
       });
     }
 
     if (availability.race.available) {
-      const raceLabel = getPersistentFightRaceAbilityLabel(character);
+      const raceLabel = getPersistentFightRaceAbilityLabel(activeCharacter);
       if (raceLabel) {
         abilityButtons.push({
           label: raceLabel,
@@ -81,16 +85,26 @@ export function buildTrainingDoppelgangerKeyboard(
   const keyboard = new InlineKeyboard();
   const logLength = session?.state?.turnLog?.length ?? 0;
 
-  if (session && logLength > 0) {
-    keyboard
-      .text(
+  if (session) {
+    if (logLength > 0) {
+      keyboard.text(
         "📜 Журнал бою",
         makeTrainingDoppelgangerJournalCallbackData({
           sessionId: session.id,
           page: logLength - 1
         })
-      )
-      .row();
+      );
+    }
+    keyboard.text(
+      "📊 Статистика",
+      makeTrainingDoppelgangerStatisticsCallbackData(session.id)
+    ).row();
+    if (options.artifactUrl) {
+      keyboard.url(
+        "🔗 Поділитися записом",
+        buildTerminalBattleArtifactShareUrl(options.artifactUrl)
+      ).row();
+    }
   }
 
   return keyboard.text("↩️ Повернутися до кутка", makePlaceCallbackData("fighting-corner"));
@@ -139,6 +153,15 @@ export function buildTrainingDoppelgangerJournalKeyboard(
 
   return keyboard.text(
     session.state?.status === "active" ? "↩️ До тренування" : "↩️ До результатів",
+    makeTrainingDoppelgangerViewCallbackData(session.id)
+  );
+}
+
+export function buildTrainingDoppelgangerStatisticsKeyboard(
+  session: SoloCombatSessionRecord
+): InlineKeyboard {
+  return new InlineKeyboard().text(
+    "↩️ До результатів",
     makeTrainingDoppelgangerViewCallbackData(session.id)
   );
 }

@@ -6,6 +6,9 @@ import {
   getLootExpansionAffinityMultiplier,
   getLootExpansionSourceWeightMultiplier,
   getLootExpansionTagMultiplier,
+  findLootExpansionBaseItem,
+  findLootExpansionVariantByItemId,
+  normalizeLootExpansionTitleIds,
   lootExpansionV1Data,
   type LootExpansionProfile,
   type LootExpansionSourceId
@@ -214,6 +217,64 @@ export function rollLootExpansionItem(input: {
   return selectWeightedCandidate(eligible, input.rng)?.item ?? null;
 }
 
+export interface LootExpansionIdentityRoll {
+  item: ItemContent;
+  match: { axis: "class" | "race" | "title"; kind: "affinity" | "hard-requirement" };
+}
+
+export interface LootExpansionIdentityCandidate extends LootCandidate {
+  match: LootExpansionIdentityRoll["match"];
+}
+
+export function getLootExpansionBaseIdentityCandidates(input: {
+  profile: LootExpansionProfile;
+  sourceId: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+}): LootExpansionIdentityCandidate[] {
+  return getLootExpansionCandidates({
+    profile: input.profile,
+    sourceId: input.sourceId,
+    ...(input.sourceTags ? { sourceTags: input.sourceTags } : {})
+  }).flatMap((candidate) => {
+    const variant = findLootExpansionVariantByItemId(candidate.item.id);
+    if (
+      !variant ||
+      variant.enhancement !== 0 ||
+      !["weapon", "armor", "accessory"].includes(candidate.item.slot)
+    ) return [];
+    const base = findLootExpansionBaseItem(variant.baseId);
+    const match = base ? getLootExpansionIdentityMatch(base, input.profile) : null;
+    return match ? [{ ...candidate, match }] : [];
+  });
+}
+
+export function rollLootExpansionBaseIdentityItem(input: {
+  profile: LootExpansionProfile;
+  sourceId: LootExpansionSourceId;
+  sourceTags?: readonly string[];
+  rng: RandomSource;
+}): LootExpansionIdentityRoll | null {
+  const candidates = getLootExpansionBaseIdentityCandidates(input);
+  const selected = selectWeightedCandidate(candidates, input.rng);
+  return selected ? { item: selected.item, match: selected.match } : null;
+}
+
+function getLootExpansionIdentityMatch(
+  base: (typeof lootExpansionV1Data.items)[number],
+  profile: LootExpansionProfile
+): LootExpansionIdentityRoll["match"] | null {
+  const classId = profile.classId?.replace(/^class\./, "");
+  const raceId = profile.raceId?.replace(/^race\./, "");
+  const titleIds = normalizeLootExpansionTitleIds(profile);
+  if (classId && base.requirements.classes.includes(classId)) return { axis: "class", kind: "hard-requirement" };
+  if (raceId && base.requirements.races.includes(raceId)) return { axis: "race", kind: "hard-requirement" };
+  if (base.requirements.titles.some((id) => titleIds.has(id))) return { axis: "title", kind: "hard-requirement" };
+  if (classId && base.affinity.classes.some((entry) => entry.id === classId)) return { axis: "class", kind: "affinity" };
+  if (raceId && base.affinity.races.some((entry) => entry.id === raceId)) return { axis: "race", kind: "affinity" };
+  if (base.affinity.titles.some((entry) => titleIds.has(entry.id))) return { axis: "title", kind: "affinity" };
+  return null;
+}
+
 export function rollLootRarity(rng: RandomSource, luck: number): LootRarity {
   const base = rarityFromRoll(rng.nextFloat());
 
@@ -344,10 +405,10 @@ function selectCandidatesForRarity(
   return [...candidates];
 }
 
-function selectWeightedCandidate(
-  candidates: readonly LootCandidate[],
+function selectWeightedCandidate<TCandidate extends LootCandidate>(
+  candidates: readonly TCandidate[],
   rng: RandomSource
-): LootCandidate | undefined {
+): TCandidate | undefined {
   if (candidates.length === 0) {
     return undefined;
   }

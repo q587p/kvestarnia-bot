@@ -16,6 +16,13 @@ Codex-facing prompts should be:
 
 Ukrainian stays for player-facing game copy, exact Telegram labels, lore/content examples, and user discussion. The prompt instructions around that copy should still be English when the target reader is Codex.
 
+This is an absolute handoff rule, not only a file-placement convention. Every
+ready-to-paste prompt handed to the user in chat—including implementation,
+continuation, PR-review-fix, delta integration, QA and release prompts—must use
+English for its operational instructions. A Ukrainian review may introduce or
+explain the prompt, and the prompt may quote exact Ukrainian player copy, but a
+non-English Codex instruction block must be translated before handoff.
+
 ## Default prompt requirements
 
 Every generated Codex prompt should include:

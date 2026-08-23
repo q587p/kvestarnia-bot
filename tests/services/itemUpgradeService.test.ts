@@ -321,6 +321,53 @@ describe("ItemUpgradeService", () => {
       }
     });
   });
+
+  it("lists only safe unreserved dismantling candidates and previews the fixed yield", async () => {
+    const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
+      character,
+      unlocked: true,
+      pities: [],
+      reservedItemIds: ["item.stamp-of-minor-authority"],
+      items: [
+        { id: "pan", characterId: character.id, itemId: "item.pan-of-persuasion.plus-2", quantity: 2, equipped: false },
+        { id: "stamp", characterId: character.id, itemId: "item.stamp-of-minor-authority", quantity: 1, equipped: false },
+        { id: "equipped", characterId: character.id, itemId: "item.pan-of-persuasion", quantity: 1, equipped: true },
+        { id: "resource", characterId: character.id, itemId: "item.iskrokamin", quantity: 13, equipped: false }
+      ]
+    });
+    const service = new ItemUpgradeService(repository, () => now);
+
+    await expect(service.listDismantleForTelegramUser(42n)).resolves.toMatchObject({
+      state: "ready",
+      items: [{ itemId: "item.pan-of-persuasion.plus-2", quantity: 2, enhancementLevel: 2, yield: 9 }]
+    });
+    const preview = await service.previewDismantleForTelegramUser(42n, "item.pan-of-persuasion.plus-2");
+    expect(preview).toMatchObject({
+      state: "ready",
+      payment: "gold",
+      paymentAmount: 5,
+      available: 1000,
+      item: { yield: 9 }
+    });
+    if (preview.state !== "ready") throw new Error(`Expected dismantle preview, got ${preview.state}`);
+    expect(preview.rulesFingerprint).toMatch(/^[a-f0-9]{8}$/);
+    expect(preview.guard).toMatch(/^[a-f0-9]{8}$/);
+    await expect(service.previewDismantleForTelegramUser(42n, "item.stamp-of-minor-authority"))
+      .resolves.toEqual({ state: "reserved" });
+  });
+
+  it("charges defined magical classes mana in dismantling previews", async () => {
+    const repository = new FakeItemUpgradeRepository({ state: "no-character" }, {
+      character: { ...character, classId: "class.varenyk-mancer", manaCurrent: 17 },
+      unlocked: true,
+      pities: [],
+      items: [{ id: "pan", characterId: character.id, itemId: "item.pan-of-persuasion", quantity: 1, equipped: false }]
+    });
+    const service = new ItemUpgradeService(repository, () => now);
+
+    await expect(service.previewDismantleForTelegramUser(42n, "item.pan-of-persuasion"))
+      .resolves.toMatchObject({ state: "ready", payment: "mana", paymentAmount: 5, available: 17 });
+  });
 });
 
 class FakeItemUpgradeRepository implements ItemUpgradeRepository {

@@ -1,5 +1,4 @@
 import type { CombatLifeState, CombatSettlementStatus, CombatState, CombatStatus } from "../../domain/combat";
-
 export type SoloCombatSessionStatus = CombatStatus;
 
 export interface SoloCombatRewardRecord {
@@ -33,6 +32,10 @@ export interface SoloCombatSessionCompletionRecord {
 
 export interface DueSoloCombatSessionRecord extends SoloCombatSessionRecord {
   telegramUserId: bigint;
+}
+
+export interface PublicSoloCombatArtifactRecord {
+  session: SoloCombatSessionRecord;
 }
 
 export interface CreateSoloCombatSessionInput {
@@ -285,6 +288,8 @@ export interface SoloCombatSessionRepository {
     telegramUserId: bigint,
     sessionId: string
   ): Promise<SoloCombatSessionRecord | null>;
+  findPublicTerminalById?(sessionId: string): Promise<PublicSoloCombatArtifactRecord | null>;
+  findPublicArtifactById?(sessionId: string): Promise<PublicSoloCombatArtifactRecord | null>;
   createForTelegramUser(
     telegramUserId: bigint,
     input: CreateSoloCombatSessionInput

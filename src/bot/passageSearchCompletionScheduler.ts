@@ -8,6 +8,10 @@ import { buildPersistentFightResultKeyboard } from "./keyboards/fightKeyboard";
 import { presentPersistentFight, presentPersistentFightIntro } from "./presenters/fightPresenter";
 import { presentPassageSearch } from "./presenters/passageSearchPresenter";
 import { presentAchievementUnlockNotification } from "./presenters/achievementPresenter";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "./terminalBattleArtifactLink";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -19,7 +23,7 @@ export function createPassageSearchCompletionScheduler(
     fight: FightService;
   },
   bot: Bot,
-  options: { intervalMs?: number; limit?: number } = {}
+  options: { intervalMs?: number; limit?: number; botUsername?: string | undefined } = {}
 ): { start(): void; stop(): void } {
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
@@ -31,6 +35,10 @@ export function createPassageSearchCompletionScheduler(
 
     running = true;
     try {
+      const botUsername = resolveTerminalBattleArtifactBotUsername(
+        options.botUsername,
+        () => bot.botInfo.username
+      );
       const dueSearches = await services.passageSearch.listDueRunningSearches(
         options.limit === undefined ? {} : { limit: options.limit }
       );
@@ -46,7 +54,14 @@ export function createPassageSearchCompletionScheduler(
           due.action.token
         );
 
-        await notifySearchCompletion(services.fight, bot, due.telegramUserId, chatId, result);
+        await notifySearchCompletion(
+          services.fight,
+          bot,
+          due.telegramUserId,
+          chatId,
+          result,
+          botUsername
+        );
       }
     } finally {
       running = false;
@@ -78,7 +93,8 @@ async function notifySearchCompletion(
   bot: Bot,
   telegramUserId: bigint,
   chatId: string,
-  result: PassageSearchCheckResult
+  result: PassageSearchCheckResult,
+  botUsername?: string
 ): Promise<void> {
   try {
     await bot.api.sendMessage(chatId, presentPassageSearch(result), HTML_MESSAGE_OPTIONS);
@@ -91,7 +107,7 @@ async function notifySearchCompletion(
     }
 
     if (result.state === "monster-attack") {
-      await sendPassageAttackFightCard(fight, bot, telegramUserId, chatId, result);
+      await sendPassageAttackFightCard(fight, bot, telegramUserId, chatId, result, botUsername);
     }
   } catch (error) {
     console.error("Квестарня: завершення пошуку не відправилось.", error);
@@ -103,7 +119,8 @@ async function sendPassageAttackFightCard(
   bot: Bot,
   telegramUserId: bigint,
   chatId: string,
-  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>
+  result: Extract<PassageSearchCheckResult, { state: "monster-attack" }>,
+  botUsername?: string
 ): Promise<void> {
   if (result.fight.state !== "persistent-active" && result.fight.state !== "persistent-terminal") {
     return;
@@ -115,7 +132,15 @@ async function sendPassageAttackFightCard(
 
   const sent = await bot.api.sendMessage(chatId, presentPersistentFight(result.fight), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
+    reply_markup: buildPersistentFightResultKeyboard(
+      result.fight.session,
+      result.fight.character,
+      buildSessionTerminalBattleArtifactKeyboardOptions(
+        botUsername,
+        "solo",
+        result.fight.session
+      )
+    )
   });
 
   if (result.fight.state === "persistent-active") {

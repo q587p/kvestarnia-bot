@@ -4,6 +4,20 @@ Status: shipped in `0.2.9` on `12026-06-28`. The implementation uses existing `d
 
 `0.3.3` expands the active content pool to 36 authored scenes without changing the persistence contract: each offer still freezes three scene ids, requires any two completions, and turns in explicitly at the Quest Table. Content validation now also rejects zone/location mismatches, missing action outcomes, duplicate ids, wrong action counts and fewer than two interior location groups.
 
+## 0.4.7 reward amendment
+
+This amendment supersedes the reward and reward-related non-goal statements in sections 4.6, 4.7, 7, 12 and 13 while preserving the original round, offer, step, Kyiv-day and explicit-turn-in contracts.
+
+- XP remains `2 * level + deterministicRandom(1..level)`. Gold becomes `13 + level + deterministicRandom(1..level)`.
+- Every completed claim grants exactly 13 Iskrokamin and one Dense Bandage; the generic quest Iskrokamin bonus does not apply to this claim.
+- A deterministic identity branch opens at 13% for LUCK 6 or below, gains one percentage point per full LUCK above 6 and caps at 23%. LUCK changes only this branch chance, never the canonical `tavern_event` candidate weights.
+- The identity pool contains only canonical base `+0` items whose runtime slot is `weapon`, `armor` or `accessory`. A candidate must have positive current class, race or canonical `character.title` affinity, or satisfy an explicit matching hard requirement. Category labels and non-equippable consumables/resources are not authority.
+- Six consecutive completed claims without an actually applied featured grant force the next eligible completion. Pity resets only when the planned featured item appears in `appliedItemGrants`; missed calendar days do not advance or reset it.
+- The stored reward freezes rules, roll, chance, pity, identity match, planned item and actual applied grants. Legacy rows replay without top-up.
+- Offer, step, reward and bounded pity history survive remort; old-life callbacks remain stale while current-life cards replay the preserved state.
+
+The older no-item/no-LUCK statements remain below as historical `0.2.9` context only and are not the active reward contract after `0.4.7`.
+
 This document is the canonical product/persistence contract for the first `Корчмарський обхід` implementation. If the release number changes before activation, rename the task file and release surfaces without changing the feature contract silently.
 
 ---

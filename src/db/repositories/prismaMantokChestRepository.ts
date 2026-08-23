@@ -8,8 +8,7 @@ import type {
   MantokChestRunStatus,
   MantokChestSnapshot
 } from "./mantokChestRepository";
-import { findActiveTransferReservedItems } from "./itemTransferReservations";
-import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { findAllActiveReservedItemIds } from "./itemTransferReservations";
 import { items } from "../../content";
 import { summarizeCharacter } from "../../domain/characters/characterSummary";
 import { applyPriestBlessingBonusToSummary } from "../../domain/noncombat/priestBlessingBonus";
@@ -17,6 +16,12 @@ import {
   EQUIPMENT_ATTUNEMENT_ACTION_KEY,
   isEquipmentAttunementPendingForRow
 } from "../../domain/equipment/equipmentAttunement";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStacks,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
+import { isInventorySelectionAvailable } from "./inventoryReservationValidation";
 
 type TxClient = Prisma.TransactionClient;
 type PrismaMantokChestRunRecord = Awaited<ReturnType<PrismaClient["mantokChestRun"]["findFirst"]>>;
@@ -38,35 +43,38 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
       now: Date;
     }
   ): Promise<MantokChestRunRecord | null> {
-    const character = await this.prisma.character.findFirst({
-      where: {
-        user: {
-          telegramUserId
-        }
-      },
-      select: {
-        id: true
-      }
-    });
+    try {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        const character = await tx.character.findFirst({
+          where: { user: { telegramUserId } },
+          select: { id: true }
+        });
+        if (!character) return null;
 
-    if (!character) {
-      return null;
+        await lockInventoryItemStacks(tx, character.id, input.inputItems.map((item) => item.itemId), input.now);
+        if (!(await isInventorySelectionAvailable(tx, {
+          characterId: character.id,
+          items: input.inputItems,
+          now: input.now
+        }))) return null;
+
+        return mapRun(await tx.mantokChestRun.create({
+          data: {
+            characterId: character.id,
+            token: input.token,
+            status: "pending",
+            inputItemsJson: input.inputItems as unknown as Prisma.InputJsonValue,
+            averageInputScore: Math.floor(input.averageInputScore),
+            minimumOutputScore: input.minimumOutputScore,
+            createdAt: input.now,
+            updatedAt: input.now
+          }
+        }));
+      });
+    } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return null;
+      throw error;
     }
-
-    const record = await this.prisma.mantokChestRun.create({
-      data: {
-        characterId: character.id,
-        token: input.token,
-        status: "pending",
-        inputItemsJson: input.inputItems as unknown as Prisma.InputJsonValue,
-        averageInputScore: Math.floor(input.averageInputScore),
-        minimumOutputScore: input.minimumOutputScore,
-        createdAt: input.now,
-        updatedAt: input.now
-      }
-    });
-
-    return mapRun(record);
   }
 
   async findRunForTelegramUser(
@@ -97,40 +105,45 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
       now: Date;
     }
   ): Promise<MantokChestRunRecord | null> {
-    const character = await this.prisma.character.findFirst({
-      where: {
-        user: {
-          telegramUserId
-        }
-      },
-      select: {
-        id: true
-      }
-    });
+    try {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        const character = await tx.character.findFirst({
+          where: { user: { telegramUserId } },
+          select: { id: true }
+        });
+        if (!character) return null;
+        const run = mapRun(await tx.mantokChestRun.findFirst({
+          where: { characterId: character.id, token: input.token }
+        }));
+        if (!run || run.status !== "pending") return null;
 
-    if (!character) {
-      return null;
+        await lockInventoryItemStacks(tx, character.id, [
+          ...run.inputItems.map((item) => item.itemId),
+          ...input.inputItems.map((item) => item.itemId)
+        ], input.now);
+        if (!(await isInventorySelectionAvailable(tx, {
+          characterId: character.id,
+          items: input.inputItems,
+          now: input.now,
+          exclusions: { exceptMantokChestRunId: run.id }
+        }))) return null;
+
+        const updated = await tx.mantokChestRun.updateMany({
+          where: { id: run.id, status: "pending" },
+          data: {
+            inputItemsJson: input.inputItems as unknown as Prisma.InputJsonValue,
+            averageInputScore: Math.floor(input.averageInputScore),
+            minimumOutputScore: input.minimumOutputScore,
+            updatedAt: input.now
+          }
+        });
+        if (updated.count !== 1) return null;
+        return mapRun(await tx.mantokChestRun.findUnique({ where: { id: run.id } }));
+      });
+    } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return null;
+      throw error;
     }
-
-    const updated = await this.prisma.mantokChestRun.updateMany({
-      where: {
-        characterId: character.id,
-        token: input.token,
-        status: "pending"
-      },
-      data: {
-        inputItemsJson: input.inputItems as unknown as Prisma.InputJsonValue,
-        averageInputScore: Math.floor(input.averageInputScore),
-        minimumOutputScore: input.minimumOutputScore,
-        updatedAt: input.now
-      }
-    });
-
-    if (updated.count !== 1) {
-      return null;
-    }
-
-    return this.findRunForTelegramUser(telegramUserId, input.token);
   }
 
   async cancelRunForTelegramUser(
@@ -194,7 +207,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
     }
   ): Promise<MantokChestConfirmResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
         const character = await tx.character.findFirst({
           where: {
             user: {
@@ -251,6 +264,8 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           return { state: "expired", run };
         }
 
+        await lockInventoryItemStacks(tx, character.id, run.inputItems.map((item) => item.itemId), input.now);
+
         const [attunementPayloads, activePriestBlessing] = await Promise.all([
           findCurrentEquipmentAttunementPayloads(tx, character),
           tx.noncombatPriestBlessing.findFirst({
@@ -273,6 +288,7 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
             input.now
           ),
           inputItems: run.inputItems,
+          exceptRunId: run.id,
           now: input.now
         });
         const selected = input.selectOutput(snapshot, run);
@@ -397,6 +413,18 @@ export class PrismaMantokChestRepository implements MantokChestRepository {
           run: error.run
         };
       }
+      if (error instanceof InventoryMutationContentionError) {
+        try {
+          const run = await this.findRunForTelegramUser(telegramUserId, input.token);
+          if (!run) return { state: "invalid-token" };
+          if (run.status === "completed") return { state: "replayed", run };
+          if (run.status === "cancelled") return { state: "cancelled", run };
+          if (run.status === "expired") return { state: "expired", run };
+          return { state: "stale-inputs", run };
+        } catch {
+          return { state: "invalid-token" };
+        }
+      }
 
       throw error;
     }
@@ -434,11 +462,12 @@ async function getConfirmationSnapshot(
     characterDisplayName: string;
     playerLuck: number;
     inputItems: MantokChestRunItem[];
+    exceptRunId: string;
     now: Date;
   }
 ): Promise<MantokChestSnapshot> {
   const inputItemIds = [...new Set(input.inputItems.map((item) => item.itemId))];
-  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
+  const [items, equipment, reservedItemIds] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: input.characterId,
@@ -466,13 +495,10 @@ async function getConfirmationSnapshot(
         itemId: true
       }
     }),
-    findActiveTransferReservedItems(tx, {
-      senderCharacterId: input.characterId,
-      now: input.now
-    }),
-    findActiveItemUseReservedItems(tx, {
+    findAllActiveReservedItemIds(tx, {
       characterId: input.characterId,
-      now: input.now
+      now: input.now,
+      exceptMantokChestRunId: input.exceptRunId
     })
   ]);
   const inputItemIdSet = new Set(inputItemIds);
@@ -484,8 +510,7 @@ async function getConfirmationSnapshot(
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
-      ...pendingTransfers.map((row) => row.itemId),
-      ...pendingUses.map((row) => row.itemId)
+      ...reservedItemIds
     ].filter((itemId) => inputItemIdSet.has(itemId))
   };
 }
@@ -508,7 +533,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     return null;
   }
 
-  const [items, equipment, pendingTransfers, pendingUses] = await Promise.all([
+  const [items, equipment, reservedItemIds] = await Promise.all([
     tx.characterItem.findMany({
       where: {
         characterId: character.id
@@ -530,13 +555,10 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
         itemId: true
       }
     }),
-    findActiveTransferReservedItems(tx, {
-      senderCharacterId: character.id,
-      now
-    }),
-    findActiveItemUseReservedItems(tx, {
+    findAllActiveReservedItemIds(tx, {
       characterId: character.id,
-      now
+      now,
+      ignoreMantokChestRuns: true
     })
   ]);
 
@@ -547,8 +569,7 @@ async function getSnapshot(tx: TxClient, telegramUserId: bigint, now: Date): Pro
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
     reservedItemIds: [
-      ...pendingTransfers.map((row) => row.itemId),
-      ...pendingUses.map((row) => row.itemId)
+      ...reservedItemIds
     ]
   };
 }

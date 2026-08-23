@@ -11,7 +11,7 @@ import {
   makeGuildCreateUploadCallbackData,
   makeGuildCreateCrestCallbackData,
   makeGuildCreateConfirmCallbackData,
-  makeGuildDeleteCallbackData,
+  makeGuildDeleteOpenCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
   makeGuildInviteAcceptCallbackData,
@@ -22,7 +22,7 @@ import {
   makeGuildInviteStartCallbackData,
   makeGuildNearbyInviteCallbackData,
   makeGuildNearbyInviteOpenCallbackData,
-  makeGuildLeaveCallbackData,
+  makeGuildLeaveOpenCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberManageCallbackData,
   makeGuildMemberSelectCallbackData,
@@ -81,10 +81,10 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
       }
     }
     if (result.guild.viewerRole !== "leader") {
-      keyboard.text("🚪 Вийти", makeGuildLeaveCallbackData(result.guild.version));
+      keyboard.text("🚪 Вийти", makeGuildLeaveOpenCallbackData(result.guild.version));
     }
     if (result.guild.viewerRole === "leader" && result.guild.memberCount === 1) {
-      keyboard.text("🗑️ Розпустити", makeGuildDeleteCallbackData(result.guild.version));
+      keyboard.text("🗑️ Розпустити", makeGuildDeleteOpenCallbackData(result.guild.version));
     }
     keyboard.row();
   }

@@ -18,7 +18,9 @@ import type {
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import {
   expireCombat,
+  buildLegacyPublicCombatantIdentity,
   freezeCombatLife,
+  freezePublicCombatantIdentity,
   isCombatSettlementTerminal,
   markCombatTurnTimeoutMode,
   recordCombatTimeout,
@@ -26,7 +28,8 @@ import {
   resolveCombatTurn,
   startCombat,
   type CombatActionType,
-  type CombatState
+  type CombatState,
+  type PublicCombatantIdentityV1
 } from "../domain/combat";
 import {
   buildTrainingDoppelgangerCombatStatsFromState,
@@ -110,6 +113,17 @@ export type TrainingDoppelgangerSnapshotResult =
       doppelganger: TrainingDoppelgangerCopy;
       session: SoloCombatSessionRecord;
       reward: TrainingDoppelgangerRewardClaim | null;
+    };
+
+export type PublicTrainingDoppelgangerArtifactResult =
+  | { state: "not-found" }
+  | { state: "active" }
+  | {
+      state: "ready";
+      character: PublicCombatantIdentityV1;
+      doppelganger: TrainingDoppelgangerCopy;
+      session: SoloCombatSessionRecord;
+      reward: null;
     };
 
 export type TrainingDoppelgangerTurnResult =
@@ -379,6 +393,7 @@ export class TrainingDoppelgangerService {
     });
     state.turnExpiresAt = getTrainingTurnExpiry(now).toISOString();
     state.source = "training";
+    state.publicIdentity = freezePublicCombatantIdentity(character);
     state.life = freezeCombatLife({
       characterId: base.characterId,
       remortCount: character.remortCount ?? 0,
@@ -562,6 +577,60 @@ export class TrainingDoppelgangerService {
       doppelganger: result.doppelganger,
       session: result.session,
       reward: result.state === "terminal" ? result.reward : null
+    };
+  }
+
+  async getTrainingDoppelgangerStatisticsForTelegramUser(
+    telegramUserId: bigint,
+    sessionId: string
+  ): Promise<TrainingDoppelgangerSnapshotResult> {
+    const current = await this.cooldowns.findForTelegramUser(
+      telegramUserId,
+      TRAINING_DOPPELGANGER_COOLDOWN_KEY
+    );
+
+    if (!current) {
+      return { state: "no-character" };
+    }
+
+    const character = summarizeCharacter(current.character, {
+      equippedItems: await this.getEquippedItemContents(telegramUserId)
+    });
+    const session = await this.combatSessions.findByIdForTelegramUserId(telegramUserId, sessionId);
+
+    if (!session || !isTrainingDoppelgangerMonsterId(session.monsterId)) {
+      return { state: "not-found", character };
+    }
+
+    return {
+      state: "found",
+      character,
+      doppelganger: buildDoppelgangerCopy(character, session.state),
+      session,
+      reward: null
+    };
+  }
+
+  async getPublicTerminalArtifact(sessionId: string): Promise<PublicTrainingDoppelgangerArtifactResult> {
+    const artifact = this.combatSessions.findPublicArtifactById
+      ? await this.combatSessions.findPublicArtifactById(sessionId)
+      : await this.combatSessions.findPublicTerminalById?.(sessionId);
+    if (
+      !artifact ||
+      !isTrainingDoppelgangerMonsterId(artifact.session.monsterId)
+    ) {
+      return { state: "not-found" };
+    }
+    if ((artifact.session.state?.status ?? artifact.session.status) === "active") return { state: "active" };
+    const character = artifact.session.state?.publicIdentity ?? buildLegacyPublicCombatantIdentity({
+      guildCrest: artifact.session.state?.hero.guildCrest
+    });
+    return {
+      state: "ready",
+      character,
+      doppelganger: buildDoppelgangerCopy(character, artifact.session.state),
+      session: artifact.session,
+      reward: null
     };
   }
 
@@ -1806,7 +1875,7 @@ export class TrainingDoppelgangerService {
 }
 
 function buildDoppelgangerCopy(
-  character: CharacterSummary,
+  character: Pick<CharacterSummary, "raceName" | "className" | "title" | "level">,
   state?: SoloCombatSessionRecord["state"]
 ): TrainingDoppelgangerCopy {
   const trace = state?.monster.debugTrace ?? state?.lastTurn?.debugTrace;

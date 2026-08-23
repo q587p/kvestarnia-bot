@@ -5,6 +5,7 @@ import type {
   MantokChestPreviewResult,
   MantokChestRecycleResult
 } from "../../services/mantokChestService";
+import { FRIENDLY_CHEST_ICON } from "../itemActionIcons";
 import { presentItemStackLine } from "./itemStackPresenter";
 import { escapeHtml } from "./telegramHtml";
 
@@ -50,7 +51,7 @@ export function presentMantokChestManualSelection(result: MantokChestManualSelec
   }
 
   const lines = [
-    "♻️ <b>Дружня Скриня</b>",
+    `${FRIENDLY_CHEST_ICON} <b>Дружня Скриня</b>`,
     `Обрано: <b>${result.selectedCount}/${result.requiredCount}</b>`,
     "",
     "Скриня киває кришкою. Це не згода, це апетит.",

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ItemContent, ItemEffectContent } from "../content/schema";
 import type { CharacterStats } from "./characters/starterStats";
 
@@ -82,6 +83,109 @@ export const ITEM_UPGRADE_LEVELS: Record<number, ItemUpgradeLevelConfig> = {
   4: { gold: 500, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[4]!, mana: 45, npcChance: 48, selfChance: 42 },
   5: { gold: 900, iskrokamin: ITEM_UPGRADE_ISKROKAMIN_LADDER[5]!, mana: 65, npcChance: 32, selfChance: 28 }
 };
+
+export const ITEM_DISMANTLE_RULES_VERSION = 1;
+export const ITEM_DISMANTLE_GOLD_COST = 5;
+export const ITEM_DISMANTLE_MANA_COST = 5;
+export const ITEM_DISMANTLE_RARITY_BASE: Record<ItemContent["rarity"], number> = {
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  epic: 5,
+  legendary: 8
+};
+
+export function calculateItemDismantleYield(input: {
+  baseRarity: ItemContent["rarity"];
+  enhancementLevel: number;
+  isSetPiece: boolean;
+}): number {
+  const level = normalizeItemUpgradeLevel(input.enhancementLevel);
+  let cumulativeUpgradeCost = 0;
+  for (let targetLevel = 1; targetLevel <= level; targetLevel += 1) {
+    cumulativeUpgradeCost += calculateModifiedItemUpgradeIskrokaminCost({
+      baseCost: getItemUpgradeLevelConfig(targetLevel).iskrokamin,
+      itemRarity: getItemUpgradeRarity(input.baseRarity, targetLevel - 1),
+      isSetPiece: input.isSetPiece
+    });
+  }
+  return ITEM_DISMANTLE_RARITY_BASE[input.baseRarity]
+    + Math.ceil(0.42 * cumulativeUpgradeCost);
+}
+
+export function getItemDismantleEligibility(
+  item: ItemContent,
+  quantity: number,
+  protectedItemIds: ReadonlySet<string> = new Set()
+): "eligible" | "not-equippable" | "protected" | "protected-last-copy" {
+  if (item.slot !== "weapon" && item.slot !== "armor" && item.slot !== "accessory") {
+    return "not-equippable";
+  }
+  const tags = new Set(item.tags ?? []);
+  if (
+    item.priceless === true ||
+    tags.has("story") ||
+    tags.has("memory") ||
+    tags.has("sentimental")
+  ) {
+    return "protected";
+  }
+  return protectedItemIds.has(getBaseItemIdForUpgradeVariant(item.id)) && Math.floor(quantity) <= 1
+    ? "protected-last-copy"
+    : "eligible";
+}
+
+export function buildItemDismantleRulesFingerprint(input: {
+  baseItemId: string;
+  enhancementLevel: number;
+  baseRarity: ItemContent["rarity"];
+  isSetPiece: boolean;
+  yield: number;
+}): string {
+  return itemDismantleShortHash([
+    ITEM_DISMANTLE_RULES_VERSION,
+    input.baseItemId,
+    normalizeItemUpgradeLevel(input.enhancementLevel),
+    input.baseRarity,
+    input.isSetPiece ? "set" : "plain",
+    Math.max(0, Math.floor(input.yield))
+  ].join("|"));
+}
+
+export function buildItemDismantleGuard(input: {
+  characterId: string;
+  remortCount: number;
+  itemId: string;
+  baseItemId: string;
+  enhancementLevel: number;
+  baseRarity: ItemContent["rarity"];
+  isSetPiece: boolean;
+  expectedQuantity: number;
+  yield: number;
+  payment: "gold" | "mana";
+  paymentAmount: number;
+  rulesFingerprint: string;
+}): string {
+  return itemDismantleShortHash([
+    input.characterId,
+    Math.max(0, Math.floor(input.remortCount)),
+    input.itemId,
+    input.baseItemId,
+    normalizeItemUpgradeLevel(input.enhancementLevel),
+    input.baseRarity,
+    input.isSetPiece ? "set" : "plain",
+    Math.max(0, Math.floor(input.expectedQuantity)),
+    Math.max(0, Math.floor(input.yield)),
+    input.payment,
+    Math.max(0, Math.floor(input.paymentAmount)),
+    input.rulesFingerprint,
+    ITEM_DISMANTLE_RULES_VERSION
+  ].join("|"));
+}
+
+function itemDismantleShortHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 8);
+}
 
 export function normalizeItemUpgradeLevel(value: number | undefined | null): number {
   return Math.max(0, Math.min(MAX_ITEM_UPGRADE_LEVEL, Math.floor(value ?? 0)));

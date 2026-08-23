@@ -7,6 +7,35 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
+## [0.4.7] - 12026-08-24 - Universal Battle Statistics, Richer Korchma Rounds, and Manatka Dismantling
+
+### Added
+- Added one terminal `📊 Статистика` surface beside the battle journal across persistent solo fights, Training, PartyBoss and Big Barrel encounters, turn-based and quick duels, GroupCombat, passage and adventure fights, and the starter Mimic outcome. Versioned ledgers record exact damage, actual healing, actual prevention, applied control, damage taken, committed actions, special actions and defensive turns; legacy or structurally unavailable dimensions render `—` instead of fabricated zeroes.
+- Added deterministic Daily Korchma identity-manatka rewards: a seeded branch starts at 13% for LUCK 6 or below, gains one percentage point per full LUCK above 6 and caps at 23%; the selected `+0` equippable item still uses the unchanged canonical `tavern_event` candidate weights for current class, race, canonical `character.title` affinity or explicit matching hard requirements. Six consecutive completed misses force the next eligible completed round, and the frozen receipt records chance, roll, pity evidence, affinity kind and applied grants.
+- Added `🔩 Розібрати манатку` inside `✨ Чароковальня`, with complete deterministic pagination, preview and atomic confirmation. Eligible ordinary gear costs 5 gold to dismantle; mage, varenyk-mancer and bureaucramancer characters instead spend 5 regenerated mana with no gold fallback.
+- Added canonical dismantling yields from base rarity plus 42% of the cumulative canonical Iskrokamin upgrade cost, including evolving rarity, set and legendary modifiers, and an exact accepted yield-table regression.
+- Added non-production Daily Korchma controls for deterministic miss, hit and forced-seventh pity QA; production configuration cannot register, advertise or mutate through those helpers.
+
+### Changed
+- Daily Korchma XP remains `2 × level + random(1..level)`, while ordinary gold becomes `13 + level + random(1..level)`. Every completed round now grants exactly 13 Iskrokamin and one Dense Bandage; the older generic quest-Iskrokamin bonus is disabled for this reward.
+- Daily Korchma offer, completed steps, frozen reward and bounded pity evidence now survive remort. Old-life callbacks become stale while the authoritative current card replays the preserved same-day state and grants exactly once.
+- Inserted this bundle as the sole `0.4.7` plan and shifted the still-unimplemented accepted sequence without reordering it: Guild Weekly Goal through Guild Cosmetic Progression now occupy `0.4.8` through `0.4.15`.
+
+### Security
+- Completed battle results, journals and statistics are unlisted capability-link artifacts readable by any holder of the opaque terminal token without participant, Character or private-chat authorization. Every authoritative persistent-solo, Training and starter-Mimic terminal producer—interactive completion, command reopen, callback replacement, combat-lock recovery, scheduler and adventure/quest delivery—now exposes exactly one compact versioned Telegram URL with a matching pre-onboarding `/start` consumer, while active cards expose none. New artifacts freeze their minimum public combatant identity in stored state/result JSON, so rename, title, crest, level or remort changes cannot rewrite old cards; legacy rows use a generic stored-data-only fallback. Reads never join the mutable owner Character, stay non-settling, and do not expose Telegram identity, hidden choices, inventory or other private mutable state.
+- Dismantling confirmation binds the opaque preview guard to life, item identity, base identity, enhancement, rarity/set fingerprint, quantity, yield, payment and rules version. Equipment, item-use, gift/postal transfer, Mantok Chest, Level Barter, Shynok sale and duplicate-confirmation races share one per-character/item serialization point with bounded retry; exhausted contention returns stable domain outcomes, equipped/protected/reserved/zero-value/last-copy restricted gear is rejected transactionally, and contention can consume at most one item and one payment.
+
+### Fixed
+- The character card now offers `🧻 До відновлення` only when the inventory contains enough supported ordinary panic bandages. Dense Bandages and other healing consumables no longer produce a shortcut that the restore-to-full service must reject.
+- Terminal solo and Training cards now resolve the bot username centrally from the initialized grammY context when a navigation caller omits the configured value; timeout and passage-search schedulers use the initialized bot identity as the same safe fallback. Main-menu, Korchma/Nyz, quest, passage-search, stale-recovery and Training-mode routes therefore keep one valid capability link without adding links to active combat cards.
+- Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
+- The Forge now places `🔩 Розібрати манатку` in its first keyboard row before sorting controls. The registered exclusive-icon ownership check keeps dismantling distinct from `♻️` Friendly Chest recycling and gives the separate `🗃️` replaced-card notice its own shared owner.
+- Guild hub leave and disband actions now open explicit affirmative/negative confirmation cards. Literal legacy `l`/`z` callbacks only reopen a current confirmation; only distinct current-version `ly`/`zy` affirmatives may change membership.
+- PartyBoss retaliation keeps the exact pre-statistics damage formula; contribution measurement is isolated from HP, knockout, counter and reward state, while capped HP deltas prevent overkill and self-heal duplication.
+- Solo and Training critical-fumble self-damage remains part of truthful hero damage taken but is never credited to an enemy contribution row, including fatal, multi-enemy and heal-capped turns.
+- Daily Korchma featured rewards now use the runtime item slot as the equippability authority, excluding matching consumables and every non-weapon/armor/accessory candidate without changing canonical candidate weights.
+- Daily Korchma reward replay now presents the grants actually applied by the transactional claim, so restart, duplicate callback and remort recovery cannot reroll or silently replace the reward.
+
 ## [0.4.6] - 12026-08-22 - Referral Foundation and Automatic Milestone Rewards
 
 ### Added

@@ -634,7 +634,7 @@ describe("group-combat canonical participant delivery", () => {
       expect(participant.deliveredRevision).toBe(session.deliveryRevision);
     }
     expect(edits.filter((entry) =>
-      entry.text === "♻️ Цю бойову картку замінено актуальною нижче."
+      entry.text === "🗃️ Цю бойову картку замінено актуальною нижче."
     )).toEqual(expect.arrayContaining([
       expect.objectContaining({ chatId: 1001, messageId: 21, labels: [] }),
       expect.objectContaining({ chatId: 1002, messageId: 22, labels: [] })
@@ -686,7 +686,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(editMessageText).toHaveBeenCalledWith(
       1001,
       90,
-      "♻️ Цю бойову картку замінено актуальною нижче.",
+      "🗃️ Цю бойову картку замінено актуальною нижче.",
       expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
     );
     expect(deleteMessage).toHaveBeenCalledWith(1001, 90);
@@ -743,7 +743,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(sends[0]?.text).not.toContain("Головне меню знову на місці");
     expect(edits).toContainEqual({
       messageId: 21,
-      text: "♻️ Цю бойову картку замінено актуальною нижче."
+      text: "🗃️ Цю бойову картку замінено актуальною нижче."
     });
     expect(edits.find((entry) => entry.messageId === 21)?.text)
       .not.toContain("Доказову сутичку програно");
@@ -2076,7 +2076,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 31 });
     expect(edits[0]).toEqual({
       messageId: 31,
-      text: "♻️ Цю бойову картку замінено актуальною нижче."
+      text: "🗃️ Цю бойову картку замінено актуальною нижче."
     });
     expect(edits[1]?.messageId).toBe(77);
     expect(edits[1]?.text).toContain("<b>Бій</b>:");
@@ -2193,7 +2193,7 @@ describe("group-combat canonical participant delivery", () => {
     expect(edits).toHaveLength(2);
     expect(edits[0]).toEqual({
       messageId: 21,
-      text: "♻️ Цю бойову картку замінено актуальною нижче.",
+      text: "🗃️ Цю бойову картку замінено актуальною нижче.",
       buttons: []
     });
     expect(edits[1]?.messageId).toBe(93);
@@ -2232,7 +2232,7 @@ describe("group-combat canonical participant delivery", () => {
 
     expect(result).toMatchObject({ state: "activated", reference: { messageId: 93 } });
     expect(actionable).toEqual(new Set([93]));
-    expect(rendered.get(21)).toBe("♻️ Цю бойову картку замінено актуальною нижче.");
+    expect(rendered.get(21)).toBe("🗃️ Цю бойову картку замінено актуальною нижче.");
     expect(rendered.get(21)).not.toContain("<b>Бій</b>:");
     expect(rendered.get(93)).toContain("<b>Бій</b>: 1 хід");
     expect(deleteMessage).toHaveBeenCalledWith({ chatId: 1001n, messageId: 21 });

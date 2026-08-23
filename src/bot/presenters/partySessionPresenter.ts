@@ -28,6 +28,7 @@ import { DENSE_BANDAGE_ITEM_ID, FIELD_KIT_ITEM_ID } from "../../domain/itemCraft
 import { getCombatSkillDisplay } from "../../services/fightService";
 import type { PartyBossCombatItemMenuResult } from "../../services/partyBossService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentBattleContributionLegend, presentBattleContributionLine } from "./battleContributionPresenter";
 import {
   presentPartyReadinessMarker,
   supportsPartyReadiness
@@ -801,6 +802,36 @@ function presentPartyBossQueuedActionPlan(
     default:
       return "дію";
   }
+}
+
+export function presentPartyBossStatistics(session: PartyBossSessionRecord): string {
+  const unavailable = { damage: null, healing: null, guardPrevented: null, control: null, damageTaken: null, actions: null, specialActions: null, guardedTurns: null };
+  const participantRows = session.state.participants.map((participant) =>
+    presentBattleContributionLine(participant.name, participant.statistics ?? unavailable)
+  );
+  const allParticipantsHaveStatistics = session.state.participants.every((participant) => participant.statistics);
+  const bossValues = {
+    ...unavailable,
+    damage: allParticipantsHaveStatistics
+      ? session.state.participants.reduce((total, participant) => total + participant.statistics!.damageTaken, 0)
+      : null,
+    damageTaken: allParticipantsHaveStatistics
+      ? session.state.participants.reduce((total, participant) => total + participant.statistics!.damage, 0)
+      : null,
+    actions: session.state.roundLog.reduce((total, round) => total + round.bossRetaliations.length, 0)
+  };
+  return [
+    "📊 <b>Статистика бою</b>",
+    "",
+    "<b>Пригодники:</b>",
+    ...participantRows,
+    "",
+    "<b>Супротивник:</b>",
+    presentBattleContributionLine(session.state.boss.name ?? "Бос", bossValues),
+    "",
+    ...presentBattleContributionLegend(),
+    ...(!allParticipantsHaveStatistics ? ["", "Старий запис не містить усіх точних лічильників, тому показано «—»."] : [])
+  ].join("\n");
 }
 
 export function presentPartyBossJournal(session: PartyBossSessionRecord, requestedPage?: number | null): string {

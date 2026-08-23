@@ -59,6 +59,11 @@ import {
   FightingCornerQuestService,
   FIGHTING_CORNER_QUEST_KEYS
 } from "../../src/services/fightingCornerQuestService";
+import {
+  presentTrainingDoppelganger,
+  presentTrainingDoppelgangerJournal,
+  presentTrainingDoppelgangerStatistics
+} from "../../src/bot/presenters/trainingDoppelgangerPresenter";
 
 const telegramUserId = 42n;
 const fixedNow = () => new Date("2026-06-17T09:30:00.000Z");
@@ -91,6 +96,136 @@ describe("TrainingDoppelgangerService", () => {
     });
     expect(world.actions.size).toBe(0);
     expect(world.cooldowns.size).toBe(0);
+  });
+
+  it("reads Training statistics without adopting, settling, or otherwise mutating the session", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world);
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active") {
+      throw new Error("Expected active training.");
+    }
+    const before = JSON.stringify([...world.sessions.entries()]);
+
+    await expect(service.getTrainingDoppelgangerStatisticsForTelegramUser(
+      telegramUserId,
+      started.session.id
+    )).resolves.toMatchObject({
+      state: "found",
+      session: { id: started.session.id }
+    });
+
+    expect(JSON.stringify([...world.sessions.entries()])).toBe(before);
+    expect(world.actions.size).toBe(0);
+    expect(world.cooldowns.size).toBe(0);
+    expect(world.resourceMutations).toBe(0);
+  });
+
+  it("reads a terminal Training artifact by opaque session id without viewer or persistence writes", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId);
+    const service = buildService(world);
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) throw new Error("Expected active training.");
+    await expect(service.getPublicTerminalArtifact(started.session.id)).resolves.toEqual({ state: "active" });
+    await expect(service.getPublicTerminalArtifact("123e4567-e89b-42d3-a456-426614174999"))
+      .resolves.toEqual({ state: "not-found" });
+    world.sessions.set("123e4567-e89b-42d3-a456-426614174998", {
+      ...started.session,
+      id: "123e4567-e89b-42d3-a456-426614174998",
+      monsterId: "monster.deadline-spider",
+      status: "won",
+      state: { ...started.session.state, status: "won" }
+    });
+    await expect(service.getPublicTerminalArtifact("123e4567-e89b-42d3-a456-426614174998"))
+      .resolves.toEqual({ state: "not-found" });
+    world.sessions.set(started.session.id, {
+      ...started.session,
+      status: "won",
+      state: { ...started.session.state, status: "won" }
+    });
+    const before = JSON.stringify([...world.sessions.entries()]);
+
+    const first = await service.getPublicTerminalArtifact(started.session.id);
+    expect(first).toMatchObject({
+      state: "ready",
+      character: { name: "Мандрівник" },
+      session: { id: started.session.id, status: "won" }
+    });
+    if (first.state !== "ready") throw new Error("Expected terminal Training artifact.");
+    const firstSnapshot = { ...first, state: "found" as const };
+    const rendered = [
+      presentTrainingDoppelganger({ ...first, state: "terminal", reward: null }),
+      presentTrainingDoppelgangerJournal(firstSnapshot, 0),
+      presentTrainingDoppelgangerStatistics(firstSnapshot)
+    ];
+    world.addCharacter(telegramUserId, {
+      name: "Нова особа після тренування",
+      raceId: "race.orc-ish",
+      classId: "class.mage",
+      guildCrest: "⚔️",
+      level: 13,
+      xp: 1300,
+      remortCount: 1
+    });
+    const replay = await service.getPublicTerminalArtifact(started.session.id);
+    expect(replay).toMatchObject({
+      state: "ready",
+      character: { name: "Мандрівник", raceId: "race.human-ish", classId: "class.warrior", level: 3 }
+    });
+    if (replay.state !== "ready") throw new Error("Expected replay Training artifact.");
+    const replaySnapshot = { ...replay, state: "found" as const };
+    expect([
+      presentTrainingDoppelganger({ ...replay, state: "terminal", reward: null }),
+      presentTrainingDoppelgangerJournal(replaySnapshot, 0),
+      presentTrainingDoppelgangerStatistics(replaySnapshot)
+    ]).toEqual(rendered);
+    await service.getPublicTerminalArtifact(started.session.id);
+
+    expect(JSON.stringify([...world.sessions.entries()])).toBe(before);
+    expect(world.actions.size).toBe(0);
+    expect(world.cooldowns.size).toBe(0);
+    expect(world.resourceMutations).toBe(0);
+  });
+
+  it("keeps Training self-fumble damage truthful without crediting it to the doppelganger", async () => {
+    const world = new FakeWorld();
+    world.addCharacter(telegramUserId, { hpCurrent: 66, hpMax: 66 });
+    const service = buildService(world, new FakeRandomSource([0, 0, 0, 0, 0, 0]));
+    const started = await service.getOrStartForTelegramUser(telegramUserId);
+    if (started.state !== "active" || !started.session.state) {
+      throw new Error("Expected active training.");
+    }
+    const state = started.session.state;
+    state.playerAbilityFumbles = {
+      version: 1,
+      abilities: {
+        "skill.forceful-strike": { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 1 }
+      }
+    };
+    world.sessions.set(started.session.id, { ...started.session, state });
+    const hpBefore = state.hero.hp;
+
+    const result = await service.resolveTurn(telegramUserId, {
+      sessionId: started.session.id,
+      turn: state.turn,
+      action: "skill"
+    });
+
+    expect(result.state).toBe("updated");
+    if (result.state === "updated" && result.session.state) {
+      const resolved = result.session.state;
+      const selfDamage = resolved.lastTurn?.fumble?.selfDamage ?? 0;
+      const enemyRecorded = Object.values(resolved.statistics?.enemies ?? {})
+        .reduce((total, contribution) => total + contribution.damage, 0);
+      const heroDamageTaken = resolved.statistics?.hero.damageTaken ?? 0;
+
+      expect(selfDamage).toBeGreaterThan(0);
+      expect(heroDamageTaken).toBe(hpBefore - resolved.hero.hp);
+      expect(enemyRecorded).toBe(heroDamageTaken - Math.min(heroDamageTaken, selfDamage));
+      expect(enemyRecorded).toBeLessThan(heroDamageTaken);
+    }
   });
 
   it("persists a Sated pulse on the Training Doppelganger turn after its hostile response", async () => {
@@ -694,9 +829,9 @@ describe("TrainingDoppelgangerService", () => {
     )).toHaveLength(1);
   });
 
-  it.each(["journal", "view"] as const)(
-    "records the first %s-lazily-settled terminal session without a second recovery call",
-    async (callbackType) => {
+  it(
+    "records the first view-lazily-settled terminal session without a second recovery call",
+    async () => {
     const world = new FakeWorld();
     world.addCharacter(telegramUserId, {
       currentLocationId: PRESENCE_LOCATION_KORCHMA_QUEST_TABLE
@@ -741,9 +876,7 @@ describe("TrainingDoppelgangerService", () => {
       }
     } as unknown as BotServices;
 
-    const callback = callbackType === "journal"
-      ? { type: "journal" as const, sessionId: started.session.id, page: 0 }
-      : { type: "view" as const, sessionId: started.session.id };
+    const callback = { type: "view" as const, sessionId: started.session.id };
 
     await handleTrainingDoppelgangerCallback(ctx, callback, services);
 
@@ -1608,6 +1741,16 @@ class FakeWorld implements CharacterRepository, CooldownRepository, DailyActionR
     sessionId: string
   ): Promise<SoloCombatSessionRecord | null> {
     return Promise.resolve(this.sessions.get(sessionId) ?? null);
+  }
+
+  findPublicTerminalById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    return Promise.resolve(session && session.status !== "active" ? { session } : null);
+  }
+
+  findPublicArtifactById(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    return Promise.resolve(session ? { session } : null);
   }
 
   createForTelegramUser(

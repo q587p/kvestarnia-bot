@@ -57,6 +57,15 @@ export function rollMonsterDamage(
   rng: RandomSource,
   damageReduction = 0
 ): number {
+  return rollMonsterDamageWithPrevention(hero, monster, rng, damageReduction).damage;
+}
+
+export function rollMonsterDamageWithPrevention(
+  hero: CombatActorStats,
+  monster: MonsterCombatStats,
+  rng: RandomSource,
+  damageReduction = 0
+): { damage: number; damageBeforeReduction: number; preventedDamage: number } {
   const hitChance = clamp(
     0.82 + (monster.dexterity - hero.dexterity) * 0.01 + getMonsterAccuracyDelta(monster),
     0.65,
@@ -64,13 +73,24 @@ export function rollMonsterDamage(
   );
 
   if (rng.nextFloat() >= hitChance) {
-    return 0;
+    return { damage: 0, damageBeforeReduction: 0, preventedDamage: 0 };
   }
 
   const variance = rng.nextInt(0, 2);
-  const rawDamage = monster.attack + variance - Math.floor((hero.armor ?? 0) * 0.8) - damageReduction;
+  const damageBeforeReduction = applyMonsterOutgoingModifier(
+    Math.max(1, monster.attack + variance - Math.floor((hero.armor ?? 0) * 0.8)),
+    monster
+  );
+  const damage = applyMonsterOutgoingModifier(
+    Math.max(1, monster.attack + variance - Math.floor((hero.armor ?? 0) * 0.8) - damageReduction),
+    monster
+  );
 
-  return applyMonsterOutgoingModifier(Math.max(1, rawDamage), monster);
+  return {
+    damage,
+    damageBeforeReduction,
+    preventedDamage: Math.max(0, damageBeforeReduction - damage)
+  };
 }
 
 export function rollMonsterSkillDamage(
@@ -80,6 +100,16 @@ export function rollMonsterSkillDamage(
   rng: RandomSource,
   damageReduction = 0
 ): number {
+  return rollMonsterSkillDamageWithPrevention(hero, monster, skill, rng, damageReduction).damage;
+}
+
+export function rollMonsterSkillDamageWithPrevention(
+  hero: CombatActorStats,
+  monster: MonsterCombatStats,
+  skill: CombatSkillProfile,
+  rng: RandomSource,
+  damageReduction = 0
+): { damage: number; damageBeforeReduction: number; preventedDamage: number } {
   const targetDefense = skill.damageKind === "spell" ? hero.resist ?? 0 : hero.armor ?? 0;
   const hitChance = clamp(
     0.8 + skill.accuracyBonus + (monster.dexterity - hero.dexterity) * 0.01 + getMonsterAccuracyDelta(monster),
@@ -88,20 +118,31 @@ export function rollMonsterSkillDamage(
   );
 
   if (rng.nextFloat() >= hitChance) {
-    return 0;
+    return { damage: 0, damageBeforeReduction: 0, preventedDamage: 0 };
   }
 
   const variance = rng.nextInt(0, 2);
   const powerBonus = skill.damageKind === "spell" ? monster.spellPower ?? 0 : Math.floor(monster.attack / 3);
-  const rawDamage =
+  const rawDamageBeforeReduction =
     monster.attack +
     Math.ceil(skill.baseDamage / 2) +
     powerBonus +
     variance -
-    Math.floor(targetDefense * 0.8) -
-    damageReduction;
+    Math.floor(targetDefense * 0.8);
+  const damageBeforeReduction = applyMonsterOutgoingModifier(
+    Math.max(1, rawDamageBeforeReduction),
+    monster
+  );
+  const damage = applyMonsterOutgoingModifier(
+    Math.max(1, rawDamageBeforeReduction - damageReduction),
+    monster
+  );
 
-  return applyMonsterOutgoingModifier(Math.max(1, rawDamage), monster);
+  return {
+    damage,
+    damageBeforeReduction,
+    preventedDamage: Math.max(0, damageBeforeReduction - damage)
+  };
 }
 
 export function rollFleeSuccess(

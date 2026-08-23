@@ -20,6 +20,10 @@ import type {
 } from "../../src/db/repositories/equipmentRepository";
 import type { ShynokDrinkStateRecord } from "../../src/db/repositories/shynokRepository";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
+import {
+  DENSE_BANDAGE_ITEM_ID,
+  RESPONSIBLE_PANIC_BANDAGE_ITEM_ID
+} from "../../src/domain/itemCraft";
 import { HeroService } from "../../src/services/heroService";
 
 const telegramUserId = 42n;
@@ -217,27 +221,48 @@ describe("HeroService", () => {
     expect(noncombat.blockedReadCount).toBe(0);
   });
 
-  it("offers restore-to-full from hero lookup only when bandages cover the missing HP", async () => {
+  it("offers restore-to-full only when the supported ordinary bandages cover the missing HP", async () => {
     const enough = new HeroService(
       new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
       new FakeInventoryRepository([
-        buildItem({ itemId: "item.responsible-panic-bandage", quantity: 2 })
+        buildItem({ itemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, quantity: 2 })
       ])
     );
     const notEnough = new HeroService(
       new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
       new FakeInventoryRepository([
-        buildItem({ itemId: "item.responsible-panic-bandage", quantity: 1 })
+        buildItem({ itemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, quantity: 1 })
+      ])
+    );
+    const denseOnly = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
+      new FakeInventoryRepository([
+        buildItem({ itemId: DENSE_BANDAGE_ITEM_ID, quantity: 4 })
+      ])
+    );
+    const denseBeforeSupported = new HeroService(
+      new FakeCharacterRepository(buildCharacter({ hpCurrent: 8, hpMax: 22 })),
+      new FakeInventoryRepository([
+        buildItem({ itemId: DENSE_BANDAGE_ITEM_ID, quantity: 4 }),
+        buildItem({ itemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID, quantity: 2 })
       ])
     );
 
     await expect(enough.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       state: "existing-character",
-      restoreToFullItemId: "item.responsible-panic-bandage"
+      restoreToFullItemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID
     });
     await expect(notEnough.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
       state: "existing-character",
       restoreToFullItemId: null
+    });
+    await expect(denseOnly.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      restoreToFullItemId: null
+    });
+    await expect(denseBeforeSupported.findByTelegramUserId(telegramUserId)).resolves.toMatchObject({
+      state: "existing-character",
+      restoreToFullItemId: RESPONSIBLE_PANIC_BANDAGE_ITEM_ID
     });
   });
 

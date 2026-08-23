@@ -202,6 +202,26 @@ export type DuelTurnBasedJournalResult =
       rounds: TurnBasedDuelRoundSummary[];
     };
 
+export type DuelStatisticsResult =
+  | { state: "not-found" }
+  | { state: "not-ready"; mode: DuelMode }
+  | {
+      state: "active";
+      mode: "turn-based";
+      view: Extract<DuelChallengeView, { state: "active" }>;
+    }
+  | {
+      state: "ready";
+      mode: "quick";
+      view: Extract<DuelChallengeView, { state: "resolved" }>;
+    }
+  | {
+      state: "ready";
+      mode: "turn-based";
+      view: Extract<DuelChallengeView, { state: "resolved" }>;
+      session: DuelCombatSessionRecord;
+    };
+
 export type TurnBasedDuelRouteView =
   | { state: "not-found" }
   | {
@@ -779,6 +799,75 @@ export class DuelChallengeService {
       session,
       rounds
     };
+  }
+
+  async getTerminalResultByToken(
+    inviteToken: string
+  ): Promise<Extract<DuelChallengeView, { state: "resolved" }> | { state: "not-found" | "not-terminal" }> {
+    const challenge = await this.challenges.findByToken(inviteToken);
+    if (!challenge) return { state: "not-found" };
+    if (challenge.status !== "resolved" || !challenge.result || !challenge.target) return { state: "not-terminal" };
+    const view = this.viewChallenge(challenge, this.clock());
+    return view.state === "resolved" ? view : { state: "not-terminal" };
+  }
+
+  async getStatisticsForTelegramUser(
+    telegramUserId: bigint,
+    inviteToken: string
+  ): Promise<DuelStatisticsResult> {
+    const [viewer, challenge] = await Promise.all([
+      this.challenges.findCharacterByTelegramUser(telegramUserId),
+      this.challenges.findByToken(inviteToken)
+    ]);
+    if (
+      !viewer ||
+      !challenge ||
+      (viewer.id !== challenge.challengerCharacterId && viewer.id !== challenge.targetCharacterId)
+    ) {
+      return { state: "not-found" };
+    }
+
+    if (challenge.mode === "turn-based" && challenge.status === "active") {
+      const session = await this.challenges.findTurnBasedByTokenForTelegramUserId(
+        inviteToken,
+        telegramUserId
+      );
+      return session
+        ? { state: "active", mode: "turn-based", view: this.buildActiveView(session, this.clock()) }
+        : { state: "not-ready", mode: "turn-based" };
+    }
+
+    if (challenge.status !== "resolved" || !challenge.result || !challenge.target) {
+      return { state: "not-ready", mode: challenge.mode };
+    }
+
+    const view = this.viewChallenge(challenge, this.clock());
+    if (view.state !== "resolved") {
+      return { state: "not-ready", mode: challenge.mode };
+    }
+    if (challenge.mode === "quick") {
+      return { state: "ready", mode: "quick", view };
+    }
+
+    const session = await this.challenges.findTurnBasedByToken(inviteToken);
+    return session && session.status !== "active"
+      ? { state: "ready", mode: "turn-based", view, session }
+      : { state: "not-ready", mode: "turn-based" };
+  }
+
+  async getTerminalStatisticsByToken(inviteToken: string): Promise<DuelStatisticsResult> {
+    const challenge = await this.challenges.findByToken(inviteToken);
+    if (!challenge) return { state: "not-found" };
+    if (challenge.status !== "resolved" || !challenge.result || !challenge.target) {
+      return { state: "not-ready", mode: challenge.mode };
+    }
+    const view = this.viewChallenge(challenge, this.clock());
+    if (view.state !== "resolved") return { state: "not-ready", mode: challenge.mode };
+    if (challenge.mode === "quick") return { state: "ready", mode: "quick", view };
+    const session = await this.challenges.findTurnBasedByToken(inviteToken);
+    return session && session.status !== "active"
+      ? { state: "ready", mode: "turn-based", view, session }
+      : { state: "not-ready", mode: "turn-based" };
   }
 
   async resolveTurnBasedActionForTelegramUser(

@@ -2,7 +2,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import type { Context } from "grammy";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { handleGuildCallback } from "../../src/bot/commands/guildCommand";
+import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
 import { presentLatestEventsPage } from "../../src/bot/presenters/latestEventsPresenter";
 import { PrismaActivityEventRepository } from "../../src/db/repositories/prismaActivityEventRepository";
 import { PrismaCharacterRepository } from "../../src/db/repositories/prismaCharacterRepository";
@@ -213,6 +216,86 @@ describe("PrismaGuildRepository integration", () => {
     await expect(repository.confirmCreateForTelegramUser(53_008n, "disband-reuse-after", afterDisbandRelease))
       .resolves.toMatchObject({ state: "created" });
     expect(disbanded.guild.id).toBeTruthy();
+  });
+
+  it("keeps guild leave intent and no read-only, then leaves only through the version-bound yes callback", async () => {
+    const leaderTelegramUserId = 67_001n;
+    const memberTelegramUserId = 67_002n;
+    await seedCharacter(prisma, "leave-confirm-leader", leaderTelegramUserId, "Голова Підтвердження", 1_000, { level: 7 });
+    await seedCharacter(prisma, "leave-confirm-member", memberTelegramUserId, "Учасник Підтвердження", 0);
+    const active = await activateGuild(
+      repository,
+      leaderTelegramUserId,
+      memberTelegramUserId,
+      "leave-confirm-guild",
+      "Обережна Печатка"
+    );
+    const service = new GuildService(repository, {} as PartySessionService, { enabled: true }, () => NOW);
+    const hub = await readyHub(repository, memberTelegramUserId, NOW);
+
+    const legacyParsed = parseGuildCallbackData(`v1:g:l:${hub.guild.version.toString(36)}`);
+    if (!legacyParsed.ok) throw new Error(`Expected literal legacy leave callback, got ${legacyParsed.error}`);
+    const legacyIntent = guildCallbackContext(memberTelegramUserId);
+    await handleGuildCallback(legacyIntent.ctx, legacyParsed.value, service);
+    await expect(prisma.guildMember.count({
+      where: { guildId: active.guild.id, userId: "leave-confirm-member", activeUserKey: "leave-confirm-member" }
+    })).resolves.toBe(1);
+    expect(callbackButtons(legacyIntent.editMessageText.mock.calls[0]?.[1])[0]?.callback_data)
+      .toBe(`v1:g:ly:${hub.guild.version.toString(36)}`);
+
+    const intent = guildCallbackContext(memberTelegramUserId);
+    await handleGuildCallback(intent.ctx, { type: "leave-open", version: hub.guild.version }, service);
+    await expect(prisma.guildMember.count({
+      where: { guildId: active.guild.id, userId: "leave-confirm-member", activeUserKey: "leave-confirm-member" }
+    })).resolves.toBe(1);
+    const intentButtons = callbackButtons(intent.editMessageText.mock.calls[0]?.[1]);
+    expect(intentButtons.map((button) => button.text)).toEqual(["✅ Так, вийти", "❌ Ні, лишитися"]);
+
+    const noParsed = parseGuildCallbackData(intentButtons[1]?.callback_data);
+    if (!noParsed.ok) throw new Error(`Expected no callback, got ${noParsed.error}`);
+    const declined = guildCallbackContext(memberTelegramUserId);
+    await handleGuildCallback(declined.ctx, noParsed.value, service);
+    await expect(prisma.guildMember.count({
+      where: { guildId: active.guild.id, userId: "leave-confirm-member", activeUserKey: "leave-confirm-member" }
+    })).resolves.toBe(1);
+    expect(String(declined.editMessageText.mock.calls[0]?.[0])).toContain("Ви лишилися в ґільдії");
+
+    const yesParsed = parseGuildCallbackData(intentButtons[0]?.callback_data);
+    if (!yesParsed.ok) throw new Error(`Expected yes callback, got ${yesParsed.error}`);
+    const confirmed = guildCallbackContext(memberTelegramUserId);
+    await handleGuildCallback(confirmed.ctx, yesParsed.value, service);
+    await expect(prisma.guildMember.count({
+      where: { guildId: active.guild.id, userId: "leave-confirm-member", activeUserKey: "leave-confirm-member" }
+    })).resolves.toBe(0);
+    await expect(repository.getHubForTelegramUser(memberTelegramUserId, NOW)).resolves.toMatchObject({ state: "not-member" });
+    expect(String(confirmed.editMessageText.mock.calls[0]?.[0])).toContain("Ви вийшли з <b>Обережна Печатка</b>");
+  });
+
+  it("keeps a literal legacy sole-leader disband callback read-only until the new affirmative wire action", async () => {
+    const leaderTelegramUserId = 67_011n;
+    const joinerTelegramUserId = 67_012n;
+    await seedCharacter(prisma, "legacy-delete-leader", leaderTelegramUserId, "Голова Старої Кнопки", 1_000, { level: 7 });
+    await seedCharacter(prisma, "legacy-delete-joiner", joinerTelegramUserId, "Тимчасовий Учасник", 0);
+    const active = await activateGuild(repository, leaderTelegramUserId, joinerTelegramUserId, "legacy-delete-guild", "Стара Печатка");
+    const joinerHub = await readyHub(repository, joinerTelegramUserId, NOW);
+    await repository.leaveForTelegramUser(joinerTelegramUserId, joinerHub.guild.version, NOW);
+    const leaderHub = await readyHub(repository, leaderTelegramUserId, NOW);
+    const service = new GuildService(repository, {} as PartySessionService, { enabled: true }, () => NOW);
+    const legacyParsed = parseGuildCallbackData(`v1:g:z:${leaderHub.guild.version.toString(36)}`);
+    if (!legacyParsed.ok) throw new Error(`Expected literal legacy delete callback, got ${legacyParsed.error}`);
+
+    const intent = guildCallbackContext(leaderTelegramUserId);
+    await handleGuildCallback(intent.ctx, legacyParsed.value, service);
+    await expect(prisma.guild.findUnique({ where: { id: active.guild.id }, select: { status: true } }))
+      .resolves.toEqual({ status: "active" });
+    const buttons = callbackButtons(intent.editMessageText.mock.calls[0]?.[1]);
+    expect(buttons[0]?.callback_data).toBe(`v1:g:zy:${leaderHub.guild.version.toString(36)}`);
+
+    const yes = parseGuildCallbackData(buttons[0]?.callback_data);
+    if (!yes.ok) throw new Error(`Expected new affirmative delete callback, got ${yes.error}`);
+    await handleGuildCallback(guildCallbackContext(leaderTelegramUserId).ctx, yes.value, service);
+    await expect(prisma.guild.findUnique({ where: { id: active.guild.id }, select: { status: true } }))
+      .resolves.toEqual({ status: "disbanded" });
   });
 
   it("publishes one original-timestamp Chronicle fact after the forming founder restarts", async () => {
@@ -2616,6 +2699,37 @@ async function tableNames(prisma: PrismaClient): Promise<string[]> {
     "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
   );
   return rows.map((row) => row.name);
+}
+
+function guildCallbackContext(telegramUserId: bigint) {
+  const answerCallbackQuery = vi.fn().mockResolvedValue(true);
+  const editMessageText = vi.fn().mockResolvedValue(true);
+  const ctx = {
+    from: { id: Number(telegramUserId), is_bot: false, first_name: "Тест" },
+    chat: { id: Number(telegramUserId), type: "private" },
+    callbackQuery: {
+      id: "guild-confirmation-callback",
+      message: {
+        message_id: 13,
+        chat: { id: Number(telegramUserId), type: "private" }
+      }
+    },
+    answerCallbackQuery,
+    editMessageText,
+    reply: vi.fn().mockResolvedValue({ message_id: 23 }),
+    api: {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 23 }),
+      editMessageText: vi.fn().mockResolvedValue(true)
+    }
+  } as unknown as Context;
+  return { ctx, answerCallbackQuery, editMessageText };
+}
+
+function callbackButtons(settings: unknown): Array<{ text: string; callback_data?: string }> {
+  const options = settings as {
+    reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>> };
+  } | undefined;
+  return options?.reply_markup?.inline_keyboard?.flat() ?? [];
 }
 
 async function expectUnrelatedCounts(

@@ -1,21 +1,31 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { ItemContent } from "../content/schema";
 import { findItemContent } from "../content/itemLookup";
-import type { ItemUpgradeRepository } from "../db/repositories/itemUpgradeRepository";
+import type {
+  ItemDismantleConfirmResult,
+  ItemUpgradeRepository
+} from "../db/repositories/itemUpgradeRepository";
 import { summarizeCharacter, type CharacterSummary } from "../domain/characters/characterSummary";
 import { getMantokSetForItem } from "../domain/equipment/mantokSetBonuses";
 import {
   calculateItemUpgradeChance,
   calculateItemUpgradeCosts,
+  calculateItemDismantleYield,
+  buildItemDismantleGuard,
+  buildItemDismantleRulesFingerprint,
   canAccessItemUpgrades,
   getDonorBonus,
   getItemDisplayNameWithUpgrade,
   getItemUpgradeRequiredLevel,
   getItemUpgradeLevelFromItemId,
+  getBaseItemIdForUpgradeVariant,
   getItemUpgradeUnlockRewardXp,
   getItemUpgradePrimaryStat,
   getLuckFromStats,
   ITEM_UPGRADE_LOCATION_ID,
+  ITEM_DISMANTLE_GOLD_COST,
+  ITEM_DISMANTLE_MANA_COST,
+  getItemDismantleEligibility,
   isItemUpgradeable,
   isMageClassForItemSelfUpgrade,
   type ItemUpgradeMethod
@@ -25,6 +35,7 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import { ISKROKAMIN_ITEM_ID } from "./itemGrant";
 import { FIELD_KIT_ITEM_ID } from "../domain/itemCraft";
+import { protectedMantokChestItemIds } from "../domain/mantokChest/mantokChestScore";
 
 export type ItemUpgradeListResult =
   | { state: "no-character" }
@@ -54,6 +65,36 @@ export interface ItemUpgradePresentedItem {
   isSetPiece: boolean;
   createdAt?: Date;
 }
+
+export interface ItemDismantlePresentedItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  enhancementLevel: number;
+  rarity: ItemContent["rarity"];
+  isSetPiece: boolean;
+  yield: number;
+  createdAt?: Date;
+}
+
+export type ItemDismantleListResult =
+  | Exclude<ItemUpgradeListResult, { state: "ready" }>
+  | { state: "ready"; character: CharacterSummary; items: ItemDismantlePresentedItem[] };
+
+export type ItemDismantlePreviewResult =
+  | Exclude<ItemUpgradeListResult, { state: "ready" }>
+  | { state: "not-owned" | "not-eligible" | "equipped" | "reserved" | "protected-last-copy" }
+  | {
+      state: "ready";
+      character: CharacterSummary;
+      item: ItemDismantlePresentedItem;
+      payment: "gold" | "mana";
+      paymentAmount: number;
+      available: number;
+      expectedRemortCount: number;
+      rulesFingerprint: string;
+      guard: string;
+    };
 
 export interface ItemUpgradeDonorOption {
   itemId: string;
@@ -346,6 +387,91 @@ export class ItemUpgradeService {
     };
   }
 
+  async listDismantleForTelegramUser(telegramUserId: bigint): Promise<ItemDismantleListResult> {
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) return { state: "no-character" };
+    const gated = getListGate(snapshot);
+    if (gated) return gated;
+    const excluded = new Set([
+      ...snapshot.items.filter((row) => row.equipped).map((row) => row.itemId),
+      ...(snapshot.reservedItemIds ?? [])
+    ]);
+    return {
+      state: "ready",
+      character: summarizeCharacter(snapshot.character),
+      items: snapshot.items.flatMap((row) => {
+        if (row.quantity <= 0 || excluded.has(row.itemId)) return [];
+        const presented = presentDismantleItem(row);
+        return presented ? [presented] : [];
+      })
+    };
+  }
+
+  async previewDismantleForTelegramUser(
+    telegramUserId: bigint,
+    itemId: string
+  ): Promise<ItemDismantlePreviewResult> {
+    const snapshot = await this.repository.getSnapshotForTelegramUser(telegramUserId, this.clock());
+    if (!snapshot) return { state: "no-character" };
+    const gated = getListGate(snapshot);
+    if (gated) return gated;
+    const row = snapshot.items.find((candidate) => candidate.itemId === itemId);
+    if (!row || row.quantity <= 0) return { state: "not-owned" };
+    if (row.equipped) return { state: "equipped" };
+    if (snapshot.reservedItemIds?.includes(itemId)) return { state: "reserved" };
+    const content = findItem(itemId);
+    if (!content) return { state: "not-eligible" };
+    const eligibility = getItemDismantleEligibility(content, row.quantity, protectedMantokChestItemIds);
+    if (eligibility !== "eligible") {
+      return { state: eligibility === "protected-last-copy" ? "protected-last-copy" : "not-eligible" };
+    }
+    const item = presentDismantleItem(row);
+    if (!item) return { state: "not-eligible" };
+    const payment = isMageClassForItemSelfUpgrade(snapshot.character.classId) ? "mana" : "gold";
+    const paymentAmount = payment === "mana" ? ITEM_DISMANTLE_MANA_COST : ITEM_DISMANTLE_GOLD_COST;
+    const expectedRemortCount = Math.max(0, Math.floor(snapshot.character.remortCount ?? 0));
+    const baseItemId = getBaseItemIdForUpgradeVariant(item.itemId);
+    const rulesFingerprint = buildItemDismantleRulesFingerprint({
+      baseItemId,
+      enhancementLevel: item.enhancementLevel,
+      baseRarity: item.rarity,
+      isSetPiece: item.isSetPiece,
+      yield: item.yield
+    });
+    return {
+      state: "ready",
+      character: summarizeCharacter(snapshot.character),
+      item,
+      payment,
+      paymentAmount,
+      available: payment === "mana" ? snapshot.character.manaCurrent : snapshot.character.gold,
+      expectedRemortCount,
+      rulesFingerprint,
+      guard: buildItemDismantleGuard({
+        characterId: snapshot.character.id,
+        remortCount: expectedRemortCount,
+        itemId: item.itemId,
+        baseItemId,
+        enhancementLevel: item.enhancementLevel,
+        baseRarity: item.rarity,
+        isSetPiece: item.isSetPiece,
+        expectedQuantity: item.quantity,
+        yield: item.yield,
+        payment,
+        paymentAmount,
+        rulesFingerprint
+      })
+    };
+  }
+
+  async dismantleForTelegramUser(
+    telegramUserId: bigint,
+    input: Omit<Parameters<NonNullable<ItemUpgradeRepository["dismantleForTelegramUser"]>>[1], "now">
+  ): Promise<ItemDismantleConfirmResult | { state: "unavailable" }> {
+    if (!this.repository.dismantleForTelegramUser) return { state: "unavailable" };
+    return this.repository.dismantleForTelegramUser(telegramUserId, { ...input, now: this.clock() });
+  }
+
   setPityForTelegramUser(
     telegramUserId: bigint,
     itemId: string,
@@ -468,6 +594,34 @@ function presentItem(
 function findItem(itemId: string): ItemContent | null {
   return findItemContent(itemId);
 }
+
+function presentDismantleItem(
+  row: { itemId: string; quantity: number; createdAt?: Date }
+): ItemDismantlePresentedItem | null {
+  const content = findItem(row.itemId);
+  if (!content || getItemDismantleEligibility(content, row.quantity, protectedMantokChestItemIds) !== "eligible") {
+    return null;
+  }
+  const enhancementLevel = getItemUpgradeLevelFromItemId(row.itemId);
+  const baseItemId = getBaseItemIdForUpgradeVariant(row.itemId);
+  const baseContent = findItem(baseItemId) ?? content;
+  const set = getMantokSetForItem(baseItemId);
+  return {
+    itemId: row.itemId,
+    name: getItemDisplayNameWithUpgrade(baseContent, enhancementLevel),
+    quantity: Math.max(0, Math.floor(row.quantity)),
+    enhancementLevel,
+    rarity: baseContent.rarity,
+    isSetPiece: Boolean(set),
+    yield: calculateItemDismantleYield({
+      baseRarity: baseContent.rarity,
+      enhancementLevel,
+      isSetPiece: Boolean(set)
+    }),
+    ...(row.createdAt ? { createdAt: row.createdAt } : {})
+  };
+}
+
 
 function parseStats(value: unknown) {
   const record = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};

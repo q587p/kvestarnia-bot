@@ -114,6 +114,17 @@ export interface TurnBasedDuelOutcome {
   reason: "defeat" | "surrender" | "max-turns" | "expired";
 }
 
+export interface TurnBasedDuelContributionDimensionsV1 {
+  damage: number;
+  healing: number;
+  guardPrevented: number;
+  control: number;
+  damageTaken: number;
+  actions: number;
+  specialActions: number;
+  guardedTurns: number;
+}
+
 export interface TurnBasedDuelState {
   mode: "turn-based";
   status: TurnBasedDuelStatus;
@@ -129,6 +140,11 @@ export interface TurnBasedDuelState {
   lastRound?: TurnBasedDuelRoundSummary;
   lastAction?: TurnBasedDuelActionSummary;
   outcome?: TurnBasedDuelOutcome;
+  statistics?: {
+    version: 1;
+    challenger: TurnBasedDuelContributionDimensionsV1;
+    target: TurnBasedDuelContributionDimensionsV1;
+  };
 }
 
 export interface TurnBasedDuelXpRewards {
@@ -183,6 +199,11 @@ export function buildTurnBasedDuelState(input: {
     participants: {
       challenger: buildParticipantSnapshot(input.prepared.challenger),
       target: buildParticipantSnapshot(input.prepared.target)
+    },
+    statistics: {
+      version: 1,
+      challenger: emptyTurnBasedDuelStatistics(),
+      target: emptyTurnBasedDuelStatistics()
     }
   };
 }
@@ -237,6 +258,7 @@ export function resolveTurnBasedDuelAction(input: {
     state.status = "forfeited";
     state.outcome = buildOutcome(state, defender.characterId, "surrender");
     state.lastAction = summary;
+    if (state.statistics) state.statistics[actorSide].actions += 1;
     const bardInspirationAfter = snapshotTurnBasedDuelInspiration(state);
     state.lastRound = {
       turn: state.turn,
@@ -340,8 +362,8 @@ function resolveQueuedRound(
 ): Extract<ResolveTurnBasedDuelActionResult, { ok: true; resolution: "resolved" }> {
   const pending = state.pendingActions;
   const mitigation = {
-    challenger: getQueuedIncomingDamageReduction(state, "challenger"),
-    target: getQueuedIncomingDamageReduction(state, "target")
+    challenger: getQueuedIncomingDamagePrevention(state, "challenger"),
+    target: getQueuedIncomingDamagePrevention(state, "target")
   };
   const mitigationMultiplier = {
     challenger: getQueuedIncomingDamageMultiplier(state, "challenger"),
@@ -365,7 +387,8 @@ function resolveQueuedRound(
 
     const summary = resolveQueuedCombatAction(state, side, queued, rng, {
       timeout: options.timeoutCharacterIds?.includes(queued.actorCharacterId) ?? false,
-      incomingDamageReduction: mitigation[defenderSideOf(side)],
+      incomingDamageReduction: mitigation[defenderSideOf(side)].amount,
+      incomingDamageReductionDimension: mitigation[defenderSideOf(side)].dimension,
       incomingDamageMultiplier: mitigationMultiplier[defenderSideOf(side)]
     });
     actions.push(summary);
@@ -429,11 +452,18 @@ function resolveQueuedCombatAction(
   actorSide: "challenger" | "target",
   queued: TurnBasedDuelQueuedAction,
   rng: RandomSource,
-  options: { timeout: boolean; incomingDamageReduction: number; incomingDamageMultiplier: number }
+  options: {
+    timeout: boolean;
+    incomingDamageReduction: number;
+    incomingDamageReductionDimension: "guard" | "control";
+    incomingDamageMultiplier: number;
+  }
 ): TurnBasedDuelActionSummary {
   const defenderSide = actorSide === "challenger" ? "target" : "challenger";
   const actor = state.participants[actorSide];
   const defender = state.participants[defenderSide];
+  const actorHpBefore = actor.hp;
+  const defenderHpBefore = defender.hp;
   const action = queued.action;
   const resolved = resolveActorCombatAction({
     actorState: {
@@ -478,6 +508,32 @@ function resolveQueuedCombatAction(
   defender.cooldowns = resolved.defenderState.cooldowns;
   defender.guard = resolved.defenderState.guard;
 
+  if (state.statistics) {
+    const actorStatistics = state.statistics[actorSide];
+    const defenderStatistics = state.statistics[defenderSide];
+    const actualDamage = Math.max(0, defenderHpBefore - defender.hp);
+    const actualSelfDamage = Math.max(0, actorHpBefore - resolved.actorState.hp);
+    const cappedRawDamage = Math.min(defenderHpBefore, resolved.summary.actorDamage);
+    const cappedGuardedDamage = Math.min(defenderHpBefore, reducedDamage);
+    const guardPrevented = Math.max(0, cappedRawDamage - cappedGuardedDamage);
+    const abilityPrevented = Math.max(
+      0,
+      cappedGuardedDamage - Math.min(defenderHpBefore, mitigatedDamage)
+    );
+    actorStatistics.damage += actualDamage;
+    defenderStatistics.damageTaken += actualDamage;
+    actorStatistics.damageTaken += actualSelfDamage;
+    defenderStatistics.guardPrevented += guardPrevented;
+    defenderStatistics[options.incomingDamageReductionDimension === "guard" ? "guardPrevented" : "control"] +=
+      abilityPrevented;
+    if (!options.timeout) {
+      actorStatistics.actions += 1;
+      if (action === "skill" || action === "race" || action === "gear") actorStatistics.specialActions += 1;
+      if (action === "defend") actorStatistics.guardedTurns += 1;
+    }
+    actorStatistics.healing += Math.max(0, Math.floor(support.healing ?? 0));
+  }
+
   const summary = {
     actorCharacterId: actor.characterId,
     defenderCharacterId: defender.characterId,
@@ -508,20 +564,20 @@ function resolveQueuedCombatAction(
   return summary;
 }
 
-function getQueuedIncomingDamageReduction(
+function getQueuedIncomingDamagePrevention(
   state: TurnBasedDuelState,
   side: "challenger" | "target"
-): number {
+): { amount: number; dimension: "guard" | "control" } {
   const queued = state.pendingActions?.[side];
 
   if (queued?.action !== "skill" && queued?.action !== "race" && queued?.action !== "gear") {
-    return 0;
+    return { amount: 0, dimension: "control" };
   }
 
   const participant = state.participants[side];
   const ability = getQueuedDuelAbilityProfile(participant, queued);
   if (!ability) {
-    return 0;
+    return { amount: 0, dimension: "control" };
   }
   const defender = state.participants[defenderSideOf(side)];
   const availability = queued.action === "gear"
@@ -540,9 +596,14 @@ function getQueuedIncomingDamageReduction(
     seed: buildTurnBasedDuelFumbleSeed(participant, defender)
   });
 
-  return availability.available && !fumblePreview.fumbled
-    ? Math.max(ability.monsterDamageReduction, ability.guardReduction ?? 0)
-    : 0;
+  if (!availability.available || fumblePreview.fumbled) {
+    return { amount: 0, dimension: "control" };
+  }
+  const control = Math.max(0, Math.floor(ability.monsterDamageReduction));
+  const guard = Math.max(0, Math.floor(ability.guardReduction ?? 0));
+  return guard >= control
+    ? { amount: guard, dimension: "guard" }
+    : { amount: control, dimension: "control" };
 }
 
 function applyTurnBasedDuelAbilitySupport(
@@ -872,8 +933,21 @@ function cloneTurnBasedDuelState(state: TurnBasedDuelState): TurnBasedDuelState 
           }
         }
       : {}),
-    ...(state.outcome ? { outcome: { ...state.outcome } } : {})
+    ...(state.outcome ? { outcome: { ...state.outcome } } : {}),
+    ...(state.statistics
+      ? {
+          statistics: {
+            version: 1,
+            challenger: { ...state.statistics.challenger },
+            target: { ...state.statistics.target }
+          }
+        }
+      : {})
   };
+}
+
+function emptyTurnBasedDuelStatistics(): TurnBasedDuelContributionDimensionsV1 {
+  return { damage: 0, healing: 0, guardPrevented: 0, control: 0, damageTaken: 0, actions: 0, specialActions: 0, guardedTurns: 0 };
 }
 
 function getOtherCharacterId(state: TurnBasedDuelState, characterId: string): string {
@@ -987,6 +1061,7 @@ function applySatedPulseAfterDuelExchange(
     participant.hp = pulse.resources.hp;
     participant.mana = pulse.resources.mana;
   }
+  if (state.statistics) state.statistics[side].healing += pulse.hpRestored;
   return pulse.hpRestored > 0 || pulse.manaRestored > 0
     ? { ...summary, satedRecovery: { hpRestored: pulse.hpRestored, manaRestored: pulse.manaRestored } }
     : summary;

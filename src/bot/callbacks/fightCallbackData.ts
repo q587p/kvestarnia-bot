@@ -19,6 +19,12 @@ export type FightCallback =
       action: CombatProbeAction;
     }
   | {
+      type: "mimic-statistics";
+      artifactToken: string;
+    }
+  | { type: "mimic-result"; artifactToken: string }
+  | { type: "mimic-journal"; artifactToken: string }
+  | {
       type: "turn";
       sessionId: string;
       turn: number;
@@ -51,6 +57,10 @@ export type FightCallback =
       page: number;
     }
   | {
+      type: "statistics";
+      sessionId: string;
+    }
+  | {
       type: "passage";
       passage: Extract<PlaceCallback, "deep-left" | "deep-straight" | "deep-right">;
       encounterToken: string;
@@ -60,12 +70,16 @@ export type FightCallback =
     };
 
 const MIMIC_PREFIX = "v1:fight:mimic";
+const MIMIC_STATISTICS_PREFIX = "v1:fight:mstats";
+const MIMIC_RESULT_PREFIX = "v1:fight:mview";
+const MIMIC_JOURNAL_PREFIX = "v1:fight:mlog";
 const TURN_PREFIX = "v1:fight:turn";
 const ITEM_PREFIX = "v1:fight:item";
 const ITEMS_PREFIX = "v1:fight:items";
 const GEAR_PREFIX = "v1:fight:gear";
 const VIEW_PREFIX = "v1:fight:view";
 const JOURNAL_PREFIX = "v1:fight:log";
+const STATISTICS_PREFIX = "v1:fight:stats";
 const PASSAGE_PREFIX = "v1:fight:pass";
 const TIER_TWO_CALLBACK = "v1:fight:tier2";
 const fightActions = new Set<CombatProbeAction>(["attack", "receipt", "flee"]);
@@ -123,6 +137,22 @@ export function makeFightJournalCallbackData(input: {
   page: number;
 }): string {
   return `${JOURNAL_PREFIX}:${input.sessionId}:${normalizePage(input.page)}`;
+}
+
+export function makeMimicFightStatisticsCallbackData(artifactToken: string): string {
+  return `${MIMIC_STATISTICS_PREFIX}:${artifactToken}`;
+}
+
+export function makeMimicFightResultCallbackData(artifactToken: string): string {
+  return `${MIMIC_RESULT_PREFIX}:${artifactToken}`;
+}
+
+export function makeMimicFightJournalCallbackData(artifactToken: string): string {
+  return `${MIMIC_JOURNAL_PREFIX}:${artifactToken}`;
+}
+
+export function makeFightStatisticsCallbackData(sessionId: string): string {
+  return `${STATISTICS_PREFIX}:${sessionId}`;
 }
 
 export function makeFightPassageAttackCallbackData(input: {
@@ -314,6 +344,41 @@ export function parseFightCallbackData(
       sessionId,
       page
     });
+  }
+
+  if (
+    data.startsWith(`${MIMIC_STATISTICS_PREFIX}:`) ||
+    data.startsWith(`${MIMIC_RESULT_PREFIX}:`) ||
+    data.startsWith(`${MIMIC_JOURNAL_PREFIX}:`)
+  ) {
+    const [, section, scene, artifactToken, ...rest] = data.split(":");
+    if (
+      section !== "fight" ||
+      (scene !== "mstats" && scene !== "mview" && scene !== "mlog") ||
+      rest.length > 0 ||
+      !artifactToken ||
+      !sessionIdPattern.test(artifactToken)
+    ) {
+      return err("invalid-prefix");
+    }
+    return ok({
+      type: scene === "mstats" ? "mimic-statistics" : scene === "mview" ? "mimic-result" : "mimic-journal",
+      artifactToken
+    });
+  }
+
+  if (data.startsWith(`${STATISTICS_PREFIX}:`)) {
+    const [, section, scene, sessionId, ...rest] = data.split(":");
+
+    if (section !== "fight" || scene !== "stats" || rest.length > 0) {
+      return err("invalid-prefix");
+    }
+
+    if (!sessionId || !sessionIdPattern.test(sessionId)) {
+      return err("invalid-prefix");
+    }
+
+    return ok({ type: "statistics", sessionId });
   }
 
   if (data.startsWith(`${PASSAGE_PREFIX}:`)) {

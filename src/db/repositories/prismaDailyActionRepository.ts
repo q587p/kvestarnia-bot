@@ -29,6 +29,14 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
     private readonly hpRecoveryProducer = new HpRecoveryNotificationProducer(false)
   ) {}
 
+  async findPublicArtifactById(actionId: string, input: { key: string }) {
+    const record = await this.prisma.dailyAction.findFirst({
+      where: { id: actionId, key: input.key }
+    });
+
+    return record ? { action: record } : null;
+  }
+
   async findForTelegramUser(
     telegramUserId: bigint,
     input: { key: string; localDate: string }
@@ -958,6 +966,22 @@ export class PrismaDailyActionRepository implements DailyActionRepository {
       orderBy: {
         createdAt: "asc"
       }
+    });
+  }
+
+  async listLatestForTelegramUser(
+    telegramUserId: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null> {
+    const character = await this.prisma.character.findFirst({
+      where: { user: { telegramUserId } },
+      select: { id: true }
+    });
+    if (!character) return null;
+    return this.prisma.dailyAction.findMany({
+      where: { characterId: character.id, key: input.key },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: Math.max(1, Math.min(23, Math.floor(input.take)))
     });
   }
 

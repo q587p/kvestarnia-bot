@@ -7,7 +7,11 @@ import type { PartySessionService } from "../../src/services/partySessionService
 import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/presenceService";
 import { registerSocialBotModule } from "../../src/bot/modules/social";
 import type { BotModuleDependencies } from "../../src/bot/modules/types";
-import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
+import {
+  makeGuildDeleteOpenCallbackData,
+  makeGuildLeaveOpenCallbackData,
+  parseGuildCallbackData
+} from "../../src/bot/callbacks/guildCallbackData";
 import { GUILD_CREST_CATALOG } from "../../src/domain/guild";
 import {
   GUILD_CREATION_DESCRIPTION_PROMPT_HEADING,
@@ -1334,6 +1338,141 @@ describe("guild command routes", () => {
     expect(text).not.toContain("12345678");
     expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:dl:1");
   });
+
+  it("requires an explicit yes before leaving a guild and keeps no strictly read-only", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const leaveForTelegramUser = vi.fn().mockResolvedValue({ state: "left", guildName: "Нічна" });
+    const getHubForTelegramUser = vi.fn().mockResolvedValue(readyGuildHub());
+    const edits: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") edits.push(payload);
+      return Promise.resolve(method === "answerCallbackQuery"
+        ? { ok: true, result: true }
+        : { ok: true, result: { message_id: 13 } });
+    });
+    registerSocialBotModule(bot, {
+      services: { guilds: guildService({ getHubForTelegramUser, leaveForTelegramUser }) },
+      options: {}
+    } as unknown as BotModuleDependencies);
+
+    await bot.handleUpdate(callbackUpdate(makeGuildLeaveOpenCallbackData(7), 201));
+
+    expect(leaveForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edits[0]?.text)).toContain("Підтвердити вихід із ґільдії?");
+    const confirmationButtons = confirmationCallbacks(edits[0]);
+    expect(confirmationButtons.map((button) => button.text)).toEqual([
+      "✅ Так, вийти",
+      "❌ Ні, лишитися"
+    ]);
+    const noCallback = confirmationButtons.find((button) => button.text.startsWith("❌"))?.callback_data;
+    expect(parseGuildCallbackData(noCallback)).toEqual({ ok: true, value: { type: "leave-cancel" } });
+
+    await bot.handleUpdate(callbackUpdate(noCallback ?? "", 202));
+
+    expect(leaveForTelegramUser).not.toHaveBeenCalled();
+    expect(getHubForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(String(edits[1]?.text)).toContain("Ви лишилися в ґільдії");
+
+    await bot.handleUpdate(callbackUpdate(makeGuildLeaveOpenCallbackData(7), 203));
+    const yesCallback = confirmationCallbacks(edits[2])
+      .find((button) => button.text.startsWith("✅"))?.callback_data;
+    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "leave-confirm", version: 7 } });
+
+    await bot.handleUpdate(callbackUpdate(yesCallback ?? "", 204));
+
+    expect(leaveForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(leaveForTelegramUser).toHaveBeenCalledWith(42n, 7);
+    expect(String(edits[3]?.text)).toContain("Ви вийшли з <b>Нічна</b>");
+  });
+
+  it("requires an explicit yes before disbanding a one-member guild", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const deleteForTelegramUser = vi.fn().mockResolvedValue({ state: "deleted", guildName: "Нічна" });
+    const getHubForTelegramUser = vi.fn().mockResolvedValue(readySoloLeaderGuildHub());
+    const edits: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") edits.push(payload);
+      return Promise.resolve(method === "answerCallbackQuery"
+        ? { ok: true, result: true }
+        : { ok: true, result: { message_id: 13 } });
+    });
+    registerSocialBotModule(bot, {
+      services: { guilds: guildService({ getHubForTelegramUser, deleteForTelegramUser }) },
+      options: {}
+    } as unknown as BotModuleDependencies);
+
+    await bot.handleUpdate(callbackUpdate(makeGuildDeleteOpenCallbackData(7), 205));
+
+    expect(deleteForTelegramUser).not.toHaveBeenCalled();
+    expect(confirmationCallbacks(edits[0]).map((button) => button.text)).toEqual([
+      "✅ Так, розпустити",
+      "❌ Ні, не розпускати"
+    ]);
+    const noCallback = confirmationCallbacks(edits[0])
+      .find((button) => button.text.startsWith("❌"))?.callback_data;
+    expect(parseGuildCallbackData(noCallback)).toEqual({ ok: true, value: { type: "delete-cancel" } });
+
+    await bot.handleUpdate(callbackUpdate(noCallback ?? "", 206));
+
+    expect(deleteForTelegramUser).not.toHaveBeenCalled();
+    expect(getHubForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(String(edits[1]?.text)).toContain("Ґільдію не розпущено");
+
+    await bot.handleUpdate(callbackUpdate(makeGuildDeleteOpenCallbackData(7), 207));
+    const yesCallback = confirmationCallbacks(edits[2])
+      .find((button) => button.text.startsWith("✅"))?.callback_data;
+    expect(parseGuildCallbackData(yesCallback)).toEqual({ ok: true, value: { type: "delete-confirm", version: 7 } });
+
+    await bot.handleUpdate(callbackUpdate(yesCallback ?? "", 208));
+
+    expect(deleteForTelegramUser).toHaveBeenCalledTimes(1);
+    expect(deleteForTelegramUser).toHaveBeenCalledWith(42n, 7);
+    expect(String(edits[3]?.text)).toContain("<b>Нічна</b> розпущено");
+  });
+
+  it.each([
+    ["v1:g:l:7", "leave" as const],
+    ["v1:g:z:7", "delete" as const]
+  ])("treats literal deployed legacy callback %s as read-only intent", async (literal, action) => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const leaveForTelegramUser = vi.fn();
+    const deleteForTelegramUser = vi.fn();
+    const edits: Array<Record<string, unknown>> = [];
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "editMessageText") edits.push(payload);
+      return Promise.resolve(method === "answerCallbackQuery"
+        ? { ok: true, result: true }
+        : { ok: true, result: { message_id: 13 } });
+    });
+    registerSocialBotModule(bot, {
+      services: {
+        guilds: guildService({
+          getHubForTelegramUser: vi.fn().mockResolvedValue(
+            action === "leave" ? readyGuildHub() : readySoloLeaderGuildHub()
+          ),
+          leaveForTelegramUser,
+          deleteForTelegramUser
+        })
+      },
+      options: {}
+    } as unknown as BotModuleDependencies);
+
+    await bot.handleUpdate(callbackUpdate(literal, action === "leave" ? 209 : 210));
+
+    expect(leaveForTelegramUser).not.toHaveBeenCalled();
+    expect(deleteForTelegramUser).not.toHaveBeenCalled();
+    expect(String(edits[0]?.text)).toContain(action === "leave"
+      ? "Підтвердити вихід із ґільдії?"
+      : "Підтвердити розпуск ґільдії?");
+    const affirmative = confirmationCallbacks(edits[0]).find((button) => button.text.startsWith("✅"))?.callback_data;
+    expect(affirmative).toBe(action === "leave" ? "v1:g:ly:7" : "v1:g:zy:7");
+  });
 });
 
 function guildService(overrides: Partial<GuildService>): GuildService {
@@ -1487,11 +1626,11 @@ function arbitraryPhotoUpdate(updateId: number) {
   };
 }
 
-function callbackUpdate(data: string) {
+function callbackUpdate(data: string, updateId = 93) {
   return {
-    update_id: 93,
+    update_id: updateId,
     callback_query: {
-      id: "callback-93",
+      id: `callback-${updateId}`,
       from: { id: 42, is_bot: false, first_name: "Тест" },
       chat_instance: "test",
       data,
@@ -1503,6 +1642,58 @@ function callbackUpdate(data: string) {
       }
     }
   };
+}
+
+function readyGuildHub() {
+  return {
+    state: "ready" as const,
+    guild: {
+      id: "guild-night",
+      displayName: "Нічна",
+      normalizedName: "нічна",
+      crest: "🦉",
+      description: "Тихо, поки ніхто не дивиться.",
+      status: "active" as const,
+      charterExpiresAt: null,
+      version: 7,
+      viewerRole: "member" as const,
+      memberCount: 2,
+      members: [
+        { id: "member-leader", name: "Голова", role: "leader" as const },
+        { id: "member-viewer", name: "Тест", role: "member" as const }
+      ],
+      outgoingInvites: [],
+      page: 0,
+      hasPreviousPage: false,
+      hasNextPage: false,
+      leadershipNomineeName: null,
+      viewerIsLeadershipNominee: false
+    },
+    incomingInvites: []
+  };
+}
+
+function readySoloLeaderGuildHub() {
+  const hub = readyGuildHub();
+  return {
+    ...hub,
+    guild: {
+      ...hub.guild,
+      viewerRole: "leader" as const,
+      memberCount: 1,
+      members: [{ id: "member-leader", name: "Тест", role: "leader" as const }]
+    }
+  };
+}
+
+function confirmationCallbacks(payload: Record<string, unknown> | undefined): Array<{
+  text: string;
+  callback_data?: string;
+}> {
+  const markup = payload?.reply_markup as {
+    inline_keyboard?: Array<Array<{ text: string; callback_data?: string }>>;
+  } | undefined;
+  return markup?.inline_keyboard?.flat() ?? [];
 }
 
 function makePartySession(): PartySessionRecord {

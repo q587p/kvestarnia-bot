@@ -18,6 +18,7 @@ import {
   makePartyBossItemsMenuCallbackData,
   makePartyBossItemUseCallbackData,
   makePartyBossJournalCallbackData,
+  makePartyBossStatisticsCallbackData,
   makePartyBossStartCallbackData,
   makePartyBossTimeoutCallbackData,
   makePartyRaidChatComposeCallbackData,
@@ -308,6 +309,10 @@ export function buildPartyBossKeyboard(
       label: "📜 Журнал",
       callbackData: makePartyBossJournalCallbackData(session.partyInviteToken)
     });
+    utilityButtons.push({
+      label: "📊 Статистика",
+      callbackData: makePartyBossStatisticsCallbackData(session.partyInviteToken)
+    });
   }
   if (options.includeRaidChat && viewer) {
     utilityButtons.push({
@@ -327,6 +332,10 @@ export function buildPartyBossKeyboard(
       callbackData: makePartySessionViewCallbackData(session.partyInviteToken)
     }
   });
+}
+
+export function buildPartyBossStatisticsKeyboard(session: PartyBossSessionRecord): InlineKeyboard {
+  return new InlineKeyboard().text("↩️ До результатів", makePartySessionViewCallbackData(session.partyInviteToken));
 }
 
 export function buildPartyRaidChatKeyboard(input: {

@@ -19,6 +19,10 @@ export interface DailyActionRecord {
   createdAt: Date;
 }
 
+export interface PublicDailyActionArtifactRecord {
+  action: DailyActionRecord;
+}
+
 export interface ItemGrant {
   itemId: string;
   quantity: number;
@@ -139,6 +143,11 @@ export type ClaimDailyActionResult =
     };
 
 export interface DailyActionRepository {
+  findPublicArtifactById?(
+    actionId: string,
+    input: { key: string }
+  ): Promise<PublicDailyActionArtifactRecord | null>;
+
   findForTelegramUser(
     telegramUserId: bigint,
     input: { key: string; localDate: string }
@@ -148,6 +157,11 @@ export interface DailyActionRepository {
     telegramUserId: bigint,
     input: { key: string }
   ): Promise<DailyActionRecord | null>;
+
+  listLatestForTelegramUser?(
+    telegramUserId: bigint,
+    input: { key: string; take: number }
+  ): Promise<DailyActionRecord[] | null>;
 
   claimForTelegramUser(
     telegramUserId: bigint,

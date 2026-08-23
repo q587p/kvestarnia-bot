@@ -11,8 +11,48 @@ import type {
   TrainingDoppelgangerService,
   TrainingDoppelgangerStartMode
 } from "../../src/services/trainingDoppelgangerService";
+import {
+  findTerminalBattleArtifactShareButtons,
+  inspectSingleTerminalBattleArtifactShare
+} from "../helpers/terminalBattleArtifactShare";
 
 describe("training doppelganger command", () => {
+  it("reopens a terminal Training result with one typed capability share URL", async () => {
+    const replies: Array<{ text: string; options: unknown }> = [];
+    const terminalSession = trainingSession();
+    terminalSession.status = "won";
+    terminalSession.state = {
+      ...terminalSession.state,
+      status: "won",
+      completedAt: "2026-07-02T10:00:00.000Z",
+      settlement: { status: "completed", version: 1 }
+    } as SoloCombatSessionRecord["state"];
+    const service = new FakeTrainingDoppelgangerService({
+      state: "terminal",
+      character: character(),
+      doppelganger: doppelganger(),
+      session: terminalSession,
+      reward: null
+    });
+
+    await sendTrainingDoppelganger(
+      makeContext(replies),
+      service as unknown as TrainingDoppelgangerService,
+      "reply",
+      {
+        presence: capturingPresence(),
+        now: () => new Date("2026-07-02T10:00:00.000Z")
+      }
+    );
+
+    const replyMarkup = (replies[0]?.options as { reply_markup?: unknown }).reply_markup;
+    expect(inspectSingleTerminalBattleArtifactShare(replyMarkup).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "training",
+      token: terminalSession.id
+    });
+  });
+
   it("keeps durable terminal progress when its Telegram notification fails", async () => {
     const terminalSession = trainingSession();
     terminalSession.status = "won";
@@ -222,6 +262,7 @@ describe("training doppelganger command", () => {
         presence,
         requireKorchmaInterior: true,
         startMode: "copy-target",
+        botUsername: "kvestarnia_bot",
         now: () => new Date("2026-07-02T10:00:00.000Z")
       }
     );
@@ -242,6 +283,9 @@ describe("training doppelganger command", () => {
     expect(replies[1]?.text).toContain("<blockquote><i>");
     expect((replies[1]?.options as { parse_mode?: string }).parse_mode).toBe("HTML");
     expect(JSON.stringify(replies[1]?.options)).toContain("v1:spar:turn");
+    expect(findTerminalBattleArtifactShareButtons(
+      (replies[1]?.options as { reply_markup?: unknown }).reply_markup
+    )).toEqual([]);
   });
 
   it("shows a doppelganger target choice before starting /spar", async () => {
@@ -322,6 +366,12 @@ describe("training doppelganger command", () => {
 
 function makeContext(replies: Array<{ text: string; options: unknown }>): Context {
   return {
+    me: {
+      id: 123456,
+      is_bot: true,
+      first_name: "Квестарня",
+      username: "kvestarnia_bot"
+    },
     from: {
       id: 42,
       first_name: "Тестовий"

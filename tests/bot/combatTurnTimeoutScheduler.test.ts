@@ -32,6 +32,13 @@ import type {
 } from "../../src/services/trainingDoppelgangerService";
 import type { TelegramUserProfile } from "../../src/db/repositories/userRepository";
 import { FakeRandomSource } from "../../src/shared/random";
+import {
+  findTerminalBattleArtifactShareButtons,
+  inspectSingleTerminalBattleArtifactShare
+} from "../helpers/terminalBattleArtifactShare";
+
+const terminalSoloId = "123e4567-e89b-42d3-a456-426614174010";
+const terminalTrainingId = "123e4567-e89b-42d3-a456-426614174011";
 
 const character: CharacterSummary = {
   name: "Мандрівник",
@@ -165,6 +172,7 @@ describe("combat turn timeout scheduler", () => {
     expect(editCall?.[2]).toContain("❤️ Ви:");
     expect(editCall?.[3]?.parse_mode).toBe("HTML");
     expect(editCall?.[3]?.reply_markup?.inline_keyboard).toEqual(expect.any(Array));
+    expect(findTerminalBattleArtifactShareButtons(editCall?.[3]?.reply_markup)).toEqual([]);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -246,7 +254,12 @@ describe("combat turn timeout scheduler", () => {
 
   it("records a replacement terminal card reference when Telegram cannot edit the old persistent card", async () => {
     const dueSession = persistentSession();
-    const session = terminalPersistentSession();
+    const baseSession = terminalPersistentSession();
+    const session = {
+      ...baseSession,
+      id: terminalSoloId,
+      state: { ...baseSession.state!, id: terminalSoloId }
+    };
     const result: PersistentFightTimeoutResult = {
       state: "terminal",
       telegramUserId: 42n,
@@ -278,15 +291,22 @@ describe("combat turn timeout scheduler", () => {
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
     scheduler.stop();
 
-    expect(fight.recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+    expect(fight.recordPersistentFightMessageReference).toHaveBeenCalledWith(42n, terminalSoloId, {
       chatId: "42",
       messageId: 589
     });
+    expect(inspectSingleTerminalBattleArtifactShare(sendMessage.mock.calls[0]?.[2]?.reply_markup).parsed)
+      .toMatchObject({ kind: "solo", token: terminalSoloId });
   });
 
   it("records a replacement terminal card reference when Telegram cannot edit the old training card", async () => {
     const dueSession = trainingSession();
-    const session = terminalTrainingSession();
+    const baseSession = terminalTrainingSession();
+    const session = {
+      ...baseSession,
+      id: terminalTrainingId,
+      state: { ...baseSession.state!, id: terminalTrainingId }
+    };
     const result: TrainingDoppelgangerTimeoutResult = {
       state: "terminal",
       telegramUserId: 42n,
@@ -323,10 +343,12 @@ describe("combat turn timeout scheduler", () => {
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
     scheduler.stop();
 
-    expect(training.recordTrainingDoppelgangerMessageReference).toHaveBeenCalledWith(42n, "session-1", {
+    expect(training.recordTrainingDoppelgangerMessageReference).toHaveBeenCalledWith(42n, terminalTrainingId, {
       chatId: "42",
       messageId: 590
     });
+    expect(inspectSingleTerminalBattleArtifactShare(sendMessage.mock.calls[0]?.[2]?.reply_markup).parsed)
+      .toMatchObject({ kind: "training", token: terminalTrainingId });
   });
 
   it("keeps terminal training settled when the best-effort quest notification fails", async () => {
@@ -408,6 +430,12 @@ function fakeBot(overrides: FakeBotOverrides = {}): FakeBot {
 
   return {
     bot: {
+      botInfo: {
+        id: 123456,
+        is_bot: true,
+        first_name: "Квестарня",
+        username: "kvestarnia_bot"
+      },
       api: {
         editMessageText,
         sendMessage

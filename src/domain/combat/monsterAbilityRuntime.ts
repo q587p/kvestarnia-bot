@@ -166,6 +166,10 @@ export interface ResolvedMonsterRuntimeAction {
   effectText?: string;
   telegraphAbility?: MonsterAbilityDefinition;
   responseItemDelta?: CombatResponseItemDelta;
+  healing?: number;
+  control?: number;
+  heroGuardPrevented?: number;
+  heroControlPrevented?: number;
 }
 
 export interface MonsterRuntimeDirectHitModifierResult {
@@ -1630,10 +1634,11 @@ export function isHeroClassSkillLockedByMonster(state: CombatState): boolean {
 export function applyHeroActivationMonsterEffects(state: CombatState): {
   state: CombatState;
   damage: number;
+  actualDamage: number;
 } {
   const runtime = cloneMonsterAbilityRuntimeState(state.monsterRuntime);
   if (!runtime) {
-    return { state, damage: 0 };
+    return { state, damage: 0, actualDamage: 0 };
   }
 
   let damage = 0;
@@ -1667,9 +1672,10 @@ export function applyHeroActivationMonsterEffects(state: CombatState): {
   runtime.effects = effects;
   runtime.expiredEffectIds = boundExpiredEffectIds(expired);
   state.monsterRuntime = runtime;
+  const hpBefore = state.hero.hp;
   state.hero.hp = Math.max(0, state.hero.hp - damage);
 
-  return { state, damage };
+  return { state, damage, actualDamage: Math.max(0, hpBefore - state.hero.hp) };
 }
 
 export interface MonsterShieldDamageResult {
@@ -1705,10 +1711,17 @@ export function applyMonsterRuntimeHeroDamage(input: {
   monsterHpBeforeDamage: number;
   heroAction?: CombatActionType;
   rng?: RandomSource;
-}): { heroDamage: number; reflectedDamage: number } {
+}): { heroDamage: number; reflectedDamage: number; guardPrevented: number } {
   const runtime = input.state.monsterRuntime;
   if (!runtime) {
-    return { heroDamage: input.heroDamage, reflectedDamage: 0 };
+    return {
+      heroDamage: Math.min(
+        Math.max(0, Math.floor(input.monsterHpBeforeDamage)),
+        Math.max(0, Math.floor(input.heroDamage))
+      ),
+      reflectedDamage: 0,
+      guardPrevented: 0
+    };
   }
 
   let incomingDamage = Math.max(0, input.heroDamage);
@@ -1721,7 +1734,7 @@ export function applyMonsterRuntimeHeroDamage(input: {
   }
 
   if (incomingDamage <= 0) {
-    return { heroDamage: 0, reflectedDamage: 0 };
+    return { heroDamage: 0, reflectedDamage: 0, guardPrevented: 0 };
   }
 
   const shield = runtime.shield;
@@ -1767,7 +1780,11 @@ export function applyMonsterRuntimeHeroDamage(input: {
     input.state.hero.hp = Math.max(0, input.state.hero.hp - totalReflectedDamage);
   }
 
-  return { heroDamage: shieldResult.appliedDamage, reflectedDamage: totalReflectedDamage };
+  return {
+    heroDamage: shieldResult.appliedDamage,
+    reflectedDamage: totalReflectedDamage,
+    guardPrevented: shieldResult.absorbed
+  };
 }
 
 export function applyMonsterShieldToHeroDamage(input: {
@@ -2194,6 +2211,10 @@ function commitMonsterAbility(input: {
     actionKind: "ability",
     ability: input.ability,
     damageKind: getAbilityDamageKind(input.ability),
+    healing: effect.healing,
+    control: effect.control,
+    heroGuardPrevented: effect.heroGuardPrevented,
+    heroControlPrevented: effect.heroControlPrevented,
     ...(effect.responseItemDelta?.eligible ? { responseItemDelta: effect.responseItemDelta } : {}),
     ...(effect.text ? { effectText: effect.text } : {})
   };
@@ -2210,7 +2231,15 @@ function resolveMonsterAbilityEffects(input: {
   defendStance?: MonsterRuntimeDefendStance | undefined;
   wasTelegraphed: boolean;
   responseItemEffect?: CombatResponseItemEffect | undefined;
-}): { damage: number; text?: string; responseItemDelta?: CombatResponseItemDelta } {
+}): {
+  damage: number;
+  healing: number;
+  control: number;
+  heroGuardPrevented: number;
+  heroControlPrevented: number;
+  text?: string;
+  responseItemDelta?: CombatResponseItemDelta;
+} {
   const params = input.ability.parameters;
   const multiplier = getDamageMultiplier(input);
   const hitChance = Math.max(
@@ -2224,6 +2253,8 @@ function resolveMonsterAbilityEffects(input: {
     )
   );
   let damage = 0;
+  let damageBeforeControl = 0;
+  let damageBeforeGuard = 0;
   let directHitLanded = false;
 
   if (multiplier > 0 && input.rng.nextFloat() < hitChance) {
@@ -2234,7 +2265,9 @@ function resolveMonsterAbilityEffects(input: {
         multiplier *
         (input.monster.contextModifiers?.outgoingDamageMultiplier ?? 1);
       const defense = getHeroDefenseForAbility(input.ability, input.hero);
-      damage = Math.max(1, Math.floor(raw) - defense - input.damageReduction);
+      damageBeforeControl = Math.max(1, Math.floor(raw) - defense);
+      damage = Math.max(1, damageBeforeControl - input.damageReduction);
+      damageBeforeGuard = damage;
 
       if (input.defendStance) {
         damage = Math.max(1, Math.floor(damage * (1 - input.defendStance.damageReduction)));
@@ -2242,15 +2275,30 @@ function resolveMonsterAbilityEffects(input: {
 
       if (input.wasTelegraphed) {
         damage = Math.max(1, Math.floor(damage * 1.18));
+        damageBeforeControl = Math.max(1, Math.floor(damageBeforeControl * 1.18));
+        damageBeforeGuard = Math.max(1, Math.floor(damageBeforeGuard * 1.18));
       }
 
-      damage = consumeMonsterRuntimeDirectHitModifiers({
+      const modified = consumeMonsterRuntimeDirectHitModifiers({
         state: input.state,
         damage
-      }).damage;
+      });
+      damage = modified.damage;
+      damageBeforeControl = Math.max(1, Math.floor(damageBeforeControl * modified.markMultiplier));
+      damageBeforeGuard = Math.max(1, Math.floor(damageBeforeGuard * modified.markMultiplier));
       directHitLanded = damage > 0;
     }
   }
+
+  const hpBefore = input.state.hero.hp;
+  const heroControlPrevented = Math.max(
+    0,
+    Math.min(hpBefore, damageBeforeControl) - Math.min(hpBefore, damageBeforeGuard)
+  );
+  const heroGuardPrevented = Math.max(
+    0,
+    Math.min(hpBefore, damageBeforeGuard) - Math.min(hpBefore, damage)
+  );
 
   const plan = compileMonsterAbilityExecutionPlan(input);
   const responseItemDelta = resolveCombatResponseItemDelta(
@@ -2264,17 +2312,33 @@ function resolveMonsterAbilityEffects(input: {
     },
     input.responseItemEffect
   );
-  const effectTexts = plan.components
-    .map((component) => applyMonsterAbilityPlanComponent(input, component, {
+  const appliedComponents = plan.components
+    .map((component) => ({
+      component,
+      result: applyMonsterAbilityPlanComponent(input, component, {
       directHitLanded,
       suppressHarmfulHeroDirectHit: responseItemDelta.suppressHarmfulOnHitConsequences
-    }))
-    .filter((result) => result.applied)
-    .map((result) => result.text)
+      })
+    }));
+  const effectTexts = appliedComponents
+    .filter(({ result }) => result.applied)
+    .map(({ result }) => result.text)
     .filter((text): text is string => Boolean(text));
+  const healing = appliedComponents.reduce(
+    (sum, { result }) => sum + Math.max(0, Math.floor(result.healing ?? 0)),
+    0
+  );
+  const control = appliedComponents.reduce(
+    (sum, { component, result }) => sum + (result.applied && isMonsterControlComponent(component) ? 1 : 0),
+    0
+  );
 
   return {
     damage: responseItemDelta.damageAfter,
+    healing,
+    control,
+    heroGuardPrevented,
+    heroControlPrevented,
     ...(responseItemDelta.eligible ? { responseItemDelta } : {}),
     ...(effectTexts.length > 0 ? { text: effectTexts[0] } : {})
   };
@@ -2288,7 +2352,7 @@ function applyMonsterAbilityPlanComponent(
   },
   component: MonsterAbilityPlanComponent,
   context: { directHitLanded: boolean; suppressHarmfulHeroDirectHit: boolean }
-): { applied: boolean; text?: string } {
+): { applied: boolean; healing?: number; text?: string } {
   if (component.trigger === "on-shield-survived") {
     return { applied: false };
   }
@@ -2307,7 +2371,7 @@ function applyMonsterAbilityPlanComponent(
     case "heal": {
       const healed = healMonster(input.state, component.value ?? 0);
       return healed > 0
-        ? { applied: true, text: `монстр відновив ${healed} HP` }
+        ? { applied: true, healing: healed, text: `монстр відновив ${healed} HP` }
         : { applied: false };
     }
     case "shield": {
@@ -2376,6 +2440,20 @@ function applyMonsterAbilityPlanComponent(
     case "runtime-effect":
       return addRuntimeEffectFromComponent(input, component);
   }
+}
+
+function isMonsterControlComponent(component: MonsterAbilityPlanComponent): boolean {
+  if (
+    component.kind === "mana-drain" ||
+    component.kind === "cleanse" ||
+    component.kind === "remove-positive" ||
+    component.kind === "cooldown-pressure" ||
+    component.kind === "reapply-expired"
+  ) {
+    return true;
+  }
+
+  return component.kind === "runtime-effect" && isHarmfulHeroComponent(component);
 }
 
 function countActualHarmfulHeroOnHitConsequences(

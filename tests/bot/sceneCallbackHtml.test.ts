@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBot, type BotServices } from "../../src/bot/createBot";
+import {
+  findTerminalBattleArtifactShareButtons,
+  inspectSingleTerminalBattleArtifactShare
+} from "../helpers/terminalBattleArtifactShare";
 import { DuelChallengeService, type DuelChallengeView } from "../../src/services/duelChallengeService";
 import type {
   DuelChallengeRecord,
@@ -32,10 +36,16 @@ import {
   makeFightItemsCallbackData,
   makeFightItemUseCallbackData,
   makeFightJournalCallbackData,
+  makeFightStatisticsCallbackData,
+  makeMimicFightStatisticsCallbackData,
   makeFightTurnCallbackData,
   makeFightViewCallbackData
 } from "../../src/bot/callbacks/fightCallbackData";
-import { makeTrainingDoppelgangerTurnCallbackData } from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
+import {
+  makeTrainingDoppelgangerModeCallbackData,
+  makeTrainingDoppelgangerStatisticsCallbackData,
+  makeTrainingDoppelgangerTurnCallbackData
+} from "../../src/bot/callbacks/trainingDoppelgangerCallbackData";
 import { makeDuelTurnCallbackData } from "../../src/bot/callbacks/duelCallbackData";
 import { makeDevHelpCallbackData } from "../../src/bot/callbacks/devHelpCallbackData";
 import { makeHelpCallbackData } from "../../src/bot/callbacks/helpCallbackData";
@@ -47,7 +57,12 @@ import {
   makeInventoryPagePromptCallbackData,
   makeItemDetailCallbackData
 } from "../../src/bot/callbacks/itemCallbackData";
-import { makeItemUpgradePreviewCallbackData } from "../../src/bot/callbacks/itemUpgradeCallbackData";
+import {
+  makeItemDismantleConfirmCallbackData,
+  makeItemDismantleListCallbackData,
+  makeItemDismantlePreviewCallbackData,
+  makeItemUpgradePreviewCallbackData
+} from "../../src/bot/callbacks/itemUpgradeCallbackData";
 import { makeItemUsePreviewCallbackData } from "../../src/bot/callbacks/itemUseCallbackData";
 import {
   makeLevelBarterAutoCallbackData,
@@ -115,6 +130,8 @@ type RecordPersistentFightMessageReferenceMock = (
   sessionId: string,
   reference: { chatId: string; messageId: number }
 ) => Promise<void>;
+
+const TERMINAL_LINK_ROUTE_SESSION_ID = "123e4567-e89b-42d3-a456-426614174040";
 
 describe("scene callback HTML options", () => {
   afterEach(() => {
@@ -2970,6 +2987,129 @@ describe("scene callback HTML options", () => {
     expect(perfCalls[0]?.[1]).not.toHaveProperty("telegramUserId");
     expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(String(telegramUserId));
     expect(JSON.stringify(perfCalls[0]?.[1])).not.toContain(failure.message);
+  });
+
+  it.each(["completed", "already-completed"] as const)(
+    "puts one typed capability share URL on the first Mimic %s card",
+    async (state) => {
+      const artifactToken = "123e4567-e89b-42d3-a456-426614174002";
+      const result = state === "completed"
+        ? {
+            state,
+            action: "attack" as const,
+            character,
+            combat: {
+              action: "attack" as const,
+              playerDamage: 14,
+              enemyDamage: 0,
+              playerHpPreview: 20,
+              playerHpMaxPreview: 20,
+              enemyHpPreview: 0,
+              enemyHpMaxPreview: 14
+            },
+            reward: { xp: 9, gold: 3, localDate: "12026-08-23", itemGrants: [] },
+            levelChange: noLevelChange,
+            achievementUnlocks: [],
+            artifactToken
+          }
+        : {
+            state,
+            character,
+            questAvailable: true,
+            localDate: "12026-08-23",
+            artifactToken
+          };
+      const calls = await captureApiCalls(
+        makeFightCallbackData("attack"),
+        servicesWith({
+          fight: { completeMimicShawarma: () => Promise.resolve(result) }
+        }),
+        { botUsername: "kvestarnia_bot" }
+      );
+      const edit = calls.find((call) => call.method === "editMessageText");
+
+      expect(inspectSingleTerminalBattleArtifactShare(edit?.payload.reply_markup).parsed).toEqual({
+        type: "terminal-battle-artifact",
+        kind: "mimic",
+        token: artifactToken
+      });
+    }
+  );
+
+  it("routes the Forge dismantling list, preview, and guarded confirmation", async () => {
+    const item = {
+      itemId: "item.pan-of-persuasion",
+      name: "Пательня переконання",
+      quantity: 2,
+      enhancementLevel: 0,
+      rarity: "common" as const,
+      isSetPiece: false,
+      yield: 1
+    };
+    const listDismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      character,
+      items: [item]
+    });
+    const previewDismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready" as const,
+      character,
+      item,
+      payment: "gold" as const,
+      paymentAmount: 5,
+      available: 100,
+      expectedRemortCount: 0,
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    });
+    const dismantleForTelegramUser = vi.fn().mockResolvedValue({
+      state: "dismantled" as const,
+      character,
+      itemId: item.itemId,
+      quantityBefore: 2,
+      yield: 1,
+      payment: "gold" as const,
+      paymentAmount: 5,
+      iskrokaminAfter: 14,
+      receiptId: "receipt-13"
+    });
+    const services = servicesWith({
+      itemUpgrades: {
+        listDismantleForTelegramUser,
+        previewDismantleForTelegramUser,
+        dismantleForTelegramUser
+      }
+    });
+
+    const listCalls = await captureApiCalls(makeItemDismantleListCallbackData(), services);
+    const previewCalls = await captureApiCalls(makeItemDismantlePreviewCallbackData(item.itemId), services);
+    const confirmCalls = await captureApiCalls(makeItemDismantleConfirmCallbackData({
+      itemId: item.itemId,
+      expectedQuantity: 2,
+      expectedRemortCount: 0,
+      expectedYield: 1,
+      payment: "gold",
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    }), services);
+
+    expect(listDismantleForTelegramUser).toHaveBeenCalledWith(42n);
+    expect(previewDismantleForTelegramUser).toHaveBeenCalledWith(42n, item.itemId);
+    expect(dismantleForTelegramUser).toHaveBeenCalledWith(42n, {
+      itemId: item.itemId,
+      expectedQuantity: 2,
+      expectedRemortCount: 0,
+      expectedYield: 1,
+      payment: "gold",
+      rulesFingerprint: "1234abcd",
+      guard: "abcd1234"
+    });
+    expect(String(listCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("Розбір манатки");
+    expect(String(previewCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("<b>5</b> золота");
+    expect(String(confirmCalls.find((call) => call.method === "editMessageText")?.payload.text))
+      .toContain("Отримано: <b>1</b> Іскрокаменю");
   });
 
   it("logs one terminal Mantok confirm record when achievement delivery fails", async () => {
@@ -6815,6 +6955,7 @@ describe("scene callback HTML options", () => {
           getActiveTurnBasedForTelegramUser: vi.fn().mockResolvedValue(null),
           getTurnBasedSessionByToken: vi.fn().mockResolvedValue(resolved.session),
           getByToken: vi.fn().mockResolvedValue(resolved.view),
+          getTerminalResultByToken: vi.fn().mockResolvedValue({ state: "not-terminal" }),
           resolveTurnBasedActionForTelegramUser
         } as unknown as BotServices["duel"],
         tavern: pendingFridayBarrelServices()
@@ -7377,6 +7518,7 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("🪞 Копія");
     expect(JSON.stringify(reply?.payload.reply_markup)).not.toContain("До справ");
+    expect(findTerminalBattleArtifactShareButtons(reply?.payload.reply_markup)).toEqual([]);
   });
 
   it("renders a terminal training result when the combat lock catches an expired turn", async () => {
@@ -7413,7 +7555,8 @@ describe("scene callback HTML options", () => {
               }
             })
         }
-      })
+      }),
+      { botUsername: "kvestarnia_bot" }
     );
     const reply = calls.find((call) => call.method === "sendMessage");
     const keyboard = JSON.stringify(reply?.payload.reply_markup);
@@ -7422,6 +7565,11 @@ describe("scene callback HTML options", () => {
     expect(String(reply?.payload.text)).not.toContain("Тренування вже триває");
     expect(keyboard).toContain("fighting-corner");
     expect(keyboard).not.toContain("v1:spar:turn");
+    expect(inspectSingleTerminalBattleArtifactShare(reply?.payload.reply_markup).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "training",
+      token: terminalTrainingSession().id
+    });
   });
 
   it("keeps main-menu text inside an active starter mimic fight", async () => {
@@ -7444,13 +7592,15 @@ describe("scene callback HTML options", () => {
               currentAdventureId: "adventure.mimic-shawarma-fight"
             })
         }
-      })
+      }),
+      { botUsername: "kvestarnia_bot" }
     );
     const reply = calls.find((call) => call.method === "sendMessage");
 
     expect(String(reply?.payload.text)).toContain("⚔️ <b>Бій тримає вас за рукав</b>");
     expect(String(reply?.payload.text)).toContain("Сутичка з підозрілим монстром");
     expect(JSON.stringify(reply?.payload.reply_markup)).not.toContain("До справ");
+    expect(findTerminalBattleArtifactShareButtons(reply?.payload.reply_markup)).toEqual([]);
   });
 
   it("keeps Help text available during an active fight", async () => {
@@ -7665,6 +7815,299 @@ describe("scene callback HTML options", () => {
     expect(resolvePersistentFightTurn).toHaveBeenCalledTimes(1);
     expect(resolveTrainingTurn).toHaveBeenCalledTimes(1);
     expect(completeMimicShawarma).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds one typed capability share URL when an interactive solo turn completes combat", async () => {
+    const sessionId = "123e4567-e89b-42d3-a456-426614174030";
+    const result = persistentUpdatedResult({
+      sessionId,
+      status: "won",
+      tags: ["beast"],
+      settled: true
+    });
+    const calls = await captureApiCalls(
+      makeFightTurnCallbackData({ sessionId, turn: 1, action: "attack" }),
+      servicesWith({
+        fight: { resolvePersistentFightTurn: () => Promise.resolve(result) }
+      }),
+      { botUsername: "kvestarnia_bot" }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(inspectSingleTerminalBattleArtifactShare(edit?.payload.reply_markup).parsed)
+      .toMatchObject({ kind: "solo", token: sessionId });
+  });
+
+  it("adds one typed capability share URL when an interactive Training turn completes combat", async () => {
+    const session = terminalTrainingSession();
+    const calls = await captureApiCalls(
+      makeTrainingDoppelgangerTurnCallbackData({
+        sessionId: session.id,
+        turn: 2,
+        action: "attack"
+      }),
+      servicesWith({
+        trainingDoppelganger: {
+          resolveTurn: () => Promise.resolve({
+            state: "terminal" as const,
+            character,
+            doppelganger: trainingMonster(),
+            session,
+            reward: null
+          })
+        }
+      }),
+      { botUsername: "kvestarnia_bot" }
+    );
+    const edit = calls.find((call) => call.method === "editMessageText");
+
+    expect(inspectSingleTerminalBattleArtifactShare(edit?.payload.reply_markup).parsed)
+      .toMatchObject({ kind: "training", token: session.id });
+  });
+
+  it.each([
+    {
+      name: "main-menu current-location route",
+      run: (status: "active" | "won") => captureTextApiCalls(
+        mainMenuLocationButtons.deepLevel1,
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.deep.level1")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "tavern/deep callback route",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("deep-level1"),
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.deep")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "quest fight route",
+      run: (status: "active" | "won") => captureApiCalls(
+        makeQuestCallbackData("fight-descend"),
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "passage-search guard handoff",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("hall"),
+        terminalLinkRouteServices(status, {
+          passageSearch: {
+            getActiveSearch: () => Promise.resolve(passageSearchMonsterAttackResult())
+          }
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "persistent-fight navigation fallback",
+      run: (status: "active" | "won") => captureApiCalls(
+        makePlaceCallbackData("deep-straight"),
+        terminalLinkRouteServices(status, {
+          fight: {
+            previewPersistentFightForTelegramUser: () => Promise.resolve({ state: "no-character" as const })
+          },
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    },
+    {
+      name: "combat stale-selection recovery fallback",
+      run: (status: "active" | "won") => captureApiCalls(
+        "v1:fight:pass:deep-straight:token13",
+        terminalLinkRouteServices(status, {
+          presence: terminalLinkRoutePresence("location.korchma.hall")
+        }),
+        { messageResults: true }
+      )
+    }
+  ])("uses ctx.me for one terminal capability link on the $name", async ({ run }) => {
+    const terminalCalls = await run("won");
+    const terminalShares = terminalCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    );
+
+    expect(terminalShares).toHaveLength(1);
+    expect(inspectSingleTerminalBattleArtifactShare({
+      inline_keyboard: [terminalShares]
+    }).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "solo",
+      token: TERMINAL_LINK_ROUTE_SESSION_ID
+    });
+
+    const activeCalls = await run("active");
+    expect(activeCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    )).toEqual([]);
+  });
+
+  it("uses ctx.me for the Training mode callback terminal link and keeps its active card link-free", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-24T10:00:00.000Z"));
+
+    const run = (status: "active" | "won") => captureApiCalls(
+      makeTrainingDoppelgangerModeCallbackData("copy-target"),
+      servicesWith({
+        trainingDoppelganger: {
+          getOrStartForTelegramUser: () => Promise.resolve(trainingRouteResult(status)),
+          recordTrainingDoppelgangerMessageReference: () => Promise.resolve()
+        },
+        presence: terminalLinkRoutePresence("location.korchma.fighting_corner")
+      }),
+      { messageResults: true }
+    );
+
+    const terminalCalls = await run("won");
+    const terminalShares = terminalCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    );
+    expect(terminalShares).toHaveLength(1);
+    expect(inspectSingleTerminalBattleArtifactShare({
+      inline_keyboard: [terminalShares]
+    }).parsed).toEqual({
+      type: "terminal-battle-artifact",
+      kind: "training",
+      token: terminalTrainingSession().id
+    });
+
+    const activeCalls = await run("active");
+    expect(activeCalls.flatMap((call) =>
+      findTerminalBattleArtifactShareButtons(call.payload.reply_markup)
+    )).toEqual([]);
+  });
+
+  it.each(["private", "group", "supergroup"] as const)(
+    "routes capability-linked terminal statistics from a %s without owner-scoped reads",
+    async (chatType) => {
+      const getPersistentFightStatisticsForTelegramUser = vi.fn();
+      const getMimicShawarmaStatisticsForTelegramUser = vi.fn();
+      const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn();
+      const persistent = persistentSession("monster.deadline-spider");
+      const terminalPersistent = {
+        ...persistent,
+        status: "won" as const,
+        state: { ...persistent.state, status: "won" as const, monster: { ...persistent.state.monster, hp: 0 } }
+      };
+      const training = terminalTrainingSession();
+      const getPublicTerminalFightArtifact = vi.fn().mockResolvedValue({
+        state: "found" as const,
+        character,
+        session: terminalPersistent,
+        monster: {
+          id: "monster.deadline-spider",
+          name: "Павук дедлайнів",
+          description: "Плете павутину з «сьогодні швиденько».",
+          level: 2,
+          tags: ["beast"]
+        },
+        questProgress: null,
+        fightReward: null
+      });
+      const getPublicMimicShawarmaArtifact = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        artifactToken: "123e4567-e89b-42d3-a456-426614174002",
+        character,
+        action: "attack" as const,
+        combat: {
+          action: "attack" as const,
+          outcome: "win" as const,
+          playerHpPreview: 20,
+          playerHpMaxPreview: 20,
+          enemyHpPreview: 0,
+          enemyHpMaxPreview: 8,
+          playerDamage: 8,
+          enemyDamage: 0
+        },
+        statistics: {
+          version: 1 as const,
+          hero: { damage: 8, damageTaken: 0, actions: 1, specialActions: 0, guardedTurns: 0 },
+          enemy: { damage: 0, damageTaken: 8, actions: 0 }
+        }
+      });
+      const getPublicTerminalArtifact = vi.fn().mockResolvedValue({
+        state: "ready" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: training,
+        reward: null
+      });
+      const services = servicesWith({
+        fight: {
+          getPersistentFightStatisticsForTelegramUser,
+          getMimicShawarmaStatisticsForTelegramUser,
+          getPublicTerminalFightArtifact,
+          getPublicMimicShawarmaArtifact
+        },
+        trainingDoppelganger: { getTrainingDoppelgangerStatisticsForTelegramUser, getPublicTerminalArtifact }
+      });
+      const callbacks = [
+        makeFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174000"),
+        makeMimicFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174002"),
+        makeTrainingDoppelgangerStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174001")
+      ];
+
+      for (const callbackData of callbacks) {
+        const calls = await captureApiCalls(callbackData, services, { chatType });
+        expect(calls.find((call) => call.method === "answerCallbackQuery")?.payload).toBeDefined();
+        expect(String(calls.find((call) => call.method === "editMessageText")?.payload.text))
+          .toContain("📊 <b>Статистика");
+      }
+
+      expect(getPersistentFightStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getMimicShawarmaStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getTrainingDoppelgangerStatisticsForTelegramUser).not.toHaveBeenCalled();
+      expect(getPublicTerminalFightArtifact).toHaveBeenCalledTimes(1);
+      expect(getPublicMimicShawarmaArtifact).toHaveBeenCalledTimes(1);
+      expect(getPublicTerminalArtifact).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("routes solo and Training statistics through token-scoped strictly read-only methods", async () => {
+    const getPersistentFightSnapshotForTelegramUser = vi.fn();
+    const getTrainingDoppelgangerSnapshotForTelegramUser = vi.fn();
+    const getPersistentFightStatisticsForTelegramUser = vi.fn();
+    const getTrainingDoppelgangerStatisticsForTelegramUser = vi.fn();
+    const getPublicTerminalFightArtifact = vi.fn().mockResolvedValue({ state: "no-character" as const });
+    const getPublicTerminalArtifact = vi.fn().mockResolvedValue({ state: "not-found" as const });
+    const services = servicesWith({
+      fight: {
+        getPersistentFightSnapshotForTelegramUser,
+        getPersistentFightStatisticsForTelegramUser,
+        getPublicTerminalFightArtifact
+      },
+      trainingDoppelganger: {
+        getTrainingDoppelgangerSnapshotForTelegramUser,
+        getTrainingDoppelgangerStatisticsForTelegramUser,
+        getPublicTerminalArtifact
+      }
+    });
+
+    await captureApiCalls(
+      makeFightStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174000"),
+      services
+    );
+    await captureApiCalls(
+      makeTrainingDoppelgangerStatisticsCallbackData("123e4567-e89b-42d3-a456-426614174001"),
+      services
+    );
+
+    expect(getPublicTerminalFightArtifact).toHaveBeenCalledTimes(1);
+    expect(getPublicTerminalArtifact).toHaveBeenCalledTimes(1);
+    expect(getPersistentFightStatisticsForTelegramUser).not.toHaveBeenCalled();
+    expect(getTrainingDoppelgangerStatisticsForTelegramUser).not.toHaveBeenCalled();
+    expect(getPersistentFightSnapshotForTelegramUser).not.toHaveBeenCalled();
+    expect(getTrainingDoppelgangerSnapshotForTelegramUser).not.toHaveBeenCalled();
   });
 
   it("opens the persistent fight one-use item menu through the active combat lock", async () => {
@@ -8097,7 +8540,7 @@ describe("scene callback HTML options", () => {
       callbackData,
       servicesWith({
         fight: {
-          getPersistentFightSnapshotForTelegramUser: () =>
+          getPublicTerminalFightArtifact: () =>
             Promise.resolve({
               state: "found" as const,
               character,
@@ -9397,11 +9840,15 @@ describe("scene callback HTML options", () => {
     const rollbackCurrentAdventureClaimForTelegramUser = vi.fn(() =>
       Promise.resolve("deleted" as const)
     );
+    const terminalSessionId = "123e4567-e89b-42d3-a456-426614174040";
+    const baseSession = persistentSession("monster.deadline-spider");
     const terminalSession = {
-      ...persistentSession("monster.deadline-spider"),
+      ...baseSession,
+      id: terminalSessionId,
       status: "won" as const,
       state: {
-        ...persistentSession("monster.deadline-spider").state,
+        ...baseSession.state,
+        id: terminalSessionId,
         status: "won" as const,
         lastTurn: {
           action: "attack" as const,
@@ -9464,7 +9911,8 @@ describe("scene callback HTML options", () => {
         presence: {
           markAction
         }
-      })
+      }),
+      { botUsername: "kvestarnia_bot" }
     );
     const edit = calls.find((call) => call.method === "editMessageText");
 
@@ -9482,6 +9930,8 @@ describe("scene callback HTML options", () => {
     expect(String(edit?.payload.text)).toContain("❤️ Ви:");
     expect(String(edit?.payload.text)).toContain("🎉 Ви перемогли.");
     expect(String(edit?.payload.text)).not.toContain("⏳ На хід є 23 секунди.");
+    expect(inspectSingleTerminalBattleArtifactShare(edit?.payload.reply_markup).parsed)
+      .toMatchObject({ kind: "solo", token: terminalSessionId });
     expect(calls.some((call) => call.method === "sendMessage")).toBe(false);
   });
 
@@ -9677,6 +10127,67 @@ describe("scene callback HTML options", () => {
 
     expect(String(edit?.payload.text)).toContain("Щось неупокоєне знайшлося");
     expect(String(edit?.payload.text)).not.toContain("У вас уже триває інша сутичка.");
+  });
+
+  it("adds one typed capability share URL to a terminal Yeger fight delivery", async () => {
+    const baseSession = persistentSessionWithOrigin("location.korchma.ranger-corner");
+    const session = {
+      ...baseSession,
+      status: "won" as const,
+      state: {
+        ...baseSession.state,
+        status: "won" as const,
+        monster: { ...baseSession.state.monster, hp: 0 }
+      }
+    };
+    const calls = await captureApiCalls(
+      makeYegerTrackCallbackData(),
+      servicesWith({
+        yeger: {
+          getForTelegramUser: () => Promise.resolve({
+            state: "in-progress" as const,
+            character,
+            progress: { wins: 1, target: 5 },
+            tracking: {
+              state: "tracking-ready",
+              availableAt: new Date("2026-06-15T10:04:00.000Z"),
+              now: new Date("2026-06-15T10:05:00.000Z")
+            }
+          }),
+          trackForTelegramUser: () => Promise.resolve({
+            state: "tracking-resolved-success" as const,
+            character,
+            progress: { wins: 1, target: 5 },
+            tracking: {
+              state: "tracking-pending",
+              availableAt: new Date("2026-06-15T10:08:00.000Z"),
+              now: new Date("2026-06-15T10:05:00.000Z")
+            },
+            fight: {
+              state: "persistent-terminal" as const,
+              character,
+              session,
+              monster: {
+                id: "monster.complaint-lantern",
+                name: "Скаргова лампа",
+                description: "Світить лише тоді, коли хтось починає жалітись.",
+                level: 4,
+                tags: ["paperwork", "sound", "time", "unquiet"]
+              },
+              questProgress: null,
+              fightReward: null
+            }
+          })
+        }
+      }),
+      { botUsername: "kvestarnia_bot" }
+    );
+    const fightCard = calls.find(
+      (call) => call.method === "sendMessage" && call.payload.reply_markup
+    );
+
+    expect(inspectSingleTerminalBattleArtifactShare(fightCard?.payload.reply_markup).parsed)
+      .toMatchObject({ kind: "solo", token: session.id });
   });
 
   it("sends an HTML barrel raid completion notification after the pending timer ends", async () => {
@@ -10510,6 +11021,61 @@ function terminalTrainingSession() {
   };
 }
 
+function terminalLinkFightOverview(status: "active" | "won") {
+  const base = persistentSessionWithOrigin("location.korchma.deep.level1.straight");
+  const session = {
+    ...base,
+    id: TERMINAL_LINK_ROUTE_SESSION_ID,
+    status,
+    state: {
+      ...base.state,
+      id: TERMINAL_LINK_ROUTE_SESSION_ID,
+      status,
+      monster: {
+        ...base.state.monster,
+        hp: status === "won" ? 0 : base.state.monster.hp
+      }
+    }
+  };
+  const shared = {
+    character: {
+      ...character,
+      level: 3,
+      currentLocationId: "location.korchma.deep.level1.straight"
+    },
+    session,
+    monster: {
+      id: "monster.deadline-spider",
+      name: "Павук дедлайнів",
+      description: "Плете павутину з «сьогодні швиденько».",
+      level: 2,
+      tags: ["beast", "time", "web"]
+    },
+    questProgress: null
+  };
+
+  return status === "active"
+    ? { state: "persistent-active" as const, started: false, ...shared }
+    : { state: "persistent-terminal" as const, ...shared, fightReward: null };
+}
+
+function trainingRouteResult(status: "active" | "won") {
+  return status === "active"
+    ? {
+        state: "active" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: trainingSession()
+      }
+    : {
+        state: "terminal" as const,
+        character,
+        doppelganger: trainingMonster(),
+        session: terminalTrainingSession(),
+        reward: null
+      };
+}
+
 function trainingMonster() {
   return {
     id: TRAINING_DOPPELGANGER_MONSTER_ID,
@@ -10893,6 +11459,9 @@ function productionTurnDuelService(
       Promise.resolve({ ...getCurrent(), transitioned: false })
     );
   const getByToken = vi.fn<DuelChallengeService["getByToken"]>(() => Promise.resolve(getCurrent()));
+  const getTerminalResultByToken = vi.fn<DuelChallengeService["getTerminalResultByToken"]>(() =>
+    Promise.resolve({ state: "not-terminal" })
+  );
   const getTurnBasedRouteForTelegramUser = vi.fn<
     DuelChallengeService["getTurnBasedRouteForTelegramUser"]
   >((_telegramUserId, inviteToken) => inviteToken === getCurrent().challenge.inviteToken
@@ -10914,6 +11483,7 @@ function productionTurnDuelService(
       getActiveTurnBasedForTelegramUser,
       acceptForTelegramUser,
       getByToken,
+      getTerminalResultByToken,
       getTurnBasedRouteForTelegramUser,
       getTurnBasedSessionByToken,
       claimTurnBasedMessageReference,
@@ -11122,6 +11692,40 @@ function servicesWith(overrides: Partial<BotServices>): BotServices {
   } as unknown as BotServices;
 }
 
+function terminalLinkRouteServices(
+  status: "active" | "won",
+  overrides: Partial<BotServices> & {
+    fight?: Partial<BotServices["fight"]>;
+  } = {}
+): BotServices {
+  const { fight: fightOverrides = {}, ...remainingOverrides } = overrides;
+
+  return servicesWith({
+    ...remainingOverrides,
+    fight: {
+      getFightOverviewForTelegramUser: () => Promise.resolve(terminalLinkFightOverview(status)),
+      recordPersistentFightMessageReference: () => Promise.resolve(),
+      ...fightOverrides
+    }
+  } as Partial<BotServices>);
+}
+
+function terminalLinkRoutePresence(locationId: string): BotServices["presence"] {
+  return {
+    markAction: () => Promise.resolve(),
+    getRaidParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getAdventureParticipantsForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getCurrentPlaceForTelegramUser: () => Promise.resolve({
+      state: "ready",
+      locationId,
+      locationName: "Тестова місцина",
+      insideKorchma: true
+    }),
+    getOnlineForTelegramUser: () => Promise.resolve({ state: "no-character" }),
+    getLookForTelegramUser: () => Promise.resolve({ state: "no-character" })
+  } as unknown as BotServices["presence"];
+}
+
 async function captureApiCalls(
   callbackData: string,
   services: BotServices,
@@ -11132,6 +11736,7 @@ async function captureApiCalls(
     failure?: Error;
     telegramUserId?: number;
     botUsername?: string;
+    chatType?: "private" | "group" | "supergroup";
   } = {}
 ): Promise<ApiCall[]> {
   const bot = createBot(
@@ -11205,9 +11810,11 @@ async function captureApiCalls(
         message_id: 10,
         date: 0,
         chat: {
-          id: telegramUserId,
-          type: "private",
-          first_name: "Тест"
+          id: options.chatType === "private" || !options.chatType ? telegramUserId : -100587,
+          type: options.chatType ?? "private",
+          ...(options.chatType === "private" || !options.chatType
+            ? { first_name: "Тест" }
+            : { title: "Тестова ватага" })
         },
         text: "old"
       }
@@ -11353,9 +11960,18 @@ async function captureConcurrentApiCalls(
 async function captureTextApiCalls(
   text: string,
   services: BotServices,
-  options: { asCommand?: boolean; messageResults?: boolean; replyToText?: string } = {}
+  options: {
+    asCommand?: boolean;
+    messageResults?: boolean;
+    replyToText?: string;
+    botUsername?: string;
+  } = {}
 ): Promise<ApiCall[]> {
-  const bot = createBot("123456:test-token", services);
+  const bot = createBot(
+    "123456:test-token",
+    services,
+    options.botUsername ? { botUsername: options.botUsername } : {}
+  );
   const calls: ApiCall[] = [];
 
   bot.api.config.use((_prev, method, payload) => {

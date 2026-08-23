@@ -812,7 +812,7 @@ describe("group combat bot flow", () => {
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);
     expect(editedTexts.filter((text) =>
-      text === "♻️ Цю бойову картку замінено актуальною нижче."
+      text === "🗃️ Цю бойову картку замінено актуальною нижче."
     )).toHaveLength(2);
     expect(editedTexts.filter((text) => text.includes("⚔️ <b>Бій</b>:"))).toHaveLength(2);
   });
@@ -997,7 +997,7 @@ describe("group combat bot flow", () => {
       .not.toContain("для цього ходу");
   });
 
-  it("opens terminal contribution statistics without mutating combat", async () => {
+  it("opens terminal full-roster statistics in a group for a non-participant without mutating combat", async () => {
     const session = makeSession();
     session.status = "won";
     session.state.status = "won";
@@ -1016,27 +1016,33 @@ describe("group combat bot flow", () => {
     const answerCallbackQuery = vi.fn().mockResolvedValue(true);
     const submitAction = vi.fn();
     const ctx = {
-      from: { id: 1001, is_bot: false, first_name: "Лідерка" },
-      chat: { id: 1001, type: "private" },
+      from: { id: 9999, is_bot: false, first_name: "Спостерігач" },
+      chat: { id: -100587, type: "group" },
       callbackQuery: {
         id: "callback-statistics",
         data: "unused",
-        message: { message_id: 21, date: 1, chat: { id: 1001, type: "private" } }
+        message: { message_id: 21, date: 1, chat: { id: -100587, type: "group" } }
       },
       editMessageText,
       answerCallbackQuery
     } as unknown as Context;
 
+    const findByToken = vi.fn().mockResolvedValue(session);
     await handleGroupCombatCallback(ctx, {
       type: "statistics",
       token: session.partyInviteToken
     }, {
-      findByToken: vi.fn().mockResolvedValue(session),
+      findByToken,
+      submitAction
+    } as unknown as GroupCombatService);
+    await handleGroupCombatCallback(ctx, { type: "statistics", token: session.partyInviteToken }, {
+      findByToken,
       submitAction
     } as unknown as GroupCombatService);
 
     expect(submitAction).not.toHaveBeenCalled();
-    expect(editMessageText).toHaveBeenCalledTimes(1);
+    expect(editMessageText).toHaveBeenCalledTimes(2);
+    expect(findByToken).toHaveBeenCalledTimes(2);
     expect(String(editMessageText.mock.calls[0]?.[0])).toContain(
       "📊 <b>Статистика бою</b>"
     );
@@ -1079,16 +1085,9 @@ describe("group combat bot flow", () => {
     } as unknown as GroupCombatService);
 
     expect(answerCallbackQuery).toHaveBeenCalledWith({
-      text: "Журнал відкриється після завершення бою.",
-      show_alert: true
+      text: "Запис відкриється після завершення бою."
     });
-    expect(editMessageText).toHaveBeenCalledWith(
-      1001,
-      21,
-      expect.any(String),
-      expect.any(Object)
-    );
-    expect(JSON.stringify(editMessageText.mock.calls[0]?.[3])).not.toContain("📜 Журнал");
+    expect(editMessageText).not.toHaveBeenCalled();
   });
 
   it.each([

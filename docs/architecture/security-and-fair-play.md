@@ -172,3 +172,30 @@ Future live status guardrails:
 4. Патч + тест на exploit.
 5. Компенсація або rollback.
 6. Коротке чесне повідомлення спільноті.
+
+## 0.4.7 terminal battle artifacts
+
+Completed battle results, journals and statistics are unlisted capability-link
+artifacts rather than private account data. Anyone holding the valid opaque
+battle/result token may read the terminal artifact without participant,
+Character or private-chat authorization. This grants no discovery or indexing:
+unknown and malformed tokens return the same generic not-found response.
+
+Capability-link claims require both a URL producer and a typed `/start`
+consumer. Persistent solo, Training and starter Mimic use compact versioned
+`ba1` payloads carrying a strict UUID plus an explicit artifact kind; all fit
+Telegram's 64-byte start-parameter limit. The consumer resolves terminal state
+before onboarding or viewer authorization, while active, malformed, unknown,
+wrong-kind and unavailable tokens share one generic response.
+
+Every public terminal read is non-settling and strictly read-only. Active
+actions, inventories, hidden choices, unrevealed actions and mutable
+viewer-specific state remain participant-authorized. Presenters expose only the
+authoritative journal/statistics projection and never Telegram ids, RNG seeds,
+internal authorization data or hidden inventory.
+
+New solo and Training sessions freeze versioned public identity in combat state;
+the starter Mimic freezes the same projection in `DailyAction.resultJson`.
+Public repositories read only that authoritative row and never join the mutable
+owner Character. Pre-snapshot legacy artifacts render a generic identity derived
+only from stored artifact fields; reads neither backfill nor mutate legacy rows.

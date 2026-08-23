@@ -25,6 +25,7 @@ import {
   makeDuelRematchCallbackData,
   makeDuelRematchRiskCallbackData,
   makeDuelShareCallbackData,
+  makeDuelStatisticsCallbackData,
   makeDuelTurnCallbackData,
   makeDuelViewCallbackData
 } from "../callbacks/duelCallbackData";
@@ -97,6 +98,10 @@ export function buildDuelResultKeyboard(token?: string, mode?: "quick" | "turn-b
         .text("📜 Журнал бою", makeDuelJournalCallbackData(token))
         .row();
     }
+
+    keyboard
+      .text("📊 Статистика", makeDuelStatisticsCallbackData(token))
+      .row();
   }
 
   return keyboard

@@ -8,6 +8,7 @@ import type {
   EquipmentRepository,
   EquipmentSlot
 } from "./equipmentRepository";
+import { EquipmentInventoryUnavailableError } from "./equipmentRepository";
 import {
   getEquipmentSlotStorageKeys,
   normalizeEquipmentSlot
@@ -22,6 +23,11 @@ import {
 } from "../../domain/equipment/equipmentAttunement";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStack,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
 
 type TxClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
@@ -92,7 +98,9 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     slot: EquipmentSlot,
     itemId: string
   ): Promise<CharacterEquipmentRecord> {
-    const row = await this.prisma.$transaction(async (tx) => {
+    const row = await runSerializableInventoryMutation(this.prisma, async (tx) => {
+      await lockInventoryItemStack(tx, characterId, itemId, new Date());
+      await assertInventoryCopyAvailable(tx, characterId, itemId, slot);
       const storageKeys = getEquipmentSlotStorageKeys(slot);
       const legacyKeys = storageKeys.filter((key) => key !== slot);
 
@@ -125,6 +133,11 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       });
       await this.hpRecoveryProducer.record(tx, characterId, new Date(), "recovering");
       return row;
+    }).catch((error: unknown) => {
+      if (error instanceof InventoryMutationContentionError) {
+        throw new EquipmentInventoryUnavailableError();
+      }
+      throw error;
     });
 
     const record = toRecord(row);
@@ -150,6 +163,12 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
     try {
       return await this.equipForCharacterAtomicallyUnsafe(input);
     } catch (error) {
+      if (
+        error instanceof InventoryMutationContentionError ||
+        error instanceof EquipmentInventoryUnavailableError
+      ) {
+        return { state: "not-owned" };
+      }
       if (!isUniqueConstraintError(error)) {
         throw error;
       }
@@ -391,7 +410,16 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       readyAt: Date;
     };
   }): Promise<EquipForCharacterResult> {
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await runSerializableInventoryMutation(this.prisma, async (tx) => {
+      const now = input.attunement?.startedAt ?? new Date();
+      await lockInventoryItemStack(tx, input.characterId, input.itemId, now);
+      await assertInventoryCopyAvailable(
+        tx,
+        input.characterId,
+        input.itemId,
+        input.slot,
+        input.clearSlot
+      );
       const storageKeys = getEquipmentSlotStorageKeys(input.slot);
       const legacyKeys = storageKeys.filter((key) => key !== input.slot);
 
@@ -405,8 +433,6 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
           }
         });
       }
-
-      const now = input.attunement?.startedAt ?? new Date();
 
       if (input.clearSlot) {
         await tx.characterEquipment.deleteMany({
@@ -514,6 +540,34 @@ export class PrismaEquipmentRepository implements EquipmentRepository {
       record,
       changed: result.changed
     };
+  }
+}
+
+async function assertInventoryCopyAvailable(
+  tx: TxClient,
+  characterId: string,
+  itemId: string,
+  targetSlot: EquipmentSlot,
+  clearSlot?: EquipmentSlot
+): Promise<void> {
+  const [stack, equipment] = await Promise.all([
+    tx.characterItem.findUnique({
+      where: { characterId_itemId: { characterId, itemId } },
+      select: { quantity: true }
+    }),
+    tx.characterEquipment.findMany({
+      where: { characterId, itemId },
+      select: { slot: true }
+    })
+  ]);
+  const releasedSlots = new Set<string>([
+    ...getEquipmentSlotStorageKeys(targetSlot),
+    ...(clearSlot ? getEquipmentSlotStorageKeys(clearSlot) : [])
+  ]);
+  const copiesStillCommittedElsewhere = equipment.filter((row) => !releasedSlots.has(row.slot)).length;
+
+  if (!stack || stack.quantity <= copiesStillCommittedElsewhere) {
+    throw new EquipmentInventoryUnavailableError();
   }
 }
 

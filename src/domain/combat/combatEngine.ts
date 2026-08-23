@@ -27,8 +27,8 @@ import {
 import {
   rollBasicAttack,
   rollFleeSuccess,
-  rollMonsterDamage,
-  rollMonsterSkillDamage,
+  rollMonsterDamageWithPrevention,
+  rollMonsterSkillDamageWithPrevention,
   rollSkillAttack
 } from "./combatBalance";
 import {
@@ -45,6 +45,7 @@ import {
   getTerminalCombatTurnLogEventId,
   hasCombatEnemyCollection,
   normalizeCombatEnemies,
+  recordCombatStatisticsTurn,
   syncPrimaryCombatEnemy,
   turnLogEnemies,
   updateCombatEnemy,
@@ -61,6 +62,8 @@ import {
   type CombatItemResponseSummary,
   type CombatPlayerAbilityFumbleSummary,
   type CombatState,
+  type CombatStatisticsEnemyTurnEvidenceV1,
+  type CombatStatisticsTurnEvidenceV1,
   type CombatTurnSummary,
   type MonsterCombatStats,
   type PlayerAbilityFumblesState,
@@ -198,6 +201,11 @@ export interface ResolveActorCombatActionResult {
 
 interface MonsterResponseResult {
   damage: number;
+  actualDamage?: number;
+  healing?: number;
+  control?: number;
+  heroGuardPrevented?: number;
+  heroControl?: number;
   outcome?: CombatTurnSummary["monsterOutcome"];
   monsterAction?: CombatTurnSummary["monsterAction"];
   monsterSkill?: CombatSkillProfile;
@@ -206,6 +214,89 @@ interface MonsterResponseResult {
   simultaneousFinalResponse?: boolean;
   defendCounter?: boolean;
   itemResponseDelta?: CombatResponseItemDelta;
+}
+
+function emptyCombatStatisticsEnemyTurnEvidence(): CombatStatisticsEnemyTurnEvidenceV1 {
+  return { damage: 0, healing: 0, guardPrevented: 0, control: 0 };
+}
+
+function buildCombatStatisticsTurnEvidence(input: {
+  heroGuardPrevented?: number;
+  heroControl?: number;
+  enemies?: Readonly<Record<string, Partial<CombatStatisticsEnemyTurnEvidenceV1>>>;
+}): CombatStatisticsTurnEvidenceV1 {
+  return {
+    heroGuardPrevented: Math.max(0, Math.floor(input.heroGuardPrevented ?? 0)),
+    heroControl: Math.max(0, Math.floor(input.heroControl ?? 0)),
+    enemies: Object.fromEntries(
+      Object.entries(input.enemies ?? {}).map(([enemyId, values]) => [
+        enemyId,
+        {
+          damage: Math.max(0, Math.floor(values.damage ?? 0)),
+          healing: Math.max(0, Math.floor(values.healing ?? 0)),
+          guardPrevented: Math.max(0, Math.floor(values.guardPrevented ?? 0)),
+          control: Math.max(0, Math.floor(values.control ?? 0))
+        }
+      ])
+    )
+  };
+}
+
+function mergeCombatStatisticsEnemyTurnEvidence(
+  target: Record<string, CombatStatisticsEnemyTurnEvidenceV1>,
+  enemyId: string,
+  values: Partial<CombatStatisticsEnemyTurnEvidenceV1>
+): void {
+  const current = target[enemyId] ?? emptyCombatStatisticsEnemyTurnEvidence();
+  target[enemyId] = {
+    damage: current.damage + Math.max(0, Math.floor(values.damage ?? 0)),
+    healing: current.healing + Math.max(0, Math.floor(values.healing ?? 0)),
+    guardPrevented: current.guardPrevented + Math.max(0, Math.floor(values.guardPrevented ?? 0)),
+    control: current.control + Math.max(0, Math.floor(values.control ?? 0))
+  };
+}
+
+function buildSingleEnemyCombatStatisticsEvidence(input: {
+  response?: MonsterResponseResult;
+  heroControl?: number;
+  enemyDamage?: number;
+  enemyHealing?: number;
+  enemyGuardPrevented?: number;
+  enemyControl?: number;
+}): CombatStatisticsTurnEvidenceV1 {
+  return buildCombatStatisticsTurnEvidence({
+    heroGuardPrevented: input.response?.heroGuardPrevented ?? 0,
+    heroControl: (input.response?.heroControl ?? 0) + (input.heroControl ?? 0),
+    enemies: {
+      "enemy:1": {
+        damage: (input.response?.actualDamage ?? 0) + (input.enemyDamage ?? 0),
+        healing: (input.response?.healing ?? 0) + (input.enemyHealing ?? 0),
+        guardPrevented: input.enemyGuardPrevented ?? 0,
+        control: (input.response?.control ?? 0) + (input.enemyControl ?? 0)
+      }
+    }
+  });
+}
+
+function augmentCombatStatisticsEvidence(
+  evidence: CombatStatisticsTurnEvidenceV1 | undefined,
+  input: {
+    heroGuardPrevented?: number;
+    heroControl?: number;
+    enemies?: Readonly<Record<string, Partial<CombatStatisticsEnemyTurnEvidenceV1>>>;
+  }
+): CombatStatisticsTurnEvidenceV1 {
+  const enemies = Object.fromEntries(
+    Object.entries(evidence?.enemies ?? {}).map(([enemyId, values]) => [enemyId, { ...values }])
+  );
+  for (const [enemyId, values] of Object.entries(input.enemies ?? {})) {
+    mergeCombatStatisticsEnemyTurnEvidence(enemies, enemyId, values);
+  }
+  return buildCombatStatisticsTurnEvidence({
+    heroGuardPrevented: (evidence?.heroGuardPrevented ?? 0) + (input.heroGuardPrevented ?? 0),
+    heroControl: (evidence?.heroControl ?? 0) + (input.heroControl ?? 0),
+    enemies
+  });
 }
 
 export function getCombatActionAvailability(
@@ -688,10 +779,14 @@ function resolveSingleEnemyCombatItemTurn(
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
     ...(itemResponse ? { itemResponse } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
-    ...(debugTrace ? { debugTrace } : {})
+    ...(debugTrace ? { debugTrace } : {}),
+    statisticsEvidence: buildSingleEnemyCombatStatisticsEvidence({
+      response: monsterResponse,
+      enemyDamage: heroEffect.heroDamageTakenByEnemy["enemy:1"] ?? 0
+    })
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -762,10 +857,11 @@ function resolveMultiEnemyCombatItemTurn(
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
     ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {}),
-    ...(enemyPhase.itemResponse ? { itemResponse: enemyPhase.itemResponse } : {})
+    ...(enemyPhase.itemResponse ? { itemResponse: enemyPhase.itemResponse } : {}),
+    ...(enemyPhase.statisticsEvidence ? { statisticsEvidence: enemyPhase.statisticsEvidence } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1077,10 +1173,14 @@ function resolveHeroSkip(input: ResolveCombatTurnInput): ResolveCombatTurnResult
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
-    ...(debugTrace ? { debugTrace } : {})
+    ...(debugTrace ? { debugTrace } : {}),
+    statisticsEvidence: buildSingleEnemyCombatStatisticsEvidence({
+      response: monsterResponse,
+      enemyDamage: heroEffect.heroDamageTakenByEnemy["enemy:1"] ?? 0
+    })
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1139,7 +1239,7 @@ function resolveHeroAttack(
     : emptyAbilitySupport();
   nextState.monster.hp = actorAction.defenderState.hp;
   const runtimeHeroDamage = actorAction.summary.fumble
-    ? { heroDamage: 0, reflectedDamage: 0 }
+    ? { heroDamage: 0, reflectedDamage: 0, guardPrevented: 0 }
     : applyMonsterRuntimeHeroDamage({
         state: nextState,
         heroDamage: actorAction.summary.actorDamage,
@@ -1171,7 +1271,7 @@ function resolveHeroAttack(
       ? "hit"
       : actorAction.summary.actorOutcome;
 
-  applyGearBleedFromAction(nextState, input, skill, actorAction.summary, "enemy:1");
+  const bleedApplied = applyGearBleedFromAction(nextState, input, skill, actorAction.summary, "enemy:1");
   if (nextState.hero.hp <= 0) {
     const satedRecovery = applyAfterCommittedHeroAction(input, nextState);
     nextState.status = nextState.monster.hp <= 0 ? "won" : "lost";
@@ -1194,10 +1294,15 @@ function resolveHeroAttack(
       enemyResults,
       ...(satedRecovery ? { satedRecovery } : {}),
       ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
-      ...(skill ? { skill } : {})
+      ...(skill ? { skill } : {}),
+      statisticsEvidence: buildSingleEnemyCombatStatisticsEvidence({
+        heroControl: bleedApplied ? 1 : 0,
+        enemyHealing: actorAction.summary.fumble?.enemyHealing ?? 0,
+        enemyGuardPrevented: runtimeHeroDamage.guardPrevented
+      })
     });
     nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
+    appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
     return {
       ok: true,
@@ -1267,10 +1372,17 @@ function resolveHeroAttack(
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
     ...(monsterResponse.simultaneousFinalResponse ? { simultaneousFinalResponse: true } : {}),
     ...(bark.barkId ? { monsterBarkId: bark.barkId } : {}),
-    ...(debugTrace ? { debugTrace } : {})
+    ...(debugTrace ? { debugTrace } : {}),
+    statisticsEvidence: buildSingleEnemyCombatStatisticsEvidence({
+      response: monsterResponse,
+      heroControl: bleedApplied ? 1 : 0,
+      enemyDamage: heroEffect.heroDamageTakenByEnemy["enemy:1"] ?? 0,
+      enemyHealing: actorAction.summary.fumble?.enemyHealing ?? 0,
+      enemyGuardPrevented: runtimeHeroDamage.guardPrevented
+    })
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1293,6 +1405,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   );
   let monsterDamage = 0;
   let heroEffectDamage = 0;
+  let heroEffectDamageByEnemy: Record<string, number> = {};
   let satedRecovery: CombatTurnSummary["satedRecovery"] | undefined;
   let monsterResponse: MonsterResponseResult = { damage: 0 };
   tickSkillCooldown(nextState);
@@ -1305,6 +1418,7 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
   } else {
     const heroEffect = applyHeroActivationEffectsForCombatState(nextState);
     heroEffectDamage = heroEffect.damage;
+    heroEffectDamageByEnemy = heroEffect.heroDamageTakenByEnemy;
     monsterResponse = nextState.hero.hp > 0 && nextState.monster.hp > 0
       ? resolveMonsterResponse({
           state: nextState,
@@ -1348,10 +1462,14 @@ function resolveFlee(input: ResolveCombatTurnInput): ResolveCombatTurnResult {
     ...(monsterResponse.monsterSkill ? { monsterSkill: monsterResponse.monsterSkill } : {}),
     ...(monsterResponse.monsterEffectText ? { monsterEffectText: monsterResponse.monsterEffectText } : {}),
     ...(monsterResponse.monsterTelegraphAbilityId ? { monsterTelegraphAbilityId: monsterResponse.monsterTelegraphAbilityId } : {}),
-    ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {})
+    ...(bark?.barkId ? { monsterBarkId: bark.barkId } : {}),
+    statisticsEvidence: buildSingleEnemyCombatStatisticsEvidence({
+      response: monsterResponse,
+      enemyDamage: heroEffectDamageByEnemy["enemy:1"] ?? 0
+    })
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1387,10 +1505,11 @@ function resolveMultiEnemyHeroSkip(input: ResolveCombatTurnInput): ResolveCombat
     ...(satedRecovery ? { satedRecovery } : {}),
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
-    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {}),
+    ...(enemyPhase.statisticsEvidence ? { statisticsEvidence: enemyPhase.statisticsEvidence } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1450,7 +1569,7 @@ function resolveMultiEnemyHeroAttack(
   primary.hp = actorAction.defenderState.hp;
   nextState.monster = combatEnemyToMonster(primary);
   const runtimeHeroDamage = actorAction.summary.fumble
-    ? { heroDamage: 0, reflectedDamage: 0 }
+    ? { heroDamage: 0, reflectedDamage: 0, guardPrevented: 0 }
     : applyMonsterRuntimeHeroDamage({
         state: nextState,
         heroDamage: actorAction.summary.actorDamage,
@@ -1486,7 +1605,7 @@ function resolveMultiEnemyHeroAttack(
     });
     heroDamage += extraDamage;
   }
-  applyGearBleedFromAction(nextState, input, skill, actorAction.summary, primary.enemyId);
+  const bleedApplied = applyGearBleedFromAction(nextState, input, skill, actorAction.summary, primary.enemyId);
   const monsterDefeatedByHeroExchange = monsterHpBeforeHeroAction > 0 &&
     primary.hp <= 0 &&
     heroDamage > 0;
@@ -1555,10 +1674,19 @@ function resolveMultiEnemyHeroAttack(
       ...(skill ? { skill } : {}),
       ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
       ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
-      ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
+      ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {}),
+      statisticsEvidence: augmentCombatStatisticsEvidence(enemyPhase.statisticsEvidence, {
+        heroControl: bleedApplied ? 1 : 0,
+        enemies: {
+          [primary.enemyId]: {
+            healing: actorAction.summary.fumble?.enemyHealing ?? 0,
+            guardPrevented: runtimeHeroDamage.guardPrevented
+          }
+        }
+      })
     });
     nextState.lastTurn = summary;
-    appendCombatTurnLog(nextState, input.state.turn, summary);
+    appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
     return {
       ok: true,
@@ -1585,10 +1713,19 @@ function resolveMultiEnemyHeroAttack(
     allyResults: support.allyResults,
     enemyResults,
     ...(actorAction.summary.fumble ? { fumble: actorAction.summary.fumble } : {}),
-    ...(skill ? { skill } : {})
+    ...(skill ? { skill } : {}),
+    statisticsEvidence: augmentCombatStatisticsEvidence(undefined, {
+      heroControl: bleedApplied ? 1 : 0,
+      enemies: {
+        [primary.enemyId]: {
+          healing: actorAction.summary.fumble?.enemyHealing ?? 0,
+          guardPrevented: runtimeHeroDamage.guardPrevented
+        }
+      }
+    })
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -1651,10 +1788,11 @@ function resolveMultiEnemyFlee(input: ResolveCombatTurnInput): ResolveCombatTurn
     ...(satedRecovery ? { satedRecovery } : {}),
     ...(enemyPhase.primaryAction ? enemyActionToSummaryFields(enemyPhase.primaryAction) : {}),
     ...(enemyPhase.enemyActions.length > 0 ? { enemyActions: enemyPhase.enemyActions } : {}),
-    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {})
+    ...(enemyPhase.enemyPressureSkips.length > 0 ? { enemyPressureSkips: enemyPhase.enemyPressureSkips } : {}),
+    ...(enemyPhase.statisticsEvidence ? { statisticsEvidence: enemyPhase.statisticsEvidence } : {})
   });
   nextState.lastTurn = summary;
-  appendCombatTurnLog(nextState, input.state.turn, summary);
+  appendCombatTurnLog(nextState, input.state.turn, summary, input.state);
 
   return {
     ok: true,
@@ -2043,8 +2181,11 @@ function heroOutcomeFromActor(
 function appendCombatTurnLog(
   state: CombatState,
   turn: number,
-  summary: CombatTurnSummary
+  summary: CombatTurnSummary,
+  previousState: CombatState
 ): void {
+  recordCombatStatisticsTurn({ state, previousState, summary });
+  delete summary.statisticsEvidence;
   const notices = buildCombatTurnLogNotices(state);
 
   appendCombatTurnLogEntry(state, {
@@ -2292,6 +2433,7 @@ function buildSummary(input: {
   enemyActions?: CombatEnemyTurnSummary[];
   enemyPressureSkips?: CombatTurnSummary["enemyPressureSkips"];
   itemResponse?: CombatTurnSummary["itemResponse"];
+  statisticsEvidence?: CombatTurnSummary["statisticsEvidence"];
   satedRecovery?: CombatTurnSummary["satedRecovery"];
   debugTrace?: ReturnType<typeof buildTurnDebugTrace>;
 }): CombatTurnSummary {
@@ -2344,6 +2486,7 @@ function buildSummary(input: {
       ? { enemyPressureSkips: input.enemyPressureSkips }
       : {}),
     ...(input.itemResponse ? { itemResponse: input.itemResponse } : {}),
+    ...(input.statisticsEvidence ? { statisticsEvidence: input.statisticsEvidence } : {}),
     ...(input.satedRecovery ? { satedRecovery: input.satedRecovery } : {}),
     ...(input.debugTrace ? { debugTrace: input.debugTrace } : {})
   };
@@ -2401,6 +2544,17 @@ function resolveHeroActivationAndLivingEnemyPhase(
         enemyPressureSkips: [],
         defendCounter: false
       };
+  const statisticsEnemies = {
+    ...(enemyPhase.statisticsEvidence?.enemies ?? {})
+  };
+  for (const [enemyId, damage] of Object.entries(heroEffect.heroDamageTakenByEnemy)) {
+    mergeCombatStatisticsEnemyTurnEvidence(statisticsEnemies, enemyId, { damage });
+  }
+  enemyPhase.statisticsEvidence = buildCombatStatisticsTurnEvidence({
+    heroGuardPrevented: enemyPhase.statisticsEvidence?.heroGuardPrevented ?? 0,
+    heroControl: enemyPhase.statisticsEvidence?.heroControl ?? 0,
+    enemies: statisticsEnemies
+  });
   const satedRecovery = applyAfterCommittedHeroAction(input, state);
 
   return {
@@ -2416,12 +2570,16 @@ function applyHeroActivationEffectsForCombatState(
   participants?: readonly CombatEnemyState[]
 ): {
   damage: number;
+  heroDamageTakenByEnemy: Record<string, number>;
+  enemyDamageTakenById: Record<string, number>;
 } {
   const monsterRuntime = applyHeroActivationMonsterEffectsForCombatState(state, participants);
   const bleedDamage = applyHeroActivationBleedStatuses(state, participants);
 
   return {
-    damage: monsterRuntime.damage + bleedDamage
+    damage: monsterRuntime.damage + bleedDamage.damage,
+    heroDamageTakenByEnemy: monsterRuntime.damageByEnemy,
+    enemyDamageTakenById: bleedDamage.damageByEnemy
   };
 }
 
@@ -2430,9 +2588,14 @@ function applyHeroActivationMonsterEffectsForCombatState(
   participants?: readonly CombatEnemyState[]
 ): {
   damage: number;
+  damageByEnemy: Record<string, number>;
 } {
   if (!hasCombatEnemyCollection(state)) {
-    return applyHeroActivationMonsterEffects(state);
+    const result = applyHeroActivationMonsterEffects(state);
+    return {
+      damage: result.damage,
+      damageByEnemy: result.actualDamage > 0 ? { "enemy:1": result.actualDamage } : {}
+    };
   }
 
   const participantIds = new Set(
@@ -2440,6 +2603,7 @@ function applyHeroActivationMonsterEffectsForCombatState(
   );
   const primaryEnemyId = getPrimaryCombatEnemy(state).enemyId;
   let damage = 0;
+  const damageByEnemy: Record<string, number> = {};
   const enemies = normalizeCombatEnemies(state).map((enemy) => {
     const runtime = enemy.monsterRuntime ?? (enemy.enemyId === primaryEnemyId ? state.monsterRuntime : undefined);
     if (!participantIds.has(enemy.enemyId) || !runtime) {
@@ -2454,6 +2618,7 @@ function applyHeroActivationMonsterEffectsForCombatState(
     };
     const effect = applyHeroActivationMonsterEffects(effectState);
     damage += effect.damage;
+    if (effect.actualDamage > 0) damageByEnemy[enemy.enemyId] = effect.actualDamage;
 
     return {
       ...enemy,
@@ -2464,7 +2629,7 @@ function applyHeroActivationMonsterEffectsForCombatState(
   state.enemies = enemies;
   syncPrimaryCombatEnemy(state);
 
-  return { damage };
+  return { damage, damageByEnemy };
 }
 
 function applyGearBleedFromAction(
@@ -2473,7 +2638,7 @@ function applyGearBleedFromAction(
   skill: CombatSkillProfile | undefined,
   summary: ActorCombatActionSummary,
   enemyId: string
-): void {
+): boolean {
   const bleed = input.gearAbility?.bleed;
   if (
     !bleed ||
@@ -2482,8 +2647,10 @@ function applyGearBleedFromAction(
     summary.actorDamage <= 0 ||
     (summary.actorOutcome !== "hit" && summary.actorOutcome !== "critical-hit" && summary.actorOutcome !== "won")
   ) {
-    return;
+    return false;
   }
+
+  const previous = state.enemyStatuses?.enemies[enemyId]?.bleed;
 
   state.enemyStatuses = {
     version: 1,
@@ -2500,21 +2667,28 @@ function applyGearBleedFromAction(
       }
     }
   };
+
+  const current = state.enemyStatuses.enemies[enemyId]?.bleed;
+  return !previous ||
+    previous.damagePerActivation !== current?.damagePerActivation ||
+    previous.remainingHeroActivations !== current?.remainingHeroActivations ||
+    previous.refreshedAtTurn !== current?.refreshedAtTurn;
 }
 
 function applyHeroActivationBleedStatuses(
   state: CombatState,
   participants?: readonly CombatEnemyState[]
-): number {
+): { damage: number; damageByEnemy: Record<string, number> } {
   const statuses = state.enemyStatuses?.enemies;
   if (!statuses) {
-    return 0;
+    return { damage: 0, damageByEnemy: {} };
   }
 
   const participantIds = hasCombatEnemyCollection(state)
     ? new Set((participants ?? normalizeCombatEnemies(state)).map((enemy) => enemy.enemyId))
     : new Set(["enemy:1"]);
   let damage = 0;
+  const damageByEnemy: Record<string, number> = {};
   const nextStatuses: NonNullable<CombatState["enemyStatuses"]>["enemies"] = {};
 
   for (const [enemyId, status] of Object.entries(statuses)) {
@@ -2531,6 +2705,7 @@ function applyHeroActivationBleedStatuses(
 
     const appliedDamage = applyBleedDamageToEnemy(state, enemyId, bleed.damagePerActivation);
     damage += appliedDamage;
+    if (appliedDamage > 0) damageByEnemy[enemyId] = appliedDamage;
     const remainingHeroActivations = bleed.remainingHeroActivations - 1;
     if (remainingHeroActivations > 0 && appliedDamage > 0 && isBleedTargetAlive(state, enemyId)) {
       nextStatuses[enemyId] = {
@@ -2555,7 +2730,7 @@ function applyHeroActivationBleedStatuses(
     delete state.enemyStatuses;
   }
 
-  return damage;
+  return { damage, damageByEnemy };
 }
 
 function isBleedTargetAlive(state: CombatState, enemyId: string): boolean {
@@ -2606,6 +2781,7 @@ function resolveLivingEnemyPhase(
   enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]>;
   defendCounter: boolean;
   itemResponse?: CombatItemResponseSummary;
+  statisticsEvidence?: CombatStatisticsTurnEvidenceV1;
 } {
   let monsterDamage = 0;
   let monsterOutcome: CombatTurnSummary["monsterOutcome"] | undefined;
@@ -2613,6 +2789,9 @@ function resolveLivingEnemyPhase(
   const enemyActions: CombatEnemyTurnSummary[] = [];
   const enemyPressureSkips: NonNullable<CombatTurnSummary["enemyPressureSkips"]> = [];
   let itemResponse: CombatItemResponseSummary | undefined;
+  let heroGuardPrevented = 0;
+  let heroControl = 0;
+  const statisticsEnemies: Record<string, CombatStatisticsEnemyTurnEvidenceV1> = {};
 
   for (const [participantIndex, participant] of participants.entries()) {
     if (state.hero.hp <= 0) {
@@ -2658,6 +2837,13 @@ function resolveLivingEnemyPhase(
       responseItemEffect: itemResponse ? undefined : itemResponseEffect
     });
     const responseDamage = response.damage;
+    heroGuardPrevented += response.heroGuardPrevented ?? 0;
+    heroControl += response.heroControl ?? 0;
+    mergeCombatStatisticsEnemyTurnEvidence(statisticsEnemies, enemy.enemyId, {
+      damage: response.actualDamage ?? 0,
+      healing: response.healing ?? 0,
+      control: response.control ?? 0
+    });
     if (response.itemResponseDelta?.eligible && itemResponseEffect && !itemResponse) {
       itemResponse = buildCombatItemResponseSummary(
         input,
@@ -2702,6 +2888,11 @@ function resolveLivingEnemyPhase(
     enemyActions,
     enemyPressureSkips,
     defendCounter,
+    statisticsEvidence: buildCombatStatisticsTurnEvidence({
+      heroGuardPrevented,
+      heroControl,
+      enemies: statisticsEnemies
+    }),
     ...(itemResponse ? { itemResponse } : {})
   };
 }
@@ -2875,25 +3066,85 @@ function applyDefendStance(input: {
   defenderGuard: CombatGuardState | undefined;
   damage: number;
   rng: RandomSource;
-}): { damage: number; counter: boolean } {
+}): {
+  damage: number;
+  counter: boolean;
+  evaded: boolean;
+  reduction: number;
+  abilityDamageReduction: number;
+} {
   if (!input.defenderGuard || input.damage <= 0) {
-    return { damage: input.damage, counter: false };
+    return {
+      damage: input.damage,
+      counter: false,
+      evaded: false,
+      reduction: 0,
+      abilityDamageReduction: 0
+    };
   }
 
   const stance = getDefendStance(input.defenderGuard);
   if (input.rng.nextFloat() < stance.evasionChance) {
-    return { damage: 0, counter: false };
+    return {
+      damage: 0,
+      counter: false,
+      evaded: true,
+      reduction: stance.damageReduction,
+      abilityDamageReduction: Math.max(0, input.defenderGuard.abilityDamageReduction ?? 0)
+    };
   }
 
   const reducedDamage = Math.max(1, Math.floor(input.damage * (1 - stance.damageReduction)));
 
   return {
     damage: Math.max(0, reducedDamage - Math.max(0, input.defenderGuard.abilityDamageReduction ?? 0)),
-    counter: stance.counterChance > 0 && input.rng.nextFloat() < stance.counterChance
+    counter: stance.counterChance > 0 && input.rng.nextFloat() < stance.counterChance,
+    evaded: false,
+    reduction: stance.damageReduction,
+    abilityDamageReduction: Math.max(0, input.defenderGuard.abilityDamageReduction ?? 0)
   };
 }
 
+function applyResolvedDefendStanceDamage(
+  damage: number,
+  stance: ReturnType<typeof applyDefendStance>
+): number {
+  if (damage <= 0 || (stance.reduction === 0 && stance.abilityDamageReduction === 0)) {
+    return Math.max(0, damage);
+  }
+  if (stance.evaded) {
+    return 0;
+  }
+
+  const reduced = Math.max(1, Math.floor(damage * (1 - stance.reduction)));
+  return Math.max(0, reduced - stance.abilityDamageReduction);
+}
+
+function actualPreventedDamage(hpBefore: number, damageBefore: number, damageAfter: number): number {
+  return Math.max(
+    0,
+    Math.min(Math.max(0, hpBefore), Math.max(0, damageBefore)) -
+      Math.min(Math.max(0, hpBefore), Math.max(0, damageAfter))
+  );
+}
+
 function resolveMonsterResponse(input: {
+  state: CombatState;
+  input: ResolveCombatTurnInput;
+  damageReduction: number;
+  simultaneousFinalResponse?: boolean;
+  responseItemEffect?: CombatResponseItemEffect | undefined;
+}): MonsterResponseResult {
+  const heroHpBefore = input.state.hero.hp;
+  const result = resolveMonsterResponseCore(input);
+
+  return {
+    ...result,
+    actualDamage: Math.max(0, heroHpBefore - input.state.hero.hp)
+  };
+}
+
+function resolveMonsterResponseCore(input: {
   state: CombatState;
   input: ResolveCombatTurnInput;
   damageReduction: number;
@@ -2920,35 +3171,62 @@ function resolveMonsterResponse(input: {
       defendStance: input.state.guard ? getDefendStance(input.state.guard) : undefined,
       responseItemEffect: input.responseItemEffect
     });
-    const basicAttackDamage = response.actionKind === "attack"
-      ? rollMonsterDamage(
+    const basicAttack = response.actionKind === "attack"
+      ? rollMonsterDamageWithPrevention(
           input.input.hero,
           runtimeMonster,
           input.input.rng,
           input.damageReduction
         )
-      : 0;
+      : { damage: 0, damageBeforeReduction: 0, preventedDamage: 0 };
     const defendedBasicAttack = applyDefendStance({
       defenderGuard: input.state.guard,
-      damage: basicAttackDamage,
+      damage: basicAttack.damage,
       rng: input.input.rng
     });
-    const modifiedBasicAttack = consumeMonsterRuntimeDirectHitModifiers({
+    const modifiedBasicAttackResult = consumeMonsterRuntimeDirectHitModifiers({
       state: input.state,
       damage: defendedBasicAttack.damage
     });
+    const modifiedBasicAttack = modifiedBasicAttackResult.damage;
+    const basicDamageBeforeControl = Math.max(
+      0,
+      Math.floor(basicAttack.damageBeforeReduction * modifiedBasicAttackResult.markMultiplier)
+    );
+    const basicDamageBeforeGuard = Math.max(
+      0,
+      Math.floor(basicAttack.damage * modifiedBasicAttackResult.markMultiplier)
+    );
+    const basicDamageAfterGuard = Math.max(
+      0,
+      Math.floor(
+        applyResolvedDefendStanceDamage(basicAttack.damage, defendedBasicAttack) *
+          modifiedBasicAttackResult.markMultiplier
+      )
+    );
+    const hpBeforeBasicAttack = input.state.hero.hp;
+    const basicControlPrevented = actualPreventedDamage(
+      hpBeforeBasicAttack,
+      basicDamageBeforeControl,
+      basicDamageBeforeGuard
+    );
+    const basicGuardPrevented = actualPreventedDamage(
+      hpBeforeBasicAttack,
+      basicDamageBeforeGuard,
+      basicDamageAfterGuard
+    );
     const basicItemResponseDelta = response.actionKind === "attack"
       ? resolveCombatResponseItemDelta(
           {
             damage: input.responseItemEffect
-              ? Math.min(input.state.hero.hp, modifiedBasicAttack.damage)
-              : modifiedBasicAttack.damage,
+              ? Math.min(input.state.hero.hp, modifiedBasicAttack)
+              : modifiedBasicAttack,
             harmfulOnHitConsequenceCount: 0
           },
           input.responseItemEffect
         )
       : resolveCombatResponseItemDelta({
-          damage: modifiedBasicAttack.damage,
+          damage: modifiedBasicAttack,
           harmfulOnHitConsequenceCount: 0
         }, undefined);
     if (basicItemResponseDelta.damageAfter > 0) {
@@ -2963,6 +3241,12 @@ function resolveMonsterResponse(input: {
 
     return {
       damage: response.damage + basicItemResponseDelta.damageAfter,
+      healing: response.healing ?? 0,
+      control: response.control ?? 0,
+      heroGuardPrevented: (response.heroGuardPrevented ?? 0) + basicGuardPrevented,
+      heroControl: (response.heroControlPrevented ?? 0) + basicControlPrevented +
+        (itemResponseDelta?.preventedDamage ?? 0) +
+        (itemResponseDelta?.preventedHarmfulOnHitConsequenceCount ?? 0),
       ...(response.outcome ? { outcome: response.outcome } : {}),
       ...(response.actionKind
         ? { monsterAction: response.actionKind === "ability" ? "skill" : response.actionKind }
@@ -2977,7 +3261,8 @@ function resolveMonsterResponse(input: {
 
   const monsterSkill = selectMonsterSkill(input.input.state, monsterForResponse, input.input.rng);
   if (monsterSkill) {
-    const damage = rollMonsterSkillDamage(
+    const hpBefore = input.state.hero.hp;
+    const damage = rollMonsterSkillDamageWithPrevention(
       input.input.hero,
       monsterForResponse,
       monsterSkill,
@@ -2986,7 +3271,7 @@ function resolveMonsterResponse(input: {
     );
     const itemResponseDelta = resolveCombatResponseItemDelta(
       {
-        damage: input.responseItemEffect ? Math.min(input.state.hero.hp, damage) : damage,
+        damage: input.responseItemEffect ? Math.min(input.state.hero.hp, damage.damage) : damage.damage,
         harmfulOnHitConsequenceCount: 0
       },
       input.responseItemEffect
@@ -2995,6 +3280,11 @@ function resolveMonsterResponse(input: {
 
     return {
       damage: itemResponseDelta.damageAfter,
+      heroControl: actualPreventedDamage(
+        hpBefore,
+        damage.damageBeforeReduction,
+        damage.damage
+      ) + itemResponseDelta.preventedDamage + itemResponseDelta.preventedHarmfulOnHitConsequenceCount,
       monsterAction: "skill",
       monsterSkill,
       ...(itemResponseDelta.eligible ? { itemResponseDelta } : {})
@@ -3011,7 +3301,7 @@ function resolveBasicMonsterResponse(input: {
   monster: MonsterCombatStats;
   responseItemEffect?: CombatResponseItemEffect | undefined;
 }): MonsterResponseResult {
-  const monsterDamage = rollMonsterDamage(
+  const monsterDamage = rollMonsterDamageWithPrevention(
     input.input.hero,
     input.monster,
     input.input.rng,
@@ -3019,18 +3309,35 @@ function resolveBasicMonsterResponse(input: {
   );
   const defendedMonsterAttack = applyDefendStance({
     defenderGuard: input.state.guard,
-    damage: monsterDamage,
+    damage: monsterDamage.damage,
     rng: input.input.rng
   });
-  const modifiedMonsterAttack = consumeMonsterRuntimeDirectHitModifiers({
+  const modifiedMonsterAttackResult = consumeMonsterRuntimeDirectHitModifiers({
     state: input.state,
     damage: defendedMonsterAttack.damage
   });
+  const modifiedMonsterAttack = modifiedMonsterAttackResult.damage;
+  const damageBeforeControl = Math.max(
+    0,
+    Math.floor(monsterDamage.damageBeforeReduction * modifiedMonsterAttackResult.markMultiplier)
+  );
+  const damageBeforeGuard = Math.max(
+    0,
+    Math.floor(monsterDamage.damage * modifiedMonsterAttackResult.markMultiplier)
+  );
+  const damageAfterGuard = Math.max(
+    0,
+    Math.floor(
+      applyResolvedDefendStanceDamage(monsterDamage.damage, defendedMonsterAttack) *
+        modifiedMonsterAttackResult.markMultiplier
+    )
+  );
+  const hpBefore = input.state.hero.hp;
   const itemResponseDelta = resolveCombatResponseItemDelta(
     {
       damage: input.responseItemEffect
-        ? Math.min(input.state.hero.hp, modifiedMonsterAttack.damage)
-        : modifiedMonsterAttack.damage,
+        ? Math.min(input.state.hero.hp, modifiedMonsterAttack)
+        : modifiedMonsterAttack,
       harmfulOnHitConsequenceCount: 0
     },
     input.responseItemEffect
@@ -3039,6 +3346,9 @@ function resolveBasicMonsterResponse(input: {
 
   return {
     damage: itemResponseDelta.damageAfter,
+    heroGuardPrevented: actualPreventedDamage(hpBefore, damageBeforeGuard, damageAfterGuard),
+    heroControl: actualPreventedDamage(hpBefore, damageBeforeControl, damageBeforeGuard) +
+      itemResponseDelta.preventedDamage + itemResponseDelta.preventedHarmfulOnHitConsequenceCount,
     monsterAction: "attack",
     defendCounter: defendedMonsterAttack.counter,
     ...(itemResponseDelta.eligible ? { itemResponseDelta } : {})

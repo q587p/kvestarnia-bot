@@ -50,6 +50,8 @@ describe("createRuntime", () => {
     const passageSearchScheduler = makeScheduler();
     const referralScheduler = makeScheduler();
     const createReferralScheduler = vi.fn(() => referralScheduler);
+    const createCombatTurnTimeoutScheduler = vi.fn(() => combatScheduler);
+    const createPassageSearchCompletionScheduler = vi.fn(() => passageSearchScheduler);
     const servicesFixture = makeServices({ passageSearch: true, referrals: true });
     const services = servicesFixture.services;
     let readiness: { isReady(): boolean } | undefined;
@@ -64,9 +66,9 @@ describe("createRuntime", () => {
       dependencies: {
         createBot: vi.fn(() => bot),
         createDuelTurnTimeoutScheduler: vi.fn(() => duelScheduler),
-        createCombatTurnTimeoutScheduler: vi.fn(() => combatScheduler),
+        createCombatTurnTimeoutScheduler,
         createHealthRecoveryNotificationScheduler: vi.fn(() => healthRecoveryScheduler),
-        createPassageSearchCompletionScheduler: vi.fn(() => passageSearchScheduler),
+        createPassageSearchCompletionScheduler,
         createReferralScheduler,
         getTelegramMenuCommands: vi.fn(() => [{ command: "start", description: "start" }]),
         startHealthServer: vi.fn((options: HealthServerOptions) => {
@@ -89,6 +91,16 @@ describe("createRuntime", () => {
     expect(combatScheduler.start).toHaveBeenCalledTimes(1);
     expect(healthRecoveryScheduler.start).toHaveBeenCalledTimes(1);
     expect(passageSearchScheduler.start).toHaveBeenCalledTimes(1);
+    expect(createCombatTurnTimeoutScheduler).toHaveBeenCalledWith(
+      expect.objectContaining({ fight: services.fight }),
+      bot,
+      { botUsername: "kvestarnia_bot" }
+    );
+    expect(createPassageSearchCompletionScheduler).toHaveBeenCalledWith(
+      { passageSearch: services.passageSearch, fight: services.fight },
+      bot,
+      { botUsername: "kvestarnia_bot" }
+    );
     expect(createReferralScheduler).toHaveBeenCalledWith(services.referrals, bot);
     expect(referralScheduler.start).toHaveBeenCalledTimes(1);
     expect(combatScheduler.stop).toHaveBeenCalledTimes(1);

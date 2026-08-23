@@ -1444,7 +1444,7 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["⚔️ Новий бій", "↩️ Повернутися до Низу"]);
+    }, character))).toEqual(["📊 Статистика", "⚔️ Новий бій", "↩️ Повернутися до Низу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -1452,7 +1452,11 @@ describe("main menu and scene keyboards", () => {
         ...session.state!,
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep-straight", "v1:place:deep"]);
+    }, character))).toEqual([
+      "v1:fight:stats:123e4567-e89b-12d3-a456-426614174000",
+      "v1:place:deep-straight",
+      "v1:place:deep"
+    ]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -1461,7 +1465,11 @@ describe("main menu and scene keyboards", () => {
         originLocationId: "location.korchma.deep.level1.left",
         status: "won"
       }
-    }, character))).toEqual(["v1:place:deep-left", "v1:place:deep-level1"]);
+    }, character))).toEqual([
+      "v1:fight:stats:123e4567-e89b-12d3-a456-426614174000",
+      "v1:place:deep-left",
+      "v1:place:deep-level1"
+    ]);
     expect(flatInlineButtonTexts(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -1471,7 +1479,7 @@ describe("main menu and scene keyboards", () => {
         originLocationId: "location.korchma.quest_table",
         status: "won"
       }
-    }, character))).toEqual(["↩️ Повернутися до столу"]);
+    }, character))).toEqual(["📊 Статистика", "↩️ Повернутися до столу"]);
     expect(flatInlineButtonCallbacks(buildPersistentFightResultKeyboard({
       ...session,
       status: "won",
@@ -1481,7 +1489,10 @@ describe("main menu and scene keyboards", () => {
         originLocationId: "location.korchma.quest_table",
         status: "won"
       }
-    }, character))).toEqual(["v1:place:quest-table"]);
+    }, character))).toEqual([
+      "v1:fight:stats:123e4567-e89b-12d3-a456-426614174000",
+      "v1:place:quest-table"
+    ]);
   });
 
   it("hides unavailable persistent gear action buttons while the fight card explains the blocker", () => {
@@ -1683,10 +1694,12 @@ describe("main menu and scene keyboards", () => {
 
     expect(flatInlineButtonTexts(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "📜 Журнал бою",
+      "📊 Статистика",
       "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(buildTrainingDoppelgangerKeyboard(session, character))).toEqual([
       "v1:spar:log:123e4567-e89b-12d3-a456-426614174000:0",
+      "v1:spar:stats:123e4567-e89b-12d3-a456-426614174000",
       "v1:place:fighting-corner"
     ]);
   });
@@ -1731,12 +1744,14 @@ describe("main menu and scene keyboards", () => {
     expect(flatInlineButtonTexts(keyboard)).toEqual([
       "🔁 Реванш",
       "📣 Картка",
+      "📊 Статистика",
       "🥊 Покликати ще когось",
       "↩️ Повернутися до кутка"
     ]);
     expect(flatInlineButtonCallbacks(keyboard)).toEqual([
       "v1:duel:rematch:abcDEF12",
       "v1:duel:share:abcDEF12",
+      "v1:duel:s:abcDEF12",
       "v1:duel:new",
       "v1:place:fighting-corner"
     ]);

@@ -94,6 +94,12 @@ describe("turn-based duel domain", () => {
       "inspiration-duel:turn-based-duel:duel-session:1:challenger"
     ]);
     expect(pulsed.lastRound?.bardInspirationAfter?.target).toBeNull();
+    expect(pulsed.statistics?.challenger).toMatchObject({
+      healing: 1,
+      damageTaken: targetAction!.damage,
+      actions: 1,
+      guardedTurns: 1
+    });
   });
 
   it("stores a stable first actor from initiative instead of always using the challenger", () => {
@@ -668,6 +674,11 @@ describe("turn-based duel domain", () => {
       guard: 1
     });
     expect(resolved.state.participants.challenger.hp).toBe(17);
+    expect(resolved.state.statistics?.challenger).toMatchObject({
+      healing: 7,
+      actions: 1,
+      specialActions: 1
+    });
   });
 
   it("reduces incoming damage when defend is queued in a hidden round", () => {
@@ -882,6 +893,12 @@ describe("turn-based duel domain", () => {
 
     expect(baselineWarriorDamage).toBeGreaterThan(0);
     expect(mitigatedWarriorDamage).toBe(Math.max(0, baselineWarriorDamage - 2));
+    expect(defended.state.statistics?.challenger).toMatchObject({
+      control: 2,
+      guardPrevented: 0,
+      actions: 1,
+      specialActions: 1
+    });
   });
 
   it("does not apply queued class mitigation when that queued ability fumbles", () => {
@@ -968,6 +985,32 @@ describe("turn-based duel domain", () => {
       outcome: "critical-fumble",
       skillId: "skill.form-thirteen-b"
     });
+  });
+
+  it("records capped HP damage instead of overkill in turn-duel statistics", () => {
+    const state = startTurnBasedDuel({
+      challenger: makeDuelist({ id: "challenger", strength: 30, hpCurrent: 100, hpMax: 100 }),
+      target: makeDuelist({ id: "target", hpCurrent: 1, hpMax: 100 }),
+      rng: new FakeRandomSource([0.99, 0])
+    });
+    state.actingCharacterId = "challenger";
+    const queued = resolveTurnBasedDuelAction({
+      state,
+      actorCharacterId: "target",
+      action: "attack",
+      rng: new FakeRandomSource([0.1, 0.9])
+    });
+    if (!queued.ok) throw new Error("Expected target action to queue.");
+    const resolved = resolveTurnBasedDuelAction({
+      state: queued.state,
+      actorCharacterId: "challenger",
+      action: "attack",
+      rng: new FakeRandomSource([0, 0])
+    });
+    if (!resolved.ok || resolved.resolution !== "resolved") throw new Error("Expected terminal round.");
+
+    expect(resolved.state.statistics?.challenger.damage).toBe(1);
+    expect(resolved.state.statistics?.target.damageTaken).toBe(1);
   });
 
   it("rolls small replay-storable XP for terminal wins and losses", () => {

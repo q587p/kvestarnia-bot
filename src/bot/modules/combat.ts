@@ -41,6 +41,7 @@ buildFightResultKeyboard,
 buildPersistentFightDifficultyKeyboard,
 buildPersistentFightItemsKeyboard,
 buildPersistentFightJournalKeyboard,
+buildPersistentFightStatisticsKeyboard,
 buildPassageSearchCancelKeyboard,
 buildPassageSearchRunningKeyboard,
 buildPersistentFightPassagePreviewKeyboard,
@@ -52,6 +53,7 @@ buildBackToKorchmaHallKeyboard
 } from "../keyboards/tavernKeyboard";
 import {
   buildTrainingDoppelgangerJournalKeyboard,
+  buildTrainingDoppelgangerStatisticsKeyboard,
   buildTrainingDoppelgangerKeyboard
 } from "../keyboards/trainingDoppelgangerKeyboard";
 import { editPendingRaidBlockIfNeeded } from "../middleware/pendingRaidGuard";
@@ -62,11 +64,15 @@ buildProblemQuestProgressAfterFightEntry,
 presentFightLevelRetired,
 presentFightNoCharacter,
 presentFightResult,
+presentMimicShawarmaStatistics,
+presentPublicMimicShawarmaJournal,
+presentPublicMimicShawarmaResult,
 presentPersistentFightIntro,
 presentPersistentFightDifficultyChoice,
 presentPersistentFightGearUnavailableNotice,
 presentPersistentFightItemUnavailableNotice,
 presentPersistentFightJournal,
+presentPersistentFightStatistics,
 presentPersistentFightPassagePreview,
 presentPersistentFightSnapshot,
 presentPersistentFightTurn,
@@ -87,6 +93,7 @@ presentKorchmaDeepLevelLocked
 import {
 presentTrainingDoppelganger,
 presentTrainingDoppelgangerJournal,
+presentTrainingDoppelgangerStatistics,
 presentTrainingDoppelgangerLevelGate,
 presentTrainingDoppelgangerNoCharacter,
 presentTrainingDoppelgangerTurn
@@ -94,6 +101,10 @@ presentTrainingDoppelgangerTurn
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
 import { isPassageSearchAvailable } from "../passageSearchAvailability";
+import {
+  buildMimicTerminalBattleArtifactKeyboardOptions,
+  buildSessionTerminalBattleArtifactKeyboardOptions
+} from "../terminalBattleArtifactLink";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import {
@@ -118,7 +129,7 @@ const HTML_MESSAGE_OPTIONS = {
 
 export function registerCombatBotModule(
   bot: Bot,
-  { services }: BotModuleDependencies
+  { services, options }: BotModuleDependencies
 ): void {
   bot.command("fight", async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
@@ -128,13 +139,15 @@ export function registerCombatBotModule(
     presence: services.presence,
     tavernRaid: services.tavern,
     passageSearch: services.passageSearch,
-    guildFoundationEnabled: services.guilds?.isEnabled() === true
+    guildFoundationEnabled: services.guilds?.isEnabled() === true,
+    botUsername: options.botUsername
   });
   if (services.trainingDoppelganger) {
     registerTrainingDoppelgangerCommand(bot, services.trainingDoppelganger, {
       presence: services.presence,
       tavernRaid: services.tavern,
-      fightingCornerQuest: services.fightingCornerQuest
+      fightingCornerQuest: services.fightingCornerQuest,
+      botUsername: options.botUsername
     });
     registerTrainingDoppelgangerDevResetHandler(bot, services);
   }
@@ -144,7 +157,7 @@ export function registerCombatBotModule(
     /^v1:spar:/,
     (data) => parseWhenAvailable(data, parseTrainingDoppelgangerCallbackData, services.trainingDoppelganger),
     async (ctx, callback) => {
-      await handleTrainingDoppelgangerCallback(ctx, callback, services);
+      await handleTrainingDoppelgangerCallback(ctx, callback, services, options.botUsername);
     }
   );
 
@@ -153,7 +166,7 @@ export function registerCombatBotModule(
     /^v1:fight:/,
     parseFightCallbackData,
     async (ctx, callback) => {
-      await handleFightCallback(ctx, callback, services);
+      await handleFightCallback(ctx, callback, services, options.botUsername);
     }
   );
 
@@ -221,11 +234,62 @@ function registerTrainingDoppelgangerDevResetHandler(bot: Bot, services: BotServ
 export async function handleTrainingDoppelgangerCallback(
   ctx: Context,
   callback: TrainingDoppelgangerCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
-  if (!telegramUserId || !services.trainingDoppelganger) {
+  if (!services.trainingDoppelganger) {
+    await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
+    const artifact = typeof services.trainingDoppelganger.getPublicTerminalArtifact === "function"
+      ? await services.trainingDoppelganger.getPublicTerminalArtifact(callback.sessionId)
+      : { state: "not-found" as const };
+    if (artifact.state === "ready") {
+      const result = { ...artifact, state: "found" as const };
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "statistics") {
+        await safeEditMessageText(ctx, presentTrainingDoppelgangerStatistics(result), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerStatisticsKeyboard(result.session)
+        });
+      } else if (callback.type === "journal") {
+        await safeEditMessageText(ctx, presentTrainingDoppelgangerJournal(result, callback.page), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentTrainingDoppelganger({
+          state: "terminal",
+          character: result.character,
+          doppelganger: result.doppelganger,
+          session: result.session,
+          reward: null
+        }), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildTrainingDoppelgangerKeyboard(
+            result.session,
+            result.character,
+            buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+          )
+        });
+      }
+      return;
+    }
+    if (artifact.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: "Запис не знайшовся або бій ще триває." });
+      return;
+    }
+  }
+
+  if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
     return;
   }
@@ -281,14 +345,18 @@ export async function handleTrainingDoppelgangerCallback(
       ...(result.state === "not-found"
         ? {}
         : {
-            reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+            reply_markup: buildTrainingDoppelgangerKeyboard(
+              result.session,
+              result.character,
+              buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+            )
           })
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
   }
 
-  if (callback.type === "view" || callback.type === "journal") {
+  if (callback.type === "view") {
     const result = await services.trainingDoppelganger.getTrainingDoppelgangerSnapshotForTelegramUser(
       telegramUserId,
       callback.sessionId
@@ -327,15 +395,6 @@ export async function handleTrainingDoppelgangerCallback(
 
     await safeAnswerCallbackQuery(ctx);
 
-    if (callback.type === "journal") {
-      await safeEditMessageText(ctx, presentTrainingDoppelgangerJournal(result, callback.page), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildTrainingDoppelgangerJournalKeyboard(result.session, callback.page)
-      });
-      await notifyTrainingQuestProgress(ctx, questProgressUpdates);
-      return;
-    }
-
     const trainingView =
       (result.session.state?.status ?? result.session.status) === "active"
         ? {
@@ -354,7 +413,11 @@ export async function handleTrainingDoppelgangerCallback(
 
     await safeEditMessageText(ctx, presentTrainingDoppelganger(trainingView), {
       ...HTML_MESSAGE_OPTIONS,
-      reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+      reply_markup: buildTrainingDoppelgangerKeyboard(
+        result.session,
+        result.character,
+        buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+      )
     });
     await notifyTrainingQuestProgress(ctx, questProgressUpdates);
     return;
@@ -365,6 +428,7 @@ export async function handleTrainingDoppelgangerCallback(
     presence: services.presence,
     tavernRaid: services.tavern,
     fightingCornerQuest: services.fightingCornerQuest,
+    botUsername,
     requireKorchmaInterior: true,
     ...(callback.type === "mode" ? { startMode: callback.mode } : {})
   });
@@ -386,9 +450,85 @@ async function notifyTrainingQuestProgress(
 async function handleFightCallback(
   ctx: Context,
   callback: FightCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
+
+  if (
+    callback.type === "mimic-result" ||
+    callback.type === "mimic-journal" ||
+    callback.type === "mimic-statistics"
+  ) {
+    const result = typeof services.fight.getPublicMimicShawarmaArtifact === "function"
+      ? await services.fight.getPublicMimicShawarmaArtifact(callback.artifactToken)
+      : { state: "not-found" as const };
+    if (result.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(
+      ctx,
+      callback.type === "mimic-result"
+        ? presentPublicMimicShawarmaResult(result)
+        : callback.type === "mimic-journal"
+          ? presentPublicMimicShawarmaJournal(result)
+          : presentMimicShawarmaStatistics(result),
+      {
+        ...HTML_MESSAGE_OPTIONS,
+        reply_markup: buildFightResultKeyboard(
+          "already-completed",
+          result.character,
+          result.artifactToken,
+          buildMimicTerminalBattleArtifactKeyboardOptions(
+            botUsername,
+            "already-completed",
+            result.artifactToken
+          )
+        )
+      }
+    );
+    return;
+  }
+
+  if (callback.type === "view" || callback.type === "journal" || callback.type === "statistics") {
+    const publicResult = typeof services.fight.getPublicTerminalFightArtifact === "function"
+      ? await services.fight.getPublicTerminalFightArtifact(callback.sessionId)
+      : { state: "no-character" as const };
+    if (publicResult.state === "found") {
+      await safeAnswerCallbackQuery(ctx);
+      if (callback.type === "statistics") {
+        await safeEditMessageText(ctx, presentPersistentFightStatistics(publicResult), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightStatisticsKeyboard(publicResult.session)
+        });
+      } else if (callback.type === "journal") {
+        await safeEditMessageText(ctx, presentPersistentFightJournal(publicResult, callback.page), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightJournalKeyboard(publicResult.session, callback.page)
+        });
+      } else {
+        await safeEditMessageText(ctx, presentPersistentFightSnapshot(publicResult), {
+          ...HTML_MESSAGE_OPTIONS,
+          reply_markup: buildPersistentFightResultKeyboard(
+            publicResult.session,
+            publicResult.character,
+            buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", publicResult.session)
+          )
+        });
+      }
+      return;
+    }
+    if (publicResult.state === "not-found") {
+      await safeAnswerCallbackQuery(ctx, { text: "Бойовий запис не знайшовся." });
+      return;
+    }
+    if (callback.type !== "view") {
+      await safeAnswerCallbackQuery(ctx, { text: "Запис не знайшовся або бій ще триває." });
+      return;
+    }
+  }
 
   if (!telegramUserId) {
     await safeAnswerCallbackQuery(ctx, { text: presentInvalidCallback(), show_alert: true });
@@ -554,7 +694,7 @@ async function handleFightCallback(
     return;
   }
 
-  if (callback.type === "view" || callback.type === "journal") {
+  if (callback.type === "view") {
     const result = await services.fight.getPersistentFightSnapshotForTelegramUser(
       telegramUserId,
       callback.sessionId
@@ -586,17 +726,10 @@ async function handleFightCallback(
 
     await safeAnswerCallbackQuery(ctx);
 
-    if (callback.type === "journal") {
-      await safeEditMessageText(ctx, presentPersistentFightJournal(result, callback.page), {
-        ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightJournalKeyboard(result.session, callback.page)
-      });
-      return;
-    }
-
     await safeEditMessageText(ctx, presentPersistentFightSnapshot(result), {
       ...HTML_MESSAGE_OPTIONS,
       reply_markup: buildPersistentFightResultKeyboard(result.session, result.character, {
+        ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", result.session),
         includeCombatItems:
           result.session.status === "active" &&
           result.session.state?.status === "active" &&
@@ -644,6 +777,7 @@ async function handleFightCallback(
         await safeEditMessageText(ctx, presentPersistentFightSnapshot(snapshot), {
           ...HTML_MESSAGE_OPTIONS,
           reply_markup: buildPersistentFightResultKeyboard(snapshot.session, snapshot.character, {
+            ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", snapshot.session),
             includeCombatItems:
               snapshot.session.status === "active" &&
               snapshot.session.state?.status === "active" &&
@@ -778,6 +912,7 @@ async function handleFightCallback(
           result.state === "not-found" || result.state === "needs-rest"
             ? undefined
             : buildPersistentFightResultKeyboard(result.session, result.character, {
+                ...buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", result.session),
                 includeCombatItems
               })
       };
@@ -864,7 +999,16 @@ async function handleFightCallback(
   await safeAnswerCallbackQuery(ctx);
   await safeEditMessageText(ctx, presentFightResult(result), {
     ...HTML_MESSAGE_OPTIONS,
-    reply_markup: buildFightResultKeyboard(result.state, result.character)
+    reply_markup: buildFightResultKeyboard(
+      result.state,
+      result.character,
+      result.artifactToken,
+      buildMimicTerminalBattleArtifactKeyboardOptions(
+        botUsername,
+        result.state,
+        result.artifactToken
+      )
+    )
   });
   if (result.state === "completed") {
     await sendLevelUpCelebration(ctx, result);

@@ -1,14 +1,18 @@
 import type {
   ItemUpgradeAttemptServiceResult,
+  ItemDismantleListResult,
+  ItemDismantlePreviewResult,
   ItemUpgradeListResult,
   ItemUpgradePreviewResult,
   ItemUpgradeUnlockServiceResult
 } from "../../services/itemUpgradeService";
+import type { ItemDismantleConfirmResult } from "../../db/repositories/itemUpgradeRepository";
 import { enrichRewardItemGrants } from "../../services/itemGrant";
 import { findItemContent } from "../../content/itemLookup";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { presentQuestRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
+import { ITEM_DISMANTLE_ICON } from "../itemActionIcons";
 
 export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
   if (result.state === "no-character") {
@@ -202,6 +206,75 @@ export function presentItemUpgradeUnlock(result: ItemUpgradeUnlockServiceResult)
   ].join("\n");
 }
 
+export function presentItemDismantleList(result: ItemDismantleListResult): string {
+  if (result.state === "no-character") return "Спершу створіть пригодника через /start. Розбирати поки нікого й нічого.";
+  if (result.state === "wrong-place" || result.state === "level-locked" || result.state === "unlock-required") {
+    return presentItemUpgradeGate(result);
+  }
+  return [
+    `${ITEM_DISMANTLE_ICON} <b>Розбір манатки</b>`,
+    "",
+    result.items.length > 0
+      ? "Оберіть одну доступну манатку. Спершу буде точний перегляд; він нічого не резервує і не витрачає."
+      : "Немає безпечної манатки для розбору: споряджені, зарезервовані та захищені речі маг не чіпає.",
+    "",
+    "Розбір незворотний і перетворює рівно одну одиницю на Іскрокамінь."
+  ].join("\n");
+}
+
+export function presentItemDismantlePreview(result: ItemDismantlePreviewResult): string {
+  if (result.state === "no-character") return "Спершу створіть пригодника через /start.";
+  if (result.state === "wrong-place" || result.state === "level-locked" || result.state === "unlock-required") {
+    return presentItemUpgradeGate(result);
+  }
+  if (result.state === "not-owned") return "Цієї манатки вже немає в торбі. Розбір не почато.";
+  if (result.state === "equipped") return "Манатка зараз споряджена. Зніміть її, тоді поверніться до розбору.";
+  if (result.state === "reserved") return "Манатка вже зарезервована для іншої справи. Завершіть або скасуйте її, тоді спробуйте знову.";
+  if (result.state === "protected-last-copy") return "Останню захищену копію маг не розбирає. Залиште її в архіві пригодника.";
+  if (result.state === "not-eligible") return "Цю манатку не можна безпечно розібрати: вона не є придатним спорядженням або має захищену історію.";
+  if (result.state !== "ready") return "Перегляд розбору застарів. Відкрийте список ще раз.";
+  const balanceAfter = result.available - result.paymentAmount;
+  return [
+    `${ITEM_DISMANTLE_ICON} <b>Підтвердження розбору</b>`,
+    "",
+    `Манатка: <b>${escapeHtml(result.item.name)}</b>`,
+    `Рівень: <b>+${result.item.enhancementLevel}</b> · у стосі: <b>${result.item.quantity}</b>`,
+    `Вихід: <b>${result.item.yield}</b> Іскрокаменю`,
+    `Оплата: <b>${result.paymentAmount}</b> ${result.payment === "mana" ? "мани" : "золота"}`,
+    `Після оплати: <b>${Math.max(0, balanceAfter)}</b>`,
+    "",
+    "Буде знищено рівно одну одиницю. Повтор цієї кнопки поверне той самий чек без другого списання."
+  ].join("\n");
+}
+
+export function presentItemDismantleResult(
+  result: ItemDismantleConfirmResult | { state: "unavailable" }
+): string {
+  if (result.state === "dismantled" || result.state === "replayed") {
+    const item = findItemContent(result.itemId);
+    return [
+      `${ITEM_DISMANTLE_ICON} <b>${result.state === "replayed" ? "Чек розбору" : "Манатку розібрано"}</b>`,
+      "",
+      `Манатка: <b>${escapeHtml(item?.name ?? result.itemId)}</b>`,
+      `Витрачено: <b>${result.paymentAmount}</b> ${result.payment === "mana" ? "мани" : "золота"}`,
+      `Отримано: <b>${result.yield}</b> Іскрокаменю`,
+      `Іскрокаменю після операції: <b>${result.iskrokaminAfter}</b>`
+    ].join("\n");
+  }
+  if (result.state === "not-enough-gold") return `Не вистачає золота: треба <b>${result.required}</b>, є <b>${result.available}</b>. Манатку не розібрано.`;
+  if (result.state === "not-enough-mana") return `Не вистачає мани: треба <b>${result.required}</b>, є <b>${result.available}</b>. Манатку не розібрано.`;
+  if (result.state === "equipped") return "Манатка споряджена. Зніміть її й відкрийте свіжий перегляд.";
+  if (result.state === "reserved") return "Манатка зарезервована для іншої справи. Розбір нічого не змінив.";
+  if (result.state === "protected-last-copy") return "Остання захищена копія лишилася цілою.";
+  if (result.state === "wrong-place") return "Розбір працює лише в Чароковальні на задвірку корчми.";
+  if (result.state === "level-locked" || result.state === "unlock-required") return "Чароковальня ще недоступна для цього пригодника.";
+  if (result.state === "not-owned") return "Манатки вже немає в торбі. Нічого не списано.";
+  if (result.state === "not-eligible") return "Цю манатку не можна розібрати. Нічого не списано.";
+  if (result.state === "no-character") return "Пригодника не знайдено.";
+  if (result.state === "unavailable") return "Розбір тимчасово недоступний. Нічого не списано.";
+  return "Стара кнопка: життя пригодника, стос, правила або ціна вже змінилися. Нічого не списано.";
+}
+
 export function presentItemUpgradeEffectDelta(before: { effect?: Parameters<typeof presentItemEffect>[0] }, after: { effect?: Parameters<typeof presentItemEffect>[0] }): string | null {
   const beforeEffect = presentItemEffect(before.effect) ?? "без видимого ефекту";
   const afterEffect = presentItemEffect(after.effect) ?? "без видимого ефекту";
@@ -248,7 +321,8 @@ function presentItemUpgradeTraitLines(
 }
 
 function presentItemUpgradeGate(result: Extract<
-  ItemUpgradeListResult | ItemUpgradePreviewResult | ItemUpgradeAttemptServiceResult | ItemUpgradeUnlockServiceResult,
+  ItemUpgradeListResult | ItemUpgradePreviewResult | ItemUpgradeAttemptServiceResult | ItemUpgradeUnlockServiceResult |
+    ItemDismantleListResult | ItemDismantlePreviewResult,
   { state: "wrong-place" | "level-locked" | "unlock-required" }
 >): string {
   if (result.state === "wrong-place") {

@@ -29,10 +29,15 @@ import {
   isShynokDrinkKey
 } from "../../domain/shynokDrinks";
 import { buildMantokSaleBasket, buildMantokSaleEligibleStacks } from "../../domain/mantokSales";
-import { findActiveTransferReservedItems } from "./itemTransferReservations";
-import { findActiveItemUseReservedItems } from "./itemUseReservations";
+import { findAllActiveReservedItemIds } from "./itemTransferReservations";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { getQuestMarkerReadSnapshot } from "./questMarkerReadContext";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStacks,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
+import { isInventorySelectionAvailable } from "./inventoryReservationValidation";
 
 type TxClient = Prisma.TransactionClient;
 const PRESENCE_LOCATION_KORCHMA_BAR = "location.korchma.bar";
@@ -818,31 +823,36 @@ export class PrismaShynokRepository implements ShynokRepository {
       now: Date;
     }
   ): Promise<ShynokMantokSaleRecord | null> {
-    const character = await this.prisma.character.findFirst({
-      where: { user: { telegramUserId } },
-      include: characterRecordInclude
-    });
+    try {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) return null;
+        await lockInventoryItemStacks(tx, character.id, input.selection.map((item) => item.itemId), input.now);
+        if (!(await isInventorySelectionAvailable(tx, {
+          characterId: character.id,
+          items: input.selection,
+          now: input.now
+        }))) return null;
 
-    if (!character) {
-      return null;
+        return mapSale(await tx.korchmaMantokSale.create({
+          data: {
+            token: input.token,
+            characterId: character.id,
+            remortCount: getIncludedRemortCount(character),
+            status: "pending",
+            selectionJson: input.selection,
+            selectionFingerprint: input.selectionFingerprint,
+            nominalValue: input.nominalValue,
+            payoutGold: input.payoutGold,
+            expiresAt: input.expiresAt,
+            updatedAt: input.now
+          }
+        }));
+      });
+    } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return null;
+      throw error;
     }
-
-    const sale = await this.prisma.korchmaMantokSale.create({
-      data: {
-        token: input.token,
-        characterId: character.id,
-        remortCount: getIncludedRemortCount(character),
-        status: "pending",
-        selectionJson: input.selection,
-        selectionFingerprint: input.selectionFingerprint,
-        nominalValue: input.nominalValue,
-        payoutGold: input.payoutGold,
-        expiresAt: input.expiresAt,
-        updatedAt: input.now
-      }
-    });
-
-    return mapSale(sale);
   }
 
   async updateSaleSelectionForTelegramUser(
@@ -856,71 +866,88 @@ export class PrismaShynokRepository implements ShynokRepository {
       now: Date;
     }
   ): Promise<ShynokMantokSaleRecord | null> {
-    const updatedSale = await this.prisma.$transaction(async (tx) => {
-      const character = await findCharacter(tx, telegramUserId);
-      if (!character) {
-        return null;
-      }
-      const remortCount = getIncludedRemortCount(character);
-
-      await tx.korchmaMantokSale.updateMany({
-        where: {
-          token: input.token,
-          status: "pending",
-          expiresAt: { lte: input.now },
-          characterId: character.id
-        },
-        data: {
-          status: "expired",
-          updatedAt: input.now
+    try {
+      const updatedSale = await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        const character = await findCharacter(tx, telegramUserId);
+        if (!character) {
+          return null;
         }
-      });
+        const remortCount = getIncludedRemortCount(character);
 
-      const sale = await tx.korchmaMantokSale.findFirst({
-        where: {
-          token: input.token,
-          characterId: character.id
+        await tx.korchmaMantokSale.updateMany({
+          where: {
+            token: input.token,
+            status: "pending",
+            expiresAt: { lte: input.now },
+            characterId: character.id
+          },
+          data: {
+            status: "expired",
+            updatedAt: input.now
+          }
+        });
+
+        const sale = await tx.korchmaMantokSale.findFirst({
+          where: {
+            token: input.token,
+            characterId: character.id
+          }
+        });
+
+        if (!sale || sale.status !== "pending" || sale.expiresAt <= input.now) {
+          return null;
         }
-      });
 
-      if (!sale || sale.status !== "pending" || sale.expiresAt <= input.now) {
-        return null;
-      }
+        if (sale.remortCount !== remortCount || !(await canMutateShynok(tx, character, sale.createdAt, sale.remortCount))) {
+          return null;
+        }
 
-      if (sale.remortCount !== remortCount || !(await canMutateShynok(tx, character, sale.createdAt, sale.remortCount))) {
-        return null;
-      }
-
-      const updated = await tx.korchmaMantokSale.updateMany({
-        where: {
-          token: input.token,
-          status: "pending",
-          expiresAt: { gt: input.now },
+        const previousSelection = parseItems(sale.selectionJson);
+        await lockInventoryItemStacks(tx, character.id, [
+          ...previousSelection.map((item) => item.itemId),
+          ...input.selection.map((item) => item.itemId)
+        ], input.now);
+        if (!(await isInventorySelectionAvailable(tx, {
           characterId: character.id,
-          remortCount: sale.remortCount
-        },
-        data: {
-          selectionJson: input.selection,
-          selectionFingerprint: input.selectionFingerprint,
-          nominalValue: input.nominalValue,
-          payoutGold: input.payoutGold,
-          updatedAt: input.now
+          items: input.selection,
+          now: input.now,
+          exclusions: { exceptKorchmaMantokSaleId: sale.id }
+        }))) return null;
+
+        const updated = await tx.korchmaMantokSale.updateMany({
+          where: {
+            token: input.token,
+            status: "pending",
+            expiresAt: { gt: input.now },
+            characterId: character.id,
+            remortCount: sale.remortCount
+          },
+          data: {
+            selectionJson: input.selection,
+            selectionFingerprint: input.selectionFingerprint,
+            nominalValue: input.nominalValue,
+            payoutGold: input.payoutGold,
+            updatedAt: input.now
+          }
+        });
+
+        if (updated.count !== 1) {
+          return null;
         }
+
+        return tx.korchmaMantokSale.findFirst({
+          where: {
+            token: input.token,
+            characterId: character.id
+          }
+        });
       });
 
-      if (updated.count !== 1) {
-        return null;
-      }
-
-      return tx.korchmaMantokSale.findFirst({
-        where: {
-          token: input.token,
-          characterId: character.id
-        }
-      });
-    });
-
-    return mapSale(updatedSale);
+      return mapSale(updatedSale);
+    } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return null;
+      throw error;
+    }
   }
 
   async findSaleForTelegramUser(
@@ -975,8 +1002,8 @@ export class PrismaShynokRepository implements ShynokRepository {
     }
   ): Promise<ShynokConfirmSaleResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const snapshot = await getInventorySnapshot(tx, telegramUserId, input.now);
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
+        let snapshot = await getInventorySnapshot(tx, telegramUserId, input.now);
 
         if (!snapshot) {
           return { state: "no-character" };
@@ -1022,6 +1049,12 @@ export class PrismaShynokRepository implements ShynokRepository {
           !(await canMutateShynokByCharacterId(tx, snapshot.character.id, saleRow.createdAt, sale.remortCount))) {
           return { state: "invalid-token" };
         }
+
+        await lockInventoryItemStacks(tx, snapshot.character.id, sale.selection.map((item) => item.itemId), input.now);
+        snapshot = await getInventorySnapshot(tx, telegramUserId, input.now, {
+          exceptKorchmaMantokSaleId: sale.id
+        });
+        if (!snapshot) return { state: "no-character" };
 
         const eligible = buildMantokSaleEligibleStacks({
           stacks: snapshot.items,
@@ -1121,6 +1154,25 @@ export class PrismaShynokRepository implements ShynokRepository {
       if (error instanceof StaleSaleSelectionRollback) {
         return { state: "stale-selection", sale: error.sale };
       }
+      if (error instanceof InventoryMutationContentionError) {
+        try {
+          const sale = await this.findSaleForTelegramUser(telegramUserId, input.token);
+          if (!sale) return { state: "invalid-token" };
+          if (sale.status === "cancelled") return { state: "cancelled", sale };
+          if (sale.status === "expired") return { state: "expired", sale };
+          if (sale.status === "completed") {
+            const snapshot = await getInventorySnapshot(this.prisma, telegramUserId, input.now, {
+              exceptKorchmaMantokSaleId: sale.id
+            });
+            return snapshot
+              ? { state: "replayed", character: snapshot.character, sale }
+              : { state: "no-character" };
+          }
+          return { state: "stale-selection", sale };
+        } catch {
+          return { state: "invalid-token" };
+        }
+      }
 
       throw error;
     }
@@ -1168,14 +1220,15 @@ export class PrismaShynokRepository implements ShynokRepository {
 async function getInventorySnapshot(
   tx: TxClient,
   telegramUserId: bigint,
-  now: Date
+  now: Date,
+  exclusions: { exceptKorchmaMantokSaleId?: string } = {}
 ): Promise<ShynokInventorySnapshot | null> {
   const character = await findCharacter(tx, telegramUserId);
   if (!character) {
     return null;
   }
 
-  const [items, equipment, pendingChestRuns, pendingLevelBarters, pendingTransfers, pendingUses] = await Promise.all([
+  const [items, equipment, reservedItemIds] = await Promise.all([
     tx.characterItem.findMany({
       where: { characterId: character.id },
       orderBy: [{ createdAt: "asc" }, { itemId: "asc" }]
@@ -1184,46 +1237,19 @@ async function getInventorySnapshot(
       where: { characterId: character.id },
       select: { itemId: true }
     }),
-    tx.mantokChestRun.findMany({
-      where: { characterId: character.id, status: "pending" },
-      select: { inputItemsJson: true }
-    }),
-    tx.levelBarterExchange.findMany({
-      where: { characterId: character.id, status: "pending" },
-      select: { inputItemsJson: true }
-    }),
-    findActiveTransferReservedItems(tx, {
-      senderCharacterId: character.id,
-      now
-    }),
-    findActiveItemUseReservedItems(tx, {
+    findAllActiveReservedItemIds(tx, {
       characterId: character.id,
-      now
+      now,
+      ignoreKorchmaSales: !exclusions.exceptKorchmaMantokSaleId,
+      ...exclusions
     })
   ]);
-  const reservedItemIds = new Set<string>();
-  for (const run of pendingChestRuns) {
-    for (const item of parseItems(run.inputItemsJson)) {
-      reservedItemIds.add(item.itemId);
-    }
-  }
-  for (const exchange of pendingLevelBarters) {
-    for (const item of parseItems(exchange.inputItemsJson)) {
-      reservedItemIds.add(item.itemId);
-    }
-  }
-  for (const transfer of pendingTransfers) {
-    reservedItemIds.add(transfer.itemId);
-  }
-  for (const use of pendingUses) {
-    reservedItemIds.add(use.itemId);
-  }
 
   return {
     character: toCharacterRecord(character),
     items: items.map(toCharacterItemRecord),
     equippedItemIds: equipment.map((row) => row.itemId),
-    reservedItemIds: [...reservedItemIds]
+    reservedItemIds
   };
 }
 

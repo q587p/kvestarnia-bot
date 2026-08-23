@@ -157,6 +157,22 @@ export function parsePartyBossStateStrict(
         requireFiniteNonNegative(contribution[key], `participants.${index}.contribution.${key}`);
       }
     }
+    if (participant.statistics !== undefined) {
+      const statistics = record(
+        participant.statistics,
+        "participants",
+        `PartyBoss participant ${participant.characterId} has invalid statistics.`
+      );
+      if (statistics.version !== 1) {
+        fail("participants", `PartyBoss participant ${participant.characterId} has unsupported statistics.`);
+      }
+      for (const key of ["damage", "healing", "guardPrevented", "damageTaken", "actions", "specialActions", "guardedTurns"] as const) {
+        requireFiniteNonNegative(statistics[key], `participants.${index}.statistics.${key}`);
+      }
+      if (statistics.control !== null) {
+        requireFiniteNonNegative(statistics.control, `participants.${index}.statistics.control`);
+      }
+    }
     if (participant.equipmentAbilityGrantIds !== undefined && !isStringArray(participant.equipmentAbilityGrantIds)) {
       fail("participants", `PartyBoss participant ${participant.characterId} has invalid equipment grants.`);
     }

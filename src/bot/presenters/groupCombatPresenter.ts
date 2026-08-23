@@ -35,7 +35,7 @@ function groupCombatParticipantDisplayName(
 
 export function presentGroupCombat(
   session: GroupCombatSessionRecord,
-  viewerCharacterId: string,
+  viewerCharacterId: string | null,
   now: Date = new Date(),
   notice?: string
 ): string {
@@ -107,11 +107,14 @@ export function presentGroupCombat(
           `<b>${escapeHtml(viewer?.name ?? "Пригодник")}</b>, що робимо?${state.enemies.filter((enemy) => enemy.hp > 0).length > 1 ? " Оберіть точну ціль." : ""}`,
           `⏳ На хід є ${remaining}. Потім Корчма поставить вас у захист.`
         ].join("\n")
-    : production && settlement
+    : production && viewerCharacterId && settlement
       ? `\n\n${presentProductionSettlement(session, viewerCharacterId)}`
-      : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
+      : production
+        ? "\n\nБій завершено. Особисті винагороди й приватні дії до цієї спільної картки не додаються."
+        : "\n\nЦе лише перевірка рушія: досвіду, золота й манаток немає.";
 
   const tacticalState = state.status === "active" &&
+    viewerCharacterId &&
     viewer &&
     isActiveGroupCombatParticipant(viewer)
     ? presentGroupCombatTacticalState(session, viewerCharacterId)
@@ -156,7 +159,10 @@ export function presentGroupCombatStatistics(session: GroupCombatSessionRecord):
           specialActions: contribution.specialActions ?? 0,
           guardedTurns: contribution.guardedTurns
         })
-      : `${escapeHtml(groupCombatParticipantDisplayName(participant))}: запис не знайдено`;
+      : presentBattleContributionLine(groupCombatParticipantDisplayName(participant), {
+          damage: null, healing: null, guardPrevented: null, control: null,
+          damageTaken: null, actions: null, specialActions: null, guardedTurns: null
+        });
   });
   const enemyRows = session.state.enemies.map((enemy) => {
     const contribution = session.state.enemyContributions?.find(
@@ -165,15 +171,18 @@ export function presentGroupCombatStatistics(session: GroupCombatSessionRecord):
     return contribution
       ? presentBattleContributionLine(enemy.name, {
           damage: contribution.damage,
-          healing: contribution.healing ?? 0,
-          guardPrevented: contribution.guardPrevented ?? 0,
-          control: contribution.control ?? 0,
-          damageTaken: contribution.damageTaken ?? 0,
+          healing: contribution.healing ?? null,
+          guardPrevented: contribution.guardPrevented ?? null,
+          control: contribution.control ?? null,
+          damageTaken: contribution.damageTaken ?? null,
           actions: contribution.actions,
-          specialActions: contribution.specialActions,
-          guardedTurns: contribution.guardedTurns ?? 0
+          specialActions: contribution.specialActions ?? null,
+          guardedTurns: contribution.guardedTurns ?? null
         })
-      : `${escapeHtml(enemy.name)}: запис не знайдено`;
+      : presentBattleContributionLine(enemy.name, {
+          damage: null, healing: null, guardPrevented: null, control: null,
+          damageTaken: null, actions: null, specialActions: null, guardedTurns: null
+        });
   });
 
   return [

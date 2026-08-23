@@ -5,11 +5,17 @@ import {
   makeGuildCreateConfirmCallbackData,
   makeGuildCreateUploadCallbackData,
   makeGuildCreationCrestViewCallbackData,
+  makeGuildDeleteCancelCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
+  makeGuildDeleteOpenCallbackData,
+  makeGuildDeleteCallbackData,
   makeGuildInviteCodeCallbackData,
   makeGuildInviteCopyCallbackData,
   makeGuildInviteStartCallbackData,
+  makeGuildLeaveOpenCallbackData,
+  makeGuildLeaveCallbackData,
+  makeGuildLeaveCancelCallbackData,
   makeGuildMemberManageCallbackData,
   makeGuildMemberMutationCallbackData,
   makeGuildMemberSelectCallbackData,
@@ -89,7 +95,13 @@ describe("guild callback data", () => {
       makeGuildMemberManageCallbackData("12345678-1234-4234-9234-123456789012", 587),
       makeGuildPartyOpenCallbackData(42),
       makeGuildPartyInviteCallbackData("12345678-1234-4234-9234-123456789012", 587),
-      makeGuildTransferAcceptCallbackData(587)
+      makeGuildTransferAcceptCallbackData(587),
+      makeGuildLeaveOpenCallbackData(587),
+      makeGuildDeleteOpenCallbackData(587),
+      makeGuildLeaveCancelCallbackData(),
+      makeGuildDeleteCancelCallbackData(),
+      makeGuildLeaveCallbackData(587),
+      makeGuildDeleteCallbackData(587)
     ];
     expect(values.every((value) => Buffer.byteLength(value, "utf8") <= 64)).toBe(true);
     expect(parseGuildCallbackData(values[0])).toEqual({ ok: true, value: { type: "open", page: 23 } });
@@ -125,6 +137,14 @@ describe("guild callback data", () => {
       value: { type: "party-invite", memberId: "12345678-1234-4234-9234-123456789012", version: 587 }
     });
     expect(parseGuildCallbackData(values[17])).toEqual({ ok: true, value: { type: "transfer-accept", version: 587 } });
+    expect(parseGuildCallbackData(values[18])).toEqual({ ok: true, value: { type: "leave-open", version: 587 } });
+    expect(parseGuildCallbackData(values[19])).toEqual({ ok: true, value: { type: "delete-open", version: 587 } });
+    expect(parseGuildCallbackData(values[20])).toEqual({ ok: true, value: { type: "leave-cancel" } });
+    expect(parseGuildCallbackData(values[21])).toEqual({ ok: true, value: { type: "delete-cancel" } });
+    expect(parseGuildCallbackData(values[22])).toEqual({ ok: true, value: { type: "leave-confirm", version: 587 } });
+    expect(parseGuildCallbackData(values[23])).toEqual({ ok: true, value: { type: "delete-confirm", version: 587 } });
+    expect(parseGuildCallbackData("v1:g:l:gb")).toEqual({ ok: true, value: { type: "leave-legacy", version: 587 } });
+    expect(parseGuildCallbackData("v1:g:z:gb")).toEqual({ ok: true, value: { type: "delete-legacy", version: 587 } });
   });
 
   it("rejects oversized, malformed and token-bearing lookalike callbacks", () => {

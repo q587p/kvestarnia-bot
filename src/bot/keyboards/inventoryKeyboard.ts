@@ -53,6 +53,7 @@ import {
   type InventoryPresenterOptions
 } from "../presenters/inventoryPresenter";
 import { ISKROKAMIN_ITEM_ID } from "../../services/itemGrant";
+import { FRIENDLY_CHEST_ICON } from "../itemActionIcons";
 
 export const RESTORE_TO_FULL_BUTTON_LABEL = "🧻 До відновлення";
 
@@ -80,7 +81,7 @@ export function buildInventoryKeyboardFromViewModel(model: InventoryViewModel): 
     keyboard
       .text(`${ONE_USE_INVENTORY_FILTER_ICON} Разові`, makeInventoryCallbackData(0, ONE_USE_INVENTORY_FILTER, sort))
       .row();
-    keyboard.text("♻️ До Дружньої Скрині", makeMantokChestOpenCallbackData()).row();
+    keyboard.text(`${FRIENDLY_CHEST_ICON} До Дружньої Скрині`, makeMantokChestOpenCallbackData()).row();
   }
 
   if (result.state !== "found") {

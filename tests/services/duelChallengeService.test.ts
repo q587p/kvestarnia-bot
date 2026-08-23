@@ -213,6 +213,30 @@ describe("DuelChallengeService", () => {
       })
     ]);
 
+    await expect(service.getStatisticsForTelegramUser(1n, created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "ready",
+      mode: "quick",
+      view: {
+        result: {
+          challengerScore: accepted.result.challengerScore,
+          targetScore: accepted.result.targetScore
+        }
+      }
+    });
+    world.addCharacter(3n);
+    await expect(service.getStatisticsForTelegramUser(3n, created.challenge.inviteToken)).resolves.toEqual({
+      state: "not-found"
+    });
+    await expect(service.getTerminalResultByToken(created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "resolved",
+      result: { challengerScore: accepted.result.challengerScore, targetScore: accepted.result.targetScore }
+    });
+    await expect(service.getTerminalStatisticsByToken(created.challenge.inviteToken)).resolves.toMatchObject({
+      state: "ready",
+      mode: "quick"
+    });
+    expect(activityEvents.duelCompletions).toHaveLength(1);
+
     await service.acceptForTelegramUser(2n, created.challenge.inviteToken, {
       confirmed: true,
       ignoreResourceWarning: true
@@ -283,6 +307,8 @@ describe("DuelChallengeService", () => {
       .resolves.toMatchObject({ state: "active", session: { id: accepted.session.id } });
     await expect(service.getTurnBasedRouteForTelegramUser(3n, created.challenge.inviteToken))
       .resolves.toEqual({ state: "not-found" });
+    await expect(service.getStatisticsForTelegramUser(1n, created.challenge.inviteToken))
+      .resolves.toMatchObject({ state: "active", mode: "turn-based" });
 
     setSessionHitPoints(world, accepted.session.id, 1);
     const firstActor = accepted.session.actingCharacterId === accepted.session.challengerCharacterId ? 1n : 2n;
@@ -307,6 +333,12 @@ describe("DuelChallengeService", () => {
     });
     await expect(service.getTurnBasedRouteForTelegramUser(1n, created.challenge.inviteToken))
       .resolves.toMatchObject({ state: "resolved", session: { status: "resolved" } });
+    await expect(service.getStatisticsForTelegramUser(1n, created.challenge.inviteToken))
+      .resolves.toMatchObject({
+        state: "ready",
+        mode: "turn-based",
+        session: { state: { statistics: { version: 1 } } }
+      });
     expect(world.resolvedRoundLookupCount).toBe(1);
     expect(world.fullJournalLookupCount).toBe(0);
 

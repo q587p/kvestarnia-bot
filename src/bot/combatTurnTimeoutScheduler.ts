@@ -11,6 +11,10 @@ import { presentPersistentFightTurn } from "./presenters/fightPresenter";
 import { presentTrainingDoppelgangerTurn } from "./presenters/trainingDoppelgangerPresenter";
 import { presentFightingCornerQuestProgressNotification } from "./presenters/fightingCornerQuestPresenter";
 import { isMessageNotModifiedError } from "./safeEditMessageText";
+import {
+  buildSessionTerminalBattleArtifactKeyboardOptions,
+  resolveTerminalBattleArtifactBotUsername
+} from "./terminalBattleArtifactLink";
 
 const HTML_MESSAGE_OPTIONS = {
   parse_mode: "HTML" as const
@@ -23,7 +27,7 @@ export function createCombatTurnTimeoutScheduler(
     fightingCornerQuest?: FightingCornerQuestService;
   },
   bot: Bot,
-  options: { intervalMs?: number; limit?: number } = {}
+  options: { intervalMs?: number; limit?: number; botUsername?: string | undefined } = {}
 ): { start(): void; stop(): void } {
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
@@ -35,6 +39,10 @@ export function createCombatTurnTimeoutScheduler(
 
     running = true;
     try {
+      const botUsername = resolveTerminalBattleArtifactBotUsername(
+        options.botUsername,
+        () => bot.botInfo.username
+      );
       const dueOptions = options.limit === undefined ? {} : { limit: options.limit };
       const duePersistent = await services.fight.listDuePersistentFightTurns(dueOptions);
 
@@ -42,7 +50,7 @@ export function createCombatTurnTimeoutScheduler(
         const result = await services.fight.resolveDuePersistentFightTurn(due);
 
         if (result.state !== "skipped") {
-          await notifyPersistentFight(services.fight, bot, result);
+          await notifyPersistentFight(services.fight, bot, result, botUsername);
         }
       }
 
@@ -60,7 +68,12 @@ export function createCombatTurnTimeoutScheduler(
                 result.session
               );
             }
-            await notifyTrainingFight(services.trainingDoppelganger, bot, result);
+            await notifyTrainingFight(
+              services.trainingDoppelganger,
+              bot,
+              result,
+              botUsername
+            );
             await notifyTrainingQuestProgress(bot, questUpdates);
           }
         }
@@ -110,7 +123,8 @@ async function notifyTrainingQuestProgress(
 async function notifyPersistentFight(
   service: FightService,
   bot: Bot,
-  result: Exclude<PersistentFightTimeoutResult, { state: "skipped" }>
+  result: Exclude<PersistentFightTimeoutResult, { state: "skipped" }>,
+  botUsername?: string
 ): Promise<void> {
   const reference = result.session.state?.message;
 
@@ -125,7 +139,11 @@ async function notifyPersistentFight(
       text: presentPersistentFightTurn(result),
       options: {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightResultKeyboard(result.session, result.character)
+        reply_markup: buildPersistentFightResultKeyboard(
+          result.session,
+          result.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", result.session)
+        )
       }
     });
 
@@ -143,7 +161,8 @@ async function notifyPersistentFight(
 async function notifyTrainingFight(
   service: TrainingDoppelgangerService,
   bot: Bot,
-  result: Exclude<TrainingDoppelgangerTimeoutResult, { state: "skipped" }>
+  result: Exclude<TrainingDoppelgangerTimeoutResult, { state: "skipped" }>,
+  botUsername?: string
 ): Promise<void> {
   const reference = result.session.state?.message;
 
@@ -158,7 +177,11 @@ async function notifyTrainingFight(
       text: presentTrainingDoppelgangerTurn(result),
       options: {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildTrainingDoppelgangerKeyboard(result.session, result.character)
+        reply_markup: buildTrainingDoppelgangerKeyboard(
+          result.session,
+          result.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "training", result.session)
+        )
       }
     });
 

@@ -30,6 +30,11 @@ import { findActiveTransferReservedItems } from "./itemTransferReservations";
 import { getIncludedRemortCount } from "./prismaRemortCount";
 import { HpRecoveryNotificationProducer } from "./hpRecoveryNotificationProducer";
 import { isConsumableCommitAllowed } from "./consumableCommitGate";
+import {
+  InventoryMutationContentionError,
+  lockInventoryItemStack,
+  runSerializableInventoryMutation
+} from "./inventoryMutationSerialization";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -51,7 +56,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
     }
   ): Promise<ItemUsePreviewRepositoryResult> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx) => {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) {
           return { state: "no-character" };
@@ -66,6 +71,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
+        await lockInventoryItemStack(tx, character.id, input.item.id, input.now);
 
         const existing = mapOrder(await tx.itemUseOrder.findFirst({
           where: {
@@ -139,8 +145,6 @@ export class PrismaItemUseRepository implements ItemUseRepository {
           return { state: "not-usable" };
         }
 
-        await lockItemStack(tx, character.id, input.item.id, input.now);
-
         const [items, equippedItemIds, reservedItemIds] = await Promise.all([
           getItems(tx, character.id),
           getEquippedItemIds(tx, character.id),
@@ -207,6 +211,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         };
       });
     } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return { state: "reserved" };
       if (isLiveReservationConflict(error)) {
         return await recoverLivePreviewAfterReservationConflict(this.prisma, telegramUserId, {
           itemId: input.item.id,
@@ -228,7 +233,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
     }
   ): Promise<ItemUseConfirmRepositoryResult> {
     try {
-      return await this.prisma.$transaction(async (tx): Promise<ItemUseConfirmRepositoryResult> => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx): Promise<ItemUseConfirmRepositoryResult> => {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) {
           return { state: "no-character" };
@@ -243,6 +248,8 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         if (terminal) {
           return terminal;
         }
+
+        await lockInventoryItemStack(tx, character.id, order.itemId, input.now);
 
         if (!(await isConsumableCommitAllowed(tx, {
           characterId: character.id,
@@ -441,6 +448,9 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       if (error instanceof StaleItemUseRollback) {
         return { state: "stale-selection", order: error.order };
       }
+      if (error instanceof InventoryMutationContentionError) {
+        return recoverContendedItemUseConfirm(this.prisma, telegramUserId, input.token);
+      }
 
       throw error;
     }
@@ -509,7 +519,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
       return { state: "not-usable" };
     }
     try {
-      return await this.prisma.$transaction(async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
+      return await runSerializableInventoryMutation(this.prisma, async (tx): Promise<ItemUseRestoreToFullRepositoryResult> => {
         const character = await findCharacter(tx, telegramUserId);
         if (!character) {
           return { state: "no-character" };
@@ -532,7 +542,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         }
 
         await releaseExpiredUseReservations(tx, character.id, input.item.id, input.now);
-        await lockItemStack(tx, character.id, input.item.id, input.now);
+        await lockInventoryItemStack(tx, character.id, input.item.id, input.now);
 
         const existing = mapOrder(await tx.itemUseOrder.findFirst({
           where: {
@@ -694,6 +704,7 @@ export class PrismaItemUseRepository implements ItemUseRepository {
         };
       });
     } catch (error) {
+      if (error instanceof InventoryMutationContentionError) return { state: "reserved" };
       if (isLiveReservationConflict(error)) {
         return await recoverLiveRestoreToFullAfterReservationConflict(this.prisma, telegramUserId, {
           itemId: input.item.id,
@@ -704,6 +715,24 @@ export class PrismaItemUseRepository implements ItemUseRepository {
 
       throw error;
     }
+  }
+}
+
+async function recoverContendedItemUseConfirm(
+  prisma: PrismaClient,
+  telegramUserId: bigint,
+  token: string
+): Promise<ItemUseConfirmRepositoryResult> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const character = await findCharacter(tx, telegramUserId);
+      if (!character) return { state: "no-character" };
+      const order = mapOrder(await tx.itemUseOrder.findUnique({ where: { token } }));
+      if (!order || order.characterId !== character.id) return { state: "invalid-token" };
+      return (await replayTerminalConfirm(tx, order, character)) ?? { state: "stale-selection", order };
+    });
+  } catch {
+    return { state: "invalid-token" };
   }
 }
 
@@ -1251,18 +1280,6 @@ function mapDrinkState(record: CharacterDrinkState | null): Parameters<typeof bu
     expiresAt: record.expiresAt,
     metadata: record.metadataJson
   };
-}
-
-async function lockItemStack(
-  tx: TxClient,
-  characterId: string,
-  itemId: string,
-  now: Date
-): Promise<void> {
-  await tx.characterItem.updateMany({
-    where: { characterId, itemId },
-    data: { updatedAt: now }
-  });
 }
 
 async function releaseExpiredUseReservations(

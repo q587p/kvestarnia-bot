@@ -169,6 +169,7 @@ presentYegerTurnIn
 import { startPerfSpan } from "../performanceLogger";
 import { safeAnswerCallbackQuery } from "../safeAnswerCallbackQuery";
 import { safeEditMessageText } from "../safeEditMessageText";
+import { buildSessionTerminalBattleArtifactKeyboardOptions } from "../terminalBattleArtifactLink";
 
 import { sendLevelUpCelebration } from "./levelUp";
 import {
@@ -206,7 +207,7 @@ function finishYegerPerfTrace(trace: YegerPerfTrace, state: string): void {
 
 export function registerQuestBotModule(
   bot: Bot,
-  { services }: BotModuleDependencies
+  { services, options }: BotModuleDependencies
 ): void {
   bot.command(["adventure", "hunt", "quest"], async (ctx, next) => {
     await guardActivePassageSearchCommand(ctx, services, next);
@@ -227,7 +228,7 @@ export function registerQuestBotModule(
   registerFightingCornerQuestDevHelper(bot, services);
 
   registerParsedCallbackRoute(bot, /^v[12]:adv:/, parseAdventureCallbackData, async (ctx, callback) => {
-    await handleAdventureCallback(ctx, callback, services);
+    await handleAdventureCallback(ctx, callback, services, options.botUsername);
   });
 
   registerParsedCallbackRoute(bot, /^v1:quest:/, parseQuestCallbackData, async (ctx, callback) => {
@@ -243,7 +244,7 @@ export function registerQuestBotModule(
   });
 
   registerParsedCallbackRoute(bot, /^v1:ygr:/, parseYegerCallbackData, async (ctx, callback) => {
-    await handleYegerCallback(ctx, callback, services);
+    await handleYegerCallback(ctx, callback, services, options.botUsername);
   });
 }
 
@@ -777,7 +778,8 @@ function getProblemQuestIssueNextBarKeyboardOptions(
 async function handleAdventureCallback(
   ctx: Context,
   callback: AdventureCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -1074,7 +1076,12 @@ async function handleAdventureCallback(
             ...HTML_MESSAGE_OPTIONS,
             reply_markup: buildPersistentFightResultKeyboard(
               complicationFight.session,
-              complicationFight.character
+              complicationFight.character,
+              buildSessionTerminalBattleArtifactKeyboardOptions(
+                botUsername,
+                "solo",
+                complicationFight.session
+              )
             )
           });
           return;
@@ -1090,7 +1097,12 @@ async function handleAdventureCallback(
             ...HTML_MESSAGE_OPTIONS,
             reply_markup: buildTrainingDoppelgangerKeyboard(
               complicationFight.session,
-              complicationFight.character
+              complicationFight.character,
+              buildSessionTerminalBattleArtifactKeyboardOptions(
+                botUsername,
+                "training",
+                complicationFight.session
+              )
             )
           });
           return;
@@ -1160,7 +1172,12 @@ async function handleAdventureCallback(
         ...HTML_MESSAGE_OPTIONS,
         reply_markup: buildPersistentFightResultKeyboard(
           complicationFight.session,
-          complicationFight.character
+          complicationFight.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(
+            botUsername,
+            "solo",
+            complicationFight.session
+          )
         )
       });
     }
@@ -1231,7 +1248,8 @@ async function handleHuntCallback(
 async function handleYegerCallback(
   ctx: Context,
   callback: YegerCallback,
-  services: BotServices
+  services: BotServices,
+  botUsername?: string
 ): Promise<void> {
   const telegramUserId = playerFromContext(ctx.from)?.telegramUserId;
 
@@ -1633,7 +1651,15 @@ async function handleYegerCallback(
 
       await ctx.reply(presentPersistentFight(result.fight), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightResultKeyboard(result.fight.session, result.fight.character)
+        reply_markup: buildPersistentFightResultKeyboard(
+          result.fight.session,
+          result.fight.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(
+            botUsername,
+            "solo",
+            result.fight.session
+          )
+        )
       });
       return;
     }
@@ -1684,7 +1710,11 @@ async function handleYegerCallback(
 
       await ctx.reply(presentPersistentFight(fight), {
         ...HTML_MESSAGE_OPTIONS,
-        reply_markup: buildPersistentFightResultKeyboard(fight.session, fight.character)
+        reply_markup: buildPersistentFightResultKeyboard(
+          fight.session,
+          fight.character,
+          buildSessionTerminalBattleArtifactKeyboardOptions(botUsername, "solo", fight.session)
+        )
       });
       return;
     }
