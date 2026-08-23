@@ -2,9 +2,11 @@ import { InlineKeyboard, type Bot, type Context } from "grammy";
 import type { GuildCallback } from "../callbacks/guildCallbackData";
 import type { GuildMemberMutationRepositoryResult } from "../../db/repositories/guildRepository";
 import {
+  makeGuildDeleteCancelCallbackData,
   makeGuildDeleteCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteDeclineCallbackData,
+  makeGuildLeaveCancelCallbackData,
   makeGuildLeaveCallbackData,
   makeGuildOpenCallbackData
 } from "../callbacks/guildCallbackData";
@@ -609,6 +611,25 @@ export async function handleGuildCallback(
     });
     return;
   }
+  if (callback.type === "leave-open" || callback.type === "delete-open") {
+    await sendSelfMutationConfirmation(
+      ctx,
+      service,
+      callback.type === "leave-open" ? "leave" : "delete",
+      "edit",
+      callback.version
+    );
+    return;
+  }
+  if (callback.type === "leave-cancel" || callback.type === "delete-cancel") {
+    await safeAnswerCallbackQuery(ctx, { text: "Скасовано." });
+    await safeEditMessageText(ctx, callback.type === "leave-cancel"
+      ? "Ви лишилися в ґільдії. Склад не змінився."
+      : "Ґільдію не розпущено. Статут лишився чинним.", {
+      reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+    });
+    return;
+  }
   if (!("version" in callback)) {
     await safeAnswerCallbackQuery(ctx, { text: "Застаріла ґільдійна дія.", show_alert: true });
     return;
@@ -782,7 +803,9 @@ async function handleGuildPartyInvite(
 async function sendSelfMutationConfirmation(
   ctx: Context,
   service: GuildService,
-  action: "leave" | "delete"
+  action: "leave" | "delete",
+  mode: "reply" | "edit" = "reply",
+  expectedVersion?: number
 ): Promise<void> {
   const actor = telegramUserIdFromContext(ctx.from);
   if (!actor) {
@@ -790,27 +813,61 @@ async function sendSelfMutationConfirmation(
   }
   const hub = await service.getHubForTelegramUser(actor);
   if (hub.state !== "ready") {
-    await ctx.reply("Ви не належите до ґільдії.");
+    if (mode === "edit") {
+      await safeAnswerCallbackQuery(ctx, { text: "Ви вже не належите до ґільдії.", show_alert: true });
+      await safeEditMessageText(ctx, "Ви не належите до ґільдії.", {
+        reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+      });
+    } else {
+      await ctx.reply("Ви не належите до ґільдії.");
+    }
+    return;
+  }
+  if (expectedVersion !== undefined && hub.guild.version !== expectedVersion) {
+    await safeAnswerCallbackQuery(ctx, { text: "Статут уже змінився. Перевірте ґільдію ще раз.", show_alert: true });
+    await safeEditMessageText(ctx, "Склад або статут уже змінилися. Відкрийте ґільдію й повторіть дію.", {
+      reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+    });
     return;
   }
   if (action === "leave" && hub.guild.viewerRole === "leader") {
-    await ctx.reply(hub.guild.memberCount > 1
+    const text = hub.guild.memberCount > 1
       ? "Спершу запропонуйте провід іншому учасникові й дочекайтеся прийняття."
-      : "Голова не виходить із порожнього статуту: скористайтеся /guild_delete.");
+      : "Голова не виходить із порожнього статуту: скористайтеся /guild_delete.";
+    if (mode === "edit") {
+      await safeAnswerCallbackQuery(ctx, { text, show_alert: true });
+    } else {
+      await ctx.reply(text);
+    }
     return;
   }
   if (action === "delete" && (hub.guild.viewerRole !== "leader" || hub.guild.memberCount !== 1)) {
-    await ctx.reply("Розпустити ґільдію може лише голова, коли він єдиний чинний учасник.");
+    const text = "Розпустити ґільдію може лише голова, коли він єдиний чинний учасник.";
+    if (mode === "edit") {
+      await safeAnswerCallbackQuery(ctx, { text, show_alert: true });
+    } else {
+      await ctx.reply(text);
+    }
     return;
   }
   const callback = action === "leave"
     ? makeGuildLeaveCallbackData(hub.guild.version)
     : makeGuildDeleteCallbackData(hub.guild.version);
-  await ctx.reply(action === "leave"
+  const text = action === "leave"
     ? "Підтвердити вихід із ґільдії? Окрема ватага чи битва не скасується."
-    : "Підтвердити розпуск ґільдії? Окремі ватаги й битви залишаться чинними.", {
-    reply_markup: new InlineKeyboard().text("✅ Підтвердити", callback).text("⬅️ Не зараз", makeGuildOpenCallbackData())
-  });
+    : "Підтвердити розпуск ґільдії? Окремі ватаги й битви залишаться чинними.";
+  const replyMarkup = new InlineKeyboard()
+    .text(action === "leave" ? "✅ Так, вийти" : "✅ Так, розпустити", callback)
+    .text(
+      action === "leave" ? "❌ Ні, лишитися" : "❌ Ні, не розпускати",
+      action === "leave" ? makeGuildLeaveCancelCallbackData() : makeGuildDeleteCancelCallbackData()
+    );
+  if (mode === "edit") {
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, text, { reply_markup: replyMarkup });
+  } else {
+    await ctx.reply(text, { reply_markup: replyMarkup });
+  }
 }
 
 function registerMemberActionCommand(

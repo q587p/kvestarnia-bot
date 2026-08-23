@@ -25,7 +25,8 @@ export type GuildCallback =
   | { type: "party-invite"; memberId: string; version: number }
   | { type: "transfer-accept"; version: number }
   | { type: "member-select"; action: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number }
-  | { type: "leave" | "delete"; version: number }
+  | { type: "leave-open" | "delete-open" | "leave" | "delete"; version: number }
+  | { type: "leave-cancel" | "delete-cancel" }
   | { type: "transfer" | "promote" | "demote" | "kick"; memberId: string; version: number };
 
 export type GuildCallbackError = "invalid-prefix" | "invalid-action" | "invalid-token" | "invalid-version" | "too-long";
@@ -72,6 +73,10 @@ export const makeGuildPartyOpenCallbackData = (page = 0): string => `${PREFIX}:p
 export const makeGuildPartyInviteCallbackData = (memberId: string, version: number): string =>
   `${PREFIX}:pi:${memberId}:${version.toString(36)}`;
 export const makeGuildTransferAcceptCallbackData = (version: number): string => `${PREFIX}:ta:${version.toString(36)}`;
+export const makeGuildLeaveOpenCallbackData = (version: number): string => `${PREFIX}:lo:${version.toString(36)}`;
+export const makeGuildDeleteOpenCallbackData = (version: number): string => `${PREFIX}:zo:${version.toString(36)}`;
+export const makeGuildLeaveCancelCallbackData = (): string => `${PREFIX}:ln`;
+export const makeGuildDeleteCancelCallbackData = (): string => `${PREFIX}:zn`;
 export const makeGuildLeaveCallbackData = (version: number): string => `${PREFIX}:l:${version.toString(36)}`;
 export const makeGuildDeleteCallbackData = (version: number): string => `${PREFIX}:z:${version.toString(36)}`;
 export const makeGuildMemberMutationCallbackData = (
@@ -188,9 +193,19 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
       ? ok({ type: "crest-view-guild", guildId: first, publicAccess: true, page: Number.parseInt(second, 36) })
       : err("invalid-token");
   }
-  if (action === "l" || action === "z") {
+  if (action === "lo" || action === "zo" || action === "l" || action === "z") {
     const version = parseVersion(first, second);
-    return version === null ? err("invalid-version") : ok({ type: action === "l" ? "leave" : "delete", version });
+    return version === null
+      ? err("invalid-version")
+      : ok({
+          type: action === "lo" ? "leave-open" : action === "zo" ? "delete-open" : action === "l" ? "leave" : "delete",
+          version
+        });
+  }
+  if (action === "ln" || action === "zn") {
+    return first === undefined && second === undefined
+      ? ok({ type: action === "ln" ? "leave-cancel" : "delete-cancel" })
+      : err("invalid-token");
   }
   if (action === "st" || action === "sp" || action === "sm" || action === "sk") {
     if (!first || !MEMBER_PATTERN.test(first) || !second || !VERSION_PATTERN.test(second)) {

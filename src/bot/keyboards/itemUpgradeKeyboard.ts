@@ -28,6 +28,7 @@ import {
   presentInventoryNameSortButton,
   type InventorySort
 } from "../inventorySort";
+import { ITEM_DISMANTLE_ICON } from "../itemActionIcons";
 
 const MAX_LIST_BUTTONS = 10;
 const EQUIPPED_UPGRADE_ITEM_ICON = "🧥";
@@ -41,6 +42,8 @@ export function buildItemUpgradeListKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (result.state === "ready") {
+    keyboard.text(`${ITEM_DISMANTLE_ICON} Розібрати манатку`, makeItemDismantleListCallbackData()).row();
+
     const safePage = clampItemUpgradeListPage(result.items.length, page);
     const totalPages = getItemUpgradeListPageCount(result.items.length);
     const start = safePage * MAX_LIST_BUTTONS;
@@ -91,10 +94,6 @@ export function buildItemUpgradeListKeyboard(
     }
   }
 
-  if (result.state === "ready") {
-    keyboard.text("♻️ Розібрати манатку", makeItemDismantleListCallbackData()).row();
-  }
-
   return keyboard.text("⬅️ До задвірку", makePlaceCallbackData("yard"));
 }
 
@@ -112,7 +111,7 @@ export function buildItemDismantleListKeyboard(
     const safePage = Math.min(Math.max(0, Math.floor(page)), totalPages - 1);
     for (const item of items.slice(safePage * MAX_LIST_BUTTONS, (safePage + 1) * MAX_LIST_BUTTONS)) {
       keyboard.text(
-        `♻️ ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
+        `${ITEM_DISMANTLE_ICON} ${item.name}${item.quantity > 1 ? ` (${item.quantity})` : ""}`,
         makeItemDismantlePreviewCallbackData(item.itemId)
       ).row();
     }
@@ -129,7 +128,7 @@ export function buildItemDismantleListKeyboard(
 export function buildItemDismantlePreviewKeyboard(result: ItemDismantlePreviewResult): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (result.state === "ready") {
-    keyboard.text("♻️ Підтвердити розбір", makeItemDismantleConfirmCallbackData({
+    keyboard.text(`${ITEM_DISMANTLE_ICON} Підтвердити розбір`, makeItemDismantleConfirmCallbackData({
       itemId: result.item.itemId,
       expectedQuantity: result.item.quantity,
       expectedRemortCount: result.expectedRemortCount,
@@ -147,7 +146,7 @@ export function buildItemDismantlePreviewKeyboard(result: ItemDismantlePreviewRe
 
 export function buildItemDismantleResultKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text("♻️ Розібрати ще", makeItemDismantleListCallbackData())
+    .text(`${ITEM_DISMANTLE_ICON} Розібрати ще`, makeItemDismantleListCallbackData())
     .row()
     .text("✨ До Чароковальні", makeItemUpgradeListCallbackData());
 }

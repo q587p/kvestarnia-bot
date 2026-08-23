@@ -12,6 +12,7 @@ import { findItemContent } from "../../content/itemLookup";
 import { presentItemEffect } from "./itemEffectPresenter";
 import { presentQuestRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
+import { ITEM_DISMANTLE_ICON } from "../itemActionIcons";
 
 export function presentItemUpgradeList(result: ItemUpgradeListResult): string {
   if (result.state === "no-character") {
@@ -211,7 +212,7 @@ export function presentItemDismantleList(result: ItemDismantleListResult): strin
     return presentItemUpgradeGate(result);
   }
   return [
-    "♻️ <b>Розбір манатки</b>",
+    `${ITEM_DISMANTLE_ICON} <b>Розбір манатки</b>`,
     "",
     result.items.length > 0
       ? "Оберіть одну доступну манатку. Спершу буде точний перегляд; він нічого не резервує і не витрачає."
@@ -234,7 +235,7 @@ export function presentItemDismantlePreview(result: ItemDismantlePreviewResult):
   if (result.state !== "ready") return "Перегляд розбору застарів. Відкрийте список ще раз.";
   const balanceAfter = result.available - result.paymentAmount;
   return [
-    "♻️ <b>Підтвердження розбору</b>",
+    `${ITEM_DISMANTLE_ICON} <b>Підтвердження розбору</b>`,
     "",
     `Манатка: <b>${escapeHtml(result.item.name)}</b>`,
     `Рівень: <b>+${result.item.enhancementLevel}</b> · у стосі: <b>${result.item.quantity}</b>`,
@@ -252,7 +253,7 @@ export function presentItemDismantleResult(
   if (result.state === "dismantled" || result.state === "replayed") {
     const item = findItemContent(result.itemId);
     return [
-      `♻️ <b>${result.state === "replayed" ? "Чек розбору" : "Манатку розібрано"}</b>`,
+      `${ITEM_DISMANTLE_ICON} <b>${result.state === "replayed" ? "Чек розбору" : "Манатку розібрано"}</b>`,
       "",
       `Манатка: <b>${escapeHtml(item?.name ?? result.itemId)}</b>`,
       `Витрачено: <b>${result.paymentAmount}</b> ${result.payment === "mana" ? "мани" : "золота"}`,

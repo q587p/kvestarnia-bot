@@ -237,7 +237,7 @@ describe("group combat timeout scheduler", () => {
       .toContain("🔎 Оновити");
     expect(editMessageText).toHaveBeenCalledTimes(2);
     expect(String(editMessageText.mock.calls[0]?.[2]))
-      .toBe("♻️ Цю бойову картку замінено актуальною нижче.");
+      .toBe("🗃️ Цю бойову картку замінено актуальною нижче.");
     expect(String(editMessageText.mock.calls[1]?.[2])).toContain("<b>Бій</b>:");
   });
 

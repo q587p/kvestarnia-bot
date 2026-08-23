@@ -1,4 +1,5 @@
 import { InlineKeyboard } from "grammy";
+import { FRIENDLY_CHEST_ICON } from "../itemActionIcons";
 import type { MantokChestManualSelectionResult } from "../../services/mantokChestService";
 import { makeItemDetailCallbackData } from "../callbacks/itemCallbackData";
 import {
@@ -92,7 +93,7 @@ export function buildMantokChestResultKeyboard(outputItem?: {
   }
 
   return keyboard
-    .text("♻️ Ще до Скрині", makeMantokChestOpenCallbackData())
+    .text(`${FRIENDLY_CHEST_ICON} Ще до Скрині`, makeMantokChestOpenCallbackData())
     .row()
     .text("⬅️ До манаток", makeMantokChestInventoryCallbackData());
 }

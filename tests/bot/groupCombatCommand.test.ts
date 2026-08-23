@@ -812,7 +812,7 @@ describe("group combat bot flow", () => {
     const editedTexts = editMessageText.mock.calls.map((call) => String(call[2]));
     expect(editedTexts.filter((text) => text.includes("Бій починається. Корчма відкриває журнал ходів"))).toHaveLength(0);
     expect(editedTexts.filter((text) =>
-      text === "♻️ Цю бойову картку замінено актуальною нижче."
+      text === "🗃️ Цю бойову картку замінено актуальною нижче."
     )).toHaveLength(2);
     expect(editedTexts.filter((text) => text.includes("⚔️ <b>Бій</b>:"))).toHaveLength(2);
   });

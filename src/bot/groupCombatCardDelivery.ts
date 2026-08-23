@@ -29,7 +29,7 @@ const UI_PUBLICATION_CLAIM_MS = 23_000;
 const TELEGRAM_PUBLICATION_IO_TIMEOUT_MS = 13_000;
 const FLEE_EXIT_ACK_ATTEMPTS = 3;
 const LOSING_CANDIDATE_DELETE_ATTEMPTS = 3;
-const SUPERSEDED_CANDIDATE_TEXT = "♻️ Цю бойову картку замінено актуальною нижче.";
+const SUPERSEDED_CANDIDATE_TEXT = "🗃️ Цю бойову картку замінено актуальною нижче.";
 const deliveryTails = new Map<string, Promise<void>>();
 const sessionDeliveryTails = new Map<string, Promise<void>>();
 

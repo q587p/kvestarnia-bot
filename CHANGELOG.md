@@ -7,12 +7,12 @@ This project follows a simple pre-1.0 versioning policy:
 - `0.x.0` for larger MVP milestones.
 - Breaking changes may still happen before `1.0.0`, but they should be called out explicitly.
 
-## [0.4.7] - 12026-08-22 - Universal Battle Statistics, Richer Korchma Rounds, and Manatka Dismantling
+## [0.4.7] - 12026-08-23 - Universal Battle Statistics, Richer Korchma Rounds, and Manatka Dismantling
 
 ### Added
 - Added one terminal `📊 Статистика` surface beside the battle journal across persistent solo fights, Training, PartyBoss and Big Barrel encounters, turn-based and quick duels, GroupCombat, passage and adventure fights, and the starter Mimic outcome. Versioned ledgers record exact damage, actual healing, actual prevention, applied control, damage taken, committed actions, special actions and defensive turns; legacy or structurally unavailable dimensions render `—` instead of fabricated zeroes.
 - Added deterministic Daily Korchma identity-manatka rewards: a seeded branch starts at 13% for LUCK 6 or below, gains one percentage point per full LUCK above 6 and caps at 23%; the selected `+0` equippable item still uses the unchanged canonical `tavern_event` candidate weights for current class, race, canonical `character.title` affinity or explicit matching hard requirements. Six consecutive completed misses force the next eligible completed round, and the frozen receipt records chance, roll, pity evidence, affinity kind and applied grants.
-- Added `♻️ Розібрати манатку` inside `✨ Чароковальня`, with complete deterministic pagination, preview and atomic confirmation. Eligible ordinary gear costs 5 gold to dismantle; mage, varenyk-mancer and bureaucramancer characters instead spend 5 regenerated mana with no gold fallback.
+- Added `🔩 Розібрати манатку` inside `✨ Чароковальня`, with complete deterministic pagination, preview and atomic confirmation. Eligible ordinary gear costs 5 gold to dismantle; mage, varenyk-mancer and bureaucramancer characters instead spend 5 regenerated mana with no gold fallback.
 - Added canonical dismantling yields from base rarity plus 42% of the cumulative canonical Iskrokamin upgrade cost, including evolving rarity, set and legendary modifiers, and an exact accepted yield-table regression.
 - Added non-production Daily Korchma controls for deterministic miss, hit and forced-seventh pity QA; production configuration cannot register, advertise or mutate through those helpers.
 
@@ -27,6 +27,8 @@ This project follows a simple pre-1.0 versioning policy:
 
 ### Fixed
 - Legacy combat records no longer imply that an unrecorded contribution dimension was exactly zero.
+- The Forge now places `🔩 Розібрати манатку` in its first keyboard row before sorting controls. A tested global icon-ownership registry keeps dismantling distinct from `♻️` Friendly Chest recycling and the separate `🗃️` replaced-card notice.
+- Guild hub leave and disband actions now open explicit affirmative/negative confirmation cards; opening or declining the confirmation is read-only, and only the current-version affirmative callback may change membership.
 - PartyBoss retaliation keeps the exact pre-statistics damage formula; contribution measurement is isolated from HP, knockout, counter and reward state, while capped HP deltas prevent overkill and self-heal duplication.
 - Solo and Training critical-fumble self-damage remains part of truthful hero damage taken but is never credited to an enemy contribution row, including fatal, multi-enemy and heal-capped turns.
 - Daily Korchma featured rewards now use the runtime item slot as the equippability authority, excluding matching consumables and every non-weapon/armor/accessory candidate without changing canonical candidate weights.
