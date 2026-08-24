@@ -146,8 +146,9 @@ function renderEventRow(event: ActivityEventRecord): string {
     }
     case "guild.weekly_goal_completed": {
       const crest = readPayloadString(event.payload, "crest");
+      const glory = readPayloadNumber(event.payload, "glory") ?? 13;
       const guild = `${crest ? `${escapeHtml(crest)} ` : ""}${subject}`;
-      return `${GUILD_WEEKLY_GOAL_ICON} ${time} | Ґільдія «${guild}» закрила тижневий спільний клопіт. Писар погодився не рахувати внесок у децибелах.`;
+      return `${GUILD_WEEKLY_GOAL_ICON} ${time} | Ґільдія «${guild}» закрила тижневий спільний клопіт і здобула +${glory} Слави. Писар скріпив результат, а не децибели.`;
     }
     case "character.level_reached": {
       const level = readPayloadNumber(event.payload, "level");

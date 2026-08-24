@@ -223,12 +223,18 @@ and Manual Telegram QA remain separate unproven evidence.
 
 Active implementation on `codex/0.4.8-guild-weekly-goal`: one default-off
 Kyiv/Holocene goal counts successful ordinary left-passage party expeditions
-through immutable guild/session/contributor receipts. Historical membership at
-terminal completion is authoritative; manual support counts equally; progress
-caps at thirteen. Completion is rewardless, adds no combat power or reward
-multiplier and emits only one privacy-safe guild Chronicle fact plus rewardless
-contributor achievements. Nonmembers and flag-off deployments keep ordinary
-party progression unchanged.
+through immutable guild/session/contributor receipts and typed cross-period
+reconciliation. Historical membership at terminal completion is authoritative;
+manual support counts equally; progress caps at thirteen. Completion grants one
+immutable `13`-Glory guild receipt, no material/combat reward, one normal-severity
+privacy-safe Chronicle fact and durable User-level rewardless achievements.
+
+The bounded guild-only `📜 Книга слави` in the Guild Nest has all-time Glory and
+current-week Primacy views with dense ties, five-row pagination and off-page own
+place. It exposes active guild crest/name/aggregate only—never players, rosters,
+roles or timestamps. Glory is non-spendable, is not guild XP and does not pull
+`0.4.15` progression forward. Nonmembers and flag-off deployments keep ordinary
+party progression unchanged and expose no weekly/Glory board.
 
 The PartyBoss/Big Barrel audit confirms nine catalog class abilities plus the
 unknown-class fallback share the typed combat resolver with GroupCombat. Four recruitment/boss-response mechanics

@@ -6,6 +6,7 @@ export type GuildCallback =
   | { type: "nest-open" | "nest-rules" }
   | { type: "directory-open"; page: number }
   | { type: "directory-profile"; guildId: string; page: number }
+  | { type: "glory-board"; view: "glory" | "primacy"; page: number }
   | { type: "create-open" | "create-upload" | "invite-code" | "invite-start" }
   | { type: "create-crest"; crestIndex: number }
   | { type: "profile-open"; version: number }
@@ -43,6 +44,8 @@ export const makeGuildNestRulesCallbackData = (): string => `${PREFIX}:nr`;
 export const makeGuildDirectoryOpenCallbackData = (page = 0): string => `${PREFIX}:dl:${page.toString(36)}`;
 export const makeGuildDirectoryProfileCallbackData = (guildId: string, page = 0): string =>
   `${PREFIX}:dp:${guildId}:${page.toString(36)}`;
+export const makeGuildGloryBoardCallbackData = (view: "glory" | "primacy", page = 0): string =>
+  `${PREFIX}:bg:${view === "glory" ? "g" : "p"}${Math.max(0, page).toString(36)}`;
 export const makeGuildCreateOpenCallbackData = (): string => `${PREFIX}:n`;
 export const makeGuildCreateUploadCallbackData = (): string => `${PREFIX}:nu`;
 export const makeGuildCreateCrestCallbackData = (crestIndex: number): string => `${PREFIX}:r:${crestIndex.toString(36)}`;
@@ -113,6 +116,16 @@ export function parseGuildCallbackData(data: string | undefined): Result<GuildCa
   }
   if (action === "dp" && first && GUILD_PATTERN.test(first) && second && VERSION_PATTERN.test(second)) {
     return ok({ type: "directory-profile", guildId: first, page: Number.parseInt(second, 36) });
+  }
+  if (action === "bg" && first && second === undefined) {
+    const board = /^([gp])([0-9a-z]{1,6})$/u.exec(first);
+    return board
+      ? ok({
+          type: "glory-board",
+          view: board[1] === "g" ? "glory" : "primacy",
+          page: Number.parseInt(board[2]!, 36)
+        })
+      : err("invalid-version");
   }
   if ((action === "n" || action === "nu" || action === "i" || action === "is") && first === undefined && second === undefined) {
     return ok({ type: action === "n" ? "create-open" : action === "nu" ? "create-upload" : action === "i" ? "invite-code" : "invite-start" });

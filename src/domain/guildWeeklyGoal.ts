@@ -2,6 +2,27 @@ export const GUILD_WEEKLY_GOAL_KEY = "ordinary-party-expeditions.v1";
 export const GUILD_WEEKLY_GOAL_TARGET = 13;
 export const GUILD_WEEKLY_MINIMUM_GUILD_PARTICIPANTS = 2;
 export const GUILD_WEEKLY_TIME_ZONE = "Europe/Kyiv";
+export const GUILD_WEEKLY_GLORY_AWARD = 13;
+export const GUILD_GLORY_BOARD_PAGE_SIZE = 5;
+export const GUILD_WEEKLY_ACHIEVEMENT_ID = "achievement.guild.weekly-goal-completed";
+export const GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID = "achievement.guild.three-weekly-goals";
+export const GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID = "achievement.guild.thirteen-weekly-goals";
+
+export const guildWeeklyReconciliationReasons = [
+  "credited",
+  "feature-not-frozen",
+  "wrong-encounter",
+  "not-won",
+  "missing-completion",
+  "missing-settlement-plan",
+  "invalid-settlement-plan",
+  "wrong-settlement-policy",
+  "too-few-manual-participants",
+  "missing-user-snapshot",
+  "no-eligible-guild"
+] as const;
+
+export type GuildWeeklyReconciliationReason = (typeof guildWeeklyReconciliationReasons)[number];
 
 export interface GuildWeeklyPeriod {
   key: string;

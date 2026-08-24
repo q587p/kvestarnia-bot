@@ -38,6 +38,7 @@ import type { AchievementService, AchievementUnlock } from "./achievementService
 import type { PublicActivityEventPublisher } from "./publicActivityEventPublisher";
 import type { PartySessionService } from "./partySessionService";
 import type { GuildWeeklyGoalService } from "./guildWeeklyGoalService";
+import type { GuildGloryBoardView } from "../db/repositories/guildWeeklyGoalRepository";
 import { PRESENCE_LOCATION_KORCHMA_DEEP } from "./presenceService";
 
 export const GUILD_CREATION_PREVIEW_TTL_MS = 13 * 60 * 1000;
@@ -135,6 +136,35 @@ export class GuildService {
 
   areWeeklyDevHelpersEnabled(): boolean {
     return this.weeklyGoals?.areDevHelpersEnabled() === true;
+  }
+
+  isWeeklyGoalEnabled(): boolean {
+    return this.weeklyGoals?.isEnabled() === true;
+  }
+
+  getGloryBoardForTelegramUser(
+    telegramUserId: bigint,
+    view: GuildGloryBoardView,
+    page = 0
+  ) {
+    return this.weeklyGoals?.getGloryBoardForTelegramUser(
+      telegramUserId,
+      PRESENCE_LOCATION_KORCHMA_DEEP,
+      view,
+      page
+    ) ?? Promise.resolve({ state: "disabled" as const });
+  }
+
+  claimWeeklyAchievementNotices(telegramUserId?: bigint) {
+    return this.weeklyGoals?.claimAchievementNotices(13, telegramUserId) ?? Promise.resolve([]);
+  }
+
+  markWeeklyAchievementNoticeSent(notice: { entitlementId: string; claimToken: string }) {
+    return this.weeklyGoals?.markAchievementNoticeSent(notice) ?? Promise.resolve(false);
+  }
+
+  releaseWeeklyAchievementNotice(notice: { entitlementId: string; claimToken: string }) {
+    return this.weeklyGoals?.releaseAchievementNotice(notice) ?? Promise.resolve(false);
   }
 
   completeWeeklyGoalForDev(telegramUserId: bigint) {

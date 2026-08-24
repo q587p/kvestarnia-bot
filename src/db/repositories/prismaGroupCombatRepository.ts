@@ -255,6 +255,7 @@ type PersistedActionRow = {
 
 interface FrozenParticipantPayload {
   actor: GroupCombatActorSnapshot;
+  userId?: string;
   summary?: CharacterSummary;
   sated?: unknown;
   inspiration?: unknown;
@@ -852,6 +853,7 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
           };
           frozen.push({
             actor,
+            userId: character.userId,
             summary: summarizeCharacter({
               ...character,
               currentLocationId: character.user.lastSeenLocationId,
@@ -915,7 +917,19 @@ export class PrismaGroupCombatRepository implements GroupCombatRepository {
                   contributionJson: state.contributions[row.actor.rosterOrder] as unknown as Prisma.InputJsonValue
                 };
               })
-            }
+            },
+            ...(input.guildWeeklyGoalEligible === true
+              ? {
+                  weeklyParticipantSnapshots: {
+                    create: frozen.map((row) => ({
+                      userId: row.userId!,
+                      characterId: row.actor.characterId,
+                      remortCount: row.actor.remortCount,
+                      rosterOrder: row.actor.rosterOrder
+                    }))
+                  }
+                }
+              : {})
           }
         });
         if (reservation) {
@@ -4742,14 +4756,22 @@ function readFrozenPayload(value: unknown): FrozenParticipantPayload | null {
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record);
   if (
-    keys.some((key) => key !== "actor" && key !== "summary" && key !== "sated" && key !== "inspiration") ||
-    !("actor" in record)
+    keys.some((key) =>
+      key !== "actor" &&
+      key !== "userId" &&
+      key !== "summary" &&
+      key !== "sated" &&
+      key !== "inspiration"
+    ) ||
+    !("actor" in record) ||
+    ("userId" in record && (typeof record.userId !== "string" || record.userId.length === 0))
   ) {
     return null;
   }
   try {
     return {
       actor: parseFrozenGroupCombatActorSnapshotStrict(record.actor),
+      ...("userId" in record ? { userId: record.userId as string } : {}),
       ...("summary" in record ? { summary: record.summary as CharacterSummary } : {}),
       ...("sated" in record ? { sated: record.sated } : {}),
       ...("inspiration" in record ? { inspiration: record.inspiration } : {})

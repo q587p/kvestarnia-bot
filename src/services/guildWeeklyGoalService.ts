@@ -1,11 +1,30 @@
+import { getAchievementDefinition } from "../content/achievements";
 import type {
+  ClaimedGuildWeeklyAchievementNotification,
+  GuildGloryBoardResult,
+  GuildGloryBoardView,
   GuildWeeklyContributionResult,
   GuildWeeklyGoalMetrics,
   GuildWeeklyGoalRepository,
   GuildWeeklyGoalViewResult
 } from "../db/repositories/guildWeeklyGoalRepository";
-import { getGuildWeeklyPeriod } from "../domain/guildWeeklyGoal";
-import type { AchievementService } from "./achievementService";
+import {
+  GUILD_WEEKLY_ACHIEVEMENT_ID,
+  GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID,
+  GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID
+} from "../domain/guildWeeklyGoal";
+import type { AchievementService, AchievementUnlock } from "./achievementService";
+
+export interface GuildWeeklyAchievementNotice {
+  entitlementId: string;
+  claimToken: string;
+  telegramUserId: bigint;
+  characterId: string;
+  characterName: string;
+  classId: string;
+  raceId: string;
+  unlock: AchievementUnlock;
+}
 
 export class GuildWeeklyGoalService {
   constructor(
@@ -26,57 +45,157 @@ export class GuildWeeklyGoalService {
   async recordTerminalSession(sessionId: string): Promise<GuildWeeklyContributionResult | { state: "disabled" }> {
     if (!this.isEnabled()) return { state: "disabled" };
     const result = await this.repository.recordEligibleTerminalSession(sessionId);
-    if (result.state === "recorded" || result.state === "replayed") {
-      await this.projectCompletionAchievements(result.progress);
-    }
+    await this.projectAchievementEntitlements(93);
     return result;
   }
 
   async getCurrentForTelegramUser(telegramUserId: bigint): Promise<GuildWeeklyGoalViewResult | { state: "disabled" }> {
     if (!this.isEnabled()) return { state: "disabled" };
     const result = await this.repository.getCurrentForTelegramUser(telegramUserId, this.clock());
-    if (result.state === "ready") {
-      await this.projectCompletionAchievements(result.progress);
-    }
+    await this.projectAchievementEntitlements(93, telegramUserId);
     return result;
   }
 
-  async repairCurrentPeriod(limit = 13): Promise<{ recorded: number; recomputed: number }> {
-    if (!this.isEnabled()) return { recorded: 0, recomputed: 0 };
-    const period = getGuildWeeklyPeriod(this.clock());
-    const sessionIds = await this.repository.listUnrecordedEligibleSessionIds(period.startsAt, period.endsAt, limit);
+  getGloryBoardForTelegramUser(
+    telegramUserId: bigint,
+    expectedLocationId: string,
+    view: GuildGloryBoardView,
+    page = 0
+  ): Promise<GuildGloryBoardResult | { state: "disabled" }> {
+    return this.isEnabled()
+      ? this.repository.getGloryBoardForTelegramUser(
+          telegramUserId,
+          expectedLocationId,
+          this.clock(),
+          view,
+          page
+        )
+      : Promise.resolve({ state: "disabled" });
+  }
+
+  async repairCurrentPeriod(limit = 13): Promise<{ recorded: number; reconciled: number; recomputed: number }> {
+    if (!this.isEnabled()) return { recorded: 0, reconciled: 0, recomputed: 0 };
+    const sessionIds = await this.repository.listUnreconciledTerminalSessionIds(limit);
     let recorded = 0;
+    const periodKeys = new Set<string>();
     for (const sessionId of sessionIds) {
-      const result = await this.recordTerminalSession(sessionId);
+      const result = await this.repository.recordEligibleTerminalSession(sessionId);
       if (result.state === "recorded") recorded += 1;
+      if (result.state === "recorded" || result.state === "replayed") {
+        periodKeys.add(result.progress.periodKey);
+      } else if (result.state === "ineligible" && result.periodKey) {
+        periodKeys.add(result.periodKey);
+      }
     }
-    return { recorded, recomputed: await this.repository.recomputePeriod(period.key) };
+    let recomputed = 0;
+    for (const periodKey of periodKeys) recomputed += await this.repository.recomputePeriod(periodKey);
+    await this.projectAchievementEntitlements(93);
+    return { recorded, reconciled: sessionIds.length, recomputed };
   }
 
   async completeCurrentForDev(telegramUserId: bigint): Promise<GuildWeeklyGoalViewResult | { state: "disabled" }> {
     if (!this.areDevHelpersEnabled()) return { state: "disabled" };
     const result = await this.repository.completeCurrentForDev(telegramUserId, this.clock());
-    if (result.state === "ready") await this.projectCompletionAchievements(result.progress);
+    await this.projectAchievementEntitlements(93, telegramUserId);
     return result;
+  }
+
+  async claimAchievementNotices(
+    limit = 13,
+    telegramUserId?: bigint
+  ): Promise<GuildWeeklyAchievementNotice[]> {
+    if (!this.isEnabled()) return [];
+    await this.projectAchievementEntitlements(93, telegramUserId);
+    const claims = await this.repository.claimAchievementNotifications({
+      limit,
+      now: this.clock(),
+      ...(telegramUserId === undefined ? {} : { telegramUserId })
+    });
+    return claims.map(toAchievementNotice);
+  }
+
+  markAchievementNoticeSent(notice: Pick<GuildWeeklyAchievementNotice, "entitlementId" | "claimToken">): Promise<boolean> {
+    return this.repository.markAchievementNotificationSent(
+      notice.entitlementId,
+      notice.claimToken,
+      this.clock()
+    );
+  }
+
+  releaseAchievementNotice(notice: Pick<GuildWeeklyAchievementNotice, "entitlementId" | "claimToken">): Promise<boolean> {
+    return this.repository.releaseAchievementNotification(notice.entitlementId, notice.claimToken);
   }
 
   getMetrics(): Promise<GuildWeeklyGoalMetrics> {
     return this.repository.getMetrics();
   }
 
-  private async projectCompletionAchievements(progress: {
-    periodId: string | null;
-    completedAt: Date | null;
-    contributorCharacterIds: string[];
-  }): Promise<void> {
-    if (!this.achievements || !progress.periodId || !progress.completedAt) return;
-    for (const characterId of progress.contributorCharacterIds) {
-      await this.achievements.trackEventSafely({
-        type: "guild.weekly_goal_completed",
-        characterId,
-        occurredAt: progress.completedAt,
-        sourceId: progress.periodId
-      });
+  private async projectAchievementEntitlements(limit: number, telegramUserId?: bigint): Promise<number> {
+    if (!this.achievements) return 0;
+    const candidates = await this.repository.listAchievementProjectionCandidates(limit, telegramUserId);
+    let projected = 0;
+    for (const candidate of candidates) {
+      try {
+        await this.achievements.trackEvent(achievementEvent(candidate));
+        if (await this.repository.markAchievementProjected({
+          entitlementId: candidate.entitlementId,
+          characterId: candidate.characterId,
+          remortCount: candidate.remortCount,
+          projectedAt: this.clock()
+        })) projected += 1;
+      } catch {
+        continue;
+      }
     }
+    return projected;
   }
+}
+
+function achievementEvent(candidate: {
+  achievementId: string;
+  characterId: string;
+  entitledAt: Date;
+  sourcePeriodId: string;
+}) {
+  if (candidate.achievementId === GUILD_WEEKLY_ACHIEVEMENT_ID) {
+    return {
+      type: "guild.weekly_goal_completed" as const,
+      characterId: candidate.characterId,
+      occurredAt: candidate.entitledAt,
+      sourceId: candidate.sourcePeriodId
+    };
+  }
+  const count = candidate.achievementId === GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID
+    ? 3
+    : candidate.achievementId === GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID
+      ? 13
+      : 0;
+  if (count === 0) throw new Error(`Unknown weekly achievement entitlement: ${candidate.achievementId}`);
+  return {
+    type: "guild.weekly_goal_periods" as const,
+    characterId: candidate.characterId,
+    count,
+    occurredAt: candidate.entitledAt,
+    sourceId: candidate.sourcePeriodId
+  };
+}
+
+function toAchievementNotice(claim: ClaimedGuildWeeklyAchievementNotification): GuildWeeklyAchievementNotice {
+  const definition = getAchievementDefinition(claim.achievementId);
+  if (!definition) throw new Error(`Unknown weekly achievement: ${claim.achievementId}`);
+  return {
+    entitlementId: claim.entitlementId,
+    claimToken: claim.claimToken,
+    telegramUserId: claim.telegramUserId,
+    characterId: claim.characterId,
+    characterName: claim.characterName,
+    classId: claim.classId,
+    raceId: claim.raceId,
+    unlock: {
+      id: definition.id,
+      title: definition.title,
+      cosmeticTitleGrantId: definition.cosmeticTitleGrantId ?? null,
+      unlockedAt: claim.entitledAt
+    }
+  };
 }

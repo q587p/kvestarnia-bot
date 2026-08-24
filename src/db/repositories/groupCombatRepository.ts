@@ -51,6 +51,7 @@ export interface GroupCombatSettlementNotice {
   raceId: string;
   levelChange: RewardLevelChange | null;
   achievementUnlocks: AchievementUnlock[];
+  weeklyAchievementClaims?: Array<{ entitlementId: string; claimToken: string }>;
 }
 
 export interface GroupCombatSessionRecord {

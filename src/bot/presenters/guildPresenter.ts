@@ -12,6 +12,7 @@ import type {
   GuildPublicDirectoryRepositoryResult,
   GuildPublicProfileRepositoryResult
 } from "../../db/repositories/guildRepository";
+import type { GuildGloryBoardResult } from "../../db/repositories/guildWeeklyGoalRepository";
 import {
   GUILD_FOUNDER_MIN_LEVEL,
   GUILD_INITIAL_MEMBER_CAPACITY,
@@ -118,6 +119,46 @@ export function presentGuildPublicProfile(
     : "🪺 Гніздо зараз не відчиняється звідси. Поверніться до Спуску й зайдіть через чинну стежку.";
 }
 
+export function presentGuildGloryBoard(
+  result: GuildGloryBoardResult | { state: "disabled" }
+): string {
+  if (result.state !== "ready") {
+    if (result.state === "disabled") {
+      return "📜 Книга слави зараз зачинена. Звичайні справи ґільдії лишаються доступними.";
+    }
+    if (result.state === "no-character") return "Спершу створіть пригодника через /start.";
+    return result.state === "wrong-location"
+      ? "📜 Книгу слави читають лише в Гнізді ґільдій. Поверніться до Спуску й зайдіть до Гнізда."
+      : "📜 Книга слави призначена для чинних ґільдій. Долучіться до ґільдії, тоді поверніться до Гнізда.";
+  }
+  const title = result.view === "glory" ? "✨ <b>Слава</b>" : `🏁 <b>Першість · ${escapeHtml(result.periodKey)}</b>`;
+  const explanation = result.view === "glory"
+    ? "Слава за завершені тижневі клопоти. Її не можна витратити, вона нічого не купує й не додає бойової сили."
+    : "Спершу йдуть ґільдії, що завершили справу, — за чергою тринадцятої печатки; решта — за поступом. Точний час книга не виказує.";
+  const rows = result.rows.map((row) => result.view === "glory"
+    ? `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — <b>${row.glory} Слави</b>`
+    : `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — ${row.completed ? "✅" : "📜"} <b>${row.progressCount}/${row.targetCount}</b>`
+  );
+  const viewerVisible = result.rows.some((row) => row.guildId === result.viewerGuild.guildId);
+  const own = viewerVisible
+    ? []
+    : [
+        "",
+        result.view === "glory"
+          ? `Ваша ґільдія: <b>${result.viewerGuild.place} місце</b> · ${result.viewerGuild.glory} Слави.`
+          : `Ваша ґільдія: <b>${result.viewerGuild.place} місце</b> · ${result.viewerGuild.progressCount}/${result.viewerGuild.targetCount}.`
+      ];
+  return [
+    "📜 <b>Книга слави</b>",
+    title,
+    "",
+    explanation,
+    "",
+    ...(rows.length > 0 ? rows : ["Писар ще не знайшов жодної чинної печатки."]),
+    ...own
+  ].join("\n");
+}
+
 export function presentGuildView(
   guild: GuildViewRecord,
   incomingInvites: GuildInviteRecord[],
@@ -138,8 +179,9 @@ export function presentGuildView(
           "",
           `${GUILD_WEEKLY_GOAL_ICON} <b>Тижневий спільний клопіт · ${escapeHtml(guild.weeklyGoal.periodKey)}</b>`,
           guild.weeklyGoal.completedAt
-            ? `Завершено: <b>${guild.weeklyGoal.targetCount}/${guild.weeklyGoal.targetCount}</b>. Внесок не дає бойової сили й не множить здобич.`
-            : `Звичайні успішні походи ґільдійною ватагою: <b>${guild.weeklyGoal.progressCount}/${guild.weeklyGoal.targetCount}</b>. Зараховується весь ручний внесок — удар, захист і підтримка.`
+            ? `Завершено: <b>${guild.weeklyGoal.targetCount}/${guild.weeklyGoal.targetCount}</b> · отримано <b>+13 Слави</b>. Внесок не дає бойової сили й не множить здобич.`
+            : `Звичайні успішні походи ґільдійною ватагою: <b>${guild.weeklyGoal.progressCount}/${guild.weeklyGoal.targetCount}</b>. Зараховується весь ручний внесок — удар, захист і підтримка.`,
+          `Слава ґільдії: <b>${guild.weeklyGoal.gloryTotal}</b> · тижневе місце: <b>${guild.weeklyGoal.weeklyPlace}</b>.`
         ]
       : []),
     "",

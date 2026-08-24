@@ -1,19 +1,32 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import {
+  GUILD_GLORY_BOARD_PAGE_SIZE,
+  GUILD_WEEKLY_ACHIEVEMENT_ID,
+  GUILD_WEEKLY_GLORY_AWARD,
   GUILD_WEEKLY_GOAL_KEY,
   GUILD_WEEKLY_GOAL_TARGET,
   GUILD_WEEKLY_MINIMUM_GUILD_PARTICIPANTS,
-  getGuildWeeklyPeriod
+  GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID,
+  GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID,
+  getGuildWeeklyPeriod,
+  type GuildWeeklyReconciliationReason
 } from "../../domain/guildWeeklyGoal";
 import { parseGroupCombatSettlementPlanStrict } from "../../domain/groupCombat/groupCombatStateValidation";
 import type {
+  ClaimedGuildWeeklyAchievementNotification,
+  GuildGloryBoardEntry,
+  GuildGloryBoardResult,
+  GuildGloryBoardView,
+  GuildWeeklyAchievementProjectionCandidate,
   GuildWeeklyContributionResult,
   GuildWeeklyGoalMetrics,
   GuildWeeklyGoalProgressRecord,
   GuildWeeklyGoalRepository,
   GuildWeeklyGoalViewResult
 } from "./guildWeeklyGoalRepository";
+
+const WEEKLY_NOTIFICATION_CLAIM_MS = 93_000;
 
 export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -28,17 +41,11 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
   ): Promise<GuildWeeklyContributionResult> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const existing = await tx.guildWeeklyContribution.findUnique({
-          where: { groupCombatSessionId: sessionId },
-          select: { periodId: true }
+        const existingDecision = await tx.guildWeeklyReconciliation.findUnique({
+          where: { sessionId },
+          select: { decision: true, reason: true, periodKey: true }
         });
-        if (existing) {
-          return {
-            state: "replayed" as const,
-            progress: await loadProgressByPeriodId(tx, existing.periodId),
-            justCompleted: false
-          };
-        }
+        if (existingDecision) return replayDecision(tx, sessionId, existingDecision);
 
         const session = await tx.groupCombatSession.findUnique({
           where: { id: sessionId },
@@ -49,40 +56,47 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
             guildWeeklyGoalEligible: true,
             completedAt: true,
             settlementPlanJson: true,
-            participants: {
-              select: {
-                characterId: true,
-                remortCount: true,
-                character: { select: { userId: true } }
-              }
+            weeklyParticipantSnapshots: {
+              orderBy: [{ rosterOrder: "asc" }, { id: "asc" }],
+              select: { userId: true, characterId: true, remortCount: true }
             }
           }
         });
         if (!session) return { state: "not-found" as const };
-        if (
-          !session.guildWeeklyGoalEligible ||
-          session.encounterKey !== "nyz-left-passage-party.v1" ||
-          session.status !== "won" ||
-          !session.completedAt ||
-          session.settlementPlanJson === null
-        ) {
-          return { state: "ineligible" as const };
+        const periodKey = session.completedAt ? getGuildWeeklyPeriod(session.completedAt).key : null;
+        const reject = async (reason: Exclude<GuildWeeklyReconciliationReason, "credited">) => {
+          await createReconciliation(tx, session.id, "ineligible", reason, periodKey, session.completedAt ?? new Date());
+          return { state: "ineligible" as const, reason, periodKey };
+        };
+        if (!session.guildWeeklyGoalEligible) return reject("feature-not-frozen");
+        if (session.encounterKey !== "nyz-left-passage-party.v1") return reject("wrong-encounter");
+        if (session.status !== "won") return reject("not-won");
+        if (!session.completedAt) return reject("missing-completion");
+        if (session.settlementPlanJson === null) return reject("missing-settlement-plan");
+
+        let plan: ReturnType<typeof parseGroupCombatSettlementPlanStrict>;
+        try {
+          plan = parseGroupCombatSettlementPlanStrict(session.settlementPlanJson);
+        } catch {
+          return reject("invalid-settlement-plan");
         }
-        const plan = parseGroupCombatSettlementPlanStrict(session.settlementPlanJson);
         if (plan.policy !== "left-passage-party" || plan.outcome !== "won") {
-          return { state: "ineligible" as const };
+          return reject("wrong-settlement-policy");
         }
         const manualCharacterIds = new Set(plan.participants
           .filter((participant) => participant.manualParticipation ?? participant.contribution.committedActions > 0)
           .map((participant) => participant.characterId));
-        const participants = session.participants.filter((participant) => manualCharacterIds.has(participant.characterId));
+        const participants = session.weeklyParticipantSnapshots.filter((participant) =>
+          manualCharacterIds.has(participant.characterId)
+        );
         if (participants.length < GUILD_WEEKLY_MINIMUM_GUILD_PARTICIPANTS) {
-          return { state: "ineligible" as const };
+          return reject("too-few-manual-participants");
         }
+        if (participants.some((participant) => !participant.userId)) return reject("missing-user-snapshot");
 
         const memberships = await tx.guildMember.findMany({
           where: {
-            userId: { in: participants.map((participant) => participant.character.userId) },
+            userId: { in: participants.map((participant) => participant.userId) },
             joinedAt: { lte: session.completedAt },
             OR: [{ leftAt: null }, { leftAt: { gt: session.completedAt } }],
             guild: {
@@ -98,16 +112,18 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
         });
         const grouped = new Map<string, Map<string, (typeof memberships)[number]>>();
         for (const membership of memberships) {
-          const guildMemberships = grouped.get(membership.guildId) ??
-            new Map<string, (typeof memberships)[number]>();
-          guildMemberships.set(membership.userId, membership);
-          grouped.set(membership.guildId, guildMemberships);
+          const rows = grouped.get(membership.guildId) ?? new Map<string, (typeof memberships)[number]>();
+          rows.set(membership.userId, membership);
+          grouped.set(membership.guildId, rows);
         }
         const eligible = [...grouped.entries()]
-          .map(([candidateGuildId, rows]) => [candidateGuildId, [...rows.values()]] as const)
+          .map(([guildId, rows]) => [guildId, [...rows.values()]] as const)
           .filter(([, rows]) => rows.length >= GUILD_WEEKLY_MINIMUM_GUILD_PARTICIPANTS)
-          .sort(([leftId, leftRows], [rightId, rightRows]) => rightRows.length - leftRows.length || leftId.localeCompare(rightId))[0];
-        if (!eligible) return { state: "ineligible" as const };
+          .sort(([leftId, leftRows], [rightId, rightRows]) =>
+            rightRows.length - leftRows.length || leftId.localeCompare(rightId)
+          )[0];
+        if (!eligible) return reject("no-eligible-guild");
+
         const [guildId, eligibleMemberships] = eligible;
         const guildSnapshot = eligibleMemberships[0]!.guild;
         const period = getGuildWeeklyPeriod(session.completedAt);
@@ -124,24 +140,18 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
             progressCount: 0
           },
           update: {},
-          select: {
-            id: true,
-            completedAt: true,
-            guildNameSnapshot: true,
-            guildCrestSnapshot: true
-          }
+          select: { id: true }
         });
-        const contributionId = randomUUID();
         await tx.guildWeeklyContribution.create({
           data: {
-            id: contributionId,
+            id: randomUUID(),
             periodId: goal.id,
             guildId,
             groupCombatSessionId: session.id,
             expeditionCompletedAt: session.completedAt,
             contributors: {
               create: eligibleMemberships.map((membership) => {
-                const participant = participants.find((candidate) => candidate.character.userId === membership.userId)!;
+                const participant = participants.find((candidate) => candidate.userId === membership.userId)!;
                 return {
                   id: randomUUID(),
                   userId: membership.userId,
@@ -152,42 +162,8 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
             }
           }
         });
-        const contributions = await tx.guildWeeklyContribution.findMany({
-          where: { periodId: goal.id },
-          orderBy: [{ expeditionCompletedAt: "asc" }, { id: "asc" }],
-          select: { expeditionCompletedAt: true }
-        });
-        const canonicalCompletedAt = contributions.length >= GUILD_WEEKLY_GOAL_TARGET
-          ? contributions[GUILD_WEEKLY_GOAL_TARGET - 1]!.expeditionCompletedAt
-          : null;
-        await tx.guildWeeklyGoalPeriod.update({
-          where: { id: goal.id },
-          data: {
-            progressCount: Math.min(contributions.length, GUILD_WEEKLY_GOAL_TARGET),
-            completedAt: canonicalCompletedAt
-          }
-        });
-        const justCompleted = !goal.completedAt && canonicalCompletedAt !== null;
-        if (canonicalCompletedAt) {
-          await tx.activityEvent.upsert({
-            where: { dedupeKey: `guild.weekly_goal_completed:${goal.id}` },
-            create: {
-                eventType: "guild.weekly_goal_completed",
-                category: "adventurer",
-                severity: "high",
-                visibility: "public",
-                subjectKind: "guild",
-                subjectId: guildId,
-                subjectName: goal.guildNameSnapshot,
-                sourceType: "guild-weekly-goal",
-                sourceId: goal.id,
-                dedupeKey: `guild.weekly_goal_completed:${goal.id}`,
-                payloadJson: { crest: goal.guildCrestSnapshot, periodKey: period.key },
-                occurredAt: canonicalCompletedAt
-            },
-            update: { occurredAt: canonicalCompletedAt }
-          });
-        }
+        await createReconciliation(tx, session.id, "credited", "credited", period.key, session.completedAt);
+        const justCompleted = await recomputePeriodArtifacts(tx, goal.id);
         return {
           state: "recorded" as const,
           progress: await loadProgressByPeriodId(tx, goal.id),
@@ -196,20 +172,12 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
-      const existing = await this.prisma.guildWeeklyContribution.findUnique({
-        where: { groupCombatSessionId: sessionId },
-        select: { periodId: true }
+      const decision = await this.prisma.guildWeeklyReconciliation.findUnique({
+        where: { sessionId },
+        select: { decision: true, reason: true, periodKey: true }
       });
-      if (existing) {
-        return {
-          state: "replayed",
-          progress: await loadProgressByPeriodId(this.prisma, existing.periodId),
-          justCompleted: false
-        };
-      }
-      if (uniqueConflictAttempt < 2) {
-        return this.recordEligibleTerminalSessionAttempt(sessionId, uniqueConflictAttempt + 1);
-      }
+      if (decision) return replayDecision(this.prisma, sessionId, decision);
+      if (uniqueConflictAttempt < 2) return this.recordEligibleTerminalSessionAttempt(sessionId, uniqueConflictAttempt + 1);
       throw error;
     }
   }
@@ -241,20 +209,69 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
       state: "ready",
       progress: row
         ? await loadProgressByPeriodId(this.prisma, row.id)
-        : emptyProgress(guild, period.key)
+        : await emptyProgress(this.prisma, guild, period.key)
     };
   }
 
-  async listUnrecordedEligibleSessionIds(startsAt: Date, endsAt: Date, limit: number): Promise<string[]> {
+  async getGloryBoardForTelegramUser(
+    telegramUserId: bigint,
+    expectedLocationId: string,
+    now: Date,
+    view: GuildGloryBoardView,
+    requestedPage: number
+  ): Promise<GuildGloryBoardResult> {
+    const actor = await this.prisma.user.findUnique({
+      where: { telegramUserId },
+      select: {
+        lastSeenLocationId: true,
+        character: { select: { id: true } },
+        guildMemberships: {
+          where: { leftAt: null, guild: { status: "active", disbandedAt: null } },
+          take: 1,
+          select: { guildId: true }
+        }
+      }
+    });
+    if (!actor?.character) return { state: "no-character" };
+    if (actor.lastSeenLocationId !== expectedLocationId) return { state: "wrong-location" };
+    const viewerGuildId = actor.guildMemberships[0]?.guildId;
+    if (!viewerGuildId) return { state: "not-member" };
+
+    const total = await this.prisma.guild.count({ where: { status: "active", disbandedAt: null } });
+    const totalPages = Math.max(1, Math.ceil(total / GUILD_GLORY_BOARD_PAGE_SIZE));
+    const page = Math.min(Math.max(0, Math.floor(requestedPage)), totalPages - 1);
+    const periodKey = getGuildWeeklyPeriod(now).key;
+    const rows = await loadBoardRows(
+      this.prisma,
+      view,
+      periodKey,
+      page * GUILD_GLORY_BOARD_PAGE_SIZE,
+      GUILD_GLORY_BOARD_PAGE_SIZE
+    );
+    const viewerRows = await loadBoardRows(this.prisma, view, periodKey, 0, 1, viewerGuildId);
+    const viewerGuild = viewerRows[0];
+    if (!viewerGuild) return { state: "not-member" };
+    return {
+      state: "ready",
+      view,
+      periodKey,
+      rows: rows.map((row) => mapBoardRow(row, viewerGuildId)),
+      viewerGuild: mapBoardRow(viewerGuild, viewerGuildId),
+      page,
+      hasPreviousPage: page > 0,
+      hasNextPage: page < totalPages - 1
+    };
+  }
+
+  async listUnreconciledTerminalSessionIds(limit: number): Promise<string[]> {
     const rows = await this.prisma.groupCombatSession.findMany({
       where: {
         guildWeeklyGoalEligible: true,
-        status: "won",
-        completedAt: { gte: startsAt, lt: endsAt },
-        weeklyContribution: null
+        completedAt: { not: null },
+        weeklyReconciliation: null
       },
       orderBy: [{ completedAt: "asc" }, { id: "asc" }],
-      take: Math.max(1, Math.min(93, Math.floor(limit))),
+      take: boundedLimit(limit),
       select: { id: true }
     });
     return rows.map((row) => row.id);
@@ -263,61 +280,19 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
   async recomputePeriod(periodKey: string): Promise<number> {
     const periods = await this.prisma.guildWeeklyGoalPeriod.findMany({
       where: { periodKey, goalKey: GUILD_WEEKLY_GOAL_KEY },
-      select: {
-        id: true,
-        targetCount: true,
-        progressCount: true,
-        completedAt: true,
-        guildId: true,
-        guildNameSnapshot: true,
-        guildCrestSnapshot: true
-      }
+      select: { id: true, progressCount: true, completedAt: true }
     });
     let repaired = 0;
     for (const period of periods) {
-      const contributions = await this.prisma.guildWeeklyContribution.findMany({
-        where: { periodId: period.id },
-        orderBy: [{ expeditionCompletedAt: "asc" }, { id: "asc" }],
-        select: { expeditionCompletedAt: true }
+      const before = `${period.progressCount}:${period.completedAt?.toISOString() ?? ""}`;
+      await this.prisma.$transaction(async (tx) => {
+        await recomputePeriodArtifacts(tx, period.id);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      const after = await this.prisma.guildWeeklyGoalPeriod.findUniqueOrThrow({
+        where: { id: period.id },
+        select: { progressCount: true, completedAt: true }
       });
-      const count = Math.min(contributions.length, period.targetCount);
-      const shouldComplete = contributions.length >= period.targetCount;
-      const canonicalCompletedAt = shouldComplete
-        ? contributions[period.targetCount - 1]!.expeditionCompletedAt
-        : null;
-      const needsRepair = period.progressCount !== count ||
-        (period.completedAt?.getTime() ?? null) !== (canonicalCompletedAt?.getTime() ?? null);
-      if (needsRepair) {
-        await this.prisma.guildWeeklyGoalPeriod.update({
-          where: { id: period.id },
-          data: { progressCount: count, completedAt: canonicalCompletedAt }
-        });
-        repaired += 1;
-      }
-      if (canonicalCompletedAt) {
-        await this.prisma.activityEvent.upsert({
-          where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` },
-          create: {
-            eventType: "guild.weekly_goal_completed",
-            category: "adventurer",
-            severity: "high",
-            visibility: "public",
-            subjectKind: "guild",
-            subjectId: period.guildId,
-            subjectName: period.guildNameSnapshot,
-            sourceType: "guild-weekly-goal",
-            sourceId: period.id,
-            dedupeKey: `guild.weekly_goal_completed:${period.id}`,
-            payloadJson: { crest: period.guildCrestSnapshot, periodKey },
-            occurredAt: canonicalCompletedAt
-          },
-          update: { occurredAt: canonicalCompletedAt }
-        });
-      } else {
-        await this.prisma.activityEvent.deleteMany({
-          where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` }
-        });
-      }
+      if (before !== `${after.progressCount}:${after.completedAt?.toISOString() ?? ""}`) repaired += 1;
     }
     return repaired;
   }
@@ -325,116 +300,441 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
   async completeCurrentForDev(telegramUserId: bigint, now: Date): Promise<GuildWeeklyGoalViewResult> {
     const current = await this.getCurrentForTelegramUser(telegramUserId, now);
     if (current.state !== "ready") return current;
-    if (current.progress.completedAt) return current;
-    const period = await this.prisma.guildWeeklyGoalPeriod.upsert({
-      where: {
-        guildId_periodKey_goalKey: {
+    const user = await this.prisma.user.findUnique({ where: { telegramUserId }, select: { id: true } });
+    if (!user) return { state: "no-character" };
+    const periodId = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.guildWeeklyGoalPeriod.findUnique({
+        where: {
+          guildId_periodKey_goalKey: {
+            guildId: current.progress.guildId,
+            periodKey: current.progress.periodKey,
+            goalKey: GUILD_WEEKLY_GOAL_KEY
+          }
+        },
+        select: { id: true, devOverrideCompletedAt: true }
+      });
+      const period = existing ?? await tx.guildWeeklyGoalPeriod.create({
+        data: {
+          id: randomUUID(),
           guildId: current.progress.guildId,
           periodKey: current.progress.periodKey,
-          goalKey: GUILD_WEEKLY_GOAL_KEY
-        }
-      },
-      create: {
-        id: randomUUID(),
-        guildId: current.progress.guildId,
-        periodKey: current.progress.periodKey,
-        goalKey: GUILD_WEEKLY_GOAL_KEY,
-        guildNameSnapshot: current.progress.guildName,
-        guildCrestSnapshot: current.progress.guildCrest,
-        targetCount: GUILD_WEEKLY_GOAL_TARGET,
-        progressCount: GUILD_WEEKLY_GOAL_TARGET,
-        completedAt: now
-      },
-      update: { progressCount: GUILD_WEEKLY_GOAL_TARGET, completedAt: now },
-      select: { id: true, guildNameSnapshot: true, guildCrestSnapshot: true }
-    });
-    await this.prisma.activityEvent.upsert({
-      where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` },
-      create: {
-        eventType: "guild.weekly_goal_completed",
-        category: "adventurer",
-        severity: "high",
-        visibility: "public",
-        subjectKind: "guild",
-        subjectId: current.progress.guildId,
-        subjectName: period.guildNameSnapshot,
-        sourceType: "guild-weekly-goal",
-        sourceId: period.id,
-        dedupeKey: `guild.weekly_goal_completed:${period.id}`,
-        payloadJson: {
-          crest: period.guildCrestSnapshot,
-          periodKey: current.progress.periodKey
+          goalKey: GUILD_WEEKLY_GOAL_KEY,
+          guildNameSnapshot: current.progress.guildName,
+          guildCrestSnapshot: current.progress.guildCrest,
+          targetCount: GUILD_WEEKLY_GOAL_TARGET,
+          progressCount: 0
         },
-        occurredAt: now
-      },
-      update: {}
+        select: { id: true, devOverrideCompletedAt: true }
+      });
+      if (!period.devOverrideCompletedAt) {
+        await tx.guildWeeklyGoalPeriod.update({
+          where: { id: period.id },
+          data: { devOverrideCompletedAt: now, devOverrideUserId: user.id }
+        });
+      }
+      await recomputePeriodArtifacts(tx, period.id);
+      return period.id;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    return { state: "ready", progress: await loadProgressByPeriodId(this.prisma, periodId) };
+  }
+
+  async listAchievementProjectionCandidates(
+    limit: number,
+    telegramUserId?: bigint
+  ): Promise<GuildWeeklyAchievementProjectionCandidate[]> {
+    const telegramFilter = telegramUserId === undefined
+      ? Prisma.empty
+      : Prisma.sql`AND user."telegram_user_id" = ${telegramUserId}`;
+    const rows = await this.prisma.$queryRaw<ProjectionRow[]>(Prisma.sql`
+      SELECT entitlement."id" AS entitlement_id,
+             entitlement."achievement_id" AS achievement_id,
+             entitlement."source_period_id" AS source_period_id,
+             entitlement."source_period_key" AS source_period_key,
+             entitlement."entitled_at" AS entitled_at,
+             user."telegram_user_id" AS telegram_user_id,
+             user."id" AS user_id,
+             character."id" AS character_id,
+             (SELECT COUNT(*) FROM "character_remorts" AS remort WHERE remort."character_id" = character."id") AS remort_count,
+             character."name" AS character_name,
+             character."class_id" AS class_id,
+             character."race_id" AS race_id
+      FROM "guild_weekly_achievement_entitlements" AS entitlement
+      JOIN "users" AS user ON user."id" = entitlement."user_id"
+      JOIN "characters" AS character ON character."user_id" = user."id"
+      WHERE (
+        entitlement."projected_character_id" IS NULL OR
+        entitlement."projected_character_id" <> character."id" OR
+        entitlement."projected_remort_count" IS NULL OR
+        entitlement."projected_remort_count" <>
+          (SELECT COUNT(*) FROM "character_remorts" AS remort WHERE remort."character_id" = character."id")
+      )
+      ${telegramFilter}
+      ORDER BY entitlement."entitled_at" ASC, entitlement."id" ASC
+      LIMIT ${boundedLimit(limit)}
+    `);
+    return rows.map(mapProjectionRow);
+  }
+
+  async markAchievementProjected(input: {
+    entitlementId: string;
+    characterId: string;
+    remortCount: number;
+    projectedAt: Date;
+  }): Promise<boolean> {
+    const result = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
+      where: { id: input.entitlementId },
+      data: {
+        projectedCharacterId: input.characterId,
+        projectedRemortCount: input.remortCount,
+        projectedAt: input.projectedAt
+      }
     });
-    return { state: "ready", progress: await loadProgressByPeriodId(this.prisma, period.id) };
+    return result.count === 1;
+  }
+
+  async claimAchievementNotifications(input: {
+    limit: number;
+    now: Date;
+    telegramUserId?: bigint;
+  }): Promise<ClaimedGuildWeeklyAchievementNotification[]> {
+    const telegramFilter = input.telegramUserId === undefined
+      ? Prisma.empty
+      : Prisma.sql`AND user."telegram_user_id" = ${input.telegramUserId}`;
+    const candidates = await this.prisma.$queryRaw<ProjectionRow[]>(Prisma.sql`
+      SELECT entitlement."id" AS entitlement_id,
+             entitlement."achievement_id" AS achievement_id,
+             entitlement."source_period_id" AS source_period_id,
+             entitlement."source_period_key" AS source_period_key,
+             entitlement."entitled_at" AS entitled_at,
+             user."telegram_user_id" AS telegram_user_id,
+             user."id" AS user_id,
+             character."id" AS character_id,
+             (SELECT COUNT(*) FROM "character_remorts" AS remort WHERE remort."character_id" = character."id") AS remort_count,
+             character."name" AS character_name,
+             character."class_id" AS class_id,
+             character."race_id" AS race_id
+      FROM "guild_weekly_achievement_entitlements" AS entitlement
+      JOIN "users" AS user ON user."id" = entitlement."user_id"
+      JOIN "characters" AS character ON character."user_id" = user."id"
+      WHERE entitlement."notified_at" IS NULL
+        AND entitlement."projected_character_id" = character."id"
+        AND (entitlement."notification_claimed_until" IS NULL OR entitlement."notification_claimed_until" <= ${input.now})
+        ${telegramFilter}
+      ORDER BY entitlement."entitled_at" ASC, entitlement."id" ASC
+      LIMIT ${boundedLimit(input.limit)}
+    `);
+    const claimed: ClaimedGuildWeeklyAchievementNotification[] = [];
+    for (const candidate of candidates) {
+      const claimToken = randomUUID();
+      const updated = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
+        where: {
+          id: candidate.entitlement_id,
+          notifiedAt: null,
+          OR: [{ notificationClaimedUntil: null }, { notificationClaimedUntil: { lte: input.now } }]
+        },
+        data: {
+          notificationClaimToken: claimToken,
+          notificationClaimedUntil: new Date(input.now.getTime() + WEEKLY_NOTIFICATION_CLAIM_MS)
+        }
+      });
+      if (updated.count === 1) claimed.push({ ...mapProjectionRow(candidate), claimToken });
+    }
+    return claimed;
+  }
+
+  async markAchievementNotificationSent(entitlementId: string, claimToken: string, sentAt: Date): Promise<boolean> {
+    const result = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
+      where: { id: entitlementId, notificationClaimToken: claimToken, notifiedAt: null },
+      data: { notifiedAt: sentAt, notificationClaimToken: null, notificationClaimedUntil: null }
+    });
+    return result.count === 1;
+  }
+
+  async releaseAchievementNotification(entitlementId: string, claimToken: string): Promise<boolean> {
+    const result = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
+      where: { id: entitlementId, notificationClaimToken: claimToken, notifiedAt: null },
+      data: { notificationClaimToken: null, notificationClaimedUntil: null }
+    });
+    return result.count === 1;
   }
 
   async getMetrics(): Promise<GuildWeeklyGoalMetrics> {
-    const [periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts] = await Promise.all([
+    const [periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
+      reconciliationDecisions, gloryReceipts, achievementEntitlements] = await Promise.all([
       this.prisma.guildWeeklyGoalPeriod.count(),
       this.prisma.guildWeeklyGoalPeriod.count({ where: { completedAt: { not: null } } }),
       this.prisma.guildWeeklyContribution.count(),
-      this.prisma.guildWeeklyContributorReceipt.count()
+      this.prisma.guildWeeklyContributorReceipt.count(),
+      this.prisma.guildWeeklyReconciliation.count(),
+      this.prisma.guildGloryReceipt.count(),
+      this.prisma.guildWeeklyAchievementEntitlement.count()
     ]);
-    return { periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts };
+    return { periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
+      reconciliationDecisions, gloryReceipts, achievementEntitlements };
   }
 }
 
-type ProgressClient = Pick<PrismaClient, "guildWeeklyGoalPeriod"> | Prisma.TransactionClient;
+type ProgressClient = PrismaClient | Prisma.TransactionClient;
+
+async function replayDecision(
+  client: ProgressClient,
+  sessionId: string,
+  decision: { decision: string; reason: string; periodKey: string | null }
+): Promise<GuildWeeklyContributionResult> {
+  if (decision.decision !== "credited") {
+    return { state: "ineligible", reason: decision.reason, periodKey: decision.periodKey };
+  }
+  const contribution = await client.guildWeeklyContribution.findUnique({
+    where: { groupCombatSessionId: sessionId }, select: { periodId: true }
+  });
+  if (!contribution) throw new Error(`Credited weekly reconciliation ${sessionId} has no receipt.`);
+  return { state: "replayed", progress: await loadProgressByPeriodId(client, contribution.periodId), justCompleted: false };
+}
+
+async function createReconciliation(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  decision: "credited" | "ineligible",
+  reason: GuildWeeklyReconciliationReason,
+  periodKey: string | null,
+  reconciledAt: Date
+): Promise<void> {
+  await tx.guildWeeklyReconciliation.create({
+    data: { id: randomUUID(), sessionId, decision, reason, periodKey, reconciledAt }
+  });
+}
+
+async function recomputePeriodArtifacts(tx: Prisma.TransactionClient, periodId: string): Promise<boolean> {
+  const period = await tx.guildWeeklyGoalPeriod.findUniqueOrThrow({
+    where: { id: periodId },
+    select: {
+      id: true, guildId: true, periodKey: true, targetCount: true, completedAt: true,
+      devOverrideCompletedAt: true, devOverrideUserId: true,
+      guildNameSnapshot: true, guildCrestSnapshot: true,
+      contributions: {
+        orderBy: [{ expeditionCompletedAt: "asc" }, { id: "asc" }],
+        select: { id: true, expeditionCompletedAt: true, contributors: { select: { userId: true } } }
+      }
+    }
+  });
+  const receiptCompletion = period.contributions.length >= period.targetCount
+    ? period.contributions[period.targetCount - 1]!.expeditionCompletedAt
+    : null;
+  const canonicalCompletedAt = receiptCompletion ?? period.devOverrideCompletedAt;
+  const progressCount = canonicalCompletedAt ? period.targetCount : Math.min(period.contributions.length, period.targetCount);
+  const justCompleted = !period.completedAt && canonicalCompletedAt !== null;
+  await tx.guildWeeklyGoalPeriod.update({ where: { id: period.id }, data: { progressCount, completedAt: canonicalCompletedAt } });
+  if (!canonicalCompletedAt) {
+    await tx.activityEvent.deleteMany({ where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` } });
+    return false;
+  }
+  await tx.guildGloryReceipt.upsert({
+    where: { periodId: period.id },
+    create: {
+      id: randomUUID(), guildId: period.guildId, periodId: period.id,
+      sourceKey: `guild-weekly-goal:${period.id}`, amount: GUILD_WEEKLY_GLORY_AWARD,
+      awardedAt: canonicalCompletedAt
+    },
+    update: {}
+  });
+  await tx.activityEvent.upsert({
+    where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` },
+    create: {
+      eventType: "guild.weekly_goal_completed", category: "adventurer", severity: "normal",
+      visibility: "public", subjectKind: "guild", subjectId: period.guildId,
+      subjectName: period.guildNameSnapshot, sourceType: "guild-weekly-goal", sourceId: period.id,
+      dedupeKey: `guild.weekly_goal_completed:${period.id}`,
+      payloadJson: { crest: period.guildCrestSnapshot, periodKey: period.periodKey, glory: GUILD_WEEKLY_GLORY_AWARD },
+      occurredAt: canonicalCompletedAt
+    },
+    update: { occurredAt: canonicalCompletedAt }
+  });
+  const contributorUsers = new Set(period.contributions.flatMap((row) => row.contributors.map((receipt) => receipt.userId)));
+  if (period.devOverrideUserId) contributorUsers.add(period.devOverrideUserId);
+  for (const userId of contributorUsers) await syncUserEntitlements(tx, userId);
+  return justCompleted;
+}
+
+async function syncUserEntitlements(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  const [receipts, devPeriods] = await Promise.all([
+    tx.guildWeeklyContributorReceipt.findMany({
+      where: { userId, contribution: { period: { completedAt: { not: null } } } },
+      select: { contribution: { select: { period: { select: { id: true, periodKey: true, completedAt: true } } } } }
+    }),
+    tx.guildWeeklyGoalPeriod.findMany({
+      where: { devOverrideUserId: userId, completedAt: { not: null } },
+      select: { id: true, periodKey: true, completedAt: true }
+    })
+  ]);
+  const periods = new Map<string, { id: string; periodKey: string; completedAt: Date }>();
+  for (const receipt of receipts) {
+    const period = receipt.contribution.period;
+    if (period.completedAt) periods.set(period.id, { ...period, completedAt: period.completedAt });
+  }
+  for (const period of devPeriods) if (period.completedAt) periods.set(period.id, { ...period, completedAt: period.completedAt });
+  const ordered = [...periods.values()].sort((left, right) =>
+    left.completedAt.getTime() - right.completedAt.getTime() || left.periodKey.localeCompare(right.periodKey) || left.id.localeCompare(right.id)
+  );
+  const thresholds = [
+    [1, GUILD_WEEKLY_ACHIEVEMENT_ID],
+    [3, GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID],
+    [13, GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID]
+  ] as const;
+  for (const [threshold, achievementId] of thresholds) {
+    const source = ordered[threshold - 1];
+    if (!source) continue;
+    await tx.guildWeeklyAchievementEntitlement.upsert({
+      where: { userId_achievementId: { userId, achievementId } },
+      create: {
+        id: randomUUID(), userId, achievementId, sourcePeriodId: source.id,
+        sourcePeriodKey: source.periodKey, entitledAt: source.completedAt
+      },
+      update: {}
+    });
+  }
+}
 
 async function loadProgressByPeriodId(client: ProgressClient, periodId: string): Promise<GuildWeeklyGoalProgressRecord> {
   const row = await client.guildWeeklyGoalPeriod.findUniqueOrThrow({
     where: { id: periodId },
     select: {
-      id: true,
-      periodKey: true,
-      progressCount: true,
-      targetCount: true,
-      completedAt: true,
+      id: true, periodKey: true, progressCount: true, targetCount: true, completedAt: true,
       guild: { select: { id: true, displayName: true, crest: true } },
       contributions: {
         orderBy: [{ expeditionCompletedAt: "asc" }, { id: "asc" }],
-        select: { contributors: { select: { userId: true, characterId: true } } }
+        select: { contributors: { select: { userId: true } } }
       }
     }
   });
-  const achievementCharacterByUser = new Map<string, string>();
-  for (const contribution of row.contributions.slice(0, row.targetCount)) {
-    for (const receipt of contribution.contributors) {
-      achievementCharacterByUser.set(receipt.userId, receipt.characterId);
-    }
-  }
+  const summary = await loadGuildSummary(client, row.guild.id, row.periodKey);
   return {
-    guildId: row.guild.id,
-    guildName: row.guild.displayName,
-    guildCrest: row.guild.crest,
-    periodId: row.id,
-    periodKey: row.periodKey,
-    progressCount: row.progressCount,
-    targetCount: row.targetCount,
-    completedAt: row.completedAt,
-    contributorCharacterIds: [...achievementCharacterByUser.values()]
+    guildId: row.guild.id, guildName: row.guild.displayName, guildCrest: row.guild.crest,
+    periodId: row.id, periodKey: row.periodKey, progressCount: row.progressCount,
+    targetCount: row.targetCount, completedAt: row.completedAt,
+    contributorUserIds: [...new Set(row.contributions.flatMap((contribution) =>
+      contribution.contributors.map((receipt) => receipt.userId)
+    ))],
+    gloryTotal: summary.glory, weeklyPlace: summary.place
   };
 }
 
-function emptyProgress(
+async function emptyProgress(
+  client: ProgressClient,
   guild: { id: string; displayName: string; crest: string },
   periodKey: string
-): GuildWeeklyGoalProgressRecord {
+): Promise<GuildWeeklyGoalProgressRecord> {
+  const summary = await loadGuildSummary(client, guild.id, periodKey);
   return {
-    guildId: guild.id,
-    guildName: guild.displayName,
-    guildCrest: guild.crest,
-    periodId: null,
-    periodKey,
-    progressCount: 0,
-    targetCount: GUILD_WEEKLY_GOAL_TARGET,
-    completedAt: null,
-    contributorCharacterIds: []
+    guildId: guild.id, guildName: guild.displayName, guildCrest: guild.crest,
+    periodId: null, periodKey, progressCount: 0, targetCount: GUILD_WEEKLY_GOAL_TARGET,
+    completedAt: null, contributorUserIds: [], gloryTotal: summary.glory, weeklyPlace: summary.place
   };
+}
+
+async function loadGuildSummary(client: ProgressClient, guildId: string, periodKey: string): Promise<{ glory: number; place: number }> {
+  const glory = await loadBoardRows(client, "glory", periodKey, 0, 1, guildId);
+  const primacy = await loadBoardRows(client, "primacy", periodKey, 0, 1, guildId);
+  return { glory: Number(glory[0]?.glory ?? 0), place: Number(primacy[0]?.place ?? 1) };
+}
+
+interface BoardRow {
+  guild_id: string;
+  guild_name: string;
+  guild_crest: string;
+  glory: bigint | number;
+  progress_count: bigint | number;
+  target_count: bigint | number;
+  completed_at: Date | string | null;
+  place: bigint | number;
+  row_order: bigint | number;
+}
+
+async function loadBoardRows(
+  client: ProgressClient,
+  view: GuildGloryBoardView,
+  periodKey: string,
+  offset: number,
+  limit: number,
+  guildId?: string
+): Promise<BoardRow[]> {
+  const rankOrder = view === "glory"
+    ? Prisma.sql`glory DESC`
+    : Prisma.sql`CASE WHEN completed_at IS NOT NULL THEN 0 ELSE 1 END ASC,
+        CASE WHEN completed_at IS NOT NULL THEN completed_at END ASC,
+        CASE WHEN completed_at IS NULL THEN progress_count END DESC`;
+  const rowOrder = view === "glory"
+    ? Prisma.sql`glory DESC, normalized_name ASC, guild_id ASC`
+    : Prisma.sql`CASE WHEN completed_at IS NOT NULL THEN 0 ELSE 1 END ASC,
+        CASE WHEN completed_at IS NOT NULL THEN completed_at END ASC,
+        CASE WHEN completed_at IS NULL THEN progress_count END DESC,
+        normalized_name ASC, guild_id ASC`;
+  const filter = guildId ? Prisma.sql`WHERE guild_id = ${guildId}` : Prisma.empty;
+  return client.$queryRaw<BoardRow[]>(Prisma.sql`
+    WITH board_source AS (
+      SELECT guild."id" AS guild_id, guild."display_name" AS guild_name,
+             guild."crest" AS guild_crest, guild."normalized_name" AS normalized_name,
+             COALESCE(SUM(receipt."amount"), 0) AS glory,
+             COALESCE(period."progress_count", 0) AS progress_count,
+             COALESCE(period."target_count", ${GUILD_WEEKLY_GOAL_TARGET}) AS target_count,
+             period."completed_at" AS completed_at
+      FROM "guilds" AS guild
+      LEFT JOIN "guild_glory_receipts" AS receipt ON receipt."guild_id" = guild."id"
+      LEFT JOIN "guild_weekly_goal_periods" AS period
+        ON period."guild_id" = guild."id" AND period."period_key" = ${periodKey}
+       AND period."goal_key" = ${GUILD_WEEKLY_GOAL_KEY}
+      WHERE guild."status" = 'active' AND guild."disbanded_at" IS NULL
+      GROUP BY guild."id", guild."display_name", guild."crest", guild."normalized_name",
+               period."progress_count", period."target_count", period."completed_at"
+    ), ranked AS (
+      SELECT *, DENSE_RANK() OVER (ORDER BY ${rankOrder}) AS place,
+             ROW_NUMBER() OVER (ORDER BY ${rowOrder}) AS row_order
+      FROM board_source
+    )
+    SELECT guild_id, guild_name, guild_crest, glory, progress_count, target_count,
+           completed_at, place, row_order
+    FROM ranked ${filter}
+    ORDER BY row_order ASC
+    LIMIT ${Math.max(1, limit)} OFFSET ${Math.max(0, offset)}
+  `);
+}
+
+function mapBoardRow(row: BoardRow, viewerGuildId: string): GuildGloryBoardEntry {
+  return {
+    guildId: row.guild_id, guildName: row.guild_name, guildCrest: row.guild_crest,
+    place: Number(row.place), glory: Number(row.glory), progressCount: Number(row.progress_count),
+    targetCount: Number(row.target_count), completed: row.completed_at !== null,
+    viewerGuild: row.guild_id === viewerGuildId
+  };
+}
+
+interface ProjectionRow {
+  entitlement_id: string;
+  achievement_id: string;
+  source_period_id: string;
+  source_period_key: string;
+  entitled_at: Date | string;
+  telegram_user_id: bigint | number;
+  user_id: string;
+  character_id: string;
+  remort_count: bigint | number;
+  character_name: string;
+  class_id: string;
+  race_id: string;
+}
+
+function mapProjectionRow(row: ProjectionRow): GuildWeeklyAchievementProjectionCandidate {
+  return {
+    entitlementId: row.entitlement_id, achievementId: row.achievement_id,
+    sourcePeriodId: row.source_period_id, sourcePeriodKey: row.source_period_key,
+    entitledAt: row.entitled_at instanceof Date ? row.entitled_at : new Date(row.entitled_at),
+    telegramUserId: BigInt(row.telegram_user_id), userId: row.user_id,
+    characterId: row.character_id, remortCount: Number(row.remort_count),
+    characterName: row.character_name, classId: row.class_id, raceId: row.race_id
+  };
+}
+
+function boundedLimit(limit: number): number {
+  return Math.max(1, Math.min(93, Math.floor(limit)));
 }
 
 function isUniqueConflict(error: unknown): boolean {

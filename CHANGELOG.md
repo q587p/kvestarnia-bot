@@ -1,20 +1,23 @@
 # Changelog
 
-## [0.4.8] - 12026-08-24 - Guild Weekly Goal and GroupCombat Ability Parity
+## [0.4.8] - 12026-08-24 - Guild Weekly Goal, Glory Book, and GroupCombat Ability Parity
 
 ### Added
 - Added one default-off Kyiv/Holocene guild goal for thirteen successful ordinary left-passage party expeditions, with immutable session and contributor receipts, capped progress, historical membership-at-completion checks and a compact private guild-hub recap.
-- Added a rewardless completion achievement, one privacy-safe guild Chronicle fact and aggregate period/receipt metrics without individual rankings or message content.
-- Added receipt-derived restart/admin repair plus non-production `/dev_guild_weekly` and `/dev_guild_weekly finish` helpers, both production-unregistered even when the rollout flag is enabled.
+- Added one immutable `13`-Glory source receipt per completed guild/period. Glory is guild-only and non-spendable: it grants no combat stat, material reward, capacity, admission rule or guild XP.
+- Added the location-bound, read-only `📜 Книга слави` in the Guild Nest: five-row all-time Glory and current-week Primacy views use dense tied places, deterministic pagination, off-page viewer place and active-guild crest/name aggregates only.
+- Added durable User-level rewardless achievements for one, three and thirteen distinct contributed completion periods, with current-Character projection and replay-safe pending notices across restart/remort/Character recreation.
+- Added one normal-severity privacy-safe guild Chronicle fact in `all`/`adv`, not `imp`, including the `+13 Слави` result, plus aggregate reconciliation/Glory/entitlement metrics without individual rankings or message content.
+- Added oldest-first cross-period receipt-derived recovery plus non-production `/dev_guild_weekly` and repair-stable typed `/dev_guild_weekly finish`, both production-unregistered even when the rollout flag is enabled.
 - Added a typed PartyBoss/Big Barrel to GroupCombat contract for all nine catalog class abilities plus the unknown-class fallback, and separately owned backlog entries for the four genuinely raid-phase-specific specializations.
 
 ### Changed
-- Ordinary production GroupCombat starts now freeze weekly-goal eligibility, and terminal settlement/replay/repair reconcile the same receipt without changing ordinary combat rewards, availability or settlement evidence.
-- Added `GUILD_WEEKLY_GOAL_ENABLED=false` as a deploy-safe kill switch; disabling it hides weekly UI and blocks new eligibility/writes while preserving existing receipts and ordinary party expeditions.
+- Ordinary production GroupCombat starts now freeze internal User-level weekly identity. Every frozen eligible terminal session receives one typed credited/ineligible reconciliation decision, so bounded repair advances past rejected rows and recovers pre-rollover completions into their authoritative old period.
+- Added `GUILD_WEEKLY_GOAL_ENABLED=false` as a deploy-safe kill switch; disabling it hides weekly/Glory hub and board reads and blocks new eligibility/writes while preserving existing evidence and ordinary party expeditions.
 
 ### Security
 - Guild selection uses active historical membership at the terminal timestamp, freezes contributor Character/remort identity plus the completion guild name/crest, caps progress at the canonical thirteenth expedition and publishes no participant identity, role, location, token or private timestamp.
-- Additive migration `20260824090000_guild_weekly_goal` stores periods and unique session/contributor receipts without mutating earlier guild or GroupCombat migrations.
+- Additive migration `20260824090000_guild_weekly_goal` stores periods, unique session/contributor/reconciliation/Glory/achievement evidence and start-time User snapshots. Its paired rollback and apply→rollback→restore smoke preserve unrelated populated User, Character, Guild, PartySession and GroupCombat rows.
 
 All notable project changes are documented here.
 

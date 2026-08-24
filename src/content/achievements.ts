@@ -35,6 +35,7 @@ export const achievementTriggerTypes = [
   "guild.created",
   "guild.joined",
   "guild.weekly_goal_completed",
+  "guild.weekly_goal_periods",
   "equipment.item_equipped",
   "item-upgrade.succeeded",
   "item-upgrade.failed",
@@ -899,6 +900,30 @@ export const achievements = [
     sortOrder: 78.197,
     status: "enabled",
     trigger: { type: "guild.weekly_goal_completed", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.three-weekly-goals",
+    category: "weird",
+    title: "Три понеділки без відмови",
+    description: "допомогти ґільдіям завершити три різні тижневі клопоти.",
+    hidden: false,
+    lockedDescription: "допомогти завершити три різні ґільдійні тижні.",
+    sortOrder: 78.198,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_periods", threshold: 3 },
+    progressTarget: 3
+  },
+  {
+    id: "achievement.guild.thirteen-weekly-goals",
+    category: "weird",
+    title: "Тринадцять тижнів під печаткою",
+    description: "допомогти ґільдіям завершити тринадцять різних тижневих клопотів.",
+    hidden: false,
+    lockedDescription: "допомогти завершити тринадцять різних ґільдійних тижнів.",
+    sortOrder: 78.199,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_periods", threshold: 13 },
+    progressTarget: 13
   },
   {
     id: "achievement.bandage.first-used",

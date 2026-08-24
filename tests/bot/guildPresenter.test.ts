@@ -6,6 +6,7 @@ import {
   presentGuildHub,
   presentGuildInviteCreate,
   presentGuildInviteOptIn,
+  presentGuildGloryBoard,
   presentGuildNestRules,
   presentGuildProfileUpdate
 } from "../../src/bot/presenters/guildPresenter";
@@ -13,6 +14,7 @@ import {
   buildGuildCreationStartKeyboard,
   buildGuildHubKeyboard,
   buildGuildInviteCodeKeyboard,
+  buildGuildGloryBoardKeyboard,
   buildGuildProfileCrestKeyboard
 } from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
@@ -304,7 +306,9 @@ describe("guild presenter privacy", () => {
           progressCount: 8,
           targetCount: 13,
           completedAt: null,
-          contributorCharacterIds: ["character-a", "character-b"]
+          contributorUserIds: ["user-a", "user-b"],
+          gloryTotal: 26,
+          weeklyPlace: 3
         }
       },
       incomingInvites: []
@@ -461,5 +465,47 @@ describe("guild presenter privacy", () => {
     expect(text).toContain("Власна адресатка");
     expect(text).toContain("Чужа адресатка");
     expect(cancelTokens).toEqual(["ownInviteToken93"]);
+  });
+
+  it("renders five guild-only Glory rows, dense places and own-place recovery without private identity", () => {
+    const result = {
+      state: "ready" as const,
+      view: "glory" as const,
+      periodKey: "12026-W35",
+      rows: Array.from({ length: 5 }, (_, index) => ({
+        guildId: `guild-${index}`,
+        guildName: index === 0 ? "<Печатка>" : `Печатка ${index}`,
+        guildCrest: index === 0 ? "<&" : "🦉",
+        place: index < 2 ? 1 : index,
+        glory: index < 2 ? 26 : 13,
+        progressCount: 13,
+        targetCount: 13,
+        completed: true,
+        viewerGuild: false
+      })),
+      viewerGuild: {
+        guildId: "viewer-guild",
+        guildName: "Моя Печатка",
+        guildCrest: "🛡️",
+        place: 7,
+        glory: 0,
+        progressCount: 4,
+        targetCount: 13,
+        completed: false,
+        viewerGuild: true
+      },
+      page: 0,
+      hasPreviousPage: false,
+      hasNextPage: true
+    };
+    const text = presentGuildGloryBoard(result);
+    expect(text).toContain("📜 <b>Книга слави</b>");
+    expect(text).toContain("1. &lt;&amp; <b>&lt;Печатка&gt;</b> — <b>26 Слави</b>");
+    expect(text).toContain("Ваша ґільдія: <b>7 місце</b> · 0 Слави.");
+    expect(text).not.toMatch(/гравець|роль|telegram|token|точний час/iu);
+    const rows = buildGuildGloryBoardKeyboard(result).inline_keyboard;
+    expect(rows[0]?.map((button) => button.text)).toEqual(["• ✨ Слава", "🏁 Першість"]);
+    expect(rows[1]?.map((button) => button.text)).toEqual(["🔎 Оновити", "➡️"]);
+    expect(rows[2]?.map((button) => button.text)).toEqual(["🪺 До Гнізда"]);
   });
 });

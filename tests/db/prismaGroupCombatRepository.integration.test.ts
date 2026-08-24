@@ -284,12 +284,29 @@ describe("PrismaGroupCombatRepository integration", () => {
     });
     expect(started.state).toBe("started");
     if ("session" in started) {
+      const weeklyUser = await prisma.user.findUniqueOrThrow({
+        where: { telegramUserId },
+        select: { id: true }
+      });
       expect(started.session.state.enemies[0]?.hp).toBe(7);
       expect(started.session.state.production?.primaryStartingHp).toBe(7);
       await expect(prisma.groupCombatSession.findUniqueOrThrow({
         where: { id: started.session.id },
-        select: { guildWeeklyGoalEligible: true }
-      })).resolves.toEqual({ guildWeeklyGoalEligible: true });
+        select: {
+          guildWeeklyGoalEligible: true,
+          weeklyParticipantSnapshots: {
+            orderBy: { rosterOrder: "asc" },
+            select: { characterId: true, userId: true, rosterOrder: true }
+          }
+        }
+      })).resolves.toEqual({
+        guildWeeklyGoalEligible: true,
+        weeklyParticipantSnapshots: [{
+          characterId: started.session.state.participants[0]!.characterId,
+          userId: weeklyUser.id,
+          rosterOrder: 0
+        }]
+      });
       await prisma.activeCombatLease.deleteMany({ where: { referenceId: started.session.id } });
       await prisma.groupCombatSession.delete({ where: { id: started.session.id } });
     }

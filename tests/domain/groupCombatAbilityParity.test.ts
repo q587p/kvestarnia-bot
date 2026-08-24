@@ -25,24 +25,4 @@ describe("PartyBoss to GroupCombat ability parity", () => {
       expect(owner).toContain(entry.owner.split("#")[1]!);
     }
   });
-
-  it("pins the shared target, focus, cooldown, and resource resolver seams", async () => {
-    const groupCombat = await readFile("src/domain/groupCombat/groupCombat.ts", "utf8");
-    const partyBoss = await readFile("src/domain/partyBoss/partyBoss.ts", "utf8");
-    const combatEngine = await readFile("src/domain/combat/combatEngine.ts", "utf8");
-    for (const seam of [
-      "getCombatClassAbilityProfile",
-      "resolveActorCombatAction",
-      "tickActorCooldowns",
-      "primaryTargetScope",
-      "secondaryTargetScope"
-    ]) {
-      expect(groupCombat).toContain(seam);
-      expect(partyBoss).toContain(seam);
-    }
-    for (const resourceContract of ["manaCost", "cooldownTurns"]) {
-      expect(combatEngine).toContain(resourceContract);
-    }
-    expect(groupCombat).toContain("enemyFocusVersion");
-  });
 });

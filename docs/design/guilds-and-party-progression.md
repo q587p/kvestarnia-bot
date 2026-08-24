@@ -180,6 +180,23 @@ bosses, chat, alliances, war, territory, leaderboard, matchmaking or PvP. Any
 future guild progression requires a separate version task, economy/abuse review
 and production evidence; it is not implied by the foundation tables.
 
+## 0.4.8 weekly evidence and guild-only Glory
+
+The later `0.4.8` task explicitly supersedes only the foundation's old “no
+leaderboard” boundary with a bounded guild-only read model. Thirteen eligible
+ordinary expeditions complete one Kyiv/Holocene period and mint one immutable
+source receipt for `13` non-spendable Glory. Glory survives rename, remort and
+membership changes, buys nothing, grants no capacity/stat/reward and is not the
+guild XP planned for `0.4.15`.
+
+`📜 Книга слави` remains location-bound to the Guild Nest and follows the public
+directory's escaping/privacy rules. `✨ Слава` shows active guild crest, name and
+all-time total with dense ties. `🏁 Першість` shows current-week completion-first
+then progress ordering, also with dense ties and no exact timestamps. Both are
+five rows per page with clamped navigation and an off-page own-place row. No
+player, roster, role, contribution, Telegram identity or individual superiority
+ranking is derived from these projections.
+
 ## Future guild-system backlog
 
 The following ideas are recorded for later version tasks only. They do not
@@ -192,12 +209,10 @@ other-game UI is product research rather than copy to reproduce verbatim.
    state and a safe in-game contact path, with button-first application review.
    Do not expose Telegram handles, exact location or membership ids. Define
    spam limits, decline cooldowns, blocking, moderation and capacity races first.
-2. **Contribution goals and guild quests.** Build the already planned weekly
-   goal before considering daily personal/shared objectives. Contributions need
-   canonical gameplay receipts, anti-farming weights, remort rules, exact-once
-   settlement and useful progress cards. Exact thresholds and rewards remain a
-   balance decision; weaker-enemy weighting from another game is not accepted
-   automatically.
+2. **Further contribution goals and guild quests.** `0.4.8` ships only the
+   canonical thirteen-expedition weekly goal, immutable Glory receipt and bounded
+   guild boards above. Daily objectives, weighted farming, material rewards,
+   seasons and additional guild quests still require a separate balance task.
 3. **Treasury and transparent ledger.** A shared-gold system needs explicit
    deposit sources, withdrawal/spend authority, immutable receipts, daily/all-
    time summaries, rollback and abuse recovery. It must not silently tax player

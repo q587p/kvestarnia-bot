@@ -82,6 +82,49 @@ describe("guild command routes", () => {
     expect(replies[0]).not.toContain("telegram");
   });
 
+  it("projects and acknowledges a pending User-level weekly notice through /guild once", async () => {
+    const bot = new Bot("test-token", {
+      botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
+    });
+    const sent: string[] = [];
+    const claim = {
+      entitlementId: "weekly-entitlement-1",
+      claimToken: "claim-1",
+      telegramUserId: 42n,
+      characterId: "character-42",
+      characterName: "Відновлена",
+      classId: "class.priest",
+      raceId: "race.human-ish",
+      unlock: {
+        id: "achievement.guild.weekly-goal-completed",
+        title: "Тринадцять печаток, жодної зайвої",
+        cosmeticTitleGrantId: null,
+        unlockedAt: new Date("2026-08-24T18:00:00.000Z")
+      }
+    };
+    const claimWeeklyAchievementNotices = vi.fn()
+      .mockResolvedValueOnce([claim])
+      .mockResolvedValueOnce([]);
+    const markWeeklyAchievementNoticeSent = vi.fn().mockResolvedValue(true);
+    bot.api.config.use((_prev, method, payload) => {
+      if (method === "sendMessage") sent.push(String(payload.text));
+      return Promise.resolve({ ok: true, result: { message_id: sent.length } });
+    });
+    registerGuildCommands(bot, guildService({
+      getHubForTelegramUser: vi.fn().mockResolvedValue(readyGuildHub()),
+      claimWeeklyAchievementNotices,
+      markWeeklyAchievementNoticeSent
+    }), { botUsername: "kvestarnia_bot" });
+
+    await bot.handleUpdate(commandUpdate("/guild"));
+    await bot.handleUpdate(commandUpdate("/guild", 2));
+
+    expect(sent.filter((text) => text.includes("Нова ачівка"))).toHaveLength(1);
+    expect(claimWeeklyAchievementNotices).toHaveBeenCalledTimes(2);
+    expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledOnce();
+    expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledWith(claim);
+  });
+
   it("renders button-first guild entry, crest templates and a private code copy control", async () => {
     const bot = new Bot("test-token", {
       botInfo: { id: 123, is_bot: true, first_name: "Квестарня", username: "kvestarnia_bot" }
@@ -1339,6 +1382,72 @@ describe("guild command routes", () => {
     expect(text).not.toContain("leader");
     expect(text).not.toContain("12345678");
     expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:dl:1");
+  });
+
+  it("routes guild-only Glory boards and keeps location, membership and flag denials recoverable", async () => {
+    const getGloryBoardForTelegramUser = vi.fn().mockResolvedValue({
+      state: "ready",
+      view: "primacy",
+      periodKey: "12026-W35",
+      rows: [{
+        guildId: "guild-1",
+        guildName: "<Тиха Печатка>",
+        guildCrest: "🛡️",
+        place: 1,
+        glory: 13,
+        progressCount: 13,
+        targetCount: 13,
+        completed: true,
+        viewerGuild: true
+      }],
+      viewerGuild: {
+        guildId: "guild-1",
+        guildName: "<Тиха Печатка>",
+        guildCrest: "🛡️",
+        place: 1,
+        glory: 13,
+        progressCount: 13,
+        targetCount: 13,
+        completed: true,
+        viewerGuild: true
+      },
+      page: 1,
+      hasPreviousPage: true,
+      hasNextPage: false
+    });
+    const ready = callbackContext();
+    await handleGuildCallback(
+      ready.ctx,
+      { type: "glory-board", view: "primacy", page: 1 },
+      guildService({ getGloryBoardForTelegramUser })
+    );
+    expect(getGloryBoardForTelegramUser).toHaveBeenCalledWith(42n, "primacy", 1);
+    expect(String(ready.editMessageText.mock.calls[0]?.[0])).toContain("&lt;Тиха Печатка&gt;");
+    expect(String(ready.editMessageText.mock.calls[0]?.[0])).not.toMatch(/гравець|telegram|роль/iu);
+    expect(JSON.stringify(ready.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:bg:p1");
+
+    for (const deniedResult of [
+      { state: "wrong-location" as const, hasGuild: true },
+      { state: "not-member" as const, hasGuild: false },
+      { state: "disabled" as const }
+    ]) {
+      const denied = callbackContext();
+      await handleGuildCallback(
+        denied.ctx,
+        { type: "glory-board", view: "glory", page: 0 },
+        guildService({
+          getGloryBoardForTelegramUser: vi.fn().mockResolvedValue(deniedResult)
+        })
+      );
+      expect(String(denied.editMessageText.mock.calls[0]?.[0])).toMatch(
+        deniedResult.state === "wrong-location"
+          ? /лише в Гнізді ґільдій/u
+          : deniedResult.state === "not-member"
+            ? /Долучіться до ґільдії/u
+            : /зачинена/u
+      );
+      expect(JSON.stringify(denied.editMessageText.mock.calls[0]?.[1])).toContain("v1:place:deep");
+    }
   });
 
   it("requires an explicit yes before leaving a guild and keeps no strictly read-only", async () => {

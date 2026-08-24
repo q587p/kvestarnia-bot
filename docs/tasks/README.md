@@ -31,6 +31,8 @@ Keep each task compact and link to canonical docs instead of copying them.
 The current implementation release is `0.4.8`:
 [`0.4.8-guild-weekly-goal.md`](0.4.8-guild-weekly-goal.md), on
 `codex/0.4.8-guild-weekly-goal` from merged `0.4.7` PR #196.
+It includes exact-once weekly reconciliation, non-spendable guild Glory and the
+bounded guild-only `Книга слави`; individual-player rankings remain forbidden.
 Automated validation, owning PR and CI are gates; Manual Telegram QA, merge,
 deployment, target flags and production availability remain separate evidence.
 

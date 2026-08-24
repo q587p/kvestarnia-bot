@@ -409,11 +409,14 @@ production.
 `NODE_ENV=development`, `GUILD_FOUNDATION_ENABLED=true`,
 `LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і
 `GUILD_WEEKLY_GOAL_ENABLED=true`, потім refresh/status isolated runtime.
-Перевір partial/full progress, рівний внесок підтримки, terminal replay,
-leave/kick/remort після завершення, repair/restart, новий київський тиждень і
-flag off/on. Окремий nonmember мусить зберегти звичайний party route.
-`/dev_guild_weekly` ремонтує current receipts, а аргумент `finish` прискорює
-completion; у production команда відсутня.
+Перевір partial/full progress, 13 незатратної Слави, рівний внесок підтримки,
+terminal replay, Character recreation, exact-once achievement notices,
+leave/kick/remort, repair/restart і Sunday→Monday recovery. У Гнізді перевір
+guild-only `📜 Книга слави`: `✨ Слава`, `🏁 Першість`, спільні місця за нічиєї,
+п'ять рядків, clamped pagination, off-page own place та відсутність приватних
+даних. Flag off має ховати weekly/Glory reads+writes, не звичайний party route.
+`/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
+QA-only canonical completion evidence; у production команда відсутня.
 
 ## Сервісні команди
 

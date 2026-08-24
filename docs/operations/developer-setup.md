@@ -172,11 +172,13 @@ enablement потрібен audited abandoned-leader operator runbook; presence/
 `GUILD_WEEKLY_GOAL_ENABLED=true` за одночасно ввімкнених guild foundation і
 left-passage party attack показує в приватній картці ґільдії поточний
 Kyiv/Holocene тижневий журнал і записує exact-once receipts за успішні звичайні
-ґільдійні походи. Deploy-safe default — `false`: вимкнення ховає тижневий рядок
-і блокує нові weekly eligibility/writes, але не вимикає звичайну групову атаку й
-не видаляє старі receipts. `/dev_guild_weekly` ремонтує поточний період із
-receipts, а `/dev_guild_weekly finish` завершує його для локальної QA; обидва
-шляхи production-unregistered навіть за ввімкнених прапорців.
+ґільдійні походи. Завершення створює один 13-Glory receipt, а в Гнізді відкриває
+guild-only `📜 Книга слави` з п'ятирядковими Glory/Primacy сторінками. Deploy-safe
+default — `false`: вимкнення ховає weekly/Glory hub і board reads, блокує нові
+eligibility/writes, але не вимикає звичайну групову атаку й не видаляє evidence.
+`/dev_guild_weekly` запускає bounded oldest-first cross-period repair, а
+`/dev_guild_weekly finish` створює repair-stable QA-only completion override;
+обидва шляхи production-unregistered навіть за ввімкнених прапорців.
 
 `✨ Натхнення` є звичайною частиною кожного придатного виступу Барда й не має окремого production-прапорця. `🎻 Журлива балада` доступна лише всередині рейду Старшого Брата Бочки, тому production-маршрут контролює наявний `BIG_BARREL_BROTHER_RAID_ENABLED`. `/dev_reset_bard_performance` усе одно реєструється лише поза production з `DEV_GRANT_COMMANDS_ENABLED=true`; ручна Telegram QA 0.3.14 лишається pending, але не вимикає runtime-механіку.
 

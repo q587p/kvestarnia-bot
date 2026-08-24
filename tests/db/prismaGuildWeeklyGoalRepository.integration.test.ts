@@ -2,8 +2,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { AchievementService } from "../../src/services/achievementService";
 import { PrismaGuildWeeklyGoalRepository } from "../../src/db/repositories/prismaGuildWeeklyGoalRepository";
+import { GuildWeeklyGoalService } from "../../src/services/guildWeeklyGoalService";
+import { PrismaActivityEventRepository } from "../../src/db/repositories/prismaActivityEventRepository";
+import { ActivityEventService } from "../../src/services/activityEventService";
 
 const COMPLETED_AT = new Date("2026-08-24T18:00:00.000Z");
 
@@ -75,7 +79,11 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
 
   it("keeps the kill switch isolated and emits one privacy-safe completion fact at thirteen receipts", async () => {
     await seedSession(prisma, "weekly-disabled", new Date(COMPLETED_AT.getTime() + 1_000), false);
-    await expect(repository.recordEligibleTerminalSession("weekly-disabled")).resolves.toEqual({ state: "ineligible" });
+    await expect(repository.recordEligibleTerminalSession("weekly-disabled")).resolves.toEqual({
+      state: "ineligible",
+      reason: "feature-not-frozen",
+      periodKey: "12026-W35"
+    });
     await expect(prisma.groupCombatSession.findUniqueOrThrow({
       where: { id: "weekly-disabled" },
       select: { status: true, guildWeeklyGoalEligible: true }
@@ -119,19 +127,22 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     expect(completionEvents).toHaveLength(1);
     expect(completionEvents[0]).toMatchObject({
       category: "adventurer",
-      severity: "high",
+      severity: "normal",
       actorCharacterId: null,
       relatedCharacterIds: null,
       subjectId: "guild-weekly",
       subjectName: "Печатка Підтримки",
-      payloadJson: { crest: "🦉", periodKey: "12026-W35" }
+      payloadJson: { crest: "🦉", periodKey: "12026-W35", glory: 13 }
     });
     expect(completionEvents[0]?.dedupeKey).toMatch(/^guild\.weekly_goal_completed:/u);
     expect(await repository.getMetrics()).toEqual({
       periodsStarted: 2,
       periodsCompleted: 1,
       expeditionReceipts: 15,
-      contributorReceipts: 30
+      contributorReceipts: 30,
+      reconciliationDecisions: 16,
+      gloryReceipts: 1,
+      achievementEntitlements: 2
     });
 
     const completedAt = view.state === "ready" ? view.progress.completedAt : null;
@@ -190,6 +201,341 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     await expect(prisma.activityEvent.count({
       where: { sourceId: first.progress.periodId, eventType: "guild.weekly_goal_completed" }
     })).resolves.toBe(1);
+    await repository.recomputePeriod("12026-W36");
+    const repaired = await repository.getCurrentForTelegramUser(70_001n, new Date("2026-08-31T14:00:00.000Z"));
+    expect(repaired).toMatchObject({
+      state: "ready",
+      progress: { completedAt: first.progress.completedAt, progressCount: 13 }
+    });
+    await expect(prisma.guildGloryReceipt.count({ where: { periodId: first.progress.periodId! } })).resolves.toBe(1);
+    await expect(prisma.guildWeeklyAchievementEntitlement.count({ where: { userId: "user-a" } })).resolves.toBe(1);
+  });
+
+  it("advances a bounded repair queue past thirteen rejected terminals and recovers an old Sunday after Monday", async () => {
+    const sunday = new Date("2026-09-06T20:59:00.000Z");
+    for (let index = 0; index < 13; index += 1) {
+      const id = `weekly-rejected-${index}`;
+      await seedSession(prisma, id, new Date(sunday.getTime() - (13 - index) * 1_000), true);
+      const plan = settlementPlan(id);
+      plan.participants[1]!.manualParticipation = false;
+      plan.participants[1]!.contribution.committedActions = 0;
+      await prisma.$executeRawUnsafe(
+        `UPDATE group_combat_sessions SET settlement_plan_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        JSON.stringify(plan),
+        id
+      );
+    }
+    await seedSession(prisma, "weekly-sunday-eligible", sunday, true);
+    const service = new GuildWeeklyGoalService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-09-07T08:00:00.000Z")
+    );
+
+    await expect(service.repairCurrentPeriod(13)).resolves.toMatchObject({ recorded: 0, reconciled: 13 });
+    await expect(service.repairCurrentPeriod(13)).resolves.toMatchObject({ recorded: 1, reconciled: 1 });
+    await expect(prisma.guildWeeklyReconciliation.count({
+      where: { sessionId: { startsWith: "weekly-rejected-" } }
+    })).resolves.toBe(13);
+    await expect(prisma.guildWeeklyContribution.findUnique({
+      where: { groupCombatSessionId: "weekly-sunday-eligible" },
+      select: { period: { select: { periodKey: true } } }
+    })).resolves.toEqual({ period: { periodKey: "12026-W36" } });
+    const monday = await repository.getCurrentForTelegramUser(70_001n, new Date("2026-09-07T08:00:00.000Z"));
+    expect(monday).toMatchObject({ state: "ready", progress: { periodKey: "12026-W37", progressCount: 0 } });
+  });
+
+  it("awards one Glory receipt under concurrent thirteenth contributions and keeps it stable after replay, rename and remort", async () => {
+    const base = new Date("2026-09-14T12:00:00.000Z");
+    for (let index = 1; index <= 12; index += 1) {
+      const id = `weekly-glory-${index}`;
+      await seedSession(prisma, id, new Date(base.getTime() + index * 1_000), true);
+      await repository.recordEligibleTerminalSession(id);
+    }
+    await seedSession(prisma, "weekly-glory-13a", new Date(base.getTime() + 13_000), true);
+    await seedSession(prisma, "weekly-glory-13b", new Date(base.getTime() + 13_000), true);
+    const results = await Promise.all([
+      repository.recordEligibleTerminalSession("weekly-glory-13a"),
+      repository.recordEligibleTerminalSession("weekly-glory-13b")
+    ]);
+    expect(results.every((result) => result.state === "recorded")).toBe(true);
+    const period = await prisma.guildWeeklyGoalPeriod.findUniqueOrThrow({
+      where: { guildId_periodKey_goalKey: {
+        guildId: "guild-weekly",
+        periodKey: "12026-W38",
+        goalKey: "ordinary-party-expeditions.v1"
+      } },
+      select: { id: true, completedAt: true, progressCount: true }
+    });
+    expect(period.progressCount).toBe(13);
+    await expect(prisma.guildGloryReceipt.findMany({
+      where: { periodId: period.id },
+      select: { amount: true, sourceKey: true, awardedAt: true }
+    })).resolves.toEqual([{
+      amount: 13,
+      sourceKey: `guild-weekly-goal:${period.id}`,
+      awardedAt: period.completedAt
+    }]);
+    await prisma.$executeRawUnsafe(
+      `UPDATE guilds SET display_name = 'Перейменована Печатка', normalized_name = 'перейменована печатка' WHERE id = 'guild-weekly'`
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO character_remorts (id, character_id) VALUES ('weekly-remort-a', 'character-a')`
+    );
+    await repository.recomputePeriod("12026-W38");
+    await repository.recordEligibleTerminalSession("weekly-glory-13a");
+    await expect(prisma.guildGloryReceipt.count({ where: { periodId: period.id } })).resolves.toBe(1);
+    const event = await prisma.activityEvent.findUniqueOrThrow({
+      where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` },
+      select: { subjectName: true, payloadJson: true }
+    });
+    expect(event.subjectName).toBe("Нова Назва");
+    expect(event.payloadJson).toMatchObject({ glory: 13 });
+  });
+
+  it("ranks Glory and current Primacy with dense ties, deterministic five-row pages, own-place recovery and privacy guards", async () => {
+    await prisma.$executeRawUnsafe(
+      `UPDATE users SET last_seen_location_id = 'location.korchma.deep', updated_at = CURRENT_TIMESTAMP WHERE id = 'user-a'`
+    );
+    const boardGuilds = [
+      ["board-a", "абетка", "Абетка", "🅰️", 26, 13, "2026-08-24T17:00:00.000Z"],
+      ["board-b", "бочка", "Бочка", "🅱️", 26, 13, "2026-08-24T17:00:00.000Z"],
+      ["board-c", "вишня", "Вишня", "🍒", 13, 9, null],
+      ["board-d", "дуб", "Дуб", "🌳", 13, 9, null],
+      ["board-e", "єнот", "Єнот", "🦝", 0, 4, null],
+      ["board-f", "жук", "Жук", "🪲", 0, 0, null]
+    ] as const;
+    for (const [id, normalized, name, crest, glory, progress, completedAt] of boardGuilds) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO guilds (id, normalized_name, display_name, crest, status, activated_at)
+         VALUES (?, ?, ?, ?, 'active', ?)`,
+        id, normalized, name, crest, new Date("2026-08-01T00:00:00.000Z")
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO guild_weekly_goal_periods
+          (id, guild_id, period_key, goal_key, guild_name_snapshot, guild_crest_snapshot,
+           target_count, progress_count, completed_at, updated_at)
+         VALUES (?, ?, '12026-W35', 'ordinary-party-expeditions.v1', ?, ?, 13, ?, ?, CURRENT_TIMESTAMP)`,
+        `period-${id}`, id, name, crest, progress, completedAt ? new Date(completedAt) : null
+      );
+      if (glory > 0) {
+        for (let index = 0; index < glory / 13; index += 1) {
+          const receiptPeriodId = index === 0 ? `period-${id}` : `historical-${id}-${index}`;
+          if (index > 0) {
+            await prisma.$executeRawUnsafe(
+              `INSERT INTO guild_weekly_goal_periods
+                (id, guild_id, period_key, goal_key, guild_name_snapshot, guild_crest_snapshot,
+                 target_count, progress_count, completed_at, updated_at)
+               VALUES (?, ?, ?, 'ordinary-party-expeditions.v1', ?, ?, 13, 13, ?, CURRENT_TIMESTAMP)`,
+              receiptPeriodId, id, `12026-W${30 + index}`, name, crest, new Date("2026-07-01T00:00:00.000Z")
+            );
+          }
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO guild_glory_receipts
+              (id, guild_id, period_id, source_key, amount, awarded_at)
+             VALUES (?, ?, ?, ?, 13, ?)`,
+            `glory-${id}-${index}`, id, receiptPeriodId, `source-${id}-${index}`, new Date("2026-08-01T00:00:00.000Z")
+          );
+        }
+      }
+    }
+
+    const gloryFirst = await repository.getGloryBoardForTelegramUser(
+      70_001n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "glory", 0
+    );
+    expect(gloryFirst).toMatchObject({ state: "ready", page: 0 });
+    if (gloryFirst.state !== "ready") throw new Error("Expected Glory board.");
+    expect(gloryFirst.rows[0]).toMatchObject({ glory: 39 });
+    expect(gloryFirst.rows).toHaveLength(5);
+    const tiedGlory = gloryFirst.rows.filter((row) => row.glory === 26);
+    expect(tiedGlory).toHaveLength(2);
+    expect(new Set(tiedGlory.map((row) => row.place)).size).toBe(1);
+    expect(tiedGlory.map((row) => row.guildId)).toEqual(["board-a", "board-b"]);
+
+    const glorySecond = await repository.getGloryBoardForTelegramUser(
+      70_001n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "glory", 93
+    );
+    expect(glorySecond).toMatchObject({ state: "ready", page: 1, hasNextPage: false });
+    if (glorySecond.state !== "ready") throw new Error("Expected second Glory page.");
+    expect(glorySecond.rows.length).toBe(2);
+    expect(glorySecond.viewerGuild.guildId).toBe("guild-weekly");
+    expect(glorySecond.rows.some((row) => row.guildId === "guild-weekly")).toBe(false);
+    expect(Object.keys(glorySecond.viewerGuild).sort()).toEqual([
+      "completed", "glory", "guildCrest", "guildId", "guildName", "place",
+      "progressCount", "targetCount", "viewerGuild"
+    ].sort());
+
+    const primacy = await repository.getGloryBoardForTelegramUser(
+      70_001n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "primacy", 0
+    );
+    if (primacy.state !== "ready") throw new Error("Expected Primacy board.");
+    expect(primacy.rows.slice(0, 2).map((row) => row.guildId)).toEqual(["board-a", "board-b"]);
+    expect(primacy.rows[0]!.place).toBe(primacy.rows[1]!.place);
+    const progressTie = primacy.rows.filter((row) => row.progressCount === 9);
+    expect(progressTie.map((row) => row.place)).toEqual([progressTie[0]!.place, progressTie[0]!.place]);
+
+    await expect(repository.getGloryBoardForTelegramUser(
+      70_001n, "wrong-location", new Date("2026-08-25T12:00:00.000Z"), "glory", 0
+    )).resolves.toEqual({ state: "wrong-location" });
+    await expect(repository.getGloryBoardForTelegramUser(
+      70_003n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "glory", 0
+    )).resolves.toEqual({ state: "wrong-location" });
+    await prisma.$executeRawUnsafe(
+      `UPDATE users SET last_seen_location_id = 'location.korchma.deep', updated_at = CURRENT_TIMESTAMP WHERE id = 'user-c'`
+    );
+    await expect(repository.getGloryBoardForTelegramUser(
+      70_003n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "glory", 0
+    )).resolves.toEqual({ state: "not-member" });
+  });
+
+  it("keeps ordinary weekly completion in all and adventurer Chronicles but out of Important", async () => {
+    const activity = new ActivityEventService(new PrismaActivityEventRepository(prisma));
+    const now = new Date("2026-09-14T13:00:00.000Z");
+    const [all, adventurers, important] = await Promise.all([
+      activity.listRecent("all", { now }),
+      activity.listRecent("adv", { now }),
+      activity.listRecent("imp", { now })
+    ]);
+    const isWeekly = (event: { eventType: string }) => event.eventType === "guild.weekly_goal_completed";
+    expect(all.events.some(isWeekly)).toBe(true);
+    expect(adventurers.events.some(isWeekly)).toBe(true);
+    expect(important.events.some(isWeekly)).toBe(false);
+  });
+
+  it("recovers historical User identity after Character deletion and reprojects once after recreation", async () => {
+    const base = new Date("2026-10-05T12:00:00.000Z");
+    for (let index = 1; index <= 13; index += 1) {
+      await seedSession(prisma, `weekly-restart-${index}`, new Date(base.getTime() + index * 1_000), true);
+    }
+    await prisma.character.deleteMany({ where: { id: { in: ["character-a", "character-b"] } } });
+    for (let index = 1; index <= 13; index += 1) {
+      await repository.recordEligibleTerminalSession(`weekly-restart-${index}`);
+    }
+    const contribution = await prisma.guildWeeklyContribution.findUniqueOrThrow({
+      where: { groupCombatSessionId: "weekly-restart-13" },
+      select: { contributors: { orderBy: { userId: "asc" }, select: { userId: true, characterId: true } } }
+    });
+    expect(contribution.contributors).toEqual([
+      { userId: "user-a", characterId: "character-a" },
+      { userId: "user-b", characterId: "character-b" }
+    ]);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO characters (id, user_id, name, class_id, race_id) VALUES
+       ('character-a-recreated', 'user-a', 'Відновлена А', 'class.priest', 'race.human-ish'),
+       ('character-b-recreated', 'user-b', 'Відновлений Б', 'class.warrior', 'race.dwarf')`
+    );
+    const candidates = await repository.listAchievementProjectionCandidates(93);
+    expect(candidates.filter((row) => row.userId === "user-a").map((row) => row.characterId))
+      .toContain("character-a-recreated");
+    expect(candidates.filter((row) => row.userId === "user-b").map((row) => row.characterId))
+      .toContain("character-b-recreated");
+    expect(new Set(candidates.map((row) => row.entitlementId)).size).toBe(candidates.length);
+
+    const trackEvent = vi.fn<AchievementService["trackEvent"]>().mockResolvedValue([]);
+    const service = new GuildWeeklyGoalService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-10-05T13:00:00.000Z"),
+      { trackEvent } as unknown as AchievementService
+    );
+    await service.getCurrentForTelegramUser(70_001n);
+    const projectedCalls = trackEvent.mock.calls.length;
+    expect(projectedCalls).toBeGreaterThanOrEqual(1);
+    await service.getCurrentForTelegramUser(70_001n);
+    expect(trackEvent).toHaveBeenCalledTimes(projectedCalls);
+    const [leftClaims, rightClaims] = await Promise.all([
+      service.claimAchievementNotices(13, 70_001n),
+      service.claimAchievementNotices(13, 70_001n)
+    ]);
+    expect(leftClaims.length + rightClaims.length).toBe(projectedCalls);
+    const claimed = [...leftClaims, ...rightClaims];
+    for (const notice of claimed) await service.markAchievementNoticeSent(notice);
+    await expect(service.claimAchievementNotices(13, 70_001n)).resolves.toEqual([]);
+  });
+
+  it("creates durable three- and thirteen-period User milestones once across repair and replay", async () => {
+    const firstExtraMonday = new Date("2026-10-12T12:00:00.000Z");
+    for (let index = 0; index < 9; index += 1) {
+      await repository.completeCurrentForDev(
+        70_001n,
+        new Date(firstExtraMonday.getTime() + index * 7 * 24 * 60 * 60_000)
+      );
+    }
+    await expect(prisma.guildWeeklyAchievementEntitlement.findMany({
+      where: { userId: "user-a" },
+      orderBy: { achievementId: "asc" },
+      select: { achievementId: true }
+    })).resolves.toEqual([
+      { achievementId: "achievement.guild.thirteen-weekly-goals" },
+      { achievementId: "achievement.guild.three-weekly-goals" },
+      { achievementId: "achievement.guild.weekly-goal-completed" }
+    ]);
+
+    const trackEvent = vi.fn<AchievementService["trackEvent"]>().mockResolvedValue([]);
+    const service = new GuildWeeklyGoalService(
+      repository,
+      { enabled: true, devHelpersEnabled: true },
+      () => new Date("2026-12-07T13:00:00.000Z"),
+      { trackEvent } as unknown as AchievementService
+    );
+    await service.getCurrentForTelegramUser(70_001n);
+    expect(trackEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: "guild.weekly_goal_periods",
+      characterId: "character-a-recreated",
+      count: 13
+    }));
+    const [left, right] = await Promise.all([
+      service.claimAchievementNotices(13, 70_001n),
+      service.claimAchievementNotices(13, 70_001n)
+    ]);
+    const milestoneClaims = [...left, ...right].filter((notice) =>
+      notice.unlock.id === "achievement.guild.thirteen-weekly-goals"
+    );
+    expect(milestoneClaims).toHaveLength(1);
+    await service.markAchievementNoticeSent(milestoneClaims[0]!);
+    await repository.completeCurrentForDev(70_001n, new Date("2026-12-07T14:00:00.000Z"));
+    await repository.recomputePeriod("12026-W50");
+    await expect(prisma.guildWeeklyAchievementEntitlement.count({
+      where: {
+        userId: "user-a",
+        achievementId: "achievement.guild.thirteen-weekly-goals"
+      }
+    })).resolves.toBe(1);
+    await expect(service.claimAchievementNotices(13, 70_001n)).resolves.toEqual([]);
+  });
+
+  it("applies, rolls back and restores the migration without touching unrelated populated rows", async () => {
+    const smokeDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-weekly-rollback-"));
+    const smoke = new PrismaClient({ datasources: { db: { url: `file:${join(smokeDirectory, "smoke.db").replace(/\\/gu, "/")}` } } });
+    try {
+      await createBaseSchema(smoke);
+      await smoke.$executeRawUnsafe(`INSERT INTO users (id, telegram_user_id) VALUES ('keep-user', 99001)`);
+      await smoke.$executeRawUnsafe(`INSERT INTO characters (id, user_id) VALUES ('keep-character', 'keep-user')`);
+      await smoke.$executeRawUnsafe(
+        `INSERT INTO guilds (id, normalized_name, display_name, crest, status, activated_at)
+         VALUES ('keep-guild', 'keep', 'Збережена', '🧷', 'active', CURRENT_TIMESTAMP)`
+      );
+      await smoke.$executeRawUnsafe(`INSERT INTO party_sessions (id) VALUES ('keep-party')`);
+      await smoke.$executeRawUnsafe(
+        `INSERT INTO group_combat_sessions (id, party_session_id, encounter_key, status)
+         VALUES ('keep-combat', 'keep-party', 'proof.v1', 'won')`
+      );
+      await applySqlFile(smoke, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
+      await applySqlFile(smoke, "prisma/migrations/20260824090000_guild_weekly_goal/rollback.sql");
+      for (const [table, expected] of [["users", 1], ["characters", 1], ["guilds", 1], ["party_sessions", 1], ["group_combat_sessions", 1]] as const) {
+        const rows = await smoke.$queryRawUnsafe<Array<{ count: bigint }>>(`SELECT COUNT(*) AS count FROM ${table}`);
+        expect(Number(rows[0]!.count)).toBe(expected);
+      }
+      const columns = await smoke.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info('group_combat_sessions')`);
+      expect(columns.some((column) => column.name === "guild_weekly_goal_eligible")).toBe(false);
+      await applySqlFile(smoke, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
+      const restored = await smoke.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info('guild_glory_receipts')`);
+      expect(restored.some((column) => column.name === "source_key")).toBe(true);
+      await expect(smoke.user.count()).resolves.toBe(1);
+    } finally {
+      await smoke.$disconnect();
+      await rm(smokeDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
   });
 });
 
@@ -238,11 +584,22 @@ async function seedSession(prisma: PrismaClient, id: string, completedAt: Date, 
   );
   for (const suffix of ["a", "b", "c"] as const) {
     await prisma.$executeRawUnsafe(
-      `INSERT INTO group_combat_participants (id, session_id, character_id, remort_count)
-       VALUES (?, ?, ?, 0)`,
+      `INSERT INTO group_combat_participants (id, session_id, character_id, remort_count, roster_order)
+       VALUES (?, ?, ?, 0, ?)`,
       `${id}-${suffix}`,
       id,
-      `character-${suffix}`
+      `character-${suffix}`,
+      suffix === "a" ? 0 : suffix === "b" ? 1 : 2
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO guild_weekly_participant_snapshots
+        (id, session_id, user_id, character_id, remort_count, roster_order)
+       VALUES (?, ?, ?, ?, 0, ?)`,
+      `weekly-snapshot-${id}-${suffix}`,
+      id,
+      `user-${suffix}`,
+      `character-${suffix}`,
+      suffix === "a" ? 0 : suffix === "b" ? 1 : 2
     );
   }
 }
@@ -297,15 +654,26 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
   await executeSql(prisma, `
     CREATE TABLE users (
       id TEXT NOT NULL PRIMARY KEY,
-      telegram_user_id BIGINT NOT NULL UNIQUE
+      telegram_user_id BIGINT NOT NULL UNIQUE,
+      last_seen_location_id TEXT,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE characters (
       id TEXT NOT NULL PRIMARY KEY,
       user_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL DEFAULT 'Пригодник',
+      class_id TEXT NOT NULL DEFAULT 'class.warrior',
+      race_id TEXT NOT NULL DEFAULT 'race.human-ish',
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE character_remorts (
+      id TEXT NOT NULL PRIMARY KEY,
+      character_id TEXT NOT NULL,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
     );
     CREATE TABLE guilds (
       id TEXT NOT NULL PRIMARY KEY,
+      normalized_name TEXT NOT NULL DEFAULT '',
       display_name TEXT NOT NULL,
       crest TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -330,6 +698,7 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
       status TEXT NOT NULL,
       completed_at DATETIME,
       settlement_plan_json JSONB,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (party_session_id) REFERENCES party_sessions(id)
     );
     CREATE TABLE group_combat_participants (
@@ -337,8 +706,9 @@ async function createBaseSchema(prisma: PrismaClient): Promise<void> {
       session_id TEXT NOT NULL,
       character_id TEXT NOT NULL,
       remort_count INTEGER NOT NULL,
+      roster_order INTEGER NOT NULL,
       FOREIGN KEY (session_id) REFERENCES group_combat_sessions(id),
-      FOREIGN KEY (character_id) REFERENCES characters(id)
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
     );
     CREATE TABLE activity_events (
       id TEXT NOT NULL PRIMARY KEY,

@@ -128,6 +128,8 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.guild.first-created` | enabled | visible | `guild.created >= 1` | Статут пережив першу пляму | уперше заснувати ґільдію й одразу дати писарю причину нервувати. |
 | `achievement.guild.first-joined` | enabled | visible | `guild.joined >= 1` | У списку вже не самотньо | уперше долучитися до ґільдії й не переплутати статут із меню шинку. |
 | `achievement.guild.weekly-goal-completed` | enabled | visible | `guild.weekly_goal_completed >= 1` | Тринадцять печаток, жодної зайвої | разом із ґільдією завершити тижневий журнал звичайних спільних походів. |
+| `achievement.guild.three-weekly-goals` | enabled | visible | `guild.weekly_goal_periods >= 3` | Три понеділки без відмови | долучитися до завершення трьох різних тижневих справ ґільдії. |
+| `achievement.guild.thirteen-weekly-goals` | enabled | visible | `guild.weekly_goal_periods >= 13` | Тринадцять тижнів під печаткою | долучитися до завершення тринадцяти різних тижневих справ ґільдії. |
 | `achievement.duel.quick.thirteen` | enabled | visible | `duel.quick.resolved >= 13` | Тринадцять швидких непорозумінь | завершити 13 миттєвих дуелей і навчити рукавичку літати по графіку. |
 | `achievement.duel.turnbased.first` | enabled | visible | `duel.turnbased.resolved >= 1` | Хід подумав і погодився | уперше завершити покрокову дуель і пережити офіційне очікування. |
 | `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |

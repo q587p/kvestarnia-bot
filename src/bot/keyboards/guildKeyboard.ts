@@ -6,6 +6,7 @@ import type {
   GuildNestRepositoryResult,
   GuildPublicDirectoryRepositoryResult
 } from "../../db/repositories/guildRepository";
+import type { GuildGloryBoardResult } from "../../db/repositories/guildWeeklyGoalRepository";
 import {
   makeGuildCreateOpenCallbackData,
   makeGuildCreateUploadCallbackData,
@@ -14,6 +15,7 @@ import {
   makeGuildDeleteOpenCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
+  makeGuildGloryBoardCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
@@ -102,7 +104,8 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
 }
 
 export function buildGuildNestKeyboard(
-  result: Extract<GuildNestRepositoryResult, { state: "ready" }>
+  result: Extract<GuildNestRepositoryResult, { state: "ready" }>,
+  options: { weeklyGoalEnabled?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("📚 Чинні ґільдії", makeGuildDirectoryOpenCallbackData())
@@ -119,8 +122,28 @@ export function buildGuildNestKeyboard(
     keyboard.text("📜 Мій статут", makeGuildOpenCallbackData()).row();
   } else {
     keyboard.text("🏰 Моя ґільдія", makeGuildOpenCallbackData()).row();
+    if (options.weeklyGoalEnabled === true) {
+      keyboard.text("📜 Книга слави", makeGuildGloryBoardCallbackData("glory")).row();
+    }
   }
   return keyboard.text("↩️ До Спуску", makePlaceCallbackData("deep"));
+}
+
+export function buildGuildGloryBoardKeyboard(
+  result: Extract<GuildGloryBoardResult, { state: "ready" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text(result.view === "glory" ? "• ✨ Слава" : "✨ Слава", makeGuildGloryBoardCallbackData("glory"))
+    .text(result.view === "primacy" ? "• 🏁 Першість" : "🏁 Першість", makeGuildGloryBoardCallbackData("primacy"))
+    .row();
+  if (result.hasPreviousPage) {
+    keyboard.text("⬅️", makeGuildGloryBoardCallbackData(result.view, result.page - 1));
+  }
+  keyboard.text("🔎 Оновити", makeGuildGloryBoardCallbackData(result.view, result.page));
+  if (result.hasNextPage) {
+    keyboard.text("➡️", makeGuildGloryBoardCallbackData(result.view, result.page + 1));
+  }
+  return keyboard.row().text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
 }
 
 export function buildGuildNestUnavailableKeyboard(): InlineKeyboard {

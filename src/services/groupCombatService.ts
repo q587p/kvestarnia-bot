@@ -279,7 +279,34 @@ export class GroupCombatService {
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     const pending = await this.settlePendingWithNotices(limit);
     await this.guildWeeklyGoals?.repairCurrentPeriod(limit).catch(() => undefined);
-    return { repaired, settlementNotices: pending.settlementNotices };
+    const weeklyNotices = await this.guildWeeklyGoals?.claimAchievementNotices(limit).catch(() => []) ?? [];
+    return {
+      repaired,
+      settlementNotices: [
+        ...pending.settlementNotices,
+        ...weeklyNotices.map((notice) => ({
+          telegramUserId: notice.telegramUserId,
+          characterId: notice.characterId,
+          characterName: notice.characterName,
+          classId: notice.classId,
+          raceId: notice.raceId,
+          levelChange: null,
+          achievementUnlocks: [notice.unlock],
+          weeklyAchievementClaims: [{
+            entitlementId: notice.entitlementId,
+            claimToken: notice.claimToken
+          }]
+        }))
+      ]
+    };
+  }
+
+  markWeeklyAchievementNoticeSent(notice: { entitlementId: string; claimToken: string }): Promise<boolean> {
+    return this.guildWeeklyGoals?.markAchievementNoticeSent(notice) ?? Promise.resolve(false);
+  }
+
+  releaseWeeklyAchievementNotice(notice: { entitlementId: string; claimToken: string }): Promise<boolean> {
+    return this.guildWeeklyGoals?.releaseAchievementNotice(notice) ?? Promise.resolve(false);
   }
 
   async settleParticipant(sessionId: string, telegramUserId: bigint) {
@@ -288,11 +315,16 @@ export class GroupCombatService {
       telegramUserId,
       now: this.now()
     });
+    let weeklyAchievementNotices: Awaited<ReturnType<GuildWeeklyGoalService["claimAchievementNotices"]>> = [];
     if (
       (result.state === "settled" || result.state === "replayed") &&
       result.receipt.policy === "left-passage-party"
     ) {
       await this.guildWeeklyGoals?.recordTerminalSession(sessionId).catch(() => undefined);
+      if (result.state === "settled") {
+        weeklyAchievementNotices = await this.guildWeeklyGoals?.claimAchievementNotices(13, telegramUserId)
+          .catch(() => []) ?? [];
+      }
     }
     if (
       result.state !== "settled" ||
@@ -300,7 +332,13 @@ export class GroupCombatService {
       result.receipt.manualParticipation !== true ||
       !this.achievements
     ) {
-      return result;
+      return weeklyAchievementNotices.length > 0
+        ? {
+            ...result,
+            achievementUnlocks: weeklyAchievementNotices.map((notice) => notice.unlock),
+            weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken }) => ({ entitlementId, claimToken }))
+          }
+        : result;
     }
     const session = await this.repository.findById(sessionId);
     const unlocks: AchievementUnlock[] = [];
@@ -333,7 +371,13 @@ export class GroupCombatService {
         sourceId
       }) ?? []));
     }
-    return { ...result, achievementUnlocks: unlocks };
+    return {
+      ...result,
+      achievementUnlocks: [...unlocks, ...weeklyAchievementNotices.map((notice) => notice.unlock)],
+      ...(weeklyAchievementNotices.length > 0
+        ? { weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken }) => ({ entitlementId, claimToken })) }
+        : {})
+    };
   }
 
   async settlePending(limit = 13): Promise<number> {
@@ -372,7 +416,10 @@ export class GroupCombatService {
               levelChange: result.levelChange ?? null,
               achievementUnlocks: "achievementUnlocks" in result
                 ? result.achievementUnlocks
-                : []
+                : [],
+              ...(result && "weeklyAchievementClaims" in result
+                ? { weeklyAchievementClaims: result.weeklyAchievementClaims }
+                : {})
             });
           }
         }
@@ -602,7 +649,10 @@ export class GroupCombatService {
               levelChange: settlement.levelChange ?? null,
               achievementUnlocks: "achievementUnlocks" in settlement
                 ? settlement.achievementUnlocks
-                : []
+                : [],
+              ...(settlement && "weeklyAchievementClaims" in settlement
+                ? { weeklyAchievementClaims: settlement.weeklyAchievementClaims }
+                : {})
             });
           }
         }

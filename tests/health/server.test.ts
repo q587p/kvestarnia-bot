@@ -102,13 +102,13 @@ describe("health server", () => {
     expect(text).toContain("Зібрати манатки й вдягнути спорядження.");
     expect(text).toContain("Побачити, що в Квестарні вже хтось ворушиться.");
     expect(text).not.toContain("Поточні команди й можливості");
-    expect(text).toContain("Тижневий журнал ґільдійних оказій");
+    expect(text).toContain("Тижнева Слава й книга ґільдійних оказій");
     expect(text).toContain("У грі вже:");
     expect(text).toContain("Писар знайшов книгу, де спільні походи нарешті складаються в одну справу");
     expect(text).toContain("звичайні ґільдійні ватаги можуть разом заповнювати один тижневий журнал");
     expect(text).toContain("підтримка, захист і лікування важать не менше за гучний удар");
     expect(text).toContain("спільна справа не додає бойової сили");
-    expect(text).toContain("Ще не відчинено: тижневий журнал зʼявиться у ґільдійній картці");
+    expect(text).toContain("Ще не відчинено: тижневий журнал і Книга слави зʼявляться");
     expect(text).not.toContain("вміст збірки");
     expect(text).not.toContain("підтверджене розгортання");
     expect(text).not.toContain("не стирають пригодника, доки триває спільний бій");

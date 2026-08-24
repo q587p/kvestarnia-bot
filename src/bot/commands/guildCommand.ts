@@ -28,6 +28,7 @@ import {
   buildGuildPartyPickerKeyboard,
   buildGuildPartyRecoveryKeyboard,
   buildGuildDirectoryKeyboard,
+  buildGuildGloryBoardKeyboard,
   buildGuildPublicProfileKeyboard,
   buildGuildProfileCrestKeyboard,
   GUILD_MEMBER_MANAGEMENT_PAGE_SIZE
@@ -61,6 +62,7 @@ import {
   presentGuildNestRules,
   presentGuildPartyPicker,
   presentGuildPublicDirectory,
+  presentGuildGloryBoard,
   presentGuildPublicProfile,
   presentGuildProfileUpdate,
   presentGuildProfileDescriptionPrompt,
@@ -227,6 +229,7 @@ export function registerGuildCommands(
         await ctx.reply(result.state === "ready"
           ? `Dev: тижневий клопіт ${result.progress.periodKey} має ${result.progress.progressCount}/${result.progress.targetCount}.`
           : "Dev: спершу потрібні персонаж і чинна ґільдія.");
+        await deliverWeeklyAchievementNotices(ctx, service, actor);
         return;
       }
       const repaired = await service.repairWeeklyGoalForDev();
@@ -277,6 +280,17 @@ export async function handleGuildCallback(
       reply_markup: result.state === "wrong-location" || result.state === "disabled" || result.state === "no-character"
         ? buildGuildNestUnavailableKeyboard()
         : buildGuildPublicProfileKeyboard(callback.page)
+    });
+    return;
+  }
+  if (callback.type === "glory-board") {
+    const result = await service.getGloryBoardForTelegramUser(actor, callback.view, callback.page);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildGloryBoard(result), {
+      ...HTML_OPTIONS,
+      reply_markup: result.state === "ready"
+        ? buildGuildGloryBoardKeyboard(result)
+        : buildGuildNestUnavailableKeyboard()
     });
     return;
   }
@@ -684,7 +698,9 @@ async function sendGuildNest(ctx: Context, service: GuildService, actor: bigint)
   const result = await service.getNestForTelegramUser(actor);
   await safeEditMessageText(ctx, presentGuildNest(result), {
     ...HTML_OPTIONS,
-    reply_markup: result.state === "ready" ? buildGuildNestKeyboard(result) : buildGuildNestUnavailableKeyboard()
+    reply_markup: result.state === "ready"
+      ? buildGuildNestKeyboard(result, { weeklyGoalEnabled: service.isWeeklyGoalEnabled?.() === true })
+      : buildGuildNestUnavailableKeyboard()
   });
 }
 
@@ -708,6 +724,28 @@ export async function sendGuildHub(
     await safeEditMessageText(ctx, text, settings);
   } else {
     await ctx.reply(text, settings);
+  }
+  await deliverWeeklyAchievementNotices(ctx, service, actor);
+}
+
+async function deliverWeeklyAchievementNotices(
+  ctx: Context,
+  service: GuildService,
+  actor: bigint
+): Promise<void> {
+  const notices = await service.claimWeeklyAchievementNotices?.(actor) ?? [];
+  for (const notice of notices) {
+    const text = presentAchievementUnlockNotification([notice.unlock]);
+    if (!text) continue;
+    try {
+      await ctx.api.sendMessage(Number(notice.telegramUserId), text, {
+        ...HTML_OPTIONS,
+        reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+      });
+      await service.markWeeklyAchievementNoticeSent(notice);
+    } catch {
+      await service.releaseWeeklyAchievementNotice(notice).catch(() => false);
+    }
   }
 }
 

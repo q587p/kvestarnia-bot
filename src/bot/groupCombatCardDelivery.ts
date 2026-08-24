@@ -615,16 +615,26 @@ function inlineControlsFingerprint(
 
 export async function deliverGroupCombatSettlementNotifications(
   api: Api,
-  notices: readonly GroupCombatSettlementNotice[]
+  notices: readonly GroupCombatSettlementNotice[],
+  service?: GroupCombatService
 ): Promise<number> {
   const results = await Promise.allSettled(notices.map(async (notice) => {
     const levelText = notice.levelChange
       ? presentLevelUpCelebration(notice.levelChange, notice.classId, { raceId: notice.raceId })
       : null;
     const achievementText = presentAchievementUnlockNotification(notice.achievementUnlocks);
-    for (const text of [levelText, achievementText]) {
-      if (text) {
-        await api.sendMessage(Number(notice.telegramUserId), text, HTML_MESSAGE_OPTIONS);
+    if (levelText) await api.sendMessage(Number(notice.telegramUserId), levelText, HTML_MESSAGE_OPTIONS);
+    if (achievementText) {
+      try {
+        await api.sendMessage(Number(notice.telegramUserId), achievementText, HTML_MESSAGE_OPTIONS);
+        for (const claim of notice.weeklyAchievementClaims ?? []) {
+          await service?.markWeeklyAchievementNoticeSent(claim);
+        }
+      } catch (error) {
+        for (const claim of notice.weeklyAchievementClaims ?? []) {
+          await service?.releaseWeeklyAchievementNotice(claim).catch(() => false);
+        }
+        throw error;
       }
     }
     return Boolean(levelText || achievementText);

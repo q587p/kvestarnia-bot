@@ -103,11 +103,11 @@ export function createGroupCombatTimeoutScheduler(
         await deliverGroupCombatCards(bot.api, service, session);
         const notices = resolved.find((entry) => entry.session.id === session.id)?.settlementNotices ?? [];
         if (notices.length > 0) {
-          await deliverGroupCombatSettlementNotifications(bot.api, notices);
+          await deliverGroupCombatSettlementNotifications(bot.api, notices, service);
         }
       }
       if (repairWork.settlementNotices.length > 0) {
-        await deliverGroupCombatSettlementNotifications(bot.api, repairWork.settlementNotices);
+        await deliverGroupCombatSettlementNotifications(bot.api, repairWork.settlementNotices, service);
       }
       return repairWork.repaired + sessions.length;
     })();
