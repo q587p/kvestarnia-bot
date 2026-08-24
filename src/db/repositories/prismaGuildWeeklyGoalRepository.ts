@@ -9,21 +9,24 @@ import {
   GUILD_WEEKLY_MINIMUM_GUILD_PARTICIPANTS,
   GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID,
   GUILD_WEEKLY_THREE_PERIODS_ACHIEVEMENT_ID,
+  guildWeeklyReconciliationReasons,
   getGuildWeeklyPeriod,
   type GuildWeeklyReconciliationReason
 } from "../../domain/guildWeeklyGoal";
 import { parseGroupCombatSettlementPlanStrict } from "../../domain/groupCombat/groupCombatStateValidation";
-import type {
-  ClaimedGuildWeeklyAchievementNotification,
-  GuildGloryBoardEntry,
-  GuildGloryBoardResult,
-  GuildGloryBoardView,
-  GuildWeeklyAchievementProjectionCandidate,
-  GuildWeeklyContributionResult,
-  GuildWeeklyGoalMetrics,
-  GuildWeeklyGoalProgressRecord,
-  GuildWeeklyGoalRepository,
-  GuildWeeklyGoalViewResult
+import {
+  GUILD_WEEKLY_NOTIFICATION_MAX_ATTEMPTS,
+  type ClaimedGuildWeeklyAchievementNotification,
+  type GuildWeeklyAchievementNotificationFailureResult,
+  type GuildGloryBoardEntry,
+  type GuildGloryBoardResult,
+  type GuildGloryBoardView,
+  type GuildWeeklyAchievementProjectionCandidate,
+  type GuildWeeklyContributionResult,
+  type GuildWeeklyGoalMetrics,
+  type GuildWeeklyGoalProgressRecord,
+  type GuildWeeklyGoalRepository,
+  type GuildWeeklyGoalViewResult
 } from "./guildWeeklyGoalRepository";
 
 const WEEKLY_NOTIFICATION_CLAIM_MS = 93_000;
@@ -400,7 +403,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
     const telegramFilter = input.telegramUserId === undefined
       ? Prisma.empty
       : Prisma.sql`AND user."telegram_user_id" = ${input.telegramUserId}`;
-    const candidates = await this.prisma.$queryRaw<ProjectionRow[]>(Prisma.sql`
+    const candidates = await this.prisma.$queryRaw<NotificationProjectionRow[]>(Prisma.sql`
       SELECT entitlement."id" AS entitlement_id,
              entitlement."achievement_id" AS achievement_id,
              entitlement."source_period_id" AS source_period_id,
@@ -412,65 +415,186 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
              (SELECT COUNT(*) FROM "character_remorts" AS remort WHERE remort."character_id" = character."id") AS remort_count,
              character."name" AS character_name,
              character."class_id" AS class_id,
-             character."race_id" AS race_id
+             character."race_id" AS race_id,
+             entitlement."notification_state" AS notification_state,
+             entitlement."notification_attempt_count" AS notification_attempt_count
       FROM "guild_weekly_achievement_entitlements" AS entitlement
       JOIN "users" AS user ON user."id" = entitlement."user_id"
       JOIN "characters" AS character ON character."user_id" = user."id"
-      WHERE entitlement."notified_at" IS NULL
-        AND entitlement."projected_character_id" = character."id"
-        AND (entitlement."notification_claimed_until" IS NULL OR entitlement."notification_claimed_until" <= ${input.now})
+      WHERE entitlement."projected_character_id" = character."id"
+        AND entitlement."notification_attempt_count" <= ${GUILD_WEEKLY_NOTIFICATION_MAX_ATTEMPTS}
+        AND (
+          (
+            entitlement."notification_state" = 'PENDING'
+            AND entitlement."notification_next_attempt_at" <= ${input.now}
+            AND entitlement."notification_claim_token" IS NULL
+          ) OR (
+            entitlement."notification_state" = 'CLAIMED'
+            AND entitlement."notification_claimed_until" <= ${input.now}
+          )
+        )
         ${telegramFilter}
-      ORDER BY entitlement."entitled_at" ASC, entitlement."id" ASC
+      ORDER BY entitlement."notification_next_attempt_at" ASC,
+               entitlement."entitled_at" ASC,
+               entitlement."id" ASC
       LIMIT ${boundedLimit(input.limit)}
     `);
     const claimed: ClaimedGuildWeeklyAchievementNotification[] = [];
     for (const candidate of candidates) {
+      if (Number(candidate.notification_attempt_count) >= GUILD_WEEKLY_NOTIFICATION_MAX_ATTEMPTS) {
+        await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
+          where: {
+            id: candidate.entitlement_id,
+            notificationState: candidate.notification_state,
+            notificationAttemptCount: Number(candidate.notification_attempt_count)
+          },
+          data: {
+            notificationState: "PERMANENT_FAILURE",
+            notificationPermanentFailureAt: input.now,
+            notificationClaimToken: null,
+            notificationClaimedUntil: null,
+            notificationLastErrorCategory: "delivery-attempts-exhausted"
+          }
+        });
+        continue;
+      }
       const claimToken = randomUUID();
       const updated = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
         where: {
           id: candidate.entitlement_id,
-          notifiedAt: null,
-          OR: [{ notificationClaimedUntil: null }, { notificationClaimedUntil: { lte: input.now } }]
+          notificationState: candidate.notification_state,
+          notificationAttemptCount: Number(candidate.notification_attempt_count),
+          OR: [
+            {
+              notificationState: "PENDING",
+              notificationNextAttemptAt: { lte: input.now },
+              notificationClaimToken: null
+            },
+            {
+              notificationState: "CLAIMED",
+              notificationClaimedUntil: { lte: input.now }
+            }
+          ]
         },
         data: {
+          notificationState: "CLAIMED",
+          notificationAttemptCount: { increment: 1 },
           notificationClaimToken: claimToken,
-          notificationClaimedUntil: new Date(input.now.getTime() + WEEKLY_NOTIFICATION_CLAIM_MS)
+          notificationClaimedUntil: new Date(input.now.getTime() + WEEKLY_NOTIFICATION_CLAIM_MS),
+          notificationLastErrorCategory: null
         }
       });
-      if (updated.count === 1) claimed.push({ ...mapProjectionRow(candidate), claimToken });
+      if (updated.count === 1) claimed.push({
+        ...mapProjectionRow(candidate),
+        claimToken,
+        attemptCount: Number(candidate.notification_attempt_count) + 1
+      });
     }
     return claimed;
   }
 
   async markAchievementNotificationSent(entitlementId: string, claimToken: string, sentAt: Date): Promise<boolean> {
     const result = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
-      where: { id: entitlementId, notificationClaimToken: claimToken, notifiedAt: null },
-      data: { notifiedAt: sentAt, notificationClaimToken: null, notificationClaimedUntil: null }
+      where: { id: entitlementId, notificationState: "CLAIMED", notificationClaimToken: claimToken },
+      data: {
+        notificationState: "SENT",
+        notifiedAt: sentAt,
+        notificationClaimToken: null,
+        notificationClaimedUntil: null,
+        notificationLastErrorCategory: null
+      }
     });
     return result.count === 1;
   }
 
-  async releaseAchievementNotification(entitlementId: string, claimToken: string): Promise<boolean> {
+  async recordAchievementNotificationFailure(input: {
+    entitlementId: string;
+    claimToken: string;
+    failedAt: Date;
+    errorCategory: Parameters<GuildWeeklyGoalRepository["recordAchievementNotificationFailure"]>[0]["errorCategory"];
+    disposition: "retry" | "permanent";
+    nextAttemptAt?: Date;
+  }): Promise<GuildWeeklyAchievementNotificationFailureResult> {
+    if (input.disposition === "retry" && !input.nextAttemptAt) {
+      throw new Error("Retryable weekly notification failure requires nextAttemptAt.");
+    }
     const result = await this.prisma.guildWeeklyAchievementEntitlement.updateMany({
-      where: { id: entitlementId, notificationClaimToken: claimToken, notifiedAt: null },
-      data: { notificationClaimToken: null, notificationClaimedUntil: null }
+      where: {
+        id: input.entitlementId,
+        notificationState: "CLAIMED",
+        notificationClaimToken: input.claimToken
+      },
+      data: input.disposition === "retry"
+        ? {
+            notificationState: "PENDING",
+            notificationNextAttemptAt: input.nextAttemptAt!,
+            notificationClaimToken: null,
+            notificationClaimedUntil: null,
+            notificationLastErrorCategory: input.errorCategory
+          }
+        : {
+            notificationState: "PERMANENT_FAILURE",
+            notificationPermanentFailureAt: input.failedAt,
+            notificationClaimToken: null,
+            notificationClaimedUntil: null,
+            notificationLastErrorCategory: input.errorCategory
+          }
     });
-    return result.count === 1;
+    return result.count !== 1
+      ? "lost"
+      : input.disposition === "retry"
+        ? "retry-scheduled"
+        : "permanent-failure";
   }
 
   async getMetrics(): Promise<GuildWeeklyGoalMetrics> {
     const [periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
-      reconciliationDecisions, gloryReceipts, achievementEntitlements] = await Promise.all([
+      reconciliationGroups, gloryReceipts, achievementEntitlements, notificationGroups,
+      projectedNotifications] = await Promise.all([
       this.prisma.guildWeeklyGoalPeriod.count(),
       this.prisma.guildWeeklyGoalPeriod.count({ where: { completedAt: { not: null } } }),
       this.prisma.guildWeeklyContribution.count(),
       this.prisma.guildWeeklyContributorReceipt.count(),
-      this.prisma.guildWeeklyReconciliation.count(),
+      this.prisma.guildWeeklyReconciliation.groupBy({
+        by: ["decision", "reason"],
+        _count: { _all: true }
+      }),
       this.prisma.guildGloryReceipt.count(),
-      this.prisma.guildWeeklyAchievementEntitlement.count()
+      this.prisma.guildWeeklyAchievementEntitlement.count(),
+      this.prisma.guildWeeklyAchievementEntitlement.groupBy({
+        by: ["notificationState"],
+        _count: { _all: true }
+      }),
+      this.prisma.guildWeeklyAchievementEntitlement.count({ where: { projectedAt: { not: null } } })
     ]);
+    const reconciliationCount = (decision: string) => reconciliationGroups
+      .filter((row) => row.decision === decision)
+      .reduce((sum, row) => sum + row._count._all, 0);
+    const ineligibleByReason = Object.fromEntries(
+      guildWeeklyReconciliationReasons
+        .filter((reason) => reason !== "credited")
+        .map((reason) => [
+          reason,
+          reconciliationGroups.find((row) => row.decision === "ineligible" && row.reason === reason)?._count._all ?? 0
+        ])
+    ) as GuildWeeklyGoalMetrics["reconciliations"]["ineligibleByReason"];
+    const notificationCount = (state: string) => notificationGroups
+      .find((row) => row.notificationState === state)?._count._all ?? 0;
+    const credited = reconciliationCount("credited");
+    const ineligible = reconciliationCount("ineligible");
     return { periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
-      reconciliationDecisions, gloryReceipts, achievementEntitlements };
+      reconciliationDecisions: credited + ineligible,
+      reconciliations: { credited, ineligible, ineligibleByReason },
+      gloryReceipts,
+      achievementEntitlements,
+      achievementNotifications: {
+        pending: notificationCount("PENDING"),
+        claimed: notificationCount("CLAIMED"),
+        projected: projectedNotifications,
+        sent: notificationCount("SENT"),
+        permanentFailure: notificationCount("PERMANENT_FAILURE")
+      }
+    };
   }
 }
 
@@ -566,13 +690,28 @@ async function syncUserEntitlements(tx: Prisma.TransactionClient, userId: string
       select: { id: true, periodKey: true, completedAt: true }
     })
   ]);
-  const periods = new Map<string, { id: string; periodKey: string; completedAt: Date }>();
+  const periodsByKey = new Map<string, { id: string; periodKey: string; completedAt: Date }>();
+  const rememberPeriod = (period: { id: string; periodKey: string; completedAt: Date }) => {
+    const existing = periodsByKey.get(period.periodKey);
+    if (
+      !existing ||
+      period.completedAt.getTime() < existing.completedAt.getTime() ||
+      (
+        period.completedAt.getTime() === existing.completedAt.getTime() &&
+        period.id.localeCompare(existing.id) < 0
+      )
+    ) {
+      periodsByKey.set(period.periodKey, period);
+    }
+  };
   for (const receipt of receipts) {
     const period = receipt.contribution.period;
-    if (period.completedAt) periods.set(period.id, { ...period, completedAt: period.completedAt });
+    if (period.completedAt) rememberPeriod({ ...period, completedAt: period.completedAt });
   }
-  for (const period of devPeriods) if (period.completedAt) periods.set(period.id, { ...period, completedAt: period.completedAt });
-  const ordered = [...periods.values()].sort((left, right) =>
+  for (const period of devPeriods) {
+    if (period.completedAt) rememberPeriod({ ...period, completedAt: period.completedAt });
+  }
+  const ordered = [...periodsByKey.values()].sort((left, right) =>
     left.completedAt.getTime() - right.completedAt.getTime() || left.periodKey.localeCompare(right.periodKey) || left.id.localeCompare(right.id)
   );
   const thresholds = [
@@ -587,7 +726,8 @@ async function syncUserEntitlements(tx: Prisma.TransactionClient, userId: string
       where: { userId_achievementId: { userId, achievementId } },
       create: {
         id: randomUUID(), userId, achievementId, sourcePeriodId: source.id,
-        sourcePeriodKey: source.periodKey, entitledAt: source.completedAt
+        sourcePeriodKey: source.periodKey, entitledAt: source.completedAt,
+        notificationNextAttemptAt: source.completedAt
       },
       update: {}
     });
@@ -720,6 +860,11 @@ interface ProjectionRow {
   character_name: string;
   class_id: string;
   race_id: string;
+}
+
+interface NotificationProjectionRow extends ProjectionRow {
+  notification_state: string;
+  notification_attempt_count: bigint | number;
 }
 
 function mapProjectionRow(row: ProjectionRow): GuildWeeklyAchievementProjectionCandidate {

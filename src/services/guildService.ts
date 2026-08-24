@@ -163,8 +163,11 @@ export class GuildService {
     return this.weeklyGoals?.markAchievementNoticeSent(notice) ?? Promise.resolve(false);
   }
 
-  releaseWeeklyAchievementNotice(notice: { entitlementId: string; claimToken: string }) {
-    return this.weeklyGoals?.releaseAchievementNotice(notice) ?? Promise.resolve(false);
+  recordWeeklyAchievementNoticeFailure(
+    notice: { entitlementId: string; claimToken: string; attemptCount: number },
+    error: unknown
+  ) {
+    return this.weeklyGoals?.recordAchievementNoticeFailure(notice, error) ?? Promise.resolve("lost" as const);
   }
 
   completeWeeklyGoalForDev(telegramUserId: bigint) {

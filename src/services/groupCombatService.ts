@@ -279,7 +279,11 @@ export class GroupCombatService {
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     const pending = await this.settlePendingWithNotices(limit);
     await this.guildWeeklyGoals?.repairCurrentPeriod(limit).catch(() => undefined);
-    const weeklyNotices = await this.guildWeeklyGoals?.claimAchievementNotices(limit).catch(() => []) ?? [];
+    const weeklyNotices = await this.guildWeeklyGoals?.claimAchievementNotices(
+      limit,
+      undefined,
+      { projectEntitlements: false }
+    ).catch(() => []) ?? [];
     return {
       repaired,
       settlementNotices: [
@@ -294,7 +298,8 @@ export class GroupCombatService {
           achievementUnlocks: [notice.unlock],
           weeklyAchievementClaims: [{
             entitlementId: notice.entitlementId,
-            claimToken: notice.claimToken
+            claimToken: notice.claimToken,
+            attemptCount: notice.attemptCount
           }]
         }))
       ]
@@ -305,8 +310,11 @@ export class GroupCombatService {
     return this.guildWeeklyGoals?.markAchievementNoticeSent(notice) ?? Promise.resolve(false);
   }
 
-  releaseWeeklyAchievementNotice(notice: { entitlementId: string; claimToken: string }): Promise<boolean> {
-    return this.guildWeeklyGoals?.releaseAchievementNotice(notice) ?? Promise.resolve(false);
+  recordWeeklyAchievementNoticeFailure(
+    notice: { entitlementId: string; claimToken: string; attemptCount: number },
+    error: unknown
+  ) {
+    return this.guildWeeklyGoals?.recordAchievementNoticeFailure(notice, error) ?? Promise.resolve("lost" as const);
   }
 
   async settleParticipant(sessionId: string, telegramUserId: bigint) {
@@ -322,7 +330,11 @@ export class GroupCombatService {
     ) {
       await this.guildWeeklyGoals?.recordTerminalSession(sessionId).catch(() => undefined);
       if (result.state === "settled") {
-        weeklyAchievementNotices = await this.guildWeeklyGoals?.claimAchievementNotices(13, telegramUserId)
+        weeklyAchievementNotices = await this.guildWeeklyGoals?.claimAchievementNotices(
+          13,
+          telegramUserId,
+          { projectEntitlements: false }
+        )
           .catch(() => []) ?? [];
       }
     }
@@ -336,7 +348,11 @@ export class GroupCombatService {
         ? {
             ...result,
             achievementUnlocks: weeklyAchievementNotices.map((notice) => notice.unlock),
-            weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken }) => ({ entitlementId, claimToken }))
+            weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken, attemptCount }) => ({
+              entitlementId,
+              claimToken,
+              attemptCount
+            }))
           }
         : result;
     }
@@ -375,7 +391,11 @@ export class GroupCombatService {
       ...result,
       achievementUnlocks: [...unlocks, ...weeklyAchievementNotices.map((notice) => notice.unlock)],
       ...(weeklyAchievementNotices.length > 0
-        ? { weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken }) => ({ entitlementId, claimToken })) }
+        ? { weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken, attemptCount }) => ({
+            entitlementId,
+            claimToken,
+            attemptCount
+          })) }
         : {})
     };
   }

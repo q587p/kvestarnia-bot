@@ -16,7 +16,8 @@ describe("Prisma schema", () => {
     for (const model of [
       "GuildWeeklyGoalPeriod",
       "GuildWeeklyContribution",
-      "GuildWeeklyContributorReceipt"
+      "GuildWeeklyContributorReceipt",
+      "GuildWeeklyAchievementEntitlement"
     ]) {
       expect(schema).toContain(`model ${model}`);
     }
@@ -25,9 +26,14 @@ describe("Prisma schema", () => {
     expect(schema).toContain("guildCrestSnapshot String");
     expect(schema).toContain("@@unique([guildId, periodKey, goalKey])");
     expect(schema).toContain("@@unique([contributionId, userId])");
+    expect(schema).toContain("notificationState    String                @default(\"PENDING\")");
+    expect(schema).toContain("notificationAttemptCount Int               @default(0)");
+    expect(schema).toContain("@@index([notificationState, notificationNextAttemptAt, entitledAt, id])");
     expect(migration).toContain("guild_weekly_goal_eligible");
     expect(migration).toContain("guild_weekly_contributions_group_combat_session_id_key");
     expect(migration).toContain("guild_weekly_contributor_receipts_contribution_id_user_id_key");
+    expect(migration).toContain("guild_weekly_achievement_entitlements_notification_state_check");
+    expect(migration).toContain("notification_permanent_failure_at");
   });
 
   it("stores User-level referral attribution, immutable reward entitlements, and leased outbox delivery", () => {

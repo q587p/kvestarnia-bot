@@ -356,6 +356,12 @@ group-raid completion event counts are labeled as recorded evidence. Exact
 acquisition, D1/D7 retention, first-day PvE, duel acceptance/completion/rematches
 and party funnel KPIs remain `null` or listed in `missingInstrumentation` because
 the best-effort event ledger does not certify complete historical coverage.
+The same read-only JSON includes bounded `operations.guildWeeklyGoal`
+aggregates: periods, expedition/contributor receipts, credited/ineligible
+reconciliations by typed reason, Glory receipts, entitlements and
+pending/claimed/projected/sent/permanent-failure notification counts. It does
+not emit individual rows, recipient identity, Character names, message content,
+claim tokens, raw Telegram errors or exact private delivery timestamps.
 
 Without arguments the window ends at command time and starts 93 days earlier.
 Use ISO timestamps for a reproducible observation record:

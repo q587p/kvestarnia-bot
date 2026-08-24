@@ -1,12 +1,15 @@
 import { getAchievementDefinition } from "../content/achievements";
-import type {
-  ClaimedGuildWeeklyAchievementNotification,
-  GuildGloryBoardResult,
-  GuildGloryBoardView,
-  GuildWeeklyContributionResult,
-  GuildWeeklyGoalMetrics,
-  GuildWeeklyGoalRepository,
-  GuildWeeklyGoalViewResult
+import {
+  GUILD_WEEKLY_NOTIFICATION_MAX_ATTEMPTS,
+  type ClaimedGuildWeeklyAchievementNotification,
+  type GuildWeeklyAchievementNotificationErrorCategory,
+  type GuildWeeklyAchievementNotificationFailureResult,
+  type GuildGloryBoardResult,
+  type GuildGloryBoardView,
+  type GuildWeeklyContributionResult,
+  type GuildWeeklyGoalMetrics,
+  type GuildWeeklyGoalRepository,
+  type GuildWeeklyGoalViewResult
 } from "../db/repositories/guildWeeklyGoalRepository";
 import {
   GUILD_WEEKLY_ACHIEVEMENT_ID,
@@ -23,8 +26,13 @@ export interface GuildWeeklyAchievementNotice {
   characterName: string;
   classId: string;
   raceId: string;
+  attemptCount: number;
   unlock: AchievementUnlock;
 }
+
+const WEEKLY_NOTIFICATION_BACKOFF_BASE_MS = 60_000;
+const WEEKLY_NOTIFICATION_BACKOFF_MAX_MS = 13 * 60_000;
+const WEEKLY_NOTIFICATION_RETRY_AFTER_MAX_MS = 93 * 60_000;
 
 export class GuildWeeklyGoalService {
   constructor(
@@ -102,10 +110,13 @@ export class GuildWeeklyGoalService {
 
   async claimAchievementNotices(
     limit = 13,
-    telegramUserId?: bigint
+    telegramUserId?: bigint,
+    options: { projectEntitlements?: boolean } = {}
   ): Promise<GuildWeeklyAchievementNotice[]> {
     if (!this.isEnabled()) return [];
-    await this.projectAchievementEntitlements(93, telegramUserId);
+    if (options.projectEntitlements !== false) {
+      await this.projectAchievementEntitlements(93, telegramUserId);
+    }
     const claims = await this.repository.claimAchievementNotifications({
       limit,
       now: this.clock(),
@@ -122,8 +133,38 @@ export class GuildWeeklyGoalService {
     );
   }
 
-  releaseAchievementNotice(notice: Pick<GuildWeeklyAchievementNotice, "entitlementId" | "claimToken">): Promise<boolean> {
-    return this.repository.releaseAchievementNotification(notice.entitlementId, notice.claimToken);
+  recordAchievementNoticeFailure(
+    notice: Pick<GuildWeeklyAchievementNotice, "entitlementId" | "claimToken" | "attemptCount">,
+    error: unknown
+  ): Promise<GuildWeeklyAchievementNotificationFailureResult> {
+    const failedAt = this.clock();
+    const failure = classifyGuildWeeklyAchievementDeliveryFailure(error);
+    const exhausted = notice.attemptCount >= GUILD_WEEKLY_NOTIFICATION_MAX_ATTEMPTS;
+    if (failure.disposition === "permanent" || exhausted) {
+      return this.repository.recordAchievementNotificationFailure({
+        entitlementId: notice.entitlementId,
+        claimToken: notice.claimToken,
+        failedAt,
+        errorCategory: exhausted ? "delivery-attempts-exhausted" : failure.category,
+        disposition: "permanent"
+      });
+    }
+    const exponentialBackoffMs = Math.min(
+      WEEKLY_NOTIFICATION_BACKOFF_MAX_MS,
+      WEEKLY_NOTIFICATION_BACKOFF_BASE_MS * (2 ** Math.min(4, Math.max(0, notice.attemptCount - 1)))
+    );
+    const retryAfterMs = Math.min(
+      WEEKLY_NOTIFICATION_RETRY_AFTER_MAX_MS,
+      Math.max(0, failure.retryAfterSeconds ?? 0) * 1000
+    );
+    return this.repository.recordAchievementNotificationFailure({
+      entitlementId: notice.entitlementId,
+      claimToken: notice.claimToken,
+      failedAt,
+      errorCategory: failure.category,
+      disposition: "retry",
+      nextAttemptAt: new Date(failedAt.getTime() + Math.max(exponentialBackoffMs, retryAfterMs))
+    });
   }
 
   getMetrics(): Promise<GuildWeeklyGoalMetrics> {
@@ -191,6 +232,7 @@ function toAchievementNotice(claim: ClaimedGuildWeeklyAchievementNotification): 
     characterName: claim.characterName,
     classId: claim.classId,
     raceId: claim.raceId,
+    attemptCount: claim.attemptCount,
     unlock: {
       id: definition.id,
       title: definition.title,
@@ -198,4 +240,47 @@ function toAchievementNotice(claim: ClaimedGuildWeeklyAchievementNotification): 
       unlockedAt: claim.entitledAt
     }
   };
+}
+
+export function classifyGuildWeeklyAchievementDeliveryFailure(error: unknown): {
+  disposition: "retry" | "permanent";
+  category: GuildWeeklyAchievementNotificationErrorCategory;
+  retryAfterSeconds?: number;
+} {
+  const candidate = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const nested = candidate.error && typeof candidate.error === "object"
+    ? candidate.error as Record<string, unknown>
+    : candidate.response && typeof candidate.response === "object"
+      ? candidate.response as Record<string, unknown>
+      : {};
+  const code = numberOrNull(candidate.error_code)
+    ?? numberOrNull(nested.error_code)
+    ?? numberOrNull(candidate.statusCode)
+    ?? numberOrNull(nested.status);
+  const parameters = candidate.parameters && typeof candidate.parameters === "object"
+    ? candidate.parameters as Record<string, unknown>
+    : nested.parameters && typeof nested.parameters === "object"
+      ? nested.parameters as Record<string, unknown>
+      : {};
+
+  if (code === 429) {
+    const retryAfterSeconds = numberOrNull(parameters.retry_after);
+    return retryAfterSeconds === null
+      ? { disposition: "retry", category: "telegram-rate-limited" }
+      : { disposition: "retry", category: "telegram-rate-limited", retryAfterSeconds };
+  }
+  if (code === 408) {
+    return { disposition: "retry", category: "telegram-timeout" };
+  }
+  if (code !== null && code >= 500 && code <= 599) {
+    return { disposition: "retry", category: "telegram-server" };
+  }
+  if (code !== null && code >= 400 && code <= 499) {
+    return { disposition: "permanent", category: "telegram-client" };
+  }
+  return { disposition: "retry", category: "telegram-transport" };
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

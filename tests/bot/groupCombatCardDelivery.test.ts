@@ -69,14 +69,15 @@ describe("group-combat canonical participant delivery", () => {
 
   it.each([
     { label: "acknowledges", fails: false },
-    { label: "releases", fails: true }
+    { label: "records a bounded failure", fails: true }
   ])("$label a durable weekly achievement claim only after Telegram delivery", async ({ fails }) => {
+    const sendError = { error_code: 503 };
     const sendMessage = fails
-      ? vi.fn().mockRejectedValue(new Error("Telegram unavailable"))
+      ? vi.fn().mockRejectedValue(sendError)
       : vi.fn().mockResolvedValue({ message_id: 93 });
     const markWeeklyAchievementNoticeSent = vi.fn().mockResolvedValue(true);
-    const releaseWeeklyAchievementNotice = vi.fn().mockResolvedValue(true);
-    const claim = { entitlementId: "weekly-entitlement-1", claimToken: "claim-1" };
+    const recordWeeklyAchievementNoticeFailure = vi.fn().mockResolvedValue("retry-scheduled");
+    const claim = { entitlementId: "weekly-entitlement-1", claimToken: "claim-1", attemptCount: 1 };
 
     await expect(deliverGroupCombatSettlementNotifications(
       { sendMessage } as unknown as Api,
@@ -97,14 +98,17 @@ describe("group-combat canonical participant delivery", () => {
       }],
       {
         markWeeklyAchievementNoticeSent,
-        releaseWeeklyAchievementNotice
+        recordWeeklyAchievementNoticeFailure
       } as unknown as GroupCombatService
     )).resolves.toBe(fails ? 0 : 1);
 
     expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledTimes(fails ? 0 : 1);
-    expect(releaseWeeklyAchievementNotice).toHaveBeenCalledTimes(fails ? 1 : 0);
-    expect((fails ? releaseWeeklyAchievementNotice : markWeeklyAchievementNoticeSent))
-      .toHaveBeenCalledWith(claim);
+    expect(recordWeeklyAchievementNoticeFailure).toHaveBeenCalledTimes(fails ? 1 : 0);
+    if (fails) {
+      expect(recordWeeklyAchievementNoticeFailure).toHaveBeenCalledWith(claim, sendError);
+    } else {
+      expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledWith(claim);
+    }
   });
 
   it("orders each production intro before that participant's keyboard-bearing canonical card", async () => {

@@ -90,6 +90,7 @@ describe("guild command routes", () => {
     const claim = {
       entitlementId: "weekly-entitlement-1",
       claimToken: "claim-1",
+      attemptCount: 1,
       telegramUserId: 42n,
       characterId: "character-42",
       characterName: "Відновлена",

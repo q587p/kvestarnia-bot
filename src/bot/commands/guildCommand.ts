@@ -743,8 +743,8 @@ async function deliverWeeklyAchievementNotices(
         reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
       });
       await service.markWeeklyAchievementNoticeSent(notice);
-    } catch {
-      await service.releaseWeeklyAchievementNotice(notice).catch(() => false);
+    } catch (error) {
+      await service.recordWeeklyAchievementNoticeFailure(notice, error).catch(() => "lost");
     }
   }
 }

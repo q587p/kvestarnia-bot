@@ -93,6 +93,117 @@ describe("GuildWeeklyGoalService", () => {
     await expect(service.completeCurrentForDev(1n)).resolves.toEqual({ state: "disabled" });
     expect(repository.completeCurrentForDev).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [{ error_code: 403 }, "permanent", "telegram-client", undefined],
+    [{ error_code: 400 }, "permanent", "telegram-client", undefined],
+    [{ error_code: 429, parameters: { retry_after: 93 } }, "retry", "telegram-rate-limited", 93_000],
+    [{ error_code: 429, parameters: { retry_after: 999_999 } }, "retry", "telegram-rate-limited", 93 * 60_000],
+    [{ error_code: 503 }, "retry", "telegram-server", 60_000]
+  ] as const)(
+    "classifies bounded Telegram delivery failure %#",
+    async (error, disposition, errorCategory, expectedDelayMs) => {
+      const repository = repositoryMock();
+      repository.recordAchievementNotificationFailure.mockResolvedValue(
+        disposition === "retry" ? "retry-scheduled" : "permanent-failure"
+      );
+      const service = new GuildWeeklyGoalService(repository, {
+        enabled: true,
+        devHelpersEnabled: false
+      }, () => NOW);
+      const notice = { entitlementId: "entitlement-1", claimToken: "claim-1", attemptCount: 1 };
+
+      await service.recordAchievementNoticeFailure(notice, error);
+
+      expect(repository.recordAchievementNotificationFailure).toHaveBeenCalledWith({
+        entitlementId: "entitlement-1",
+        claimToken: "claim-1",
+        failedAt: NOW,
+        errorCategory,
+        disposition,
+        ...(expectedDelayMs === undefined
+          ? {}
+          : { nextAttemptAt: new Date(NOW.getTime() + expectedDelayMs) })
+      });
+    }
+  );
+
+  it("terminalizes the thirteenth failed attempt without scheduling another retry", async () => {
+    const repository = repositoryMock();
+    repository.recordAchievementNotificationFailure.mockResolvedValue("permanent-failure");
+    const service = new GuildWeeklyGoalService(repository, {
+      enabled: true,
+      devHelpersEnabled: false
+    }, () => NOW);
+
+    await service.recordAchievementNoticeFailure({
+      entitlementId: "entitlement-13",
+      claimToken: "claim-13",
+      attemptCount: 13
+    }, { error_code: 503 });
+
+    expect(repository.recordAchievementNotificationFailure).toHaveBeenCalledWith(expect.objectContaining({
+      disposition: "permanent",
+      errorCategory: "delivery-attempts-exhausted"
+    }));
+  });
+
+  it("does not repeat the entitlement projection scan when an idle repair tick claims its projected outbox", async () => {
+    const repository = repositoryMock();
+    repository.listUnreconciledTerminalSessionIds.mockResolvedValue([]);
+    const service = new GuildWeeklyGoalService(repository, {
+      enabled: true,
+      devHelpersEnabled: false
+    }, () => NOW, { trackEvent: vi.fn() } as unknown as AchievementService);
+
+    await service.repairCurrentPeriod(13);
+    await service.claimAchievementNotices(13, undefined, { projectEntitlements: false });
+
+    expect(repository.listAchievementProjectionCandidates).toHaveBeenCalledOnce();
+    expect(repository.claimAchievementNotifications).toHaveBeenCalledOnce();
+  });
+
+  it("does not duplicate the underlying achievement projection after a permanent delivery failure", async () => {
+    const repository = repositoryMock();
+    const candidate = {
+      entitlementId: "entitlement-stable",
+      achievementId: "achievement.guild.weekly-goal-completed",
+      sourcePeriodId: "period-stable",
+      sourcePeriodKey: "12026-W35",
+      entitledAt: NOW,
+      telegramUserId: 1n,
+      userId: "user-stable",
+      characterId: "character-stable",
+      remortCount: 0,
+      characterName: "Стабільна",
+      classId: "class.priest",
+      raceId: "race.human-ish"
+    };
+    repository.listAchievementProjectionCandidates
+      .mockResolvedValueOnce([candidate])
+      .mockResolvedValue([]);
+    repository.markAchievementProjected.mockResolvedValue(true);
+    repository.claimAchievementNotifications
+      .mockResolvedValueOnce([{ ...candidate, claimToken: "claim-stable", attemptCount: 1 }])
+      .mockResolvedValue([]);
+    repository.recordAchievementNotificationFailure.mockResolvedValue("permanent-failure");
+    repository.listUnreconciledTerminalSessionIds.mockResolvedValue([]);
+    const trackEvent = vi.fn<AchievementService["trackEvent"]>().mockResolvedValue([]);
+    const service = new GuildWeeklyGoalService(repository, {
+      enabled: true,
+      devHelpersEnabled: false
+    }, () => NOW, { trackEvent } as unknown as AchievementService);
+
+    await service.getCurrentForTelegramUser(1n);
+    const [notice] = await service.claimAchievementNotices(13, 1n, { projectEntitlements: false });
+    await service.recordAchievementNoticeFailure(notice!, { error_code: 403 });
+    await service.repairCurrentPeriod(13);
+    await service.claimAchievementNotices(13, 1n, { projectEntitlements: false });
+
+    expect(trackEvent).toHaveBeenCalledOnce();
+    expect(repository.markAchievementProjected).toHaveBeenCalledOnce();
+    expect(repository.recordAchievementNotificationFailure).toHaveBeenCalledOnce();
+  });
 });
 
 function repositoryMock() {
@@ -107,7 +218,7 @@ function repositoryMock() {
     markAchievementProjected: vi.fn<GuildWeeklyGoalRepository["markAchievementProjected"]>(),
     claimAchievementNotifications: vi.fn<GuildWeeklyGoalRepository["claimAchievementNotifications"]>().mockResolvedValue([]),
     markAchievementNotificationSent: vi.fn<GuildWeeklyGoalRepository["markAchievementNotificationSent"]>(),
-    releaseAchievementNotification: vi.fn<GuildWeeklyGoalRepository["releaseAchievementNotification"]>(),
+    recordAchievementNotificationFailure: vi.fn<GuildWeeklyGoalRepository["recordAchievementNotificationFailure"]>(),
     getMetrics: vi.fn<GuildWeeklyGoalRepository["getMetrics"]>()
   } satisfies GuildWeeklyGoalRepository;
 }

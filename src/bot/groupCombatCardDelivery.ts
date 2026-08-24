@@ -632,7 +632,7 @@ export async function deliverGroupCombatSettlementNotifications(
         }
       } catch (error) {
         for (const claim of notice.weeklyAchievementClaims ?? []) {
-          await service?.releaseWeeklyAchievementNotice(claim).catch(() => false);
+          await service?.recordWeeklyAchievementNoticeFailure(claim, error).catch(() => "lost");
         }
         throw error;
       }

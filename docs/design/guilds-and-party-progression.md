@@ -197,6 +197,13 @@ five rows per page with clamped navigation and an off-page own-place row. No
 player, roster, role, contribution, Telegram identity or individual superiority
 ranking is derived from these projections.
 
+The rewardless personal milestones count one eligible contributor receipt per
+User and Kyiv Monday-to-Monday `sourcePeriodKey`, not one row per guild. If a
+User changes guilds and helps two guild periods complete under the same key,
+that calendar week advances the 3/13 milestones once. The earliest canonical
+completion time and stable period id own non-revoking provenance; recreation or
+remort only reprojects the same entitlement and never sends a second notice.
+
 ## Future guild-system backlog
 
 The following ideas are recorded for later version tasks only. They do not

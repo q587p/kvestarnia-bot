@@ -141,8 +141,31 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
       expeditionReceipts: 15,
       contributorReceipts: 30,
       reconciliationDecisions: 16,
+      reconciliations: {
+        credited: 15,
+        ineligible: 1,
+        ineligibleByReason: {
+          "feature-not-frozen": 1,
+          "wrong-encounter": 0,
+          "not-won": 0,
+          "missing-completion": 0,
+          "missing-settlement-plan": 0,
+          "invalid-settlement-plan": 0,
+          "wrong-settlement-policy": 0,
+          "too-few-manual-participants": 0,
+          "missing-user-snapshot": 0,
+          "no-eligible-guild": 0
+        }
+      },
       gloryReceipts: 1,
-      achievementEntitlements: 2
+      achievementEntitlements: 2,
+      achievementNotifications: {
+        pending: 2,
+        claimed: 0,
+        projected: 0,
+        sent: 0,
+        permanentFailure: 0
+      }
     });
 
     const completedAt = view.state === "ready" ? view.progress.completedAt : null;
@@ -504,6 +527,260 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     await expect(service.claimAchievementNotices(13, 70_001n)).resolves.toEqual([]);
   });
 
+  it("bounds permanent and transient Telegram retries with leases, restart-stable backoff and exact-once SENT", async () => {
+    const isolatedDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-weekly-outbox-"));
+    const statements: string[] = [];
+    const isolated = new PrismaClient({
+      datasources: { db: { url: `file:${join(isolatedDirectory, "outbox.db").replace(/\\/gu, "/")}` } },
+      log: [{ emit: "event", level: "query" }]
+    });
+    isolated.$on("query", (event: { query: string }) => statements.push(event.query));
+    try {
+      await createBaseSchema(isolated);
+      await applySqlFile(isolated, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
+      await seedGuild(isolated);
+      const source = await new PrismaGuildWeeklyGoalRepository(isolated).completeCurrentForDev(
+        70_001n,
+        new Date("2026-08-25T12:00:00.000Z")
+      );
+      if (source.state !== "ready" || !source.progress.periodId) throw new Error("Expected dev period evidence.");
+      const sourcePeriodId = source.progress.periodId;
+      const dueAt = new Date("2026-08-25T13:00:00.000Z");
+      const weeklyAchievementId = "achievement.guild.weekly-goal-completed";
+      const existingA = await isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: { userId_achievementId: { userId: "user-a", achievementId: weeklyAchievementId } },
+        select: { id: true }
+      });
+      for (const [suffix, id] of [["a", existingA.id], ["b", "outbox-b"], ["c", "outbox-c"]] as const) {
+        await isolated.guildWeeklyAchievementEntitlement.upsert({
+          where: { userId_achievementId: { userId: `user-${suffix}`, achievementId: weeklyAchievementId } },
+          create: {
+            id,
+            userId: `user-${suffix}`,
+            achievementId: weeklyAchievementId,
+            sourcePeriodId,
+            sourcePeriodKey: "12026-W35",
+            entitledAt: dueAt,
+            projectedCharacterId: `character-${suffix}`,
+            projectedRemortCount: 0,
+            projectedAt: dueAt,
+            notificationNextAttemptAt: dueAt
+          },
+          update: {
+            projectedCharacterId: `character-${suffix}`,
+            projectedRemortCount: 0,
+            projectedAt: dueAt,
+            notificationState: "PENDING",
+            notificationAttemptCount: 0,
+            notificationNextAttemptAt: dueAt,
+            notificationClaimToken: null,
+            notificationClaimedUntil: null,
+            notificationPermanentFailureAt: null,
+            notificationLastErrorCategory: null,
+            notifiedAt: null
+          }
+        });
+      }
+
+      let now = dueAt;
+      const makeService = () => new GuildWeeklyGoalService(
+        new PrismaGuildWeeklyGoalRepository(isolated),
+        { enabled: true, devHelpersEnabled: false },
+        () => now
+      );
+      const permanentService = makeService();
+      const [permanent] = await permanentService.claimAchievementNotices(
+        13,
+        70_001n,
+        { projectEntitlements: false }
+      );
+      expect(permanent?.attemptCount).toBe(1);
+      await permanentService.recordAchievementNoticeFailure(permanent!, { error_code: 403 });
+      await expect(isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: { id: existingA.id },
+        select: { notificationState: true, notificationAttemptCount: true, notificationLastErrorCategory: true }
+      })).resolves.toEqual({
+        notificationState: "PERMANENT_FAILURE",
+        notificationAttemptCount: 1,
+        notificationLastErrorCategory: "telegram-client"
+      });
+      now = new Date(dueAt.getTime() + 5_000);
+      await expect(makeService().claimAchievementNotices(
+        13,
+        70_001n,
+        { projectEntitlements: false }
+      )).resolves.toEqual([]);
+
+      now = dueAt;
+      const transientService = makeService();
+      const [firstTransient] = await transientService.claimAchievementNotices(
+        13,
+        70_002n,
+        { projectEntitlements: false }
+      );
+      await transientService.recordAchievementNoticeFailure(
+        firstTransient!,
+        { error_code: 429, parameters: { retry_after: 23 } }
+      );
+      const firstDue = new Date(dueAt.getTime() + 60_000);
+      await expect(isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: { id: "outbox-b" },
+        select: { notificationState: true, notificationAttemptCount: true, notificationNextAttemptAt: true }
+      })).resolves.toEqual({
+        notificationState: "PENDING",
+        notificationAttemptCount: 1,
+        notificationNextAttemptAt: firstDue
+      });
+      now = new Date(firstDue.getTime() - 1);
+      await expect(makeService().claimAchievementNotices(
+        13,
+        70_002n,
+        { projectEntitlements: false }
+      )).resolves.toEqual([]);
+
+      now = firstDue;
+      const restartedService = makeService();
+      const [secondTransient] = await restartedService.claimAchievementNotices(
+        13,
+        70_002n,
+        { projectEntitlements: false }
+      );
+      expect(secondTransient?.attemptCount).toBe(2);
+      await restartedService.recordAchievementNoticeFailure(secondTransient!, { error_code: 503 });
+      const secondDue = new Date(firstDue.getTime() + 120_000);
+      now = new Date(secondDue.getTime() - 1);
+      await expect(makeService().claimAchievementNotices(
+        13,
+        70_002n,
+        { projectEntitlements: false }
+      )).resolves.toEqual([]);
+      now = secondDue;
+      const [successful] = await makeService().claimAchievementNotices(
+        13,
+        70_002n,
+        { projectEntitlements: false }
+      );
+      expect(successful?.attemptCount).toBe(3);
+      await expect(makeService().markAchievementNoticeSent(successful!)).resolves.toBe(true);
+      await expect(makeService().markAchievementNoticeSent(successful!)).resolves.toBe(false);
+      await expect(isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: { id: "outbox-b" },
+        select: { notificationState: true, notificationAttemptCount: true, notifiedAt: true }
+      })).resolves.toEqual({
+        notificationState: "SENT",
+        notificationAttemptCount: 3,
+        notifiedAt: secondDue
+      });
+
+      now = dueAt;
+      const concurrent = await Promise.all([
+        makeService().claimAchievementNotices(13, 70_003n, { projectEntitlements: false }),
+        makeService().claimAchievementNotices(13, 70_003n, { projectEntitlements: false })
+      ]);
+      expect(concurrent.flat()).toHaveLength(1);
+      await makeService().recordAchievementNoticeFailure(concurrent.flat()[0]!, { error_code: 400 });
+      await expect(isolated.guildWeeklyAchievementEntitlement.count({
+        where: { userId: { in: ["user-a", "user-b", "user-c"] }, achievementId: weeklyAchievementId }
+      })).resolves.toBe(3);
+
+      statements.length = 0;
+      now = new Date(secondDue.getTime() + 5_000);
+      await expect(makeService().claimAchievementNotices(
+        13,
+        undefined,
+        { projectEntitlements: false }
+      )).resolves.toEqual([]);
+      expect(statements).toHaveLength(1);
+      expect(statements[0]).toContain("guild_weekly_achievement_entitlements");
+
+      statements.length = 0;
+      const operatorMetrics = await new PrismaGuildWeeklyGoalRepository(isolated).getMetrics();
+      expect(statements).toHaveLength(9);
+      expect(statements.join("\n")).not.toMatch(/telegram_user_id|character_id|claim_token|notified_at/i);
+      expect(operatorMetrics.achievementNotifications).toEqual({
+        pending: 0,
+        claimed: 0,
+        projected: 3,
+        sent: 1,
+        permanentFailure: 2
+      });
+      expect(Object.keys(operatorMetrics.reconciliations.ineligibleByReason)).toHaveLength(10);
+    } finally {
+      await isolated.$disconnect();
+      await rm(isolatedDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  }, 60_000);
+
+  it("counts one User-week across two completed guild periods after a guild change", async () => {
+    const isolatedDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-weekly-user-week-"));
+    const isolated = new PrismaClient({
+      datasources: { db: { url: `file:${join(isolatedDirectory, "user-week.db").replace(/\\/gu, "/")}` } }
+    });
+    try {
+      await createBaseSchema(isolated);
+      await applySqlFile(isolated, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
+      await seedGuild(isolated);
+      await isolated.$executeRawUnsafe(
+        `INSERT INTO guilds (id, normalized_name, display_name, crest, status, activated_at)
+         VALUES ('guild-weekly-b', 'друга печатка', 'Друга Печатка', '🦊', 'active', ?)` ,
+        new Date("2026-08-01T00:00:00.000Z")
+      );
+      const changeAt = new Date("2026-08-24T19:00:00.000Z");
+      await isolated.$executeRawUnsafe(`UPDATE guild_members SET left_at = ? WHERE id = 'member-a'`, changeAt);
+      await isolated.$executeRawUnsafe(
+        `INSERT INTO guild_members (id, guild_id, user_id, joined_at) VALUES
+         ('member-a-b', 'guild-weekly-b', 'user-a', ?),
+         ('member-c-b', 'guild-weekly-b', 'user-c', ?)` ,
+        changeAt,
+        changeAt
+      );
+      const evidence = [
+        ["period-cross-a", "guild-weekly", "12026-W35", new Date("2026-08-24T18:00:00.000Z")],
+        ["period-cross-b", "guild-weekly-b", "12026-W35", new Date("2026-08-24T20:00:00.000Z")],
+        ["period-cross-c", "guild-weekly-b", "12026-W36", new Date("2026-09-01T20:00:00.000Z")],
+        ["period-cross-d", "guild-weekly-b", "12026-W37", new Date("2026-09-08T20:00:00.000Z")]
+      ] as const;
+      for (const row of evidence) await seedCompletedPeriodEvidence(isolated, ...row, "user-a", "character-a");
+      const isolatedRepository = new PrismaGuildWeeklyGoalRepository(isolated);
+
+      await isolatedRepository.recomputePeriod("12026-W35");
+      await expect(isolated.guildWeeklyAchievementEntitlement.findMany({
+        where: { userId: "user-a" },
+        orderBy: { achievementId: "asc" },
+        select: { achievementId: true, sourcePeriodId: true, sourcePeriodKey: true }
+      })).resolves.toEqual([{
+        achievementId: "achievement.guild.weekly-goal-completed",
+        sourcePeriodId: "period-cross-a",
+        sourcePeriodKey: "12026-W35"
+      }]);
+      await isolatedRepository.recomputePeriod("12026-W36");
+      await expect(isolated.guildWeeklyAchievementEntitlement.count({
+        where: { userId: "user-a", achievementId: "achievement.guild.three-weekly-goals" }
+      })).resolves.toBe(0);
+      await isolatedRepository.recomputePeriod("12026-W37");
+      await expect(isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: {
+          userId_achievementId: {
+            userId: "user-a",
+            achievementId: "achievement.guild.three-weekly-goals"
+          }
+        },
+        select: { sourcePeriodId: true, sourcePeriodKey: true }
+      })).resolves.toEqual({ sourcePeriodId: "period-cross-d", sourcePeriodKey: "12026-W37" });
+      const distinctWeeks = await isolated.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(DISTINCT period."period_key") AS count
+        FROM "guild_weekly_contributor_receipts" AS receipt
+        JOIN "guild_weekly_contributions" AS contribution ON contribution."id" = receipt."contribution_id"
+        JOIN "guild_weekly_goal_periods" AS period ON period."id" = contribution."period_id"
+        WHERE receipt."user_id" = 'user-a' AND period."completed_at" IS NOT NULL
+      `;
+      expect(Number(distinctWeeks[0]!.count)).toBe(3);
+    } finally {
+      await isolated.$disconnect();
+      await rm(isolatedDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  }, 60_000);
+
   it("applies, rolls back and restores the migration without touching unrelated populated rows", async () => {
     const smokeDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-weekly-rollback-"));
     const smoke = new PrismaClient({ datasources: { db: { url: `file:${join(smokeDirectory, "smoke.db").replace(/\\/gu, "/")}` } } });
@@ -531,6 +808,16 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
       await applySqlFile(smoke, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
       const restored = await smoke.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info('guild_glory_receipts')`);
       expect(restored.some((column) => column.name === "source_key")).toBe(true);
+      const restoredOutbox = await smoke.$queryRawUnsafe<Array<{ name: string }>>(
+        `PRAGMA table_info('guild_weekly_achievement_entitlements')`
+      );
+      expect(restoredOutbox.map((column) => column.name)).toEqual(expect.arrayContaining([
+        "notification_state",
+        "notification_attempt_count",
+        "notification_next_attempt_at",
+        "notification_permanent_failure_at",
+        "notification_last_error_category"
+      ]));
       await expect(smoke.user.count()).resolves.toBe(1);
     } finally {
       await smoke.$disconnect();
@@ -601,6 +888,67 @@ async function seedSession(prisma: PrismaClient, id: string, completedAt: Date, 
       `character-${suffix}`,
       suffix === "a" ? 0 : suffix === "b" ? 1 : 2
     );
+  }
+}
+
+async function seedCompletedPeriodEvidence(
+  prisma: PrismaClient,
+  periodId: string,
+  guildId: string,
+  periodKey: string,
+  firstCompletedAt: Date,
+  userId: string,
+  characterId: string
+): Promise<void> {
+  const guild = await prisma.guild.findUniqueOrThrow({
+    where: { id: guildId },
+    select: { displayName: true, crest: true }
+  });
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO guild_weekly_goal_periods
+      (id, guild_id, period_key, goal_key, guild_name_snapshot, guild_crest_snapshot,
+       target_count, progress_count, updated_at)
+     VALUES (?, ?, ?, 'ordinary-party-expeditions.v1', ?, ?, 13, 0, CURRENT_TIMESTAMP)`,
+    periodId,
+    guildId,
+    periodKey,
+    guild.displayName,
+    guild.crest
+  );
+  for (let index = 0; index < 13; index += 1) {
+    const sessionId = `${periodId}-session-${index}`;
+    const contributionId = `${periodId}-contribution-${index}`;
+    const completedAt = new Date(firstCompletedAt.getTime() + index);
+    await prisma.$executeRawUnsafe(`INSERT INTO party_sessions (id) VALUES (?)`, `${sessionId}-party`);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO group_combat_sessions
+        (id, party_session_id, encounter_key, status, completed_at, guild_weekly_goal_eligible)
+       VALUES (?, ?, 'nyz-left-passage-party.v1', 'won', ?, true)`,
+      sessionId,
+      `${sessionId}-party`,
+      completedAt
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO guild_weekly_contributions
+        (id, period_id, guild_id, group_combat_session_id, expedition_completed_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      contributionId,
+      periodId,
+      guildId,
+      sessionId,
+      completedAt
+    );
+    if (index === 0) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO guild_weekly_contributor_receipts
+          (id, contribution_id, user_id, character_id, remort_count)
+         VALUES (?, ?, ?, ?, 0)`,
+        `${periodId}-receipt`,
+        contributionId,
+        userId,
+        characterId
+      );
+    }
   }
 }
 

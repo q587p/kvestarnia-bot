@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GroupCombatRepository } from "../../src/db/repositories/groupCombatRepository";
 import { GroupCombatService } from "../../src/services/groupCombatService";
 import type { AchievementService } from "../../src/services/achievementService";
+import type { GuildWeeklyGoalService } from "../../src/services/guildWeeklyGoalService";
 
 describe("GroupCombatService", () => {
   it("cannot start or mutate while the production-safe gate is closed", async () => {
@@ -322,6 +323,33 @@ describe("GroupCombatService", () => {
       }]
     });
   });
+
+  it("uses the repair projection once before the idle scheduler outbox claim", async () => {
+    const { repository, repairInvalidOrOrphaned, listPendingSettlementParticipants } = repositoryFixture();
+    repairInvalidOrOrphaned.mockResolvedValue(0);
+    listPendingSettlementParticipants.mockResolvedValue([]);
+    const repairCurrentPeriod = vi.fn().mockResolvedValue({ recorded: 0, reconciled: 0, recomputed: 0 });
+    const claimAchievementNotices = vi.fn().mockResolvedValue([]);
+    const weeklyGoals = { repairCurrentPeriod, claimAchievementNotices } as unknown as GuildWeeklyGoalService;
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-08-25T12:00:00.000Z"),
+      undefined,
+      undefined,
+      undefined,
+      weeklyGoals
+    );
+
+    await expect(service.repairWithNotices(13)).resolves.toEqual({ repaired: 0, settlementNotices: [] });
+
+    expect(repairCurrentPeriod).toHaveBeenCalledWith(13);
+    expect(claimAchievementNotices).toHaveBeenCalledWith(
+      13,
+      undefined,
+      { projectEntitlements: false }
+    );
+  });
 });
 
 function repositoryFixture() {
@@ -339,6 +367,7 @@ function repositoryFixture() {
     vi.fn<GroupCombatRepository["listPendingSettlementParticipants"]>();
   const listPendingDeliverySessionIds =
     vi.fn<GroupCombatRepository["listPendingDeliverySessionIds"]>();
+  const repairInvalidOrOrphaned = vi.fn<GroupCombatRepository["repairInvalidOrOrphaned"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -355,7 +384,7 @@ function repositoryFixture() {
     listDueSessionIds: vi.fn(),
     listPendingDeliverySessionIds,
     listPendingSettlementParticipants,
-    repairInvalidOrOrphaned: vi.fn(),
+    repairInvalidOrOrphaned,
     settleParticipant,
     compareAndSetParticipantCard: vi.fn(),
     releaseParticipantCard: vi.fn(),
@@ -375,6 +404,7 @@ function repositoryFixture() {
     settleParticipant,
     findById,
     listPendingDeliverySessionIds,
+    repairInvalidOrOrphaned,
     listPendingSettlementParticipants
   };
 }
