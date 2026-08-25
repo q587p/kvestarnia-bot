@@ -81,6 +81,28 @@ describe("daily Korchma round presenter", () => {
       ].join("\n"));
     }
   );
+
+  it.each(["reward-claimed", "reward-replayed"] as const)(
+    "explains that enabled guild Glory does not come from the daily Korchma round for %s",
+    (state) => {
+      const text = presentDailyKorchmaRoundClaim(rewardClaimWithIskrokamin(state), {
+        explainGuildGlory: true
+      });
+
+      expect(text).toContain("Славу здобувають лише чинні ґільдії");
+      expect(text).toContain("13/13 дає рівно +13 Слави");
+      expect(text).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    }
+  );
+
+  it("keeps disabled weekly Glory absent from the daily reward card", () => {
+    const text = presentDailyKorchmaRoundClaim(rewardClaimWithIskrokamin("reward-claimed"), {
+      explainGuildGlory: false
+    });
+
+    expect(text).not.toContain("Славу здобувають лише чинні ґільдії");
+    expect(text).not.toContain("+13 Слави");
+  });
 });
 
 function turnInReadyRound(): DailyKorchmaRoundLookupResult {

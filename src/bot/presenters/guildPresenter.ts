@@ -29,6 +29,11 @@ import type {
 import { escapeHtml } from "./telegramHtml";
 import { presentForwardableSocialInvite } from "./socialInvitePresenter";
 import { guildInviteShareText } from "../../content/guildInviteCopy";
+import {
+  GUILD_GLORY_LIMITS_EXPLANATION,
+  GUILD_GLORY_NON_SOURCE_EXPLANATION,
+  GUILD_GLORY_SOURCE_EXPLANATION
+} from "../../content/guildWeeklyGoalCopy";
 import { GUILD_WEEKLY_GOAL_ICON } from "../itemActionIcons";
 
 export function presentGuildHub(
@@ -132,8 +137,8 @@ export function presentGuildGloryBoard(
   }
   const title = result.view === "glory" ? "✨ <b>Слава</b>" : `🏁 <b>Першість · ${escapeHtml(result.periodKey)}</b>`;
   const explanation = result.view === "glory"
-    ? "Слава за завершені тижневі клопоти. Її не можна витратити, вона нічого не купує й не додає бойової сили."
-    : "Спершу йдуть ґільдії, що завершили справу, — за чергою тринадцятої печатки; решта — за поступом. Точний час книга не виказує.";
+    ? `${GUILD_GLORY_SOURCE_EXPLANATION} ${GUILD_GLORY_LIMITS_EXPLANATION}`
+    : `${GUILD_GLORY_SOURCE_EXPLANATION} Спершу йдуть ґільдії, що завершили справу, — за чергою тринадцятої печатки; решта — за поступом. Точний час книга не виказує.`;
   const rows = result.rows.map((row) => result.view === "glory"
     ? `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — <b>${row.glory} Слави</b>`
     : `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — ${row.completed ? "✅" : "📜"} <b>${row.progressCount}/${row.targetCount}</b>`
@@ -180,8 +185,8 @@ export function presentGuildView(
           "",
           `${GUILD_WEEKLY_GOAL_ICON} <b>Тижневий спільний клопіт · ${escapeHtml(guild.weeklyGoal.periodKey)}</b>`,
           guild.weeklyGoal.completedAt
-            ? `Завершено: <b>${guild.weeklyGoal.targetCount}/${guild.weeklyGoal.targetCount}</b> · отримано <b>+13 Слави</b>. Внесок не дає бойової сили й не множить здобич.`
-            : `Звичайні успішні походи ґільдійною ватагою: <b>${guild.weeklyGoal.progressCount}/${guild.weeklyGoal.targetCount}</b>. Зараховується весь ручний внесок — удар, захист і підтримка.`,
+            ? `Завершено: <b>${guild.weeklyGoal.targetCount}/${guild.weeklyGoal.targetCount}</b> · отримано <b>+13 Слави</b>. ${GUILD_GLORY_NON_SOURCE_EXPLANATION} ${GUILD_GLORY_LIMITS_EXPLANATION}`
+            : `Звичайні успішні походи ґільдійною ватагою: <b>${guild.weeklyGoal.progressCount}/${guild.weeklyGoal.targetCount}</b>. ${GUILD_GLORY_SOURCE_EXPLANATION} Зараховується весь ручний внесок — удар, захист і підтримка.`,
           `Слава ґільдії: <b>${guild.weeklyGoal.gloryTotal}</b> · тижневе місце: <b>${guild.weeklyGoal.weeklyPlace}</b>.`
         ]
       : []),

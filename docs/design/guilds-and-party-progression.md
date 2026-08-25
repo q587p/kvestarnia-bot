@@ -189,7 +189,9 @@ leaderboard” boundary with a bounded guild-only read model. Thirteen eligible
 ordinary expeditions complete one Kyiv/Holocene period and mint one immutable
 source receipt for `13` non-spendable Glory. Glory survives rename, remort and
 membership changes, buys nothing, grants no capacity/stat/reward and is not the
-guild XP planned for `0.4.15`.
+guild XP planned for `0.4.15`. `Корчмарський обхід`, every other daily quest and
+all personal activities grant no Glory; the enabled daily reward card, private
+guild hub, both Book views and Glory lore state the sole weekly `13/13` source.
 
 `📜 Книга слави` remains location-bound to the Guild Nest and follows the public
 directory's escaping/privacy rules. `✨ Слава` shows active guild crest, name and

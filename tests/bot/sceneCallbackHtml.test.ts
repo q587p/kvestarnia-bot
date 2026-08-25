@@ -31,6 +31,9 @@ import {
   makeCellarMethodCallbackData
 } from "../../src/bot/callbacks/cellarCallbackData";
 import {
+  makeDailyKorchmaRoundClaimCallbackData
+} from "../../src/bot/callbacks/dailyKorchmaRoundCallbackData";
+import {
   makeFightCallbackData,
   makeFightGearActionCallbackData,
   makeFightItemsCallbackData,
@@ -4274,6 +4277,63 @@ describe("scene callback HTML options", () => {
     expect(keyboard).toContain("🍹 Напої для себе");
     expect(keyboard).toContain("v1:sh:dr");
   });
+
+  it.each([
+    { weeklyEnabled: true, shouldExplain: true },
+    { weeklyEnabled: false, shouldExplain: false }
+  ])(
+    "keeps the daily reward's Guild Glory boundary aligned with weekly flag $weeklyEnabled",
+    async ({ weeklyEnabled, shouldExplain }) => {
+      const claimReward = vi.fn(() => Promise.resolve({
+        state: "reward-claimed" as const,
+        character,
+        offer: {
+          dayKey: "2026-06-28",
+          dayToken: "20260628",
+          lifeToken: 0,
+          requiredSteps: 2,
+          completedSceneIds: ["scene-a", "scene-b"],
+          omittedSceneId: "scene-c",
+          scenes: []
+        },
+        reward: {
+          xp: 20,
+          gold: 25,
+          localDate: "2026-06-28",
+          itemGrants: []
+        },
+        levelChange: null,
+        achievementUnlocks: []
+      }));
+      const calls = await captureApiCalls(
+        makeDailyKorchmaRoundClaimCallbackData("20260628", 0),
+        servicesWith({
+          dailyKorchmaRound: {
+            claimReward
+          } as unknown as BotServices["dailyKorchmaRound"],
+          guilds: {
+            isEnabled: () => true,
+            isWeeklyGoalEnabled: () => weeklyEnabled,
+            areDevHelpersEnabled: () => false,
+            areWeeklyDevHelpersEnabled: () => false
+          } as unknown as BotServices["guilds"]
+        })
+      );
+      const edit = calls.find((call) => call.method === "editMessageText");
+      const text = String(edit?.payload.text);
+
+      expect(claimReward).toHaveBeenCalledWith(42n, {
+        type: "claim",
+        dayToken: "20260628",
+        lifeToken: 0
+      });
+      expect(text).toContain("🧾 Корчмарський обхід здано");
+      expect(text).toContain("+20 XP");
+      expect(text.includes("13/13 дає рівно +13 Слави")).toBe(shouldExplain);
+      expect(text.includes("Корчмарський обхід, інші денні квести й особисті справи Слави не дають"))
+        .toBe(shouldExplain);
+    }
+  );
 
   it("reopens an active daily Korchma round scene from the persistent location reply button", async () => {
     const markAction = vi.fn(() => Promise.resolve());

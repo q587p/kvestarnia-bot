@@ -404,6 +404,8 @@ describe("guild presenter privacy", () => {
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4096);
     expect(text).toContain("Тижневий спільний клопіт · 12026-W35");
     expect(text).toContain("8/13");
+    expect(text).toContain("13/13 дає рівно +13 Слави");
+    expect(text).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
     expect(text).toContain("удар, захист і підтримка");
     expect(keyboard.flat().every((button) =>
       !("callback_data" in button) || Buffer.byteLength(button.callback_data, "utf8") <= 64
@@ -513,9 +515,17 @@ describe("guild presenter privacy", () => {
     };
     const text = presentGuildGloryBoard(result);
     expect(text).toContain("📜 <b>Книга слави</b>");
+    expect(text).toContain("Славу здобувають лише чинні ґільдії");
+    expect(text).toContain("13/13 дає рівно +13 Слави");
+    expect(text).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    expect(text).toContain("Славу не можна витратити");
     expect(text).toContain("1. &lt;&amp; <b>&lt;Печатка&gt;</b> — <b>26 Слави</b>");
     expect(text).toContain("Ваша ґільдія: <b>7 місце</b> · 0 Слави.");
     expect(text).not.toMatch(/гравець|роль|telegram|token|точний час/iu);
+    const primacyText = presentGuildGloryBoard({ ...result, view: "primacy" as const });
+    expect(primacyText).toContain("Славу здобувають лише чинні ґільдії");
+    expect(primacyText).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    expect(primacyText).toContain("Спершу йдуть ґільдії, що завершили справу");
     const rows = buildGuildGloryBoardKeyboard(result).inline_keyboard;
     expect(rows[0]?.map((button) => button.text)).toEqual(["• ✨ Слава", "🏁 Першість"]);
     expect(rows[1]?.map((button) => button.text)).toEqual(["🔎 Оновити", "➡️"]);

@@ -415,7 +415,10 @@ leave/kick/remort, repair/restart і Sunday→Monday recovery. У Гнізді �
 public guild-ranking-only `📜 Книга слави`: a nonmember at the Nest can read
 `✨ Слава` and `🏁 Першість`; verify shared tied places, five rows, clamped
 pagination, member-only off-page own place and absence of private
-даних. Flag off має ховати weekly/Glory reads+writes, не звичайний party route.
+даних. Приватний hub, обидві вкладки книги й завершений `Корчмарський обхід`
+мають прямо пояснювати: лише weekly `13/13` дає `+13 Слави`, денні та особисті
+справи — ні. Flag off має ховати weekly/Glory reads+writes і пояснення на
+денній нагороді, але не звичайний party route.
 `/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
 QA-only canonical completion evidence; у production команда відсутня.
 
