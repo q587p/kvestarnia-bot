@@ -200,9 +200,11 @@ ranking is derived from these projections.
 The rewardless personal milestones count one eligible contributor receipt per
 User and Kyiv Monday-to-Monday `sourcePeriodKey`, not one row per guild. If a
 User changes guilds and helps two guild periods complete under the same key,
-that calendar week advances the 3/13 milestones once. The earliest canonical
-completion time and stable period id own non-revoking provenance; recreation or
-remort only reprojects the same entitlement and never sends a second notice.
+that calendar week advances the 3/13 milestones once. At the first durable
+threshold crossing, canonical completion time and stable period id order the
+available evidence and freeze non-revoking provenance; later evidence cannot
+rewrite a delivered source. Recreation or remort only reprojects the same
+entitlement and never sends a second notice.
 
 ## Future guild-system backlog
 

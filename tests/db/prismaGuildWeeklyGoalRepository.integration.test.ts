@@ -136,6 +136,7 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     });
     expect(completionEvents[0]?.dedupeKey).toMatch(/^guild\.weekly_goal_completed:/u);
     expect(await repository.getMetrics()).toEqual({
+      scope: "cumulative-current",
       periodsStarted: 2,
       periodsCompleted: 1,
       expeditionReceipts: 15,

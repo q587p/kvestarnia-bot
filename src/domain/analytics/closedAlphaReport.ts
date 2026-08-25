@@ -43,6 +43,7 @@ export interface ClosedAlphaAggregateReport {
 }
 
 export interface ClosedAlphaGuildWeeklyGoalMetrics {
+  scope: "cumulative-current";
   periodsStarted: number;
   periodsCompleted: number;
   expeditionReceipts: number;

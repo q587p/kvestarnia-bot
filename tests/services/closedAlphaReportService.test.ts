@@ -5,6 +5,7 @@ describe("ClosedAlphaReportService", () => {
   it("reaches the bounded aggregate weekly metrics path without selecting private rows", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const getMetrics = vi.fn().mockResolvedValue({
+      scope: "cumulative-current" as const,
       periodsStarted: 2,
       periodsCompleted: 1,
       expeditionReceipts: 13,
@@ -42,6 +43,7 @@ describe("ClosedAlphaReportService", () => {
       expect(JSON.stringify(call[0])).not.toMatch(/telegram|characterName|message|token|claim/i);
     }
     expect(report.operations.guildWeeklyGoal).toMatchObject({
+      scope: "cumulative-current",
       periodsStarted: 2,
       reconciliations: { credited: 13, ineligible: 2 },
       achievementNotifications: { pending: 1, sent: 1 }

@@ -166,7 +166,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
           }
         });
         await createReconciliation(tx, session.id, "credited", "credited", period.key, session.completedAt);
-        const justCompleted = await recomputePeriodArtifacts(tx, goal.id);
+        const justCompleted = await recomputeGuildWeeklyPeriodArtifacts(tx, goal.id);
         return {
           state: "recorded" as const,
           progress: await loadProgressByPeriodId(tx, goal.id),
@@ -289,7 +289,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
     for (const period of periods) {
       const before = `${period.progressCount}:${period.completedAt?.toISOString() ?? ""}`;
       await this.prisma.$transaction(async (tx) => {
-        await recomputePeriodArtifacts(tx, period.id);
+        await recomputeGuildWeeklyPeriodArtifacts(tx, period.id);
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       const after = await this.prisma.guildWeeklyGoalPeriod.findUniqueOrThrow({
         where: { id: period.id },
@@ -335,7 +335,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
           data: { devOverrideCompletedAt: now, devOverrideUserId: user.id }
         });
       }
-      await recomputePeriodArtifacts(tx, period.id);
+      await recomputeGuildWeeklyPeriodArtifacts(tx, period.id);
       return period.id;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { state: "ready", progress: await loadProgressByPeriodId(this.prisma, periodId) };
@@ -582,7 +582,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
       .find((row) => row.notificationState === state)?._count._all ?? 0;
     const credited = reconciliationCount("credited");
     const ineligible = reconciliationCount("ineligible");
-    return { periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
+    return { scope: "cumulative-current", periodsStarted, periodsCompleted, expeditionReceipts, contributorReceipts,
       reconciliationDecisions: credited + ineligible,
       reconciliations: { credited, ineligible, ineligibleByReason },
       gloryReceipts,
@@ -628,7 +628,10 @@ async function createReconciliation(
   });
 }
 
-async function recomputePeriodArtifacts(tx: Prisma.TransactionClient, periodId: string): Promise<boolean> {
+export async function recomputeGuildWeeklyPeriodArtifacts(
+  tx: Prisma.TransactionClient,
+  periodId: string
+): Promise<boolean> {
   const period = await tx.guildWeeklyGoalPeriod.findUniqueOrThrow({
     where: { id: periodId },
     select: {
@@ -649,7 +652,18 @@ async function recomputePeriodArtifacts(tx: Prisma.TransactionClient, periodId: 
   const justCompleted = !period.completedAt && canonicalCompletedAt !== null;
   await tx.guildWeeklyGoalPeriod.update({ where: { id: period.id }, data: { progressCount, completedAt: canonicalCompletedAt } });
   if (!canonicalCompletedAt) {
+    const pendingEntitlements = await tx.guildWeeklyAchievementEntitlement.findMany({
+      where: { sourcePeriodId: period.id, projectedAt: null, notifiedAt: null },
+      select: { userId: true }
+    });
+    await tx.guildWeeklyAchievementEntitlement.deleteMany({
+      where: { sourcePeriodId: period.id, projectedAt: null, notifiedAt: null }
+    });
+    await tx.guildGloryReceipt.deleteMany({ where: { periodId: period.id } });
     await tx.activityEvent.deleteMany({ where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` } });
+    for (const userId of new Set(pendingEntitlements.map((row) => row.userId))) {
+      await syncUserEntitlements(tx, userId);
+    }
     return false;
   }
   await tx.guildGloryReceipt.upsert({
@@ -659,7 +673,7 @@ async function recomputePeriodArtifacts(tx: Prisma.TransactionClient, periodId: 
       sourceKey: `guild-weekly-goal:${period.id}`, amount: GUILD_WEEKLY_GLORY_AWARD,
       awardedAt: canonicalCompletedAt
     },
-    update: {}
+    update: { awardedAt: canonicalCompletedAt }
   });
   await tx.activityEvent.upsert({
     where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` },

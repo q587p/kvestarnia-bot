@@ -90,6 +90,7 @@ function eventAt(value: string | Date): { occurredAt: Date; recordedAt: Date } {
 }
 
 const guildWeeklyGoalMetrics = {
+  scope: "cumulative-current" as const,
   periodsStarted: 13,
   periodsCompleted: 8,
   expeditionReceipts: 93,

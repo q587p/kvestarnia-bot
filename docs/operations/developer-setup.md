@@ -102,8 +102,12 @@ Use `/dev_delete_account` only when a Telegram QA account must become truly
 fresh again. The first call shows the destructive scope; only the exact
 `/dev_delete_account ПІДТВЕРДЖУЮ` form atomically deletes that Telegram User,
 its Character, referral relations/outbox rows, founded or led guilds and related
-local Chronicle evidence. The helper is not registered in production and never
-touches a hosted database.
+local Chronicle evidence. Weekly cleanup also removes the reset identity from
+entitlements, notification claims, contributor/snapshot rows and dev overrides.
+Surviving guild periods are receipt-recomputed; deleted-guild combat history is
+retained but frozen weekly-ineligible so no credited decision can outlive its
+receipt. The helper is not registered in production and never touches a hosted
+database.
 
 ### HP recovery notification rollout
 
@@ -357,7 +361,9 @@ acquisition, D1/D7 retention, first-day PvE, duel acceptance/completion/rematche
 and party funnel KPIs remain `null` or listed in `missingInstrumentation` because
 the best-effort event ledger does not certify complete historical coverage.
 The same read-only JSON includes bounded `operations.guildWeeklyGoal`
-aggregates: periods, expedition/contributor receipts, credited/ineligible
+aggregates labeled `scope: "cumulative-current"`: these totals are current over
+all stored weekly evidence and are not restricted to `[from, to)`. They cover
+periods, expedition/contributor receipts, credited/ineligible
 reconciliations by typed reason, Glory receipts, entitlements and
 pending/claimed/projected/sent/permanent-failure notification counts. It does
 not emit individual rows, recipient identity, Character names, message content,

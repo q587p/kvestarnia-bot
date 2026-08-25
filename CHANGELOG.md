@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4.8] - 12026-08-24 - Guild Weekly Goal, Glory Book, and GroupCombat Ability Parity
+## [0.4.8] - 12026-08-26 - Guild Weekly Goal, Glory Book, and GroupCombat Ability Parity
 
 ### Added
 - Added one default-off Kyiv/Holocene guild goal for thirteen successful ordinary left-passage party expeditions, with immutable session and contributor receipts, capped progress, historical membership-at-completion checks and a compact private guild-hub recap.
@@ -15,6 +15,8 @@
 ### Changed
 - Ordinary production GroupCombat starts now freeze internal User-level weekly identity. Every frozen eligible terminal session receives one typed credited/ineligible reconciliation decision, so bounded repair advances past rejected rows and recovers pre-rollover completions into their authoritative old period.
 - Added `GUILD_WEEKLY_GOAL_ENABLED=false` as a deploy-safe kill switch; disabling it hides weekly/Glory hub and board reads and blocks new eligibility/writes while preserving existing evidence and ordinary party expeditions.
+- Restored atomic `/dev_delete_account` compatibility with the weekly graph: reset identities leave no entitlement/outbox, contributor, snapshot or dev-override rows; surviving override periods recompute from receipts, while deleted-guild weekly evidence is removed child-first and retained combat sessions become weekly-ineligible before replay.
+- Labeled closed-alpha weekly counters as cumulative/current totals rather than `[from, to)` KPIs, and documented achievement provenance as the immutable first durable threshold crossing.
 
 ### Security
 - Guild selection uses active historical membership at the terminal timestamp, freezes contributor Character/remort identity plus the completion guild name/crest, caps progress at the canonical thirteenth expedition and publishes no participant identity, role, location, token or private timestamp.

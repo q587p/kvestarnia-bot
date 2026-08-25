@@ -134,9 +134,11 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 For the cumulative guild-week triggers, one eligible User receipt in any
 completed guild period counts a Kyiv Monday-to-Monday `sourcePeriodKey` once.
 Changing guilds or contributing to another completed guild period under the
-same key cannot add a second week. The earliest canonical completion time and
-stable period id choose immutable provenance; later Character recreation or
-remort reprojects that User-week without creating another notice.
+same key cannot add a second week. At the first durable threshold crossing,
+canonical completion time and stable period id order the evidence then
+available. That chosen source is immutable and non-revoking: later-discovered
+earlier evidence does not rewrite a delivered entitlement, while Character
+recreation or remort reprojects the same User-week without another notice.
 | `achievement.duel.quick.thirteen` | enabled | visible | `duel.quick.resolved >= 13` | Тринадцять швидких непорозумінь | завершити 13 миттєвих дуелей і навчити рукавичку літати по графіку. |
 | `achievement.duel.turnbased.first` | enabled | visible | `duel.turnbased.resolved >= 1` | Хід подумав і погодився | уперше завершити покрокову дуель і пережити офіційне очікування. |
 | `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |

@@ -28,6 +28,7 @@ export type GuildWeeklyContributionResult =
     };
 
 export interface GuildWeeklyGoalMetrics {
+  scope: "cumulative-current";
   periodsStarted: number;
   periodsCompleted: number;
   expeditionReceipts: number;
