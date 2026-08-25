@@ -31,6 +31,7 @@ describe("lore board presenter", () => {
       "⚔️ Класи пригодників",
       "🧌 Бестіарій",
       "🎒 Манатки",
+      "🏰 Ґільдії",
       "📜 Звичаї й чутки",
       "🎲 Випадковий переказ",
       "⬅️ До Дошки корчми"
@@ -47,6 +48,26 @@ describe("lore board presenter", () => {
     expect(flatInlineButtonTexts(page.keyboard)).toContain("Людисько");
     expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreEntryCallbackData("race-human-ish"));
     expect(flatInlineButtonCallbacks(page.keyboard)).toContain(makeLoreCategoryRandomCallbackData("races"));
+  });
+
+  it("keeps guild rules and Glory discoverable from their own category", () => {
+    const page = presentLoreCategory("guilds");
+
+    expect(page.text).toContain("🏰 Ґільдії");
+    expect(page.text).toContain("Слава й те, чого вона не купує");
+    expect(flatInlineButtonTexts(page.keyboard)).toEqual(expect.arrayContaining([
+      "Ґільдійний статут",
+      "Книга слави"
+    ]));
+    expect(flatInlineButtonCallbacks(page.keyboard)).toEqual(expect.arrayContaining([
+      makeLoreEntryCallbackData("custom-guild-charter"),
+      makeLoreEntryCallbackData("custom-guild-glory-book"),
+      makeLoreCategoryRandomCallbackData("guilds")
+    ]));
+
+    const customsPage = presentLoreCategory("customs");
+    expect(flatInlineButtonTexts(customsPage.keyboard)).not.toContain("Ґільдійний статут");
+    expect(flatInlineButtonTexts(customsPage.keyboard)).not.toContain("Книга слави");
   });
 
   it("renders place category as compact subgroups", () => {

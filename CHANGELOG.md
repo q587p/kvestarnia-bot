@@ -20,6 +20,7 @@
 - Restored the public Guild Nest contract: nonmembers can read the guild-only Glory and Primacy rankings, while only active guild aggregates appear and own-place recovery remains member-specific.
 - Split the personal guild opt-in into a private management screen and a separate compact forwardable invitation card, so forwarding no longer carries code-management instructions.
 - Made the Glory source explicit in the daily Korchma reward, private guild hub, both Book views and lore: only a completed guild weekly `13/13` grants `+13 Слави`; daily quests and personal activities grant none.
+- Made guild lore discoverable from the Lore Board main menu through a dedicated `🏰 Ґільдії` category containing both `Ґільдійний статут` and `Книга слави`; the Guild Nest remains a separate place record.
 
 ### Security
 - Guild selection uses active historical membership at the terminal timestamp, freezes contributor Character/remort identity plus the completion guild name/crest, caps progress at the canonical thirteenth expedition and publishes no participant identity, role, location, token or private timestamp.

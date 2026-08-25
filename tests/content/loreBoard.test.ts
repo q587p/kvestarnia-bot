@@ -69,6 +69,7 @@ describe("lore board content", () => {
       "⚔️ Класи пригодників",
       "🧌 Бестіарій",
       "🎒 Манатки",
+      "🏰 Ґільдії",
       "📜 Звичаї й чутки"
     ]);
 
@@ -257,8 +258,8 @@ describe("lore board content", () => {
     const nest = loreEntries.find((entry) => entry.id === "place-guild-nest");
     const referral = loreEntries.find((entry) => entry.id === "custom-referral-call");
 
-    expect(guild).toMatchObject({ categoryId: "customs", title: "Ґільдійний статут" });
-    expect(glory).toMatchObject({ categoryId: "customs", title: "Книга слави" });
+    expect(guild).toMatchObject({ categoryId: "guilds", title: "Ґільдійний статут" });
+    expect(glory).toMatchObject({ categoryId: "guilds", title: "Книга слави" });
     expect(glory?.body).toContain("завершення 13/13 лишає ґільдії рівно +13 Слави");
     expect(glory?.body).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
     expect(referral).toMatchObject({ categoryId: "customs", title: "Поклик до Квестарні" });
@@ -286,7 +287,16 @@ describe("lore board content", () => {
     const seed = JSON.parse(readFileSync(
       join(process.cwd(), "docs", "content", "kvestarnia-lore-seed.json"),
       "utf8"
-    )) as { entries: Array<{ id: string; canonicalRefs?: string[] }> };
+    )) as {
+      categories: Array<{ id: string; title: string }>;
+      entries: Array<{ id: string; categoryId: string; canonicalRefs?: string[] }>;
+    };
+    expect(seed.categories.find((category) => category.id === "guilds"))
+      .toMatchObject({ title: "🏰 Ґільдії" });
+    expect(seed.entries.find((entry) => entry.id === "custom-guild-charter"))
+      .toMatchObject({ categoryId: "guilds" });
+    expect(seed.entries.find((entry) => entry.id === "custom-guild-glory-book"))
+      .toMatchObject({ categoryId: "guilds" });
     expect(seed.entries.find((entry) => entry.id === "place-guild-nest"))
       .toMatchObject({ canonicalRefs: ["location.korchma.deep"] });
     const snapshot = JSON.parse(readFileSync(

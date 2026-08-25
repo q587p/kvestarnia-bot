@@ -19,6 +19,20 @@ describe("lore board callback routing", () => {
     expect(String(editCall?.payload.text)).toContain("🪧 Місцини корчми");
   });
 
+  it("routes the dedicated guild lore category with both guild records", async () => {
+    const calls = await captureCoreCallbackCalls(makeLoreCategoryCallbackData("guilds"));
+    const editCall = calls.find((call) => call.method === "editMessageText");
+
+    expect(calls.find((call) => call.method === "answerCallbackQuery")).toBeDefined();
+    expect(String(editCall?.payload.text)).toContain("🏰 Ґільдії");
+    expect(JSON.stringify(editCall?.payload.reply_markup)).toContain(
+      makeLoreEntryCallbackData("custom-guild-charter")
+    );
+    expect(JSON.stringify(editCall?.payload.reply_markup)).toContain(
+      makeLoreEntryCallbackData("custom-guild-glory-book")
+    );
+  });
+
   it("renders stale lore entry callbacks as a safe fallback", async () => {
     const calls = await captureCoreCallbackCalls(makeLoreEntryCallbackData("stale-entry"));
     const editCall = calls.find((call) => call.method === "editMessageText");

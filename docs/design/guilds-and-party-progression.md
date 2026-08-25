@@ -202,6 +202,10 @@ clamped navigation and add an off-page own-place row only for a member. No
 player, roster, role, contribution, Telegram identity or individual superiority
 ranking is derived from these projections.
 
+The Lore Board keeps this contract discoverable through a dedicated main
+`🏰 Ґільдії` category containing `Ґільдійний статут` and `Книга слави`; the
+physical Guild Nest remains a separate location record under Korchma places.
+
 The rewardless personal milestones count one eligible contributor receipt per
 User and Kyiv Monday-to-Monday `sourcePeriodKey`, not one row per guild. If a
 User changes guilds and helps two guild periods complete under the same key,

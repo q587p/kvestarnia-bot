@@ -419,6 +419,8 @@ pagination, member-only off-page own place and absence of private
 мають прямо пояснювати: лише weekly `13/13` дає `+13 Слави`, денні та особисті
 справи — ні. Flag off має ховати weekly/Glory reads+writes і пояснення на
 денній нагороді, але не звичайний party route.
+У `📖 Переказах` окрема головна категорія `🏰 Ґільдії` має відкривати і
+`Ґільдійний статут`, і `Книга слави`; опис Гнізда окремо лишається серед місцин.
 `/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
 QA-only canonical completion evidence; у production команда відсутня.
 
