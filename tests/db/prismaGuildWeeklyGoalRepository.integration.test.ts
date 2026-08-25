@@ -407,9 +407,13 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     await prisma.$executeRawUnsafe(
       `UPDATE users SET last_seen_location_id = 'location.korchma.deep', updated_at = CURRENT_TIMESTAMP WHERE id = 'user-c'`
     );
-    await expect(repository.getGloryBoardForTelegramUser(
+    const publicBoard = await repository.getGloryBoardForTelegramUser(
       70_003n, "location.korchma.deep", new Date("2026-08-25T12:00:00.000Z"), "glory", 0
-    )).resolves.toEqual({ state: "not-member" });
+    );
+    expect(publicBoard).toMatchObject({ state: "ready", viewerGuild: null, page: 0 });
+    if (publicBoard.state !== "ready") throw new Error("Expected public Glory board for a nonmember.");
+    expect(publicBoard.rows).toHaveLength(5);
+    expect(publicBoard.rows.every((row) => row.viewerGuild === false)).toBe(true);
   });
 
   it("keeps ordinary weekly completion in all and adventurer Chronicles but out of Important", async () => {

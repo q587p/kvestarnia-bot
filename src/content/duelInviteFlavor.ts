@@ -149,13 +149,7 @@ export function renderDuelInviteTemplate(input: {
   fairnessLine: string;
   escapedInviteUrl: string;
 }): string {
-  const template =
-    DUEL_INVITE_TEMPLATES[normalizeTemplateIndex(input.templateIndex)] ??
-    DUEL_INVITE_TEMPLATES[0];
-
-  if (!template) {
-    throw new Error("Duel invite templates must not be empty.");
-  }
+  const template = getDuelInviteTemplate(input.templateIndex);
 
   return [
     `<b>${template.header}</b>`,
@@ -167,6 +161,12 @@ export function renderDuelInviteTemplate(input: {
     "",
     input.escapedInviteUrl
   ].join("\n");
+}
+
+export function getDuelInviteTemplate(templateIndex: number): DuelInviteTemplate {
+  const template = DUEL_INVITE_TEMPLATES[normalizeTemplateIndex(templateIndex)] ?? DUEL_INVITE_TEMPLATES[0];
+  if (!template) throw new Error("Duel invite templates must not be empty.");
+  return template;
 }
 
 function normalizeTemplateIndex(value: number): number {

@@ -130,7 +130,9 @@ There is no global exact-character-name directory. A target creates a bounded,
 target-bound opt-in code and shares it deliberately. Its forwardable card has 13
 distinct Ukrainian invitation texts and includes the actionable private deep
 link in the body; changing the text does not rotate the underlying live link or
-token. External failures collapse
+token. The private code-management screen is never the forwarded artifact: it
+sends a separate compact card through the same shared social-invite presenter as
+referral, duel, party/Big Barrel and tavern-game invitations. External failures collapse
 to one unavailable result instead of revealing whether a User exists or already
 belongs elsewhere.
 
@@ -193,7 +195,8 @@ guild XP planned for `0.4.15`.
 directory's escaping/privacy rules. `✨ Слава` shows active guild crest, name and
 all-time total with dense ties. `🏁 Першість` shows current-week completion-first
 then progress ordering, also with dense ties and no exact timestamps. Both are
-five rows per page with clamped navigation and an off-page own-place row. No
+readable by any current Character at the Nest, use five rows per page with
+clamped navigation and add an off-page own-place row only for a member. No
 player, roster, role, contribution, Telegram identity or individual superiority
 ranking is derived from these projections.
 

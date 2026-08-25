@@ -158,7 +158,7 @@ describe("guild command routes", () => {
     await bot.handleUpdate(commandUpdate("/guild_invite_code", 13));
     await bot.handleUpdate(commandUpdate("/guild_create 🛡 Назва | короткий опис", 14));
 
-    expect(sent).toHaveLength(4);
+    expect(sent).toHaveLength(5);
     const hubMarkup = sent[0]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(hubMarkup.inline_keyboard.flat()).toEqual(expect.arrayContaining([
       expect.objectContaining({ callback_data: "v1:g:n" }),
@@ -181,13 +181,15 @@ describe("guild command routes", () => {
     ]));
     expect(codeMarkup.inline_keyboard.flat().some((button) =>
       typeof button.url === "string" && button.url.startsWith("https://t.me/share/url?")
-    )).toBe(true);
+    )).toBe(false);
     expect(String(sent[2]?.text)).not.toContain("telegram");
-    expect(String(sent[2]?.text)).toContain("<blockquote>");
-    expect(String(sent[2]?.text)).toContain(
-      '<a href="https://t.me/kvestarnia_bot?start=guild_privateInviteCode93">https://t.me/kvestarnia_bot?start=guild_privateInviteCode93</a>'
-    );
-    const invalidCrestMarkup = sent[3]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
+    expect(String(sent[2]?.text)).not.toContain("<blockquote>");
+    expect(String(sent[2]?.text)).toContain("Окрему картку для пересилання надіслано нижче");
+    expect(String(sent[3]?.text)).toContain("<blockquote>");
+    expect(String(sent[3]?.text)).toContain("https://t.me/kvestarnia_bot?start=guild_privateInviteCode93");
+    expect(String(sent[3]?.text)).not.toContain("Новий код");
+    expect(JSON.stringify(sent[3]?.reply_markup)).toContain("✉️ Відкрити шлях");
+    const invalidCrestMarkup = sent[4]?.reply_markup as { inline_keyboard: Array<Array<Record<string, unknown>>> };
     expect(invalidCrestMarkup.inline_keyboard.flat().filter((button) =>
       "callback_data" in button && String(button.callback_data).startsWith("v1:g:r:")
     )).toHaveLength(13);
@@ -301,6 +303,33 @@ describe("guild command routes", () => {
       displayName: "Тиха Печатка",
       description: ""
     });
+  });
+
+  it("edits private invite management and sends a separate forwardable card", async () => {
+    const context = callbackContext();
+    await handleGuildCallback(
+      context.ctx,
+      { type: "invite-code" },
+      guildService({
+        createInviteOptInForTelegramUser: vi.fn().mockResolvedValue({
+          state: "ready",
+          token: "privateInviteCode93",
+          expiresAt: new Date("2026-08-30T20:00:00.000Z")
+        })
+      }),
+      { botUsername: "kvestarnia_bot" }
+    );
+
+    expect(context.editMessageText).toHaveBeenCalledTimes(1);
+    expect(context.reply).toHaveBeenCalledTimes(1);
+    const management = String(context.editMessageText.mock.calls[0]?.[0]);
+    const card = String(context.reply.mock.calls[0]?.[0]);
+    expect(management).toContain("Окрему картку для пересилання надіслано нижче");
+    expect(management).not.toContain("<blockquote>");
+    expect(card).toContain("<blockquote>");
+    expect(card).toContain("https://t.me/kvestarnia_bot?start=guild_privateInviteCode93");
+    expect(card).not.toMatch(/Новий код|Резервний код|Скопіювати/u);
+    expect(JSON.stringify(context.reply.mock.calls[0]?.[1])).toContain("https://t.me/kvestarnia_bot?start=guild_privateInviteCode93");
   });
 
   it("keeps a guild return control when no eligible party exists", async () => {
@@ -475,11 +504,14 @@ describe("guild command routes", () => {
     expect(getInviteOptInForTelegramUser).toHaveBeenCalledWith(42n);
     expect(createInviteOptInForTelegramUser).not.toHaveBeenCalled();
     expect(context.editMessageText).toHaveBeenCalledTimes(1);
+    expect(context.reply).toHaveBeenCalledTimes(1);
     const editedCall = JSON.stringify(context.editMessageText.mock.calls[0]);
     expect(editedCall).toContain("v1:g:ig:2");
     expect(editedCall).toContain("guild_samePrivateInvite93");
     expect(editedCall).not.toContain("v1:g:ig:samePrivateInvite93");
-    expect(String(context.editMessageText.mock.calls[0]?.[0])).toContain("<blockquote>");
+    expect(String(context.editMessageText.mock.calls[0]?.[0])).not.toContain("<blockquote>");
+    expect(String(context.reply.mock.calls[0]?.[0])).toContain("<blockquote>");
+    expect(String(context.reply.mock.calls[0]?.[0])).toContain("https://t.me/kvestarnia_bot?start=guild_samePrivateInvite93");
   });
 
   it("runs a custom emoji through availability, name, description and preview without media work", async () => {
@@ -1295,7 +1327,8 @@ describe("guild command routes", () => {
           state: "ready",
           viewerState: "not-member",
           hasIncomingInvites: true
-        })
+        }),
+        isWeeklyGoalEnabled: () => true
       })
     );
     const nonmemberSettings = nonmember.editMessageText.mock.calls[0]?.[1] as {
@@ -1305,6 +1338,7 @@ describe("guild command routes", () => {
     expect(nonmemberButtons.map((button) => button.text)).toEqual([
       "📚 Чинні ґільдії",
       "❔ Умови й ролі",
+      "📜 Книга слави",
       "✉️ Мої запрошення",
       "🔗 Мій код запрошення",
       "📜 Заснувати свою",
@@ -1385,7 +1419,7 @@ describe("guild command routes", () => {
     expect(JSON.stringify(profile.editMessageText.mock.calls[0]?.[1])).toContain("v1:g:dl:1");
   });
 
-  it("routes guild-only Glory boards and keeps location, membership and flag denials recoverable", async () => {
+  it("routes public guild Glory boards and keeps location and flag denials recoverable", async () => {
     const getGloryBoardForTelegramUser = vi.fn().mockResolvedValue({
       state: "ready",
       view: "primacy",
@@ -1429,7 +1463,6 @@ describe("guild command routes", () => {
 
     for (const deniedResult of [
       { state: "wrong-location" as const, hasGuild: true },
-      { state: "not-member" as const, hasGuild: false },
       { state: "disabled" as const }
     ]) {
       const denied = callbackContext();
@@ -1441,11 +1474,7 @@ describe("guild command routes", () => {
         })
       );
       expect(String(denied.editMessageText.mock.calls[0]?.[0])).toMatch(
-        deniedResult.state === "wrong-location"
-          ? /лише в Гнізді ґільдій/u
-          : deniedResult.state === "not-member"
-            ? /Долучіться до ґільдії/u
-            : /зачинена/u
+        deniedResult.state === "wrong-location" ? /лише в Гнізді ґільдій/u : /зачинена/u
       );
       expect(JSON.stringify(denied.editMessageText.mock.calls[0]?.[1])).toContain("v1:place:deep");
     }

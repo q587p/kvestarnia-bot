@@ -237,8 +237,7 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
     });
     if (!actor?.character) return { state: "no-character" };
     if (actor.lastSeenLocationId !== expectedLocationId) return { state: "wrong-location" };
-    const viewerGuildId = actor.guildMemberships[0]?.guildId;
-    if (!viewerGuildId) return { state: "not-member" };
+    const viewerGuildId = actor.guildMemberships[0]?.guildId ?? null;
 
     const total = await this.prisma.guild.count({ where: { status: "active", disbandedAt: null } });
     const totalPages = Math.max(1, Math.ceil(total / GUILD_GLORY_BOARD_PAGE_SIZE));
@@ -251,15 +250,15 @@ export class PrismaGuildWeeklyGoalRepository implements GuildWeeklyGoalRepositor
       page * GUILD_GLORY_BOARD_PAGE_SIZE,
       GUILD_GLORY_BOARD_PAGE_SIZE
     );
-    const viewerRows = await loadBoardRows(this.prisma, view, periodKey, 0, 1, viewerGuildId);
-    const viewerGuild = viewerRows[0];
-    if (!viewerGuild) return { state: "not-member" };
+    const viewerGuild = viewerGuildId
+      ? (await loadBoardRows(this.prisma, view, periodKey, 0, 1, viewerGuildId))[0] ?? null
+      : null;
     return {
       state: "ready",
       view,
       periodKey,
       rows: rows.map((row) => mapBoardRow(row, viewerGuildId)),
-      viewerGuild: mapBoardRow(viewerGuild, viewerGuildId),
+      viewerGuild: viewerGuild ? mapBoardRow(viewerGuild, viewerGuildId) : null,
       page,
       hasPreviousPage: page > 0,
       hasNextPage: page < totalPages - 1
@@ -852,7 +851,7 @@ async function loadBoardRows(
   `);
 }
 
-function mapBoardRow(row: BoardRow, viewerGuildId: string): GuildGloryBoardEntry {
+function mapBoardRow(row: BoardRow, viewerGuildId: string | null): GuildGloryBoardEntry {
   return {
     guildId: row.guild_id, guildName: row.guild_name, guildCrest: row.guild_crest,
     place: Number(row.place), glory: Number(row.glory), progressCount: Number(row.progress_count),

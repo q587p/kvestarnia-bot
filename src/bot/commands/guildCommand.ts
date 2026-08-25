@@ -17,6 +17,7 @@ import {
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
   buildGuildInviteCodeKeyboard,
+  buildGuildInviteShareCardKeyboard,
   buildGuildNearbyInviteKeyboard,
   buildGuildMemberMutationKeyboard,
   buildGuildMemberTargetKeyboard,
@@ -51,6 +52,7 @@ import {
   presentGuildInviteCreate,
   presentGuildInvitePrompt,
   presentGuildInviteOptIn,
+  presentGuildInviteShareCard,
   presentGuildNearbyInvitePicker,
   presentGuildInviteResponse,
   presentGuildInviteResponseNotification,
@@ -152,6 +154,12 @@ export function registerGuildCommands(
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
   });
   bot.command("guild_invite", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
@@ -356,6 +364,12 @@ export async function handleGuildCallback(
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
     return;
   }
   if (callback.type === "invite-start") {
@@ -430,10 +444,7 @@ export async function handleGuildCallback(
     await safeAnswerCallbackQuery(ctx, {
       text: result.state === "ready" ? "Інший текст готовий; посилання не змінилося." : "Стан посилання перевірено."
     });
-    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), {
-      inviteUrl,
-      variant: callback.variant
-    }), {
+    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), { inviteUrl }), {
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(
         result.state === "ready" ? result.token : undefined,
@@ -441,6 +452,12 @@ export async function handleGuildCallback(
         callback.variant
       )
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl, callback.variant), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
     return;
   }
   if (callback.type === "profile-upload") {

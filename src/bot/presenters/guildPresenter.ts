@@ -27,6 +27,7 @@ import type {
   GuildProfileUpdateResult
 } from "../../services/guildService";
 import { escapeHtml } from "./telegramHtml";
+import { presentForwardableSocialInvite } from "./socialInvitePresenter";
 import { guildInviteShareText } from "../../content/guildInviteCopy";
 import { GUILD_WEEKLY_GOAL_ICON } from "../itemActionIcons";
 
@@ -127,9 +128,7 @@ export function presentGuildGloryBoard(
       return "📜 Книга слави зараз зачинена. Звичайні справи ґільдії лишаються доступними.";
     }
     if (result.state === "no-character") return "Спершу створіть пригодника через /start.";
-    return result.state === "wrong-location"
-      ? "📜 Книгу слави читають лише в Гнізді ґільдій. Поверніться до Спуску й зайдіть до Гнізда."
-      : "📜 Книга слави призначена для чинних ґільдій. Долучіться до ґільдії, тоді поверніться до Гнізда.";
+    return "📜 Книгу слави читають лише в Гнізді ґільдій. Поверніться до Спуску й зайдіть до Гнізда.";
   }
   const title = result.view === "glory" ? "✨ <b>Слава</b>" : `🏁 <b>Першість · ${escapeHtml(result.periodKey)}</b>`;
   const explanation = result.view === "glory"
@@ -139,8 +138,10 @@ export function presentGuildGloryBoard(
     ? `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — <b>${row.glory} Слави</b>`
     : `${row.place}. ${escapeHtml(row.guildCrest)} <b>${escapeHtml(row.guildName)}</b> — ${row.completed ? "✅" : "📜"} <b>${row.progressCount}/${row.targetCount}</b>`
   );
-  const viewerVisible = result.rows.some((row) => row.guildId === result.viewerGuild.guildId);
-  const own = viewerVisible
+  const viewerVisible = result.viewerGuild
+    ? result.rows.some((row) => row.guildId === result.viewerGuild?.guildId)
+    : false;
+  const own = !result.viewerGuild || viewerVisible
     ? []
     : [
         "",
@@ -387,7 +388,7 @@ export function presentGuildCreationResult(result: GuildCreationConfirmRepositor
 export function presentGuildInviteOptIn(
   result: GuildInviteOptInRepositoryResult | { state: "disabled" },
   now: Date,
-  options: { inviteUrl?: string | null; variant?: number } = {}
+  options: { inviteUrl?: string | null } = {}
 ): string {
   if (result.state === "disabled") {
     return "Нові ґільдійні запрошення зараз зачинені.";
@@ -401,32 +402,39 @@ export function presentGuildInviteOptIn(
   if (result.state === "not-found") {
     return "Чинного особистого посилання вже немає. Створіть нове кнопкою «Мій код» у ґільдійному меню.";
   }
-  const shareText = guildInviteShareText(options.variant ?? 0);
   const inviteUrl = options.inviteUrl?.trim() || null;
   const lines = [
     "✉️ <b>Особисте запрошення</b>",
     "",
     inviteUrl
-      ? `Посилання чинне ще <b>${formatRemaining(result.expiresAt, now)}</b>.`
-      : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>.`,
-    ""
+      ? `Окрему картку для пересилання надіслано нижче. Вона чинна ще <b>${formatRemaining(result.expiresAt, now)}</b>.`
+      : `Резервний код чинний ще <b>${formatRemaining(result.expiresAt, now)}</b>.`
   ];
-  if (inviteUrl) {
-    const safeInviteUrl = escapeHtml(inviteUrl);
-    lines.push(`<a href="${safeInviteUrl}">${safeInviteUrl}</a>`, "");
-  }
   lines.push(
-    `<blockquote>${escapeHtml(shareText)}</blockquote>`,
     "",
     inviteUrl
-      ? "Надішліть картку лише тому, від кого хочете отримати запрошення. Текст можна змінити без перевипуску посилання."
+      ? "Пересилайте лише окрему картку, не цей екран керування. Інший текст не перевипускає посилання."
       : "Передайте резервний код лише тому, від кого хочете отримати запрошення.",
-    "",
-    "Квестарня перевірить запрошувача, а ви отримаєте кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>. Перший окремий вступ активує формований статут.",
     "",
     "Новий код одразу скасовує попередній."
   );
   return lines.join("\n");
+}
+
+export function presentGuildInviteShareCard(
+  expiresAt: Date,
+  now: Date,
+  inviteUrl: string,
+  variant = 0
+): string {
+  return presentForwardableSocialInvite({
+    heading: "✉️ Шлях для особистого запрошення",
+    bodyHtml: [
+      `<blockquote>${escapeHtml(guildInviteShareText(variant))}</blockquote>`,
+      `Шлях чинний ще <b>${formatRemaining(expiresAt, now)}</b>.`
+    ].join("\n\n"),
+    inviteUrl
+  });
 }
 
 export function presentGuildInviteCreate(

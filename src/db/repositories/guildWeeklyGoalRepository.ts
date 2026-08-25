@@ -81,13 +81,13 @@ export interface GuildGloryBoardEntry {
 }
 
 export type GuildGloryBoardResult =
-  | { state: "no-character" | "wrong-location" | "not-member" }
+  | { state: "no-character" | "wrong-location" }
   | {
       state: "ready";
       view: GuildGloryBoardView;
       periodKey: string;
       rows: GuildGloryBoardEntry[];
-      viewerGuild: GuildGloryBoardEntry;
+      viewerGuild: GuildGloryBoardEntry | null;
       page: number;
       hasPreviousPage: boolean;
       hasNextPage: boolean;

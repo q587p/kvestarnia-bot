@@ -79,10 +79,10 @@ This targets only the PID tree recorded for this repository's managed runtime. I
 1. Start `run-local-bot.cmd` and begin a manual Telegram test session.
 2. Let Codex edit and test the main repository. The running bot remains on its stable snapshot.
 3. Codex runs `npm run db:generate`, typecheck, build, and tests in the main checkout without touching the runtime Prisma DLL.
-4. At a meaningful checkpoint, first confirm every new task-specific variable
-   exists in the source `.env` with the intended local value, then run
-   `refresh-local-bot.cmd` to promote both the latest files and sanitized local
-   environment for manual testing.
+4. At the final validated and pushed gameplay/runtime checkpoint, Codex first
+   confirms every task-specific variable exists in the source `.env` with the
+   intended local value, then automatically runs `refresh-local-bot.cmd` to
+   promote both the exact head and sanitized local environment for manual testing.
 5. Run `status-local-bot.cmd` and verify the expected snapshot SHA. When a
    feature depends on a new flag, also verify that key in the runtime `.env`;
    the source `.env` alone does not change an already-running snapshot.
@@ -139,12 +139,13 @@ The first backfill command is a dry-run. The `-- --apply` form is required for n
 
 ## Codex boundary
 
-During ordinary implementation and review, Codex should:
+During ordinary interim implementation and review, Codex should:
 
 - leave the isolated bot running;
-- avoid `run-local-bot.cmd`, `refresh-local-bot.cmd`, and `stop-local-bot.cmd` unless the user asks;
+- avoid `run-local-bot.cmd`, `refresh-local-bot.cmd`, and `stop-local-bot.cmd` for intermediate edits;
 - run validation commands in the main checkout;
 - never kill all `node.exe` processes;
-- mention that `refresh-local-bot.cmd` is ready when a new manual-test snapshot should be promoted.
+- automatically refresh the isolated bot after the final validated gameplay/runtime head is pushed, unless the user explicitly opts out or a destructive isolated-database reset needs new authority;
+- verify exact snapshot SHA, copied QA flags, manager/Bot PIDs, a fresh polling-ready log and `/ready` before reporting the local bot ready.
 
 The legacy Prisma lock recovery helper may remain as an in-place fallback, but the isolated launcher should make it unnecessary for normal work.

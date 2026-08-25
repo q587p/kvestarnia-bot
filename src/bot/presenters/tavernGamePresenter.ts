@@ -28,7 +28,7 @@ import type {
 } from "../../db/repositories/tavernGameRepository";
 import { resolveActiveCosmeticTitleLabel } from "../../content/cosmeticTitles";
 import { presentCharacterDisplayName } from "./characterDisplay";
-import { escapeHtml } from "./telegramHtml";
+import { presentForwardableSocialInvite } from "./socialInvitePresenter";
 
 export function presentTavernGameHub(result: TavernGameHubResult): string {
   if (result.state === "disabled") {
@@ -391,18 +391,18 @@ export function presentTavernGameInviteShare(
     throw new Error("Tavern game invite templates must not be empty.");
   }
 
-  return [
-    `<b>${template.header}</b>`,
-    "",
-    ...template.body.flatMap((line) => [line, ""]).slice(0, -1),
-    "",
-    `Кличе: ${presentCharacterDisplayName(session.creator)}`,
-    `Гра: ${tavernGameInviteGameLabel(session)}`,
-    `Місця: ${session.participants.length}/${tavernGamePlayerCap(session)}`,
-    `Ставка: <b>${session.stakeGold} зол.</b>`,
-    "",
-    escapeHtml(inviteUrl)
-  ].join("\n");
+  return presentForwardableSocialInvite({
+    heading: template.header,
+    bodyHtml: [
+      ...template.body,
+      "",
+      `Кличе: ${presentCharacterDisplayName(session.creator)}`,
+      `Гра: ${tavernGameInviteGameLabel(session)}`,
+      `Місця: ${session.participants.length}/${tavernGamePlayerCap(session)}`,
+      `Ставка: <b>${session.stakeGold} зол.</b>`
+    ].join("\n"),
+    inviteUrl
+  });
 }
 
 export function getInitialTavernGameInviteTemplateIndex(token: string): number {

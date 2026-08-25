@@ -15,12 +15,13 @@ import {
   DUEL_INVITE_FAIRNESS_LINE,
   DUEL_INVITE_MODE_LINE,
   DUEL_TURN_BASED_INVITE_MODE_LINE,
-  renderDuelInviteTemplate
+  getDuelInviteTemplate
 } from "../../content/duelInviteFlavor";
 import { selectCharacterFlavorLine } from "../../content/characterFlavor";
 import { pickDuelDrawFlavor, pickDuelResultFlavor } from "../../content/duelResultFlavor";
 import { getCombatSkillDisplay } from "../../services/fightService";
 import { presentCharacterDisplayName } from "./characterDisplay";
+import { presentForwardableSocialInvite } from "./socialInvitePresenter";
 import { presentCombatSkillHtml, presentCombatSupportEffectLine } from "./combatActionPresenter";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -367,12 +368,16 @@ export function presentDuelInviteShare(
   inviteUrl: string,
   options: { templateIndex: number; mode?: "quick" | "turn-based" }
 ): string {
-  return renderDuelInviteTemplate({
-    templateIndex: options.templateIndex,
-    escapedName: presentCharacterDisplayName(character),
-    modeLine: options.mode === "turn-based" ? DUEL_TURN_BASED_INVITE_MODE_LINE : DUEL_INVITE_MODE_LINE,
-    fairnessLine: DUEL_INVITE_FAIRNESS_LINE,
-    escapedInviteUrl: escapeHtml(inviteUrl)
+  const template = getDuelInviteTemplate(options.templateIndex);
+  return presentForwardableSocialInvite({
+    heading: template.header,
+    bodyHtml: [
+      ...template.body(presentCharacterDisplayName(character)),
+      "",
+      options.mode === "turn-based" ? DUEL_TURN_BASED_INVITE_MODE_LINE : DUEL_INVITE_MODE_LINE,
+      DUEL_INVITE_FAIRNESS_LINE
+    ].join("\n"),
+    inviteUrl
   });
 }
 

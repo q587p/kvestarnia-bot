@@ -412,8 +412,9 @@ production.
 Перевір partial/full progress, 13 незатратної Слави, рівний внесок підтримки,
 terminal replay, Character recreation, exact-once achievement notices,
 leave/kick/remort, repair/restart і Sunday→Monday recovery. У Гнізді перевір
-guild-only `📜 Книга слави`: `✨ Слава`, `🏁 Першість`, спільні місця за нічиєї,
-п'ять рядків, clamped pagination, off-page own place та відсутність приватних
+public guild-ranking-only `📜 Книга слави`: a nonmember at the Nest can read
+`✨ Слава` and `🏁 Першість`; verify shared tied places, five rows, clamped
+pagination, member-only off-page own place and absence of private
 даних. Flag off має ховати weekly/Glory reads+writes, не звичайний party route.
 `/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
 QA-only canonical completion evidence; у production команда відсутня.

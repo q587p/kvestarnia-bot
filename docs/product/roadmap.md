@@ -233,8 +233,9 @@ The bounded guild-only `📜 Книга слави` in the Guild Nest has all-ti
 current-week Primacy views with dense ties, five-row pagination and off-page own
 place. It exposes active guild crest/name/aggregate only—never players, rosters,
 roles or timestamps. Glory is non-spendable, is not guild XP and does not pull
-`0.4.15` progression forward. Nonmembers and flag-off deployments keep ordinary
-party progression unchanged and expose no weekly/Glory board.
+`0.4.15` progression forward. Nonmembers at the Guild Nest may read the same
+public guild aggregates without an own-place appendix; flag-off deployments
+expose no weekly/Glory board. Both keep ordinary party progression unchanged.
 
 The PartyBoss/Big Barrel audit confirms nine catalog class abilities plus the
 unknown-class fallback share the typed combat resolver with GroupCombat. Four recruitment/boss-response mechanics
