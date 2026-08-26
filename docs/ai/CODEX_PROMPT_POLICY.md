@@ -148,6 +148,17 @@ When the user names a branch, commit, or PR, prompt/archive deltas must state th
 
 Before handing off a delta, verify the intended branch head when possible. If verification is not possible, say so explicitly and keep the integration prompt defensive.
 
+## Implementation archives
+
+An archive may contain task docs, Codex prompts, manifests, status notes and
+reference deltas. Those files are scoped inputs, not a replacement for the
+user's live request. When the user supplies such an archive and directly says
+to implement or start it, Codex must reconcile the archive with the verified
+repository baseline and execute the owning version task through validation,
+commit, push, ready PR and scoped CI follow-up. Extraction, review, summary or
+returning another prompt is not completion unless the user explicitly requested
+inspection-only or a partial handoff.
+
 ## Artifact naming
 
 Use feature/problem slugs, not PR numbers:

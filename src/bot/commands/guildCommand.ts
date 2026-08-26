@@ -17,6 +17,7 @@ import {
   buildGuildCreationPreviewKeyboard,
   buildGuildHubKeyboard,
   buildGuildInviteCodeKeyboard,
+  buildGuildInviteShareCardKeyboard,
   buildGuildNearbyInviteKeyboard,
   buildGuildMemberMutationKeyboard,
   buildGuildMemberTargetKeyboard,
@@ -28,6 +29,7 @@ import {
   buildGuildPartyPickerKeyboard,
   buildGuildPartyRecoveryKeyboard,
   buildGuildDirectoryKeyboard,
+  buildGuildGloryBoardKeyboard,
   buildGuildPublicProfileKeyboard,
   buildGuildProfileCrestKeyboard,
   GUILD_MEMBER_MANAGEMENT_PAGE_SIZE
@@ -50,6 +52,7 @@ import {
   presentGuildInviteCreate,
   presentGuildInvitePrompt,
   presentGuildInviteOptIn,
+  presentGuildInviteShareCard,
   presentGuildNearbyInvitePicker,
   presentGuildInviteResponse,
   presentGuildInviteResponseNotification,
@@ -61,6 +64,7 @@ import {
   presentGuildNestRules,
   presentGuildPartyPicker,
   presentGuildPublicDirectory,
+  presentGuildGloryBoard,
   presentGuildPublicProfile,
   presentGuildProfileUpdate,
   presentGuildProfileDescriptionPrompt,
@@ -150,6 +154,12 @@ export function registerGuildCommands(
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
   });
   bot.command("guild_invite", async (ctx) => {
     const actor = telegramUserIdFromContext(ctx.from);
@@ -218,6 +228,22 @@ export function registerGuildCommands(
           : "Спершу створіть пригодника через /start.");
     });
   }
+  if (service.areWeeklyDevHelpersEnabled?.()) {
+    bot.command("dev_guild_weekly", async (ctx) => {
+      const actor = telegramUserIdFromContext(ctx.from);
+      if (!actor) return;
+      if (commandArgs(ctx).toLocaleLowerCase("uk-UA") === "finish") {
+        const result = await service.completeWeeklyGoalForDev(actor);
+        await ctx.reply(result.state === "ready"
+          ? `Dev: тижневий клопіт ${result.progress.periodKey} має ${result.progress.progressCount}/${result.progress.targetCount}.`
+          : "Dev: спершу потрібні персонаж і чинна ґільдія.");
+        await deliverWeeklyAchievementNotices(ctx, service, actor);
+        return;
+      }
+      const repaired = await service.repairWeeklyGoalForDev();
+      await ctx.reply(`Dev: відновлено внесків ${repaired.recorded}, перераховано періодів ${repaired.recomputed}. Додайте «finish», щоб закрити поточний клопіт для карткового QA.`);
+    });
+  }
 }
 
 export async function handleGuildCallback(
@@ -262,6 +288,17 @@ export async function handleGuildCallback(
       reply_markup: result.state === "wrong-location" || result.state === "disabled" || result.state === "no-character"
         ? buildGuildNestUnavailableKeyboard()
         : buildGuildPublicProfileKeyboard(callback.page)
+    });
+    return;
+  }
+  if (callback.type === "glory-board") {
+    const result = await service.getGloryBoardForTelegramUser(actor, callback.view, callback.page);
+    await safeAnswerCallbackQuery(ctx);
+    await safeEditMessageText(ctx, presentGuildGloryBoard(result), {
+      ...HTML_OPTIONS,
+      reply_markup: result.state === "ready"
+        ? buildGuildGloryBoardKeyboard(result)
+        : buildGuildNestUnavailableKeyboard()
     });
     return;
   }
@@ -327,6 +364,12 @@ export async function handleGuildCallback(
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(result.state === "ready" ? result.token : undefined, inviteUrl)
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
     return;
   }
   if (callback.type === "invite-start") {
@@ -401,10 +444,7 @@ export async function handleGuildCallback(
     await safeAnswerCallbackQuery(ctx, {
       text: result.state === "ready" ? "Інший текст готовий; посилання не змінилося." : "Стан посилання перевірено."
     });
-    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), {
-      inviteUrl,
-      variant: callback.variant
-    }), {
+    await safeEditMessageText(ctx, presentGuildInviteOptIn(result, new Date(), { inviteUrl }), {
       ...HTML_OPTIONS,
       reply_markup: buildGuildInviteCodeKeyboard(
         result.state === "ready" ? result.token : undefined,
@@ -412,6 +452,12 @@ export async function handleGuildCallback(
         callback.variant
       )
     });
+    if (result.state === "ready" && inviteUrl) {
+      await ctx.reply(presentGuildInviteShareCard(result.expiresAt, new Date(), inviteUrl, callback.variant), {
+        ...HTML_OPTIONS,
+        reply_markup: buildGuildInviteShareCardKeyboard(inviteUrl)
+      });
+    }
     return;
   }
   if (callback.type === "profile-upload") {
@@ -669,7 +715,9 @@ async function sendGuildNest(ctx: Context, service: GuildService, actor: bigint)
   const result = await service.getNestForTelegramUser(actor);
   await safeEditMessageText(ctx, presentGuildNest(result), {
     ...HTML_OPTIONS,
-    reply_markup: result.state === "ready" ? buildGuildNestKeyboard(result) : buildGuildNestUnavailableKeyboard()
+    reply_markup: result.state === "ready"
+      ? buildGuildNestKeyboard(result, { weeklyGoalEnabled: service.isWeeklyGoalEnabled?.() === true })
+      : buildGuildNestUnavailableKeyboard()
   });
 }
 
@@ -693,6 +741,28 @@ export async function sendGuildHub(
     await safeEditMessageText(ctx, text, settings);
   } else {
     await ctx.reply(text, settings);
+  }
+  await deliverWeeklyAchievementNotices(ctx, service, actor);
+}
+
+async function deliverWeeklyAchievementNotices(
+  ctx: Context,
+  service: GuildService,
+  actor: bigint
+): Promise<void> {
+  const notices = await service.claimWeeklyAchievementNotices?.(actor) ?? [];
+  for (const notice of notices) {
+    const text = presentAchievementUnlockNotification([notice.unlock]);
+    if (!text) continue;
+    try {
+      await ctx.api.sendMessage(Number(notice.telegramUserId), text, {
+        ...HTML_OPTIONS,
+        reply_markup: new InlineKeyboard().text("🏰 До ґільдії", makeGuildOpenCallbackData())
+      });
+      await service.markWeeklyAchievementNoticeSent(notice);
+    } catch (error) {
+      await service.recordWeeklyAchievementNoticeFailure(notice, error).catch(() => "lost");
+    }
   }
 }
 

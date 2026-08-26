@@ -143,6 +143,14 @@ describe("loadConfig", () => {
     }).guildFoundationEnabled).toBe(true);
   });
 
+  it("keeps the guild weekly goal default-off behind its own kill switch", () => {
+    expect(loadConfig(validEnv).guildWeeklyGoalEnabled).toBe(false);
+    expect(loadConfig({
+      ...validEnv,
+      GUILD_WEEKLY_GOAL_ENABLED: "true"
+    }).guildWeeklyGoalEnabled).toBe(true);
+  });
+
   it("keeps tavern social games disabled by default", () => {
     const config = loadConfig(validEnv);
 

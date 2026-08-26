@@ -8,6 +8,7 @@ import {
   makeGuildDeleteCancelCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
+  makeGuildGloryBoardCallbackData,
   makeGuildDeleteOpenCallbackData,
   makeGuildDeleteCallbackData,
   makeGuildInviteCodeCallbackData,
@@ -145,6 +146,18 @@ describe("guild callback data", () => {
     expect(parseGuildCallbackData(values[23])).toEqual({ ok: true, value: { type: "delete-confirm", version: 587 } });
     expect(parseGuildCallbackData("v1:g:l:gb")).toEqual({ ok: true, value: { type: "leave-legacy", version: 587 } });
     expect(parseGuildCallbackData("v1:g:z:gb")).toEqual({ ok: true, value: { type: "delete-legacy", version: 587 } });
+  });
+
+  it("round-trips bounded Glory and Primacy pagination callbacks", () => {
+    expect(parseGuildCallbackData(makeGuildGloryBoardCallbackData("glory", 0))).toEqual({
+      ok: true,
+      value: { type: "glory-board", view: "glory", page: 0 }
+    });
+    expect(parseGuildCallbackData(makeGuildGloryBoardCallbackData("primacy", 587))).toEqual({
+      ok: true,
+      value: { type: "glory-board", view: "primacy", page: 587 }
+    });
+    expect(Buffer.byteLength(makeGuildGloryBoardCallbackData("primacy", 587), "utf8")).toBeLessThanOrEqual(64);
   });
 
   it("rejects oversized, malformed and token-bearing lookalike callbacks", () => {

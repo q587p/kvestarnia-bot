@@ -109,6 +109,7 @@ describe("bot command catalog", () => {
     expect(commands.some((entry) => entry.command === "dev_yeger_second_done")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_bard_performance")).toBe(false);
     expect(commands.some((entry) => entry.command === "dev_reset_tavern_games")).toBe(false);
+    expect(commands.some((entry) => entry.command === "dev_guild_weekly")).toBe(false);
   });
 
   it("describes command aliases by their distinct inventory views", () => {
@@ -194,6 +195,27 @@ describe("bot command catalog", () => {
 
     expect(commands.every((command) => !hidden.some((entry) => entry.command === command))).toBe(true);
     expect(commands.every((command) => visible.some((entry) => entry.command === command))).toBe(true);
+  });
+
+  it("isolates the guild weekly helper from production help and every side menu", () => {
+    const production = getHelpCommandEntries({
+      includeDevReset: false,
+      includeGuild: true,
+      includeGuildWeeklyDev: false
+    });
+    const local = getHelpCommandEntries({
+      includeDevReset: true,
+      includeGuild: true,
+      includeGuildWeeklyDev: true
+    });
+
+    expect(production.some((entry) => entry.command === "dev_guild_weekly")).toBe(false);
+    expect(local.find((entry) => entry.command === "dev_guild_weekly"))
+      .toMatchObject({ includeInMenu: false, devOnly: "guild-weekly" });
+    expect(getTelegramMenuCommands({
+      includeDevReset: true,
+      includeGuildWeeklyDev: true
+    }).some((entry) => entry.command === "dev_guild_weekly")).toBe(false);
   });
 
   it("keeps local dev commands available for dev help but not in the side menu", () => {

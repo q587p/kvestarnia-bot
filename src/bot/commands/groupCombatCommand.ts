@@ -614,7 +614,7 @@ export async function handleGroupCombatCallback(
     await deliverGroupCombatCards(ctx.api, service, session);
   }
   if (settlementNotices) {
-    await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices);
+    await deliverGroupCombatSettlementNotifications(ctx.api, settlementNotices, service);
   }
 }
 
@@ -836,7 +836,7 @@ async function submitGroupCombatReplyAction(
     );
   }
   if ("settlementNotices" in result && result.settlementNotices) {
-    await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices);
+    await deliverGroupCombatSettlementNotifications(ctx.api, result.settlementNotices, service);
   }
 }
 

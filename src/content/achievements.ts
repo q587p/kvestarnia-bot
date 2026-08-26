@@ -34,6 +34,8 @@ export const achievementTriggerTypes = [
   "item.used",
   "guild.created",
   "guild.joined",
+  "guild.weekly_goal_completed",
+  "guild.weekly_goal_periods",
   "equipment.item_equipped",
   "item-upgrade.succeeded",
   "item-upgrade.failed",
@@ -887,6 +889,41 @@ export const achievements = [
     sortOrder: 78.195,
     status: "enabled",
     trigger: { type: "guild.joined", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.weekly-goal-completed",
+    category: "weird",
+    title: "Тринадцять печаток, жодної зайвої",
+    description: "допомогти ґільдії вперше закрити тижневий спільний клопіт звичайними ватагами.",
+    hidden: false,
+    lockedDescription: "допомогти ґільдії закрити тижневий спільний клопіт.",
+    sortOrder: 78.197,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_completed", threshold: 1 }
+  },
+  {
+    id: "achievement.guild.three-weekly-goals",
+    category: "weird",
+    title: "Три понеділки без відмови",
+    description: "допомогти ґільдіям завершити клопоти у три різні календарні тижні.",
+    hidden: false,
+    lockedDescription: "допомогти завершити справи у три різні календарні тижні.",
+    sortOrder: 78.198,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_periods", threshold: 3 },
+    progressTarget: 3
+  },
+  {
+    id: "achievement.guild.thirteen-weekly-goals",
+    category: "weird",
+    title: "Тринадцять тижнів під печаткою",
+    description: "допомогти ґільдіям завершити клопоти у тринадцять різних календарних тижнів.",
+    hidden: false,
+    lockedDescription: "допомогти завершити справи у тринадцять різних календарних тижнів.",
+    sortOrder: 78.199,
+    status: "enabled",
+    trigger: { type: "guild.weekly_goal_periods", threshold: 13 },
+    progressTarget: 13
   },
   {
     id: "achievement.bandage.first-used",

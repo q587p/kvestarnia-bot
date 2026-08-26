@@ -583,7 +583,10 @@ Old group hook docs лишаються історичним input:
 - invite/join/leave та leader/officer/member;
 - audit важливих membership transitions;
 - зручне створення звичайного тимчасового PartySession;
-- після party expedition — одна тижнева групова мета;
+- після party expedition — одна тижнева групова мета з однаковою вагою внеску;
+- за завершений тиждень — рівно 13 незатратної ґільдійної Слави;
+- у Гнізді — guild-only `Книга слави` з all-time Славою та поточною тижневою
+  Першістю, без особистих рейтингів чи матеріальних нагород;
 - після даних — cosmetic-first XP/milestones.
 
 Guild bank, item custody, trade, wars/PvP, power bonuses і guild boss не входять

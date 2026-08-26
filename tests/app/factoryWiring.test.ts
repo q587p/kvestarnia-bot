@@ -279,10 +279,21 @@ describe("application factory wiring", () => {
       itemUse: new ItemUseService(repositories.itemUse, undefined, achievements)
     `));
     expect(source).toContain(compact(`
+      const guildWeeklyGoals = new GuildWeeklyGoalService(
+        repositories.guildWeeklyGoals,
+        {
+          enabled: config.guildFoundationEnabled && config.guildWeeklyGoalEnabled,
+          devHelpersEnabled: nonProduction && config.guildFoundationEnabled && config.guildWeeklyGoalEnabled
+        },
+        undefined,
+        achievements
+      )
+    `));
+    expect(source).toContain(compact(`
       guilds: new GuildService(repositories.guilds, partySessions, {
         enabled: config.guildFoundationEnabled,
         devHelpersEnabled: nonProduction && config.guildFoundationEnabled
-      }, undefined, achievements, publicActivityEvents)
+      }, undefined, achievements, publicActivityEvents, guildWeeklyGoals)
     `));
     expect(source).toContain(compact(`
       itemUpgrades: new ItemUpgradeService(

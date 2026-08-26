@@ -36,7 +36,33 @@ export interface ClosedAlphaAggregateReport {
     finished: null;
     recordedFinishedEvents: number;
   };
+  operations: {
+    guildWeeklyGoal: ClosedAlphaGuildWeeklyGoalMetrics;
+  };
   missingInstrumentation: string[];
+}
+
+export interface ClosedAlphaGuildWeeklyGoalMetrics {
+  scope: "cumulative-current";
+  periodsStarted: number;
+  periodsCompleted: number;
+  expeditionReceipts: number;
+  contributorReceipts: number;
+  reconciliationDecisions: number;
+  reconciliations: {
+    credited: number;
+    ineligible: number;
+    ineligibleByReason: Record<string, number>;
+  };
+  gloryReceipts: number;
+  achievementEntitlements: number;
+  achievementNotifications: {
+    pending: number;
+    claimed: number;
+    projected: number;
+    sent: number;
+    permanentFailure: number;
+  };
 }
 
 export function buildClosedAlphaAggregateReport(input: {
@@ -45,6 +71,7 @@ export function buildClosedAlphaAggregateReport(input: {
   characterCreationEvents: readonly ClosedAlphaRecordedEventRow[];
   duelEvents: readonly ClosedAlphaRecordedDuelEventRow[];
   partyFinishEvents: readonly ClosedAlphaRecordedEventRow[];
+  guildWeeklyGoalMetrics: ClosedAlphaGuildWeeklyGoalMetrics;
 }): ClosedAlphaAggregateReport {
   const characterCreationEvents = input.characterCreationEvents.filter((row) =>
     isStableWindowEvent(row, input.from, input.to)
@@ -86,6 +113,9 @@ export function buildClosedAlphaAggregateReport(input: {
       started: null,
       finished: null,
       recordedFinishedEvents: recordedFinishedParties.length
+    },
+    operations: {
+      guildWeeklyGoal: structuredClone(input.guildWeeklyGoalMetrics)
     },
     missingInstrumentation: [
       "ActivityEvent is best-effort and historical coverage is not certified, so recorded character-creation events are not promoted to an exact acquisition KPI.",

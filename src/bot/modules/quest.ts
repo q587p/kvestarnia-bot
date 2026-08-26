@@ -371,7 +371,9 @@ async function handleDailyKorchmaRoundCallback(
 
   const result = await perf.measureDb(() => services.dailyKorchmaRound.claimReward(telegramUserId, callback));
   const rendered = perf.measureCompute(() => ({
-    text: presentDailyKorchmaRoundClaim(result),
+    text: presentDailyKorchmaRoundClaim(result, {
+      explainGuildGlory: services.guilds?.isWeeklyGoalEnabled() === true
+    }),
     replyMarkup: buildDailyKorchmaRoundClaimKeyboard(result)
   }));
   await perf.measureTelegram(() => safeEditMessageText(ctx, rendered.text, {

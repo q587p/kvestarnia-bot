@@ -39,6 +39,10 @@ describe("latest events presenter", () => {
             subjectName: "<Тиха Печатка>",
             payload: { crest: "<&" }
           }),
+          makeEvent("guild.weekly_goal_completed", "2026-07-02T07:15:00.000Z", {
+            subjectName: "<Спільна Печатка>",
+            payload: { crest: "<&", periodKey: "12026-W27" }
+          }),
           makeEvent("party.raid_won", "2026-07-02T07:00:00.000Z", {
             subjectName: "Старший Брат Бочки",
             payload: { participantCount: 5 }
@@ -91,6 +95,7 @@ describe("latest events presenter", () => {
     expect(text).not.toContain("🚫");
     expect(text).toContain("You®4ik бере 7 рівень (р5)!");
     expect(text).toContain("У Квестарні постала ґільдія «&lt;&amp; &lt;Тиха Печатка&gt;». Писар підкреслив це двічі.");
+    expect(text).toContain("Ґільдія «&lt;&amp; &lt;Спільна Печатка&gt;» закрила тижневий спільний клопіт і здобула +13 Слави.");
     expect(text).toContain("Ватага: перемога. Ціль — «Старший Брат Бочки». У протоколі: 5 пригодників.");
     expect(text).toContain("Ватага: невдача. Ціль — «Старший Брат Бочки». У протоколі: 4 пригодників.");
     expect(text).toContain("Арден: соло-рейд, перемога. Ціль — «Бочка Пінного Міражу».");

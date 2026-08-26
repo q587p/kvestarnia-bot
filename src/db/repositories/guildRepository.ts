@@ -1,4 +1,5 @@
 import type { GuildCrestKind, GuildRole } from "../../domain/guild";
+import type { GuildWeeklyGoalProgressRecord } from "./guildWeeklyGoalRepository";
 
 export type GuildStatus = "forming" | "active";
 
@@ -39,6 +40,7 @@ export interface GuildViewRecord {
   hasNextPage: boolean;
   leadershipNomineeName: string | null;
   viewerIsLeadershipNominee: boolean;
+  weeklyGoal?: GuildWeeklyGoalProgressRecord;
 }
 
 export type GuildHubRepositoryResult =

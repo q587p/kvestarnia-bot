@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GroupCombatRepository } from "../../src/db/repositories/groupCombatRepository";
 import { GroupCombatService } from "../../src/services/groupCombatService";
 import type { AchievementService } from "../../src/services/achievementService";
+import type { GuildWeeklyGoalService } from "../../src/services/guildWeeklyGoalService";
 
 describe("GroupCombatService", () => {
   it("cannot start or mutate while the production-safe gate is closed", async () => {
@@ -100,6 +101,23 @@ describe("GroupCombatService", () => {
       now,
       turnExpiresAt: new Date(now.getTime() + 23_000)
     });
+  });
+
+  it("freezes weekly-goal eligibility only for production starts while the kill switch is enabled", async () => {
+    const { repository, startReadyLeftPassage } = repositoryFixture();
+    startReadyLeftPassage.mockResolvedValue({ state: "not-found" });
+    const service = new GroupCombatService(repository, {
+      enabled: true,
+      devHelpersEnabled: false,
+      leftPassagePartyAttackEnabled: true,
+      guildWeeklyGoalEnabled: true
+    });
+
+    await service.startReadyLeftPassage("party-token-weekly");
+
+    expect(startReadyLeftPassage).toHaveBeenCalledWith(expect.objectContaining({
+      guildWeeklyGoalEligible: true
+    }));
   });
 
   it("does not rescan a recently attempted card delivery before the retry window", async () => {
@@ -238,6 +256,25 @@ describe("GroupCombatService", () => {
     expect(trackEventSafely).not.toHaveBeenCalled();
   });
 
+  it("reconciles weekly receipts on both fresh and replayed settlement paths", async () => {
+    const { repository, settleParticipant } = repositoryFixture();
+    settleParticipant.mockResolvedValue({ state: "replayed", receipt: leftPassageReceipt() });
+    const recordTerminalSession = vi.fn().mockResolvedValue({ state: "replayed" });
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false, guildWeeklyGoalEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { recordTerminalSession } as never
+    );
+
+    await service.settleParticipant("left-session", 42n);
+
+    expect(recordTerminalSession).toHaveBeenCalledWith("left-session");
+  });
+
   it("returns one standard notice when a pending participant retry settles", async () => {
     const {
       repository,
@@ -286,6 +323,33 @@ describe("GroupCombatService", () => {
       }]
     });
   });
+
+  it("uses the repair projection once before the idle scheduler outbox claim", async () => {
+    const { repository, repairInvalidOrOrphaned, listPendingSettlementParticipants } = repositoryFixture();
+    repairInvalidOrOrphaned.mockResolvedValue(0);
+    listPendingSettlementParticipants.mockResolvedValue([]);
+    const repairCurrentPeriod = vi.fn().mockResolvedValue({ recorded: 0, reconciled: 0, recomputed: 0 });
+    const claimAchievementNotices = vi.fn().mockResolvedValue([]);
+    const weeklyGoals = { repairCurrentPeriod, claimAchievementNotices } as unknown as GuildWeeklyGoalService;
+    const service = new GroupCombatService(
+      repository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date("2026-08-25T12:00:00.000Z"),
+      undefined,
+      undefined,
+      undefined,
+      weeklyGoals
+    );
+
+    await expect(service.repairWithNotices(13)).resolves.toEqual({ repaired: 0, settlementNotices: [] });
+
+    expect(repairCurrentPeriod).toHaveBeenCalledWith(13);
+    expect(claimAchievementNotices).toHaveBeenCalledWith(
+      13,
+      undefined,
+      { projectEntitlements: false }
+    );
+  });
 });
 
 function repositoryFixture() {
@@ -303,6 +367,7 @@ function repositoryFixture() {
     vi.fn<GroupCombatRepository["listPendingSettlementParticipants"]>();
   const listPendingDeliverySessionIds =
     vi.fn<GroupCombatRepository["listPendingDeliverySessionIds"]>();
+  const repairInvalidOrOrphaned = vi.fn<GroupCombatRepository["repairInvalidOrOrphaned"]>();
   const repository: GroupCombatRepository = {
     createLeftPassagePartyForTelegramUser: createLeftPassage,
     startProofForTelegramUser: startProof,
@@ -319,7 +384,7 @@ function repositoryFixture() {
     listDueSessionIds: vi.fn(),
     listPendingDeliverySessionIds,
     listPendingSettlementParticipants,
-    repairInvalidOrOrphaned: vi.fn(),
+    repairInvalidOrOrphaned,
     settleParticipant,
     compareAndSetParticipantCard: vi.fn(),
     releaseParticipantCard: vi.fn(),
@@ -339,6 +404,7 @@ function repositoryFixture() {
     settleParticipant,
     findById,
     listPendingDeliverySessionIds,
+    repairInvalidOrOrphaned,
     listPendingSettlementParticipants
   };
 }

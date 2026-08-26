@@ -34,7 +34,7 @@ import {
   supportsPartyReadiness
 } from "./partyPreparationPresenter";
 import { presentRewardBlock } from "./rewardPresenter";
-import { presentSocialInviteIdentityLine } from "./socialInvitePresenter";
+import { presentForwardableSocialInvite, presentSocialInviteIdentityLine } from "./socialInvitePresenter";
 import { escapeHtml } from "./telegramHtml";
 import { presentBattleCombatantResourceLine } from "./battleCombatantPresenter";
 import { presentBattleJournalPage } from "./battleJournalPresenter";
@@ -2197,25 +2197,25 @@ export function presentPartyInviteShare(
   const readyCount = session.participants.filter(
     (participant) => participant.status === "joined" && participant.readiness === "ready"
   ).length;
-  return [
-    `<b>${template.header}</b>`,
-    "",
-    ...template.body.flatMap((line) => [line, ""]).slice(0, -1),
-    "",
-    presentSocialInviteIdentityLine("Ватажок", session.leader),
-    `Учасників: <b>${participantCount}/${session.participantCap}</b>`,
-    leftPassage
-      ? "Формат: справжня гуртова атака в лівому проході Низу."
-      : "Формат: гуртовий рейд проти Старшого Брата Бочки.",
-    ...(leftPassage
-      ? [
-          `Готові: <b>${readyCount}/${participantCount}</b>.`,
-          `До автозапуску: <b>${formatRemainingWaitNominative(session.joinUntilAt, options.now ?? new Date())}</b>.`
-        ]
-      : []),
-    "",
-    escapeHtml(inviteUrl)
-  ].join("\n");
+  return presentForwardableSocialInvite({
+    heading: template.header,
+    bodyHtml: [
+      ...template.body,
+      "",
+      presentSocialInviteIdentityLine("Ватажок", session.leader),
+      `Учасників: <b>${participantCount}/${session.participantCap}</b>`,
+      leftPassage
+        ? "Формат: справжня гуртова атака в лівому проході Низу."
+        : "Формат: гуртовий рейд проти Старшого Брата Бочки.",
+      ...(leftPassage
+        ? [
+            `Готові: <b>${readyCount}/${participantCount}</b>.`,
+            `До автозапуску: <b>${formatRemainingWaitNominative(session.joinUntilAt, options.now ?? new Date())}</b>.`
+          ]
+        : [])
+    ].join("\n"),
+    inviteUrl
+  });
 }
 
 export function presentBigBarrelApproachNotice(

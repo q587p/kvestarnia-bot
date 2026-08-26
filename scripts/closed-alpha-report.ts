@@ -1,51 +1,19 @@
 import "dotenv/config";
 
 import { prisma } from "../src/db/prisma";
-import { buildClosedAlphaAggregateReport } from "../src/domain/analytics/closedAlphaReport";
+import { PrismaGuildWeeklyGoalRepository } from "../src/db/repositories/prismaGuildWeeklyGoalRepository";
+import { ClosedAlphaReportService } from "../src/services/closedAlphaReportService";
+import { GuildWeeklyGoalService } from "../src/services/guildWeeklyGoalService";
 
 async function main(): Promise<void> {
   const { from, to } = parseWindow(process.argv.slice(2));
-  const [characterCreationEvents, duelCompletedEvents, partyFinishEvents] = await Promise.all([
-    prisma.activityEvent.findMany({
-      where: {
-        eventType: "character.created",
-        occurredAt: { gte: from, lt: to },
-        createdAt: { lt: to }
-      },
-      select: { occurredAt: true, createdAt: true }
-    }),
-    prisma.activityEvent.findMany({
-      where: {
-        eventType: "duel.completed",
-        occurredAt: { gte: from, lt: to },
-        createdAt: { lt: to }
-      },
-      select: { occurredAt: true, createdAt: true }
-    }),
-    prisma.activityEvent.findMany({
-      where: {
-        eventType: "raid.completed",
-        sourceType: "party-boss",
-        occurredAt: { gte: from, lt: to },
-        createdAt: { lt: to }
-      },
-      select: { occurredAt: true, createdAt: true }
-    })
-  ]);
-
-  const report = buildClosedAlphaAggregateReport({
-    from,
-    to,
-    characterCreationEvents: characterCreationEvents.map(toRecordedEvent),
-    duelEvents: duelCompletedEvents.map((row) => ({ ...toRecordedEvent(row), status: "resolved" })),
-    partyFinishEvents: partyFinishEvents.map(toRecordedEvent)
-  });
+  const weeklyGoals = new GuildWeeklyGoalService(
+    new PrismaGuildWeeklyGoalRepository(prisma),
+    { enabled: false, devHelpersEnabled: false }
+  );
+  const report = await new ClosedAlphaReportService(prisma, weeklyGoals).build(from, to);
 
   console.log(JSON.stringify(report, null, 2));
-}
-
-function toRecordedEvent(row: { occurredAt: Date; createdAt: Date }): { occurredAt: Date; recordedAt: Date } {
-  return { occurredAt: row.occurredAt, recordedAt: row.createdAt };
 }
 
 function parseWindow(args: readonly string[]): { from: Date; to: Date } {

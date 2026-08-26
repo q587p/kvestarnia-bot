@@ -19,7 +19,8 @@ describe("closed alpha aggregate report", () => {
         { ...eventAt("2026-07-02T00:01:00.000Z"), status: "resolved" },
         { ...eventAt(to), status: "resolved" }
       ],
-      partyFinishEvents: [eventAt("2026-07-06T00:00:00.000Z"), eventAt(to)]
+      partyFinishEvents: [eventAt("2026-07-06T00:00:00.000Z"), eventAt(to)],
+      guildWeeklyGoalMetrics
     });
 
     expect(report).toMatchObject({
@@ -37,6 +38,7 @@ describe("closed alpha aggregate report", () => {
     expect(report.missingInstrumentation).toContain(
       "Duel acceptance time, complete duel-resolution history, and rematch origin are not stored as certified historical events."
     );
+    expect(report.operations.guildWeeklyGoal).toEqual(guildWeeklyGoalMetrics);
   });
 
   it("excludes a post-to ledger insert even when its occurrence claims to be inside the window", () => {
@@ -49,7 +51,8 @@ describe("closed alpha aggregate report", () => {
       to,
       characterCreationEvents: [lateBackfill],
       duelEvents: [{ ...lateBackfill, status: "resolved" }],
-      partyFinishEvents: [lateBackfill]
+      partyFinishEvents: [lateBackfill],
+      guildWeeklyGoalMetrics
     });
 
     expect(report.acquisition.recordedCharacterCreationEvents).toBe(0);
@@ -70,7 +73,8 @@ describe("closed alpha aggregate report", () => {
       to,
       characterCreationEvents: [],
       duelEvents: [{ ...eventAt("2026-07-02T00:00:00.000Z"), status }],
-      partyFinishEvents: []
+      partyFinishEvents: [],
+      guildWeeklyGoalMetrics
     });
     expect(report.duels).toEqual({
       accepted: null,
@@ -84,3 +88,26 @@ describe("closed alpha aggregate report", () => {
 function eventAt(value: string | Date): { occurredAt: Date; recordedAt: Date } {
   return { occurredAt: new Date(value), recordedAt };
 }
+
+const guildWeeklyGoalMetrics = {
+  scope: "cumulative-current" as const,
+  periodsStarted: 13,
+  periodsCompleted: 8,
+  expeditionReceipts: 93,
+  contributorReceipts: 187,
+  reconciliationDecisions: 100,
+  reconciliations: {
+    credited: 93,
+    ineligible: 7,
+    ineligibleByReason: { "not-won": 7 }
+  },
+  gloryReceipts: 8,
+  achievementEntitlements: 23,
+  achievementNotifications: {
+    pending: 3,
+    claimed: 1,
+    projected: 20,
+    sent: 18,
+    permanentFailure: 1
+  }
+};

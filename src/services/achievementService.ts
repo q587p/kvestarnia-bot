@@ -26,6 +26,7 @@ export type AchievementSimpleEventType = Exclude<
   | "achievement.list.opened"
   | "character.created"
   | "referral.arrivals"
+  | "guild.weekly_goal_periods"
   | "gold.balance"
   | "level.reached"
   | "combat.finished"
@@ -55,6 +56,13 @@ export type AchievementEvent =
     }
   | {
       type: "referral.arrivals";
+      characterId: string;
+      count: number;
+      occurredAt: Date;
+      sourceId?: string;
+    }
+  | {
+      type: "guild.weekly_goal_periods";
       characterId: string;
       count: number;
       occurredAt: Date;
@@ -567,6 +575,9 @@ function getEventProgress(definition: AchievementDefinition, event: AchievementE
   if (definition.trigger.type === "referral.arrivals") {
     return event.type === "referral.arrivals" ? Math.max(0, Math.floor(event.count)) : null;
   }
+  if (definition.trigger.type === "guild.weekly_goal_periods") {
+    return event.type === "guild.weekly_goal_periods" ? Math.max(0, Math.floor(event.count)) : null;
+  }
 
   if (
     definition.trigger.type === "achievement.list.opened" ||
@@ -1042,6 +1053,7 @@ function eventPayload(event: AchievementEvent): Record<string, unknown> {
     case "gold.balance":
       return { gold: event.gold };
     case "referral.arrivals":
+    case "guild.weekly_goal_periods":
       return { count: event.count };
     case "equipment.item_equipped":
       return { itemId: event.itemId };

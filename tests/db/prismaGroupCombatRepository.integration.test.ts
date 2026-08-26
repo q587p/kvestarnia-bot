@@ -279,12 +279,34 @@ describe("PrismaGroupCombatRepository integration", () => {
       telegramUserId,
       partyInviteToken: "left-wounded-party-invite",
       now: NOW,
-      turnExpiresAt: new Date(NOW.getTime() + 23_000)
+      turnExpiresAt: new Date(NOW.getTime() + 23_000),
+      guildWeeklyGoalEligible: true
     });
     expect(started.state).toBe("started");
     if ("session" in started) {
+      const weeklyUser = await prisma.user.findUniqueOrThrow({
+        where: { telegramUserId },
+        select: { id: true }
+      });
       expect(started.session.state.enemies[0]?.hp).toBe(7);
       expect(started.session.state.production?.primaryStartingHp).toBe(7);
+      await expect(prisma.groupCombatSession.findUniqueOrThrow({
+        where: { id: started.session.id },
+        select: {
+          guildWeeklyGoalEligible: true,
+          weeklyParticipantSnapshots: {
+            orderBy: { rosterOrder: "asc" },
+            select: { characterId: true, userId: true, rosterOrder: true }
+          }
+        }
+      })).resolves.toEqual({
+        guildWeeklyGoalEligible: true,
+        weeklyParticipantSnapshots: [{
+          characterId: started.session.state.participants[0]!.characterId,
+          userId: weeklyUser.id,
+          rosterOrder: 0
+        }]
+      });
       await prisma.activeCombatLease.deleteMany({ where: { referenceId: started.session.id } });
       await prisma.groupCombatSession.delete({ where: { id: started.session.id } });
     }
@@ -7334,7 +7356,8 @@ async function applyGroupCombatMigration(prisma: PrismaClient): Promise<void> {
     "prisma/migrations/20260722090000_group_combat_proof/migration.sql",
     "prisma/migrations/20260723194500_group_combat_hardening/migration.sql",
     "prisma/migrations/20260724233000_left_passage_party_attack/migration.sql",
-    "prisma/migrations/20260819090000_referral_foundation/migration.sql"
+    "prisma/migrations/20260819090000_referral_foundation/migration.sql",
+    "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql"
   ]) {
     const sql = await readFile(resolve(migration), "utf8");
     for (const statement of sql.split(";").map((value) => value.trim()).filter(Boolean)) {
@@ -7345,6 +7368,7 @@ async function applyGroupCombatMigration(prisma: PrismaClient): Promise<void> {
 
 async function createMinimalSchema(prisma: PrismaClient): Promise<void> {
   for (const statement of [
+    `CREATE TABLE guilds (id TEXT PRIMARY KEY)`,
     `CREATE TABLE users (
       id TEXT PRIMARY KEY, telegram_user_id INTEGER NOT NULL UNIQUE, username TEXT, display_name TEXT,
       language_code TEXT, last_action_at DATETIME, last_seen_location_id TEXT, current_raid_id TEXT,

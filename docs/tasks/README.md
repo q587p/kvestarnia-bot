@@ -28,20 +28,21 @@ Keep each task compact and link to canonical docs instead of copying them.
 
 ## Current release and next task
 
-The current implementation release is `0.4.7`:
-[`0.4.7-universal-battle-stats-korchma-rewards-dismantling.md`](0.4.7-universal-battle-stats-korchma-rewards-dismantling.md).
-It branches from merged `0.4.6` Referral Foundation PR #195. Referral
-six-account Telegram QA, deployment, target flags and production availability
-remain unproven and separate from this task.
+The current implementation release is `0.4.8`:
+[`0.4.8-guild-weekly-goal.md`](0.4.8-guild-weekly-goal.md), on
+`codex/0.4.8-guild-weekly-goal` from merged `0.4.7` PR #196.
+It includes exact-once weekly reconciliation, non-spendable guild Glory and the
+bounded guild-only `Книга слави`; individual-player rankings remain forbidden.
+Automated validation, owning PR and CI are gates; Manual Telegram QA, merge,
+deployment, target flags and production availability remain separate evidence.
 
-[`0.4.8-guild-weekly-goal.md`](0.4.8-guild-weekly-goal.md) is the next planned version.
+[`0.4.9-old-altar-blessings-mvp.md`](0.4.9-old-altar-blessings-mvp.md) is the next planned version.
 
 ## Accepted 0.4.x planning
 
-After `0.4.7`, use these accepted task contracts in order unless a later
+After `0.4.8`, use these accepted task contracts in order unless a later
 product decision changes the sequence:
 
-- [`0.4.8-guild-weekly-goal.md`](0.4.8-guild-weekly-goal.md)
 - [`0.4.9-old-altar-blessings-mvp.md`](0.4.9-old-altar-blessings-mvp.md)
 - [`0.4.10-nearby-greeting-buff.md`](0.4.10-nearby-greeting-buff.md)
 - [`0.4.11-shynok-food-buffs-mvp.md`](0.4.11-shynok-food-buffs-mvp.md)
@@ -54,8 +55,8 @@ These are planned contracts, not merged or deployed features.
 
 ## Shipped records and historical drafts
 
-- `0.4.6` Referral Foundation is the merged repository baseline; `0.4.7` is the
-  active implementation target.
+- `0.4.7` is the merged repository baseline; `0.4.8` is the active
+  implementation target.
 - Earlier numeric task files remain shipped records. This first-wave cleanup
   deliberately does not move all 107 shipped pre-`0.4` records.
 - Superseded or consumed drafts live in [`archive/`](archive/).

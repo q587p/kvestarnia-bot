@@ -401,6 +401,35 @@ PartySession/GroupCombatSession. Окремо пройди `Спуск до Ни
 generic lobby. `/dev_guild_gold` готує лише creation gold і не має існувати у
 production.
 
+## Тижнева справа ґільдії
+
+Повний чотириакаунтовий пакет:
+[`0.4.8-guild-weekly-goal-qa.md`](../qa/0.4.8-guild-weekly-goal-qa.md).
+Ручний результат на фінальній голові pending. У checkout `.env` постав
+`NODE_ENV=development`, `GUILD_FOUNDATION_ENABLED=true`,
+`LEFT_PASSAGE_PARTY_ATTACK_ENABLED=true` і
+`GUILD_WEEKLY_GOAL_ENABLED=true`, потім refresh/status isolated runtime.
+Перевір partial/full progress, 13 незатратної Слави, рівний внесок підтримки,
+terminal replay, Character recreation, exact-once achievement notices,
+leave/kick/remort, repair/restart і Sunday→Monday recovery. У Гнізді перевір
+public guild-ranking-only `📜 Книга слави`: a nonmember at the Nest can read
+`✨ Слава` and `🏁 Першість`; verify shared tied places, five rows, clamped
+pagination, member-only off-page own place and absence of private
+даних. Приватний hub, обидві вкладки книги й завершений `Корчмарський обхід`
+мають прямо пояснювати: лише weekly `13/13` дає `+13 Слави`, денні та особисті
+справи — ні. Flag off має ховати weekly/Glory reads+writes і пояснення на
+денній нагороді, але не звичайний party route.
+У `📖 Переказах` окрема головна категорія `🏰 Ґільдії` має відкривати і
+`Ґільдійний статут`, і `Книга слави`; опис Гнізда окремо лишається серед місцин.
+`/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
+QA-only canonical completion evidence; у production команда відсутня.
+Для founder-reset smoke створи завершений період із `SENT`-ачівкою іншого
+учасника та retrying notice ще одного. `/dev_delete_account ПІДТВЕРДЖУЮ` для
+засновника має прибрати його ґільдійний граф, але не змінити entitlement id,
+provenance, delivery state, attempts, lease/backoff чи timestamps тих, хто
+лишився. Після recreation персонажа `SENT`-entitlement проєктується один раз без
+повторного Telegram notice.
+
 ## Сервісні команди
 
 - `/version` — показує поточну версію бота.
@@ -435,6 +464,7 @@ production.
   left-passage party прогоном.
 - `/dev_two_enemies` — у локальному режимі стартує ordinary persistent бій із двома ворогами для перевірки multi-enemy foundation; він не trigger/consume production ordinary threat escalation.
 - `/dev_guild_gold` — у локальному режимі за ввімкненої guild foundation доводить золото до суми створення ґільдії; у production команда відсутня.
+- `/dev_guild_weekly [finish]` — у локальному режимі ремонтує тижневу справу ґільдії з receipts або завершує її для QA; у production команда відсутня.
 
 ## Межі поточного smoke
 

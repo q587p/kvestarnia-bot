@@ -6,6 +6,7 @@ import type {
   GuildNestRepositoryResult,
   GuildPublicDirectoryRepositoryResult
 } from "../../db/repositories/guildRepository";
+import type { GuildGloryBoardResult } from "../../db/repositories/guildWeeklyGoalRepository";
 import {
   makeGuildCreateOpenCallbackData,
   makeGuildCreateUploadCallbackData,
@@ -14,6 +15,7 @@ import {
   makeGuildDeleteOpenCallbackData,
   makeGuildDirectoryOpenCallbackData,
   makeGuildDirectoryProfileCallbackData,
+  makeGuildGloryBoardCallbackData,
   makeGuildInviteAcceptCallbackData,
   makeGuildInviteCancelCallbackData,
   makeGuildInviteDeclineCallbackData,
@@ -41,7 +43,7 @@ import {
 import { makePlaceCallbackData } from "../callbacks/placeCallbackData";
 import type { GuildPartyPickerRepositoryResult } from "../../db/repositories/guildRepository";
 import { GUILD_CREST_CATALOG, GUILD_INITIAL_MEMBER_CAPACITY } from "../../domain/guild";
-import { GUILD_INVITE_SHARE_TEXTS, guildInviteShareText } from "../../content/guildInviteCopy";
+import { GUILD_INVITE_SHARE_TEXTS } from "../../content/guildInviteCopy";
 
 export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options: { writesEnabled?: boolean } = {}): InlineKeyboard {
   const keyboard = new InlineKeyboard();
@@ -102,13 +104,17 @@ export function buildGuildHubKeyboard(result: GuildHubRepositoryResult, options:
 }
 
 export function buildGuildNestKeyboard(
-  result: Extract<GuildNestRepositoryResult, { state: "ready" }>
+  result: Extract<GuildNestRepositoryResult, { state: "ready" }>,
+  options: { weeklyGoalEnabled?: boolean } = {}
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
     .text("📚 Чинні ґільдії", makeGuildDirectoryOpenCallbackData())
     .row()
     .text("❔ Умови й ролі", makeGuildNestRulesCallbackData())
     .row();
+  if (options.weeklyGoalEnabled === true) {
+    keyboard.text("📜 Книга слави", makeGuildGloryBoardCallbackData("glory")).row();
+  }
   if (result.viewerState === "not-member") {
     if (result.hasIncomingInvites) {
       keyboard.text("✉️ Мої запрошення", makeGuildOpenCallbackData()).row();
@@ -121,6 +127,23 @@ export function buildGuildNestKeyboard(
     keyboard.text("🏰 Моя ґільдія", makeGuildOpenCallbackData()).row();
   }
   return keyboard.text("↩️ До Спуску", makePlaceCallbackData("deep"));
+}
+
+export function buildGuildGloryBoardKeyboard(
+  result: Extract<GuildGloryBoardResult, { state: "ready" }>
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
+    .text(result.view === "glory" ? "• ✨ Слава" : "✨ Слава", makeGuildGloryBoardCallbackData("glory"))
+    .text(result.view === "primacy" ? "• 🏁 Першість" : "🏁 Першість", makeGuildGloryBoardCallbackData("primacy"))
+    .row();
+  if (result.hasPreviousPage) {
+    keyboard.text("⬅️", makeGuildGloryBoardCallbackData(result.view, result.page - 1));
+  }
+  keyboard.text("🔎 Оновити", makeGuildGloryBoardCallbackData(result.view, result.page));
+  if (result.hasNextPage) {
+    keyboard.text("➡️", makeGuildGloryBoardCallbackData(result.view, result.page + 1));
+  }
+  return keyboard.row().text("🪺 До Гнізда", makeGuildNestOpenCallbackData());
 }
 
 export function buildGuildNestUnavailableKeyboard(): InlineKeyboard {
@@ -248,8 +271,6 @@ export function buildGuildInviteCodeKeyboard(
   const keyboard = new InlineKeyboard();
   if (token) {
     if (inviteUrl) {
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(guildInviteShareText(variant))}`;
-      keyboard.url("📨 Поділитися запрошенням", shareUrl).row();
       keyboard
         .text(
           "🎲 Згенерувати інший текст",
@@ -261,6 +282,10 @@ export function buildGuildInviteCodeKeyboard(
     keyboard.copyText("📋 Резервний код", token).row();
   }
   return keyboard.text("🏰 Назад", makeGuildOpenCallbackData());
+}
+
+export function buildGuildInviteShareCardKeyboard(inviteUrl: string): InlineKeyboard {
+  return new InlineKeyboard().url("✉️ Відкрити шлях", inviteUrl);
 }
 
 export function buildGuildMemberMutationKeyboard(

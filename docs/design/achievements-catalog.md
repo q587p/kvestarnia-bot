@@ -11,7 +11,7 @@ Runtime rules:
 - If a condition cannot be historically recalculated, add a durable event ledger before adding long-term counters.
 - `0.2.13` Postal Manatka Delivery intentionally defers postal-specific achievements. It stores durable `item_transfers` rows with `transfer_kind = postal`, but the current achievement trigger catalog has gift-specific keys only; first postal sent/received records should be added in a later slice with explicit postal trigger keys instead of overloading gift counters.
 
-Current count: 152 enabled achievements and 12 disabled hidden future placeholders.
+Current count: 155 enabled achievements and 12 disabled hidden future placeholders.
 
 ## Runtime Hook Timing
 
@@ -127,6 +127,18 @@ Manual recalculation through `🔎 Перевірити` remains the broader ide
 | `achievement.social.duel-win` | enabled | visible | `duel.won >= 1` | Переміг знайомого, дружба триває | виграти перший двобій і не оголошувати себе меблям чемпіоном. |
 | `achievement.guild.first-created` | enabled | visible | `guild.created >= 1` | Статут пережив першу пляму | уперше заснувати ґільдію й одразу дати писарю причину нервувати. |
 | `achievement.guild.first-joined` | enabled | visible | `guild.joined >= 1` | У списку вже не самотньо | уперше долучитися до ґільдії й не переплутати статут із меню шинку. |
+| `achievement.guild.weekly-goal-completed` | enabled | visible | `guild.weekly_goal_completed >= 1` | Тринадцять печаток, жодної зайвої | разом із ґільдією завершити тижневий журнал звичайних спільних походів. |
+| `achievement.guild.three-weekly-goals` | enabled | visible | `guild.weekly_goal_periods >= 3` | Три понеділки без відмови | долучитися до завершення справ у трьох різних календарних тижнях. |
+| `achievement.guild.thirteen-weekly-goals` | enabled | visible | `guild.weekly_goal_periods >= 13` | Тринадцять тижнів під печаткою | долучитися до завершення справ у тринадцяти різних календарних тижнях. |
+
+For the cumulative guild-week triggers, one eligible User receipt in any
+completed guild period counts a Kyiv Monday-to-Monday `sourcePeriodKey` once.
+Changing guilds or contributing to another completed guild period under the
+same key cannot add a second week. At the first durable threshold crossing,
+canonical completion time and stable period id order the evidence then
+available. That chosen source is immutable and non-revoking: later-discovered
+earlier evidence does not rewrite a delivered entitlement, while Character
+recreation or remort reprojects the same User-week without another notice.
 | `achievement.duel.quick.thirteen` | enabled | visible | `duel.quick.resolved >= 13` | Тринадцять швидких непорозумінь | завершити 13 миттєвих дуелей і навчити рукавичку літати по графіку. |
 | `achievement.duel.turnbased.first` | enabled | visible | `duel.turnbased.resolved >= 1` | Хід подумав і погодився | уперше завершити покрокову дуель і пережити офіційне очікування. |
 | `achievement.social.duel-defend` | enabled | visible | `duel.turnbased.defend >= 1` | Не бити — теж хід | уперше захиститися у покроковому двобої й зробити паузу офіційною. |

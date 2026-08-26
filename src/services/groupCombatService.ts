@@ -16,6 +16,7 @@ import type { DailyActionRepository } from "../db/repositories/dailyActionReposi
 import { CELLAR_FOAMY_MIRAGE_BOTTLE_ITEM_ID } from "./itemGrant";
 import { isQuestConsumableUseUnlocked } from "./questConsumableUse";
 import { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
+import type { GuildWeeklyGoalService } from "./guildWeeklyGoalService";
 
 export { LEFT_PASSAGE_PARTY_ORIGIN_KIND } from "./partySessionService";
 
@@ -50,13 +51,15 @@ export class GroupCombatService {
       devHelpersEnabled: boolean;
       leftPassagePartyAttackEnabled?: boolean;
       guildIdentityEnabled?: boolean;
+      guildWeeklyGoalEnabled?: boolean;
     },
     private readonly now: () => Date = () => new Date(),
     private readonly achievements?: AchievementService,
     private readonly resolveQuestMarkers?: (
       telegramUserId: bigint
     ) => Promise<unknown>,
-    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">
+    private readonly dailyActions?: Pick<DailyActionRepository, "findForTelegramUser">,
+    private readonly guildWeeklyGoals?: GuildWeeklyGoalService
   ) {}
 
   isEnabled(): boolean {
@@ -115,7 +118,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -128,7 +132,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -141,7 +146,8 @@ export class GroupCombatService {
       partyInviteToken,
       now,
       turnExpiresAt: new Date(now.getTime() + GROUP_COMBAT_TURN_MS),
-      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {})
+      ...(this.options.guildIdentityEnabled ? { includeGuildIdentity: true } : {}),
+      ...(this.options.guildWeeklyGoalEnabled ? { guildWeeklyGoalEligible: true } : {})
     });
   }
 
@@ -272,7 +278,43 @@ export class GroupCombatService {
     }
     const repaired = await this.repository.repairInvalidOrOrphaned(this.now(), limit);
     const pending = await this.settlePendingWithNotices(limit);
-    return { repaired, settlementNotices: pending.settlementNotices };
+    await this.guildWeeklyGoals?.repairCurrentPeriod(limit).catch(() => undefined);
+    const weeklyNotices = await this.guildWeeklyGoals?.claimAchievementNotices(
+      limit,
+      undefined,
+      { projectEntitlements: false }
+    ).catch(() => []) ?? [];
+    return {
+      repaired,
+      settlementNotices: [
+        ...pending.settlementNotices,
+        ...weeklyNotices.map((notice) => ({
+          telegramUserId: notice.telegramUserId,
+          characterId: notice.characterId,
+          characterName: notice.characterName,
+          classId: notice.classId,
+          raceId: notice.raceId,
+          levelChange: null,
+          achievementUnlocks: [notice.unlock],
+          weeklyAchievementClaims: [{
+            entitlementId: notice.entitlementId,
+            claimToken: notice.claimToken,
+            attemptCount: notice.attemptCount
+          }]
+        }))
+      ]
+    };
+  }
+
+  markWeeklyAchievementNoticeSent(notice: { entitlementId: string; claimToken: string }): Promise<boolean> {
+    return this.guildWeeklyGoals?.markAchievementNoticeSent(notice) ?? Promise.resolve(false);
+  }
+
+  recordWeeklyAchievementNoticeFailure(
+    notice: { entitlementId: string; claimToken: string; attemptCount: number },
+    error: unknown
+  ) {
+    return this.guildWeeklyGoals?.recordAchievementNoticeFailure(notice, error) ?? Promise.resolve("lost" as const);
   }
 
   async settleParticipant(sessionId: string, telegramUserId: bigint) {
@@ -281,13 +323,38 @@ export class GroupCombatService {
       telegramUserId,
       now: this.now()
     });
+    let weeklyAchievementNotices: Awaited<ReturnType<GuildWeeklyGoalService["claimAchievementNotices"]>> = [];
+    if (
+      (result.state === "settled" || result.state === "replayed") &&
+      result.receipt.policy === "left-passage-party"
+    ) {
+      await this.guildWeeklyGoals?.recordTerminalSession(sessionId).catch(() => undefined);
+      if (result.state === "settled") {
+        weeklyAchievementNotices = await this.guildWeeklyGoals?.claimAchievementNotices(
+          13,
+          telegramUserId,
+          { projectEntitlements: false }
+        )
+          .catch(() => []) ?? [];
+      }
+    }
     if (
       result.state !== "settled" ||
       result.receipt.policy !== "left-passage-party" ||
       result.receipt.manualParticipation !== true ||
       !this.achievements
     ) {
-      return result;
+      return weeklyAchievementNotices.length > 0
+        ? {
+            ...result,
+            achievementUnlocks: weeklyAchievementNotices.map((notice) => notice.unlock),
+            weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken, attemptCount }) => ({
+              entitlementId,
+              claimToken,
+              attemptCount
+            }))
+          }
+        : result;
     }
     const session = await this.repository.findById(sessionId);
     const unlocks: AchievementUnlock[] = [];
@@ -320,7 +387,17 @@ export class GroupCombatService {
         sourceId
       }) ?? []));
     }
-    return { ...result, achievementUnlocks: unlocks };
+    return {
+      ...result,
+      achievementUnlocks: [...unlocks, ...weeklyAchievementNotices.map((notice) => notice.unlock)],
+      ...(weeklyAchievementNotices.length > 0
+        ? { weeklyAchievementClaims: weeklyAchievementNotices.map(({ entitlementId, claimToken, attemptCount }) => ({
+            entitlementId,
+            claimToken,
+            attemptCount
+          })) }
+        : {})
+    };
   }
 
   async settlePending(limit = 13): Promise<number> {
@@ -359,7 +436,10 @@ export class GroupCombatService {
               levelChange: result.levelChange ?? null,
               achievementUnlocks: "achievementUnlocks" in result
                 ? result.achievementUnlocks
-                : []
+                : [],
+              ...(result && "weeklyAchievementClaims" in result
+                ? { weeklyAchievementClaims: result.weeklyAchievementClaims }
+                : {})
             });
           }
         }
@@ -589,7 +669,10 @@ export class GroupCombatService {
               levelChange: settlement.levelChange ?? null,
               achievementUnlocks: "achievementUnlocks" in settlement
                 ? settlement.achievementUnlocks
-                : []
+                : [],
+              ...(settlement && "weeklyAchievementClaims" in settlement
+                ? { weeklyAchievementClaims: settlement.weeklyAchievementClaims }
+                : {})
             });
           }
         }

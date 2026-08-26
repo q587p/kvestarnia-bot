@@ -6,6 +6,8 @@ import {
   presentGuildHub,
   presentGuildInviteCreate,
   presentGuildInviteOptIn,
+  presentGuildInviteShareCard,
+  presentGuildGloryBoard,
   presentGuildNestRules,
   presentGuildProfileUpdate
 } from "../../src/bot/presenters/guildPresenter";
@@ -13,6 +15,8 @@ import {
   buildGuildCreationStartKeyboard,
   buildGuildHubKeyboard,
   buildGuildInviteCodeKeyboard,
+  buildGuildInviteShareCardKeyboard,
+  buildGuildGloryBoardKeyboard,
   buildGuildProfileCrestKeyboard
 } from "../../src/bot/keyboards/guildKeyboard";
 import { parseGuildCallbackData } from "../../src/bot/callbacks/guildCallbackData";
@@ -172,7 +176,7 @@ describe("guild presenter privacy", () => {
     expect(text).toContain(`розширити до <b>${GUILD_MAX_MEMBER_CAPACITY} місць</b>`);
   });
 
-  it("keeps invitation instructions in separate beats and emphasizes the real buttons", () => {
+  it("separates private invitation management from the forwardable card", () => {
     const text = presentGuildInviteOptIn({
       state: "ready",
       token: "privateInviteCode93",
@@ -181,15 +185,23 @@ describe("guild presenter privacy", () => {
       inviteUrl: "https://t.me/kvestarnia_bot?start=guild_privateInviteCode93"
     });
 
-    expect(text).toContain(
-      '<a href="https://t.me/kvestarnia_bot?start=guild_privateInviteCode93">https://t.me/kvestarnia_bot?start=guild_privateInviteCode93</a>'
+    expect(text).toContain("Окрему картку для пересилання надіслано нижче");
+    expect(text).toContain("Пересилайте лише окрему картку, не цей екран керування");
+    expect(text).toContain("Новий код одразу скасовує попередній");
+    expect(text).not.toContain("<blockquote>");
+    expect(text).not.toContain("https://t.me/");
+
+    const card = presentGuildInviteShareCard(
+      new Date("2026-08-21T20:00:00.000Z"),
+      new Date("2026-08-17T20:00:00.000Z"),
+      "https://t.me/kvestarnia_bot?start=guild_privateInviteCode93"
     );
-    expect(text).toContain(
-      "Текст можна змінити без перевипуску посилання.\n\nКвестарня перевірить запрошувача"
-    );
-    expect(text).toContain("кнопки <b>✅ Долучитися</b> та <b>✖️ Відхилити</b>");
-    expect(text).toContain("формований статут.\n\nНовий код одразу скасовує попередній");
-    expect(text).not.toContain("місце, час появи");
+    expect(card).toContain("<blockquote>");
+    expect(card).toContain("\n\nhttps://t.me/kvestarnia_bot?start=guild_privateInviteCode93");
+    expect(card).not.toContain("<a href=");
+    expect(card).not.toMatch(/Новий код|Резервний код|кнопки/u);
+    expect(buildGuildInviteShareCardKeyboard("https://t.me/kvestarnia_bot?start=guild_privateInviteCode93")
+      .inline_keyboard.flat()).toContainEqual(expect.objectContaining({ text: "✉️ Відкрити шлях" }));
   });
 
   it("offers button-first creation and private invite-code controls without exposing the token in text", () => {
@@ -243,13 +255,16 @@ describe("guild presenter privacy", () => {
     expect(JSON.stringify(inviteButtons.filter((button) => "callback_data" in button))).not.toContain(token);
     expect(inviteButtons.some((button) =>
       "url" in button && button.url.startsWith("https://t.me/share/url?")
-    )).toBe(true);
+    )).toBe(false);
 
     const renderedShareTexts = GUILD_INVITE_SHARE_TEXTS.map((expectedText, variant) => {
       const buttons = buildGuildInviteCodeKeyboard(token, inviteUrl, variant).inline_keyboard.flat();
-      const share = buttons.find((button) => "url" in button && button.url.startsWith("https://t.me/share/url?"));
-      expect(share && "url" in share ? new URL(share.url).searchParams.get("url") : null).toBe(inviteUrl);
-      expect(share && "url" in share ? new URL(share.url).searchParams.get("text") : null).toBe(expectedText);
+      expect(presentGuildInviteShareCard(
+        new Date("2026-08-21T20:00:00.000Z"),
+        new Date("2026-08-17T20:00:00.000Z"),
+        inviteUrl,
+        variant
+      )).toContain(expectedText);
       expect(buttons).toContainEqual(expect.objectContaining({
         text: "🎲 Згенерувати інший текст",
         callback_data: `v1:g:ig:${((variant + 1) % 13).toString(36)}`
@@ -294,7 +309,20 @@ describe("guild presenter privacy", () => {
         hasPreviousPage: false,
         hasNextPage: false,
         leadershipNomineeName: null,
-        viewerIsLeadershipNominee: false
+        viewerIsLeadershipNominee: false,
+        weeklyGoal: {
+          guildId: "guild-id",
+          guildName: "Тиха Печатка",
+          guildCrest: "🛡️",
+          periodId: "period-id",
+          periodKey: "12026-W35",
+          progressCount: 8,
+          targetCount: 13,
+          completedAt: null,
+          contributorUserIds: ["user-a", "user-b"],
+          gloryTotal: 26,
+          weeklyPlace: 3
+        }
       },
       incomingInvites: []
     }, now);
@@ -354,7 +382,18 @@ describe("guild presenter privacy", () => {
         hasPreviousPage: true,
         hasNextPage: true,
         leadershipNomineeName: null,
-        viewerIsLeadershipNominee: false
+        viewerIsLeadershipNominee: false,
+        weeklyGoal: {
+          guildId: "guild-id",
+          guildName: "Тиха Печатка",
+          guildCrest: "🛡️",
+          periodId: "period-id",
+          periodKey: "12026-W35",
+          progressCount: 8,
+          targetCount: 13,
+          completedAt: null,
+          contributorCharacterIds: ["character-a", "character-b"]
+        }
       },
       incomingInvites: []
     };
@@ -363,6 +402,11 @@ describe("guild presenter privacy", () => {
 
     expect(result.guild.members.length + result.guild.outgoingInvites.length).toBe(5);
     expect(Buffer.byteLength(text, "utf8")).toBeLessThanOrEqual(4096);
+    expect(text).toContain("Тижневий спільний клопіт · 12026-W35");
+    expect(text).toContain("8/13");
+    expect(text).toContain("13/13 дає рівно +13 Слави");
+    expect(text).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    expect(text).toContain("удар, захист і підтримка");
     expect(keyboard.flat().every((button) =>
       !("callback_data" in button) || Buffer.byteLength(button.callback_data, "utf8") <= 64
     )).toBe(true);
@@ -436,5 +480,55 @@ describe("guild presenter privacy", () => {
     expect(text).toContain("Власна адресатка");
     expect(text).toContain("Чужа адресатка");
     expect(cancelTokens).toEqual(["ownInviteToken93"]);
+  });
+
+  it("renders five guild-only Glory rows, dense places and own-place recovery without private identity", () => {
+    const result = {
+      state: "ready" as const,
+      view: "glory" as const,
+      periodKey: "12026-W35",
+      rows: Array.from({ length: 5 }, (_, index) => ({
+        guildId: `guild-${index}`,
+        guildName: index === 0 ? "<Печатка>" : `Печатка ${index}`,
+        guildCrest: index === 0 ? "<&" : "🦉",
+        place: index < 2 ? 1 : index,
+        glory: index < 2 ? 26 : 13,
+        progressCount: 13,
+        targetCount: 13,
+        completed: true,
+        viewerGuild: false
+      })),
+      viewerGuild: {
+        guildId: "viewer-guild",
+        guildName: "Моя Печатка",
+        guildCrest: "🛡️",
+        place: 7,
+        glory: 0,
+        progressCount: 4,
+        targetCount: 13,
+        completed: false,
+        viewerGuild: true
+      },
+      page: 0,
+      hasPreviousPage: false,
+      hasNextPage: true
+    };
+    const text = presentGuildGloryBoard(result);
+    expect(text).toContain("📜 <b>Книга слави</b>");
+    expect(text).toContain("Славу здобувають лише чинні ґільдії");
+    expect(text).toContain("13/13 дає рівно +13 Слави");
+    expect(text).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    expect(text).toContain("Славу не можна витратити");
+    expect(text).toContain("1. &lt;&amp; <b>&lt;Печатка&gt;</b> — <b>26 Слави</b>");
+    expect(text).toContain("Ваша ґільдія: <b>7 місце</b> · 0 Слави.");
+    expect(text).not.toMatch(/гравець|роль|telegram|token|точний час/iu);
+    const primacyText = presentGuildGloryBoard({ ...result, view: "primacy" as const });
+    expect(primacyText).toContain("Славу здобувають лише чинні ґільдії");
+    expect(primacyText).toContain("Корчмарський обхід, інші денні квести й особисті справи Слави не дають");
+    expect(primacyText).toContain("Спершу йдуть ґільдії, що завершили справу");
+    const rows = buildGuildGloryBoardKeyboard(result).inline_keyboard;
+    expect(rows[0]?.map((button) => button.text)).toEqual(["• ✨ Слава", "🏁 Першість"]);
+    expect(rows[1]?.map((button) => button.text)).toEqual(["🔎 Оновити", "➡️"]);
+    expect(rows[2]?.map((button) => button.text)).toEqual(["🪺 До Гнізда"]);
   });
 });

@@ -15,6 +15,7 @@ export interface HelpVisibility {
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
   includeGuildDev?: boolean;
+  includeGuildWeeklyDev?: boolean;
   includeReferral?: boolean;
   includeReferralDev?: boolean;
 }
@@ -243,6 +244,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
       includeHpRecovery: visibility,
       includeGuild: visibility,
       includeGuildDev: visibility,
+      includeGuildWeeklyDev: visibility,
       includeReferral: visibility,
       includeReferralDev: visibility
     };
@@ -260,6 +262,7 @@ function normalizeHelpVisibility(visibility: boolean | HelpVisibility): Required
     includeHpRecovery: visibility.includeHpRecovery ?? false,
     includeGuild: visibility.includeGuild ?? false,
     includeGuildDev: visibility.includeGuildDev ?? false,
+    includeGuildWeeklyDev: visibility.includeGuildWeeklyDev ?? false,
     includeReferral: visibility.includeReferral ?? false,
     includeReferralDev: visibility.includeReferralDev ?? false
   };

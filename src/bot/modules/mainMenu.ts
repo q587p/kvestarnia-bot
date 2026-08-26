@@ -219,6 +219,7 @@ export function buildDevHelpVisibility(services: DevHelpServices): HelpVisibilit
     includeHpRecovery: services.healthRecoveryNotifications?.areDevHelpersEnabled() ?? false,
     includeGuild: services.guilds !== undefined,
     includeGuildDev: services.guilds?.areDevHelpersEnabled() ?? false,
+    includeGuildWeeklyDev: services.guilds?.areWeeklyDevHelpersEnabled?.() ?? false,
     includeReferral: services.referrals?.isFoundationEnabled() ?? false,
     includeReferralDev: services.referrals?.areDevHelpersEnabled() ?? false
   };

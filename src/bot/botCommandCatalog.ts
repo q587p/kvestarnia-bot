@@ -1,10 +1,12 @@
+import { GUILD_WEEKLY_GOAL_ICON } from "./itemActionIcons";
+
 export interface BotCommandCatalogEntry {
   command: string;
   icon: string;
   description: string;
   includeInMenu: boolean;
   featureOnly?: "tavern-games" | "raid-chat" | "guild" | "referral";
-  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild" | "referral";
+  devOnly?: "reset" | "grant" | "party" | "group-combat" | "raid-chat" | "fighting-corner" | "hp-recovery" | "guild" | "guild-weekly" | "referral";
 }
 
 export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
@@ -614,6 +616,13 @@ export const botCommandCatalog: readonly BotCommandCatalogEntry[] = [
     devOnly: "guild"
   },
   {
+    command: "dev_guild_weekly",
+    icon: GUILD_WEEKLY_GOAL_ICON,
+    description: "відновити або завершити тижневий ґільдійний клопіт локально",
+    includeInMenu: false,
+    devOnly: "guild-weekly"
+  },
+  {
     command: "dev_referral_reconcile",
     icon: "🧭",
     description: "повторити власні виплати за поклик локально",
@@ -634,6 +643,7 @@ export interface DevCommandVisibility {
   includeHpRecovery?: boolean;
   includeGuild?: boolean;
   includeGuildDev?: boolean;
+  includeGuildWeeklyDev?: boolean;
   includeReferral?: boolean;
   includeReferralDev?: boolean;
 }
@@ -672,6 +682,9 @@ export function getHelpCommandEntries(visibility: boolean | DevCommandVisibility
 
     if (entry.devOnly === "guild") {
       return normalized.includeGuildDev;
+    }
+    if (entry.devOnly === "guild-weekly") {
+      return normalized.includeGuildWeeklyDev;
     }
 
     if (entry.devOnly === "referral") {
@@ -712,6 +725,7 @@ function normalizeDevCommandVisibility(
       includeHpRecovery: visibility,
       includeGuild: visibility,
       includeGuildDev: visibility,
+      includeGuildWeeklyDev: visibility,
       includeReferral: visibility,
       includeReferralDev: visibility
     };
@@ -729,6 +743,7 @@ function normalizeDevCommandVisibility(
     includeHpRecovery: visibility.includeHpRecovery ?? false,
     includeGuild: visibility.includeGuild ?? false,
     includeGuildDev: visibility.includeGuildDev ?? false,
+    includeGuildWeeklyDev: visibility.includeGuildWeeklyDev ?? false,
     includeReferral: visibility.includeReferral ?? false,
     includeReferralDev: visibility.includeReferralDev ?? false
   };

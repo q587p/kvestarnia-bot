@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { DevAccountResetRepository } from "./devAccountResetRepository";
+import { recomputeGuildWeeklyPeriodArtifacts } from "./prismaGuildWeeklyGoalRepository";
 
 export class PrismaDevAccountResetRepository implements DevAccountResetRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -47,6 +48,29 @@ export class PrismaDevAccountResetRepository implements DevAccountResetRepositor
         select: { id: true }
       });
       const guildIds = guilds.map((row) => row.id);
+      const ownedWeeklyPeriods = guildIds.length > 0
+        ? await tx.guildWeeklyGoalPeriod.findMany({
+            where: { guildId: { in: guildIds } },
+            select: {
+              id: true,
+              contributions: { select: { id: true, groupCombatSessionId: true } }
+            }
+          })
+        : [];
+      const ownedWeeklyPeriodIds = ownedWeeklyPeriods.map((row) => row.id);
+      const ownedWeeklyContributionIds = ownedWeeklyPeriods.flatMap((row) =>
+        row.contributions.map((contribution) => contribution.id)
+      );
+      const ownedWeeklySessionIds = ownedWeeklyPeriods.flatMap((row) =>
+        row.contributions.map((contribution) => contribution.groupCombatSessionId)
+      );
+      const survivingDevOverridePeriods = await tx.guildWeeklyGoalPeriod.findMany({
+        where: {
+          devOverrideUserId: user.id,
+          ...(guildIds.length > 0 ? { guildId: { notIn: guildIds } } : {})
+        },
+        select: { id: true }
+      });
       const characterIds = user.character ? [user.character.id] : [];
       const relatedIds = new Set([
         user.id,
@@ -104,6 +128,50 @@ export class PrismaDevAccountResetRepository implements DevAccountResetRepositor
           ]
         }
       });
+      await tx.guildWeeklyAchievementEntitlement.deleteMany({ where: { userId: user.id } });
+      await tx.guildWeeklyContributorReceipt.deleteMany({ where: { userId: user.id } });
+      await tx.guildWeeklyParticipantSnapshot.deleteMany({ where: { userId: user.id } });
+
+      if (survivingDevOverridePeriods.length > 0) {
+        const periodIds = survivingDevOverridePeriods.map((row) => row.id);
+        await tx.guildWeeklyGoalPeriod.updateMany({
+          where: { id: { in: periodIds }, devOverrideUserId: user.id },
+          data: { devOverrideCompletedAt: null, devOverrideUserId: null }
+        });
+        for (const periodId of periodIds) {
+          await recomputeGuildWeeklyPeriodArtifacts(tx, periodId);
+        }
+      }
+
+      if (ownedWeeklyPeriodIds.length > 0) {
+        await tx.guildGloryReceipt.deleteMany({ where: { periodId: { in: ownedWeeklyPeriodIds } } });
+        await tx.activityEvent.deleteMany({
+          where: { sourceType: "guild-weekly-goal", sourceId: { in: ownedWeeklyPeriodIds } }
+        });
+      }
+      if (ownedWeeklyContributionIds.length > 0) {
+        await tx.guildWeeklyContributorReceipt.deleteMany({
+          where: { contributionId: { in: ownedWeeklyContributionIds } }
+        });
+        await tx.guildWeeklyContribution.deleteMany({
+          where: { id: { in: ownedWeeklyContributionIds } }
+        });
+      }
+      if (ownedWeeklyPeriodIds.length > 0) {
+        await tx.guildWeeklyGoalPeriod.deleteMany({ where: { id: { in: ownedWeeklyPeriodIds } } });
+      }
+      if (ownedWeeklySessionIds.length > 0) {
+        await tx.guildWeeklyReconciliation.deleteMany({
+          where: { sessionId: { in: ownedWeeklySessionIds } }
+        });
+        await tx.guildWeeklyParticipantSnapshot.deleteMany({
+          where: { sessionId: { in: ownedWeeklySessionIds } }
+        });
+        await tx.groupCombatSession.updateMany({
+          where: { id: { in: ownedWeeklySessionIds } },
+          data: { guildWeeklyGoalEligible: false }
+        });
+      }
       if (guildIds.length > 0) {
         await tx.guild.deleteMany({ where: { id: { in: guildIds } } });
       }

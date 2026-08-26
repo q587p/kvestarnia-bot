@@ -42,7 +42,12 @@ import { PRESENCE_LOCATION_KORCHMA_DEEP_LEVEL1_LEFT } from "../../src/services/p
 import { items, monsters } from "../../src/content";
 import { monsterLoot } from "../../src/content/monsterFlavor";
 import { lootExpansionV1Data } from "../../src/content/lootExpansionV1Data";
-import { classAbilities, raceAbilities } from "../../src/content/playerAbilities";
+import {
+  classAbilities,
+  fallbackClassAbility,
+  raceAbilities,
+  type PlayerAbilityDefinition
+} from "../../src/content/playerAbilities";
 import { monsterAbilities } from "../../src/content/monsterAbilities";
 import {
   compileMonsterAbilityExecutionPlan,
@@ -78,6 +83,23 @@ import {
   GROUP_COMBAT_LEASE_KIND
 } from "../../src/domain/combat/combatLeaseRegistry";
 import { buildBaselinePersistentFightWinXp } from "../../src/domain/combat/combatRewards";
+
+const GROUP_COMBAT_CLASS_PARITY_CASES: ReadonlyArray<{
+  abilityId: string;
+  classId: string;
+  profile: PlayerAbilityDefinition;
+}> = [
+  ...classAbilities.map((profile) => ({
+    abilityId: profile.id,
+    classId: profile.classId,
+    profile
+  })),
+  {
+    abilityId: fallbackClassAbility.id,
+    classId: "class.retired-profile",
+    profile: fallbackClassAbility
+  }
+];
 
 describe("group combat proof reducer", () => {
   it("keeps the tier-two discovery window deterministic inside 13–23 minutes", () => {
@@ -3538,6 +3560,162 @@ describe("group combat proof reducer", () => {
       [...GROUP_COMBAT_CANONICAL_ENEMY_DAMAGE_ABILITY_IDS].sort()
     );
   });
+
+  it.each(GROUP_COMBAT_CLASS_PARITY_CASES)(
+    "$abilityId executes the full GroupCombat parity contract",
+    ({ abilityId, classId, profile }) => {
+      const state = proofState(3, { hp: 587, hpMax: 587, defense: 0 });
+      const actor = state.participants[0]!;
+      actor.classId = classId;
+      actor.attack = 93;
+      actor.stats = {
+        strength: 93,
+        dexterity: 93,
+        intelligence: 93,
+        charisma: 93,
+        luck: 93
+      };
+      actor.playerAbilityFumbles = {
+        version: 1,
+        abilities: {
+          [abilityId]: { version: 1, cycle: 0, usesInCycle: 0, triggerAt: 93 }
+        }
+      };
+      state.participants[1]!.hp = 10;
+      state.participants[2]!.hp = 5;
+      state.enemies.forEach((enemy) => {
+        enemy.hp = 587;
+        enemy.hpMax = 587;
+        enemy.attack = 13;
+        enemy.defense = 0;
+      });
+
+      const explicitScope = profile.primaryTargetScope === "single-enemy"
+        ? "single-enemy"
+        : profile.secondaryTargetScope === "single-ally-or-self"
+          ? "single-ally-or-self"
+          : null;
+      const targetKind: GroupCombatAction["targetKind"] = explicitScope === "single-enemy"
+        ? "enemy"
+        : explicitScope === "single-ally-or-self"
+          ? "ally"
+          : "self";
+      const targetId = explicitScope === "single-enemy"
+        ? state.enemies[1]!.id
+        : explicitScope === "single-ally-or-self"
+          ? state.participants[2]!.characterId
+          : actor.characterId;
+      const committed = action(state, 0, "class", targetKind, targetId);
+
+      const expectedPrimaryTargets = resolveGroupCombatTargets(
+        state,
+        actor.characterId,
+        profile.primaryTargetScope,
+        targetId
+      );
+      if (profile.primaryTargetScope === "single-enemy") {
+        expect(expectedPrimaryTargets).toEqual([state.enemies[1]!.id]);
+        expect(validateGroupCombatAction(state, {
+          ...committed,
+          targetKind: "ally",
+          targetId: state.participants[1]!.characterId
+        })).toBe("invalid-target");
+      } else if (profile.primaryTargetScope === "all-enemies") {
+        expect(expectedPrimaryTargets).toEqual(state.enemies.map((enemy) => enemy.id));
+      } else if (profile.primaryTargetScope === "lowest-hp-ally") {
+        expect(expectedPrimaryTargets).toEqual([state.participants[2]!.characterId]);
+      }
+      if (profile.secondaryTargetScope) {
+        const secondaryTargets = resolveGroupCombatTargets(
+          state,
+          actor.characterId,
+          profile.secondaryTargetScope,
+          targetId
+        );
+        expect(secondaryTargets).toEqual(profile.secondaryTargetScope === "single-ally-or-self"
+          ? [state.participants[2]!.characterId]
+          : state.participants.map((participant) => participant.characterId));
+      }
+      expect(validateGroupCombatAction(state, committed)).toBe("ok");
+
+      const insufficient = structuredClone(state);
+      insufficient.participants[0]!.mana = Math.max(0, profile.manaCost - 1);
+      expect(validateGroupCombatAction(
+        insufficient,
+        action(insufficient, 0, "class", targetKind, targetId)
+      )).toBe(profile.manaCost === 0 ? "ok" : "action-unavailable");
+
+      const enemyHpBefore = state.enemies.map((enemy) => enemy.hp);
+      const actions = [
+        committed,
+        action(state, 1, "guard", "self", state.participants[1]!.characterId),
+        action(state, 2, "guard", "self", state.participants[2]!.characterId)
+      ];
+      const resolved = resolveGroupCombatTurn(state, actions);
+      const restartedReplay = resolveGroupCombatTurn(
+        parseGroupCombatStateStrict(JSON.parse(JSON.stringify(state))),
+        actions
+      );
+      expect(restartedReplay).toEqual(resolved);
+      expect(resolved.state.participants[0]!.mana).toBe(10 - profile.manaCost);
+      expect(resolved.state.participants[0]!.cooldowns?.skill).toMatchObject({
+        id: abilityId,
+        remainingTurns: profile.cooldownOwnActions
+      });
+      expect(resolved.state.contributions[0]!.damage).toBeGreaterThan(0);
+      expect(getGroupCombatEnemyFocusTarget(resolved.state)?.characterId).toBe(actor.characterId);
+      if (profile.primaryTargetScope === "single-enemy") {
+        expect(resolved.state.enemies[0]!.hp).toBe(enemyHpBefore[0]);
+        expect(resolved.state.enemies[1]!.hp).toBeLessThan(enemyHpBefore[1]!);
+      } else if (profile.primaryTargetScope === "all-enemies") {
+        expect(resolved.state.enemies.every((enemy, index) => enemy.hp < enemyHpBefore[index]!))
+          .toBe(true);
+      } else {
+        expect(resolved.state.enemies[0]!.hp).toBeLessThan(enemyHpBefore[0]!);
+        expect(resolved.state.enemies.slice(1).map((enemy) => enemy.hp))
+          .toEqual(enemyHpBefore.slice(1));
+      }
+      if (profile.recipe.includes("self-heal") || profile.recipe.includes("ally-heal")) {
+        expect(resolved.state.contributions[0]!.healing).toBeGreaterThan(0);
+      }
+
+      const ticked = resolveGroupCombatTurn(
+        parseGroupCombatStateStrict(JSON.parse(JSON.stringify(resolved.state))),
+        resolved.state.participants.map((participant) =>
+          action(resolved.state, participant.rosterOrder, "guard", "self", participant.characterId)
+        )
+      );
+      const remaining = ticked.state.participants[0]!.cooldowns?.skill?.remainingTurns ?? 0;
+      expect(remaining).toBe(Math.max(0, profile.cooldownOwnActions - 1));
+
+      const terminal = structuredClone(state);
+      terminal.enemies.forEach((enemy, index) => {
+        enemy.hp = index === 0 ? 1 : 0;
+        enemy.hpMax = 93;
+      });
+      const terminalTargetKind: GroupCombatAction["targetKind"] =
+        profile.secondaryTargetScope === "single-ally-or-self" ? "ally" :
+          profile.primaryTargetScope === "single-enemy" ? "enemy" : "self";
+      const terminalTargetId = terminalTargetKind === "ally"
+        ? terminal.participants[2]!.characterId
+        : terminalTargetKind === "enemy"
+          ? terminal.enemies[0]!.id
+          : terminal.participants[0]!.characterId;
+      const terminalActions = [
+        action(terminal, 0, "class", terminalTargetKind, terminalTargetId),
+        action(terminal, 1, "guard", "self", terminal.participants[1]!.characterId),
+        action(terminal, 2, "guard", "self", terminal.participants[2]!.characterId)
+      ];
+      const terminalResolved = resolveGroupCombatTurn(terminal, terminalActions);
+      expect(resolveGroupCombatTurn(
+        parseGroupCombatStateStrict(JSON.parse(JSON.stringify(terminal))),
+        terminalActions
+      )).toEqual(terminalResolved);
+      expect(terminalResolved.state.status).toBe("won");
+      expect(parseGroupCombatStateStrict(JSON.parse(JSON.stringify(terminalResolved.state))))
+        .toEqual(terminalResolved.state);
+    }
+  );
 
   it.each([
     {

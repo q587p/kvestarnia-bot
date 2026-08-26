@@ -181,6 +181,9 @@ model Guild {
   invites        GuildInvite[]
   audits         GuildAudit[]
   crestUploadDrafts GuildCrestUploadDraft[]
+  weeklyGoalPeriods GuildWeeklyGoalPeriod[]
+  weeklyContributions GuildWeeklyContribution[]
+  gloryReceipts GuildGloryReceipt[]
 
   @@index([leaderUserId])
   @@index([founderUserId])
@@ -322,6 +325,134 @@ model GuildAudit {
   @@index([guildId, occurredAt])
   @@index([eventType, occurredAt])
   @@map("guild_audits")
+}
+
+model GuildWeeklyGoalPeriod {
+  id            String   @id @default(uuid())
+  guildId       String   @map("guild_id")
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Restrict)
+    periodKey     String   @map("period_key")
+    goalKey       String   @map("goal_key")
+    guildNameSnapshot String @map("guild_name_snapshot")
+    guildCrestSnapshot String @map("guild_crest_snapshot")
+    targetCount   Int      @map("target_count")
+  progressCount Int      @default(0) @map("progress_count")
+  completedAt   DateTime? @map("completed_at")
+  devOverrideCompletedAt DateTime? @map("dev_override_completed_at")
+  devOverrideUserId String? @map("dev_override_user_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  contributions GuildWeeklyContribution[]
+  gloryReceipt GuildGloryReceipt?
+
+  @@unique([guildId, periodKey, goalKey])
+  @@index([periodKey, completedAt])
+  @@map("guild_weekly_goal_periods")
+}
+
+model GuildWeeklyContribution {
+  id                   String                 @id @default(uuid())
+  periodId             String                 @map("period_id")
+  period               GuildWeeklyGoalPeriod  @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  guildId              String                 @map("guild_id")
+  guild                Guild                  @relation(fields: [guildId], references: [id], onDelete: Restrict)
+  groupCombatSessionId String                 @unique @map("group_combat_session_id")
+  groupCombatSession   GroupCombatSession     @relation(fields: [groupCombatSessionId], references: [id], onDelete: Restrict)
+  expeditionCompletedAt DateTime              @map("expedition_completed_at")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  contributors         GuildWeeklyContributorReceipt[]
+
+  @@unique([periodId, groupCombatSessionId])
+  @@index([guildId, expeditionCompletedAt])
+  @@map("guild_weekly_contributions")
+}
+
+model GuildWeeklyContributorReceipt {
+  id             String                    @id @default(uuid())
+  contributionId String                    @map("contribution_id")
+  contribution   GuildWeeklyContribution   @relation(fields: [contributionId], references: [id], onDelete: Restrict)
+  userId         String                    @map("user_id")
+  characterId    String                    @map("character_id")
+  remortCount    Int                       @map("remort_count")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+
+  @@unique([contributionId, userId])
+  @@index([userId, createdAt])
+  @@map("guild_weekly_contributor_receipts")
+}
+
+model GuildWeeklyParticipantSnapshot {
+  id             String             @id @default(uuid())
+  sessionId      String             @map("session_id")
+  session        GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId         String             @map("user_id")
+  characterId    String             @map("character_id")
+  remortCount    Int                @map("remort_count")
+  rosterOrder    Int                @map("roster_order")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  @@unique([sessionId, userId])
+  @@unique([sessionId, rosterOrder])
+  @@index([userId, sessionId])
+  @@map("guild_weekly_participant_snapshots")
+}
+
+model GuildWeeklyReconciliation {
+  id             String             @id @default(uuid())
+  sessionId      String             @unique @map("session_id")
+  session        GroupCombatSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  decision       String
+  reason         String
+  periodKey      String?            @map("period_key")
+  reconciledAt   DateTime           @map("reconciled_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  @@index([reconciledAt, sessionId])
+  @@map("guild_weekly_reconciliations")
+}
+
+model GuildGloryReceipt {
+  id             String                @id @default(uuid())
+  guildId        String                @map("guild_id")
+  guild          Guild                 @relation(fields: [guildId], references: [id], onDelete: Restrict)
+  periodId       String                @unique @map("period_id")
+  period         GuildWeeklyGoalPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  sourceKey      String                @unique @map("source_key")
+  amount         Int
+  awardedAt      DateTime              @map("awarded_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@index([guildId, awardedAt])
+  @@map("guild_glory_receipts")
+}
+
+model GuildWeeklyAchievementEntitlement {
+  id                   String                @id @default(uuid())
+  userId               String                @map("user_id")
+  achievementId        String                @map("achievement_id")
+  sourcePeriodId       String                @map("source_period_id")
+  sourcePeriodKey      String                @map("source_period_key")
+  entitledAt           DateTime              @map("entitled_at")
+  projectedCharacterId String?               @map("projected_character_id")
+  projectedRemortCount Int?                  @map("projected_remort_count")
+  projectedAt          DateTime?             @map("projected_at")
+  notificationState    String                @default("PENDING") @map("notification_state")
+  notificationAttemptCount Int               @default(0) @map("notification_attempt_count")
+  notificationNextAttemptAt DateTime         @default(now()) @map("notification_next_attempt_at")
+  notificationClaimToken String?             @map("notification_claim_token")
+  notificationClaimedUntil DateTime?         @map("notification_claimed_until")
+  notificationPermanentFailureAt DateTime?   @map("notification_permanent_failure_at")
+  notificationLastErrorCategory String?      @map("notification_last_error_category")
+  notifiedAt           DateTime?             @map("notified_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  @@unique([userId, achievementId])
+  @@index([sourcePeriodId])
+  @@index([notificationState, notificationNextAttemptAt, entitledAt, id])
+  @@index([notificationState, notificationClaimedUntil, entitledAt, id])
+  @@index([userId, projectedCharacterId, notifiedAt])
+  @@map("guild_weekly_achievement_entitlements")
 }
 
 model Character {
@@ -1513,6 +1644,7 @@ model GroupCombatSession {
   deliveryPending Boolean     @default(true) @map("delivery_pending")
   deliveryAttemptedAt DateTime? @map("delivery_attempted_at")
   terminalIntegrityCheckedAt DateTime? @map("terminal_integrity_checked_at")
+  guildWeeklyGoalEligible Boolean @default(false) @map("guild_weekly_goal_eligible")
   repairState     String?      @map("repair_state")
   repairReason    String?      @map("repair_reason")
   stateJson      Json         @map("state_json")
@@ -1526,10 +1658,14 @@ model GroupCombatSession {
   actions        GroupCombatAction[]
   passageEncounter PendingPassageEncounter?
   uiPublicationClaims GroupCombatUiPublicationClaim[]
+  weeklyContribution GuildWeeklyContribution?
+  weeklyParticipantSnapshots GuildWeeklyParticipantSnapshot[]
+  weeklyReconciliation GuildWeeklyReconciliation?
 
   @@index([status, turnExpiresAt, id])
   @@index([deliveryPending, deliveryAttemptedAt, updatedAt, id])
   @@index([status, terminalIntegrityCheckedAt, updatedAt, id])
+  @@index([guildWeeklyGoalEligible, completedAt, id])
   @@map("group_combat_sessions")
 }
 

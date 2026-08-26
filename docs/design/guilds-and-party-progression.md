@@ -130,7 +130,9 @@ There is no global exact-character-name directory. A target creates a bounded,
 target-bound opt-in code and shares it deliberately. Its forwardable card has 13
 distinct Ukrainian invitation texts and includes the actionable private deep
 link in the body; changing the text does not rotate the underlying live link or
-token. External failures collapse
+token. The private code-management screen is never the forwarded artifact: it
+sends a separate compact card through the same shared social-invite presenter as
+referral, duel, party/Big Barrel and tavern-game invitations. External failures collapse
 to one unavailable result instead of revealing whether a User exists or already
 belongs elsewhere.
 
@@ -180,6 +182,48 @@ bosses, chat, alliances, war, territory, leaderboard, matchmaking or PvP. Any
 future guild progression requires a separate version task, economy/abuse review
 and production evidence; it is not implied by the foundation tables.
 
+## 0.4.8 weekly evidence and guild-only Glory
+
+The later `0.4.8` task explicitly supersedes only the foundation's old “no
+leaderboard” boundary with a bounded guild-only read model. Thirteen eligible
+ordinary expeditions complete one Kyiv/Holocene period and mint one immutable
+source receipt for `13` non-spendable Glory. Glory survives rename, remort and
+membership changes, buys nothing, grants no capacity/stat/reward and is not the
+guild XP planned for `0.4.15`. `Корчмарський обхід`, every other daily quest and
+all personal activities grant no Glory; the enabled daily reward card, private
+guild hub, both Book views and Glory lore state the sole weekly `13/13` source.
+
+`📜 Книга слави` remains location-bound to the Guild Nest and follows the public
+directory's escaping/privacy rules. `✨ Слава` shows active guild crest, name and
+all-time total with dense ties. `🏁 Першість` shows current-week completion-first
+then progress ordering, also with dense ties and no exact timestamps. Both are
+readable by any current Character at the Nest, use five rows per page with
+clamped navigation and add an off-page own-place row only for a member. No
+player, roster, role, contribution, Telegram identity or individual superiority
+ranking is derived from these projections.
+
+The Lore Board keeps this contract discoverable through a dedicated main
+`🏰 Ґільдії` category containing `Ґільдійний статут` and `Книга слави`; the
+physical Guild Nest remains a separate location record under Korchma places.
+
+The rewardless personal milestones count one eligible contributor receipt per
+User and Kyiv Monday-to-Monday `sourcePeriodKey`, not one row per guild. If a
+User changes guilds and helps two guild periods complete under the same key,
+that calendar week advances the 3/13 milestones once. At the first durable
+threshold crossing, canonical completion time and stable period id order the
+available evidence and freeze non-revoking provenance; later evidence cannot
+rewrite a delivered source. Recreation or remort only reprojects the same
+entitlement and never sends a second notice.
+
+That entitlement deliberately stores frozen scalar `sourcePeriodId`,
+`sourcePeriodKey` and `entitledAt` provenance without a restrictive relation to
+the live guild-period graph. Local account reset may delete a founder-owned
+guild and its weekly evidence, but it removes only the reset User's entitlement
+and outbox rows. Every surviving User keeps the same entitlement id, source,
+projection and `PENDING`/`CLAIMED`/`SENT`/`PERMANENT_FAILURE` delivery state,
+including attempts, lease/backoff and notification timestamps. Reprojection
+onto a replacement Character cannot reopen an already sent Telegram notice.
+
 ## Future guild-system backlog
 
 The following ideas are recorded for later version tasks only. They do not
@@ -192,12 +236,10 @@ other-game UI is product research rather than copy to reproduce verbatim.
    state and a safe in-game contact path, with button-first application review.
    Do not expose Telegram handles, exact location or membership ids. Define
    spam limits, decline cooldowns, blocking, moderation and capacity races first.
-2. **Contribution goals and guild quests.** Build the already planned weekly
-   goal before considering daily personal/shared objectives. Contributions need
-   canonical gameplay receipts, anti-farming weights, remort rules, exact-once
-   settlement and useful progress cards. Exact thresholds and rewards remain a
-   balance decision; weaker-enemy weighting from another game is not accepted
-   automatically.
+2. **Further contribution goals and guild quests.** `0.4.8` ships only the
+   canonical thirteen-expedition weekly goal, immutable Glory receipt and bounded
+   guild boards above. Daily objectives, weighted farming, material rewards,
+   seasons and additional guild quests still require a separate balance task.
 3. **Treasury and transparent ledger.** A shared-gold system needs explicit
    deposit sources, withdrawal/spend authority, immutable receipts, daily/all-
    time summaries, rollback and abuse recovery. It must not silently tax player

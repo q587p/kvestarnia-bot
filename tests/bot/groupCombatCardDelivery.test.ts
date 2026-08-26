@@ -67,6 +67,50 @@ describe("group-combat canonical participant delivery", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { label: "acknowledges", fails: false },
+    { label: "records a bounded failure", fails: true }
+  ])("$label a durable weekly achievement claim only after Telegram delivery", async ({ fails }) => {
+    const sendError = { error_code: 503 };
+    const sendMessage = fails
+      ? vi.fn().mockRejectedValue(sendError)
+      : vi.fn().mockResolvedValue({ message_id: 93 });
+    const markWeeklyAchievementNoticeSent = vi.fn().mockResolvedValue(true);
+    const recordWeeklyAchievementNoticeFailure = vi.fn().mockResolvedValue("retry-scheduled");
+    const claim = { entitlementId: "weekly-entitlement-1", claimToken: "claim-1", attemptCount: 1 };
+
+    await expect(deliverGroupCombatSettlementNotifications(
+      { sendMessage } as unknown as Api,
+      [{
+        telegramUserId: 1001n,
+        characterId: "character-1",
+        characterName: "Лідерка",
+        classId: "class.priest",
+        raceId: "race.human-ish",
+        levelChange: null,
+        achievementUnlocks: [{
+          id: "achievement.guild.weekly-goal-completed",
+          title: "Тринадцять печаток, жодної зайвої",
+          cosmeticTitleGrantId: null,
+          unlockedAt: new Date("2026-08-24T18:00:00.000Z")
+        }],
+        weeklyAchievementClaims: [claim]
+      }],
+      {
+        markWeeklyAchievementNoticeSent,
+        recordWeeklyAchievementNoticeFailure
+      } as unknown as GroupCombatService
+    )).resolves.toBe(fails ? 0 : 1);
+
+    expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledTimes(fails ? 0 : 1);
+    expect(recordWeeklyAchievementNoticeFailure).toHaveBeenCalledTimes(fails ? 1 : 0);
+    if (fails) {
+      expect(recordWeeklyAchievementNoticeFailure).toHaveBeenCalledWith(claim, sendError);
+    } else {
+      expect(markWeeklyAchievementNoticeSent).toHaveBeenCalledWith(claim);
+    }
+  });
+
   it("orders each production intro before that participant's keyboard-bearing canonical card", async () => {
     const session = makeSession();
     session.state.rulesVersion = "group-combat.v3";

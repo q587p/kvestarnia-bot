@@ -7,6 +7,7 @@ import type {
   DailyKorchmaRoundStepResult
 } from "../../services/dailyKorchmaRoundService";
 import type { DailyKorchmaRoundAction } from "../../content/dailyKorchmaRoundContent";
+import { GUILD_GLORY_SOURCE_EXPLANATION } from "../../content/guildWeeklyGoalCopy";
 import { getLocationName } from "../../services/presenceService";
 import { presentQuestRewardBlock } from "./rewardPresenter";
 import { escapeHtml } from "./telegramHtml";
@@ -189,14 +190,20 @@ export function presentDailyKorchmaRoundStep(result: DailyKorchmaRoundStepResult
   return presentDailyKorchmaRoundFallback(result);
 }
 
-export function presentDailyKorchmaRoundClaim(result: DailyKorchmaRoundClaimResult): string {
+export function presentDailyKorchmaRoundClaim(
+  result: DailyKorchmaRoundClaimResult,
+  options: { explainGuildGlory?: boolean } = {}
+): string {
   if (result.state === "reward-claimed" || result.state === "reward-replayed") {
     return [
       "🧾 Корчмарський обхід здано",
       "",
       "Корчмар прийняв два підписи, подивився на третю катастрофу й вирішив не провокувати.",
       "",
-      presentQuestRewardBlock(result.reward)
+      presentQuestRewardBlock(result.reward),
+      ...(options.explainGuildGlory
+        ? ["", `<i>✨ ${GUILD_GLORY_SOURCE_EXPLANATION}</i>`]
+        : [])
     ].join("\n");
   }
 
