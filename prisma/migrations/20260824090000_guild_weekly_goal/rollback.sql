@@ -1,3 +1,4 @@
+DROP INDEX IF EXISTS "guild_weekly_achievement_entitlements_source_period_id_idx";
 DROP TABLE IF EXISTS "guild_weekly_achievement_entitlements";
 DROP TABLE IF EXISTS "guild_glory_receipts";
 DROP TABLE IF EXISTS "guild_weekly_reconciliations";

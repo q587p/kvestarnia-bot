@@ -215,6 +215,15 @@ available evidence and freeze non-revoking provenance; later evidence cannot
 rewrite a delivered source. Recreation or remort only reprojects the same
 entitlement and never sends a second notice.
 
+That entitlement deliberately stores frozen scalar `sourcePeriodId`,
+`sourcePeriodKey` and `entitledAt` provenance without a restrictive relation to
+the live guild-period graph. Local account reset may delete a founder-owned
+guild and its weekly evidence, but it removes only the reset User's entitlement
+and outbox rows. Every surviving User keeps the same entitlement id, source,
+projection and `PENDING`/`CLAIMED`/`SENT`/`PERMANENT_FAILURE` delivery state,
+including attempts, lease/backoff and notification timestamps. Reprojection
+onto a replacement Character cannot reopen an already sent Telegram notice.
+
 ## Future guild-system backlog
 
 The following ideas are recorded for later version tasks only. They do not

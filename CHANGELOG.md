@@ -15,7 +15,7 @@
 ### Changed
 - Ordinary production GroupCombat starts now freeze internal User-level weekly identity. Every frozen eligible terminal session receives one typed credited/ineligible reconciliation decision, so bounded repair advances past rejected rows and recovers pre-rollover completions into their authoritative old period.
 - Added `GUILD_WEEKLY_GOAL_ENABLED=false` as a deploy-safe kill switch; disabling it hides weekly/Glory hub and board reads and blocks new eligibility/writes while preserving existing evidence and ordinary party expeditions.
-- Restored atomic `/dev_delete_account` compatibility with the weekly graph: reset identities leave no entitlement/outbox, contributor, snapshot or dev-override rows; surviving override periods recompute from receipts, while deleted-guild weekly evidence is removed child-first and retained combat sessions become weekly-ineligible before replay.
+- Restored atomic `/dev_delete_account` compatibility with the weekly graph: reset identities leave no own entitlement/outbox, contributor, snapshot or dev-override rows; surviving override periods recompute from receipts, while deleted-guild weekly evidence is removed child-first and retained combat sessions become weekly-ineligible before replay. Other Users keep the same frozen entitlement provenance and exact notification state even when its founder-owned source period is deleted, so Character recreation cannot reopen an already sent notice.
 - Labeled closed-alpha weekly counters as cumulative/current totals rather than `[from, to)` KPIs, and documented achievement provenance as the immutable first durable threshold crossing.
 - Restored the public Guild Nest contract: nonmembers can read the guild-only Glory and Primacy rankings, while only active guild aggregates appear and own-place recovery remains member-specific.
 - Split the personal guild opt-in into a private management screen and a separate compact forwardable invitation card, so forwarding no longer carries code-management instructions.
@@ -24,7 +24,7 @@
 
 ### Security
 - Guild selection uses active historical membership at the terminal timestamp, freezes contributor Character/remort identity plus the completion guild name/crest, caps progress at the canonical thirteenth expedition and publishes no participant identity, role, location, token or private timestamp.
-- Additive migration `20260824090000_guild_weekly_goal` stores periods, unique session/contributor/reconciliation/Glory/achievement evidence and start-time User snapshots. Its paired rollback and apply→rollback→restore smoke preserve unrelated populated User, Character, Guild, PartySession and GroupCombat rows.
+- Additive migration `20260824090000_guild_weekly_goal` stores periods, unique session/contributor/reconciliation/Glory/achievement evidence and start-time User snapshots. Achievement entitlements retain frozen source-period scalars without a restrictive live-period foreign key. Its paired rollback and apply→rollback→restore smoke preserve unrelated populated User, Character, Guild, PartySession and GroupCombat rows.
 
 All notable project changes are documented here.
 

@@ -121,8 +121,6 @@ CREATE TABLE "guild_weekly_achievement_entitlements" (
   "notified_at" DATETIME,
   "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "guild_weekly_achievement_entitlements_source_period_id_fkey"
-    FOREIGN KEY ("source_period_id") REFERENCES "guild_weekly_goal_periods" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "guild_weekly_achievement_entitlements_notification_state_check"
     CHECK ("notification_state" IN ('PENDING', 'CLAIMED', 'SENT', 'PERMANENT_FAILURE')),
   CONSTRAINT "guild_weekly_achievement_entitlements_notification_attempt_check"
@@ -161,6 +159,8 @@ CREATE INDEX "guild_glory_receipts_guild_id_awarded_at_idx"
 ON "guild_glory_receipts"("guild_id", "awarded_at");
 CREATE UNIQUE INDEX "guild_weekly_achievement_entitlements_user_id_achievement_id_key"
 ON "guild_weekly_achievement_entitlements"("user_id", "achievement_id");
+CREATE INDEX "guild_weekly_achievement_entitlements_source_period_id_idx"
+ON "guild_weekly_achievement_entitlements"("source_period_id");
 CREATE INDEX "guild_weekly_achievement_entitlements_notification_state_notification_next_attempt_at_entitled_at_id_idx"
 ON "guild_weekly_achievement_entitlements"("notification_state", "notification_next_attempt_at", "entitled_at", "id");
 CREATE INDEX "guild_weekly_achievement_entitlements_notification_state_notification_claimed_until_entitled_at_id_idx"

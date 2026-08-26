@@ -423,6 +423,12 @@ pagination, member-only off-page own place and absence of private
 `Ґільдійний статут`, і `Книга слави`; опис Гнізда окремо лишається серед місцин.
 `/dev_guild_weekly` ремонтує oldest-first receipts, а `finish` створює стабільне
 QA-only canonical completion evidence; у production команда відсутня.
+Для founder-reset smoke створи завершений період із `SENT`-ачівкою іншого
+учасника та retrying notice ще одного. `/dev_delete_account ПІДТВЕРДЖУЮ` для
+засновника має прибрати його ґільдійний граф, але не змінити entitlement id,
+provenance, delivery state, attempts, lease/backoff чи timestamps тих, хто
+лишився. Після recreation персонажа `SENT`-entitlement проєктується один раз без
+повторного Telegram notice.
 
 ## Сервісні команди
 

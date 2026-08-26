@@ -651,18 +651,8 @@ export async function recomputeGuildWeeklyPeriodArtifacts(
   const justCompleted = !period.completedAt && canonicalCompletedAt !== null;
   await tx.guildWeeklyGoalPeriod.update({ where: { id: period.id }, data: { progressCount, completedAt: canonicalCompletedAt } });
   if (!canonicalCompletedAt) {
-    const pendingEntitlements = await tx.guildWeeklyAchievementEntitlement.findMany({
-      where: { sourcePeriodId: period.id, projectedAt: null, notifiedAt: null },
-      select: { userId: true }
-    });
-    await tx.guildWeeklyAchievementEntitlement.deleteMany({
-      where: { sourcePeriodId: period.id, projectedAt: null, notifiedAt: null }
-    });
     await tx.guildGloryReceipt.deleteMany({ where: { periodId: period.id } });
     await tx.activityEvent.deleteMany({ where: { dedupeKey: `guild.weekly_goal_completed:${period.id}` } });
-    for (const userId of new Set(pendingEntitlements.map((row) => row.userId))) {
-      await syncUserEntitlements(tx, userId);
-    }
     return false;
   }
   await tx.guildGloryReceipt.upsert({

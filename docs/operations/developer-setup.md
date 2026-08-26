@@ -106,7 +106,10 @@ local Chronicle evidence. Weekly cleanup also removes the reset identity from
 entitlements, notification claims, contributor/snapshot rows and dev overrides.
 Surviving guild periods are receipt-recomputed; deleted-guild combat history is
 retained but frozen weekly-ineligible so no credited decision can outlive its
-receipt. The helper is not registered in production and never touches a hosted
+receipt. A founder-owned period may disappear, but another User's frozen weekly
+achievement entitlement and notification state have no live-period foreign key
+and remain unchanged; only the reset User's own entitlement/outbox rows are
+removed. The helper is not registered in production and never touches a hosted
 database.
 
 ### HP recovery notification rollout

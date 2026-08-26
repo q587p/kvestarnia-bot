@@ -344,7 +344,6 @@ model GuildWeeklyGoalPeriod {
   updatedAt     DateTime @updatedAt @map("updated_at")
   contributions GuildWeeklyContribution[]
   gloryReceipt GuildGloryReceipt?
-  achievementEntitlements GuildWeeklyAchievementEntitlement[]
 
   @@unique([guildId, periodKey, goalKey])
   @@index([periodKey, completedAt])
@@ -432,7 +431,6 @@ model GuildWeeklyAchievementEntitlement {
   userId               String                @map("user_id")
   achievementId        String                @map("achievement_id")
   sourcePeriodId       String                @map("source_period_id")
-  sourcePeriod         GuildWeeklyGoalPeriod @relation(fields: [sourcePeriodId], references: [id], onDelete: Restrict)
   sourcePeriodKey      String                @map("source_period_key")
   entitledAt           DateTime              @map("entitled_at")
   projectedCharacterId String?               @map("projected_character_id")
@@ -450,6 +448,7 @@ model GuildWeeklyAchievementEntitlement {
   updatedAt            DateTime              @updatedAt @map("updated_at")
 
   @@unique([userId, achievementId])
+  @@index([sourcePeriodId])
   @@index([notificationState, notificationNextAttemptAt, entitledAt, id])
   @@index([notificationState, notificationClaimedUntil, entitledAt, id])
   @@index([userId, projectedCharacterId, notifiedAt])

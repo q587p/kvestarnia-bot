@@ -235,6 +235,54 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
     await expect(prisma.guildWeeklyAchievementEntitlement.count({ where: { userId: "user-a" } })).resolves.toBe(1);
   });
 
+  it("keeps a pending User entitlement immutable when its source period is recomputed incomplete", async () => {
+    const isolatedDirectory = await mkdtemp(join(tmpdir(), "kvestarnia-weekly-non-revoking-"));
+    const isolated = new PrismaClient({
+      datasources: { db: { url: `file:${join(isolatedDirectory, "non-revoking.db").replace(/\\/gu, "/")}` } }
+    });
+    try {
+      await createBaseSchema(isolated);
+      await applySqlFile(isolated, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
+      await seedGuild(isolated);
+      const isolatedRepository = new PrismaGuildWeeklyGoalRepository(isolated);
+      const completed = await isolatedRepository.completeCurrentForDev(
+        70_001n,
+        new Date("2026-08-25T12:00:00.000Z")
+      );
+      if (completed.state !== "ready" || !completed.progress.periodId) {
+        throw new Error("Expected dev period evidence.");
+      }
+      const entitlementBefore = await isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: {
+          userId_achievementId: {
+            userId: "user-a",
+            achievementId: "achievement.guild.weekly-goal-completed"
+          }
+        }
+      });
+      expect(entitlementBefore.notificationState).toBe("PENDING");
+
+      await isolated.guildWeeklyGoalPeriod.update({
+        where: { id: completed.progress.periodId },
+        data: { devOverrideCompletedAt: null, devOverrideUserId: null }
+      });
+      await expect(isolatedRepository.recomputePeriod("12026-W35")).resolves.toBe(1);
+
+      await expect(isolated.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+        where: { id: entitlementBefore.id }
+      })).resolves.toEqual(entitlementBefore);
+      await expect(isolated.guildGloryReceipt.count({
+        where: { periodId: completed.progress.periodId }
+      })).resolves.toBe(0);
+      await expect(isolated.activityEvent.count({
+        where: { dedupeKey: `guild.weekly_goal_completed:${completed.progress.periodId}` }
+      })).resolves.toBe(0);
+    } finally {
+      await isolated.$disconnect();
+      await rm(isolatedDirectory, { recursive: true, force: true });
+    }
+  });
+
   it("advances a bounded repair queue past thirteen rejected terminals and recovers an old Sunday after Monday", async () => {
     const sunday = new Date("2026-09-06T20:59:00.000Z");
     for (let index = 0; index < 13; index += 1) {
@@ -823,6 +871,52 @@ describe("PrismaGuildWeeklyGoalRepository integration", () => {
         "notification_permanent_failure_at",
         "notification_last_error_category"
       ]));
+      const entitlementForeignKeys = await smoke.$queryRawUnsafe<Array<{ table: string; from: string }>>(
+        `PRAGMA foreign_key_list('guild_weekly_achievement_entitlements')`
+      );
+      expect(entitlementForeignKeys).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ table: "guild_weekly_goal_periods", from: "source_period_id" })
+      ]));
+      const entitlementIndexes = await smoke.$queryRawUnsafe<Array<{ name: string }>>(
+        `PRAGMA index_list('guild_weekly_achievement_entitlements')`
+      );
+      expect(entitlementIndexes.map((index) => index.name)).toContain(
+        "guild_weekly_achievement_entitlements_source_period_id_idx"
+      );
+      await smoke.$executeRawUnsafe(`
+        INSERT INTO guild_weekly_goal_periods (
+          id, guild_id, period_key, goal_key, guild_name_snapshot, guild_crest_snapshot,
+          target_count, progress_count, completed_at, updated_at
+        ) VALUES (
+          'removed-provenance-period', 'keep-guild', '12026-W35',
+          'ordinary-party-expeditions.v1', 'Збережена', '🧷', 13, 13,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `);
+      await smoke.$executeRawUnsafe(`
+        INSERT INTO guild_weekly_achievement_entitlements (
+          id, user_id, achievement_id, source_period_id, source_period_key,
+          entitled_at, notification_state, notification_attempt_count,
+          notification_next_attempt_at, created_at, updated_at
+        ) VALUES (
+          'frozen-provenance-entitlement', 'keep-user',
+          'achievement.guild.weekly-goal-completed', 'removed-provenance-period',
+          '12026-W35', CURRENT_TIMESTAMP, 'SENT', 3,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `);
+      await smoke.$executeRawUnsafe(
+        `DELETE FROM guild_weekly_goal_periods WHERE id = 'removed-provenance-period'`
+      );
+      const retainedProvenance = await smoke.$queryRawUnsafe<Array<{ source_period_id: string }>>(
+        `SELECT source_period_id FROM guild_weekly_achievement_entitlements
+         WHERE id = 'frozen-provenance-entitlement'`
+      );
+      expect(retainedProvenance).toEqual([{ source_period_id: "removed-provenance-period" }]);
+      const foreignKeyViolations = await smoke.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        "PRAGMA foreign_key_check"
+      );
+      expect(foreignKeyViolations).toEqual([]);
       await expect(smoke.user.count()).resolves.toBe(1);
     } finally {
       await smoke.$disconnect();

@@ -5,6 +5,9 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaDevAccountResetRepository } from "../../src/db/repositories/prismaDevAccountResetRepository";
 import { PrismaGuildWeeklyGoalRepository } from "../../src/db/repositories/prismaGuildWeeklyGoalRepository";
+import { PrismaAchievementRepository } from "../../src/db/repositories/prismaAchievementRepository";
+import { AchievementService } from "../../src/services/achievementService";
+import { GuildWeeklyGoalService } from "../../src/services/guildWeeklyGoalService";
 import {
   GUILD_WEEKLY_ACHIEVEMENT_ID,
   GUILD_WEEKLY_THIRTEEN_PERIODS_ACHIEVEMENT_ID,
@@ -25,6 +28,7 @@ describe("PrismaDevAccountResetRepository integration", () => {
     const databaseUrl = `file:${databasePath}`;
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
     await createBaseSchema(prisma);
+    await applySqlFile(prisma, "prisma/migrations/20260628090000_add_achievements/migration.sql");
     await applySqlFile(prisma, "prisma/migrations/20260819090000_referral_foundation/migration.sql");
     await applySqlFile(prisma, "prisma/migrations/20260824090000_guild_weekly_goal/migration.sql");
     repository = new PrismaDevAccountResetRepository(prisma);
@@ -308,14 +312,20 @@ describe("PrismaDevAccountResetRepository integration", () => {
     await expectWeeklyUserIdAbsent(prisma, recreated.id);
   }, 30_000);
 
-  it("deletes a founder-owned weekly graph while retaining ordinary combat and unrelated guild evidence", async () => {
+  it("deletes a founder-owned weekly graph without revoking survivor entitlements or notification state", async () => {
     const founder = await seedUser(prisma, "weekly-founder-reset", 65_201n, "Засновник");
     const survivor = await seedUser(prisma, "weekly-founder-survivor", 65_202n, "Свідок");
     const unrelatedOwner = await seedUser(prisma, "weekly-unrelated-owner", 65_203n, "Інша власниця");
+    const retrySurvivor = await seedUser(prisma, "weekly-retry-survivor", 65_204n, "Невідступна");
     const founderCharacter = await seedCharacter(prisma, founder.id, "weekly-founder-character", "Засновник");
     const survivorCharacter = await seedCharacter(prisma, survivor.id, "weekly-founder-survivor-character", "Свідок");
     const unrelatedCharacter = await seedCharacter(prisma, unrelatedOwner.id, "weekly-unrelated-character", "Інша власниця");
-    const ownedGuild = await seedGuild(prisma, "weekly-owned-guild", founder.id, [founder.id, survivor.id]);
+    const retryCharacter = await seedCharacter(prisma, retrySurvivor.id, "weekly-retry-character", "Невідступна");
+    const ownedGuild = await seedGuild(prisma, "weekly-owned-guild", founder.id, [
+      founder.id,
+      survivor.id,
+      retrySurvivor.id
+    ]);
     const unrelatedGuild = await seedGuild(prisma, "weekly-unrelated-guild", unrelatedOwner.id, [unrelatedOwner.id]);
     const completedAt = new Date("2026-08-25T08:13:00.000Z");
     const ownedContributions = Array.from({ length: 13 }, (_, index) => ({
@@ -324,7 +334,8 @@ describe("PrismaDevAccountResetRepository integration", () => {
       completedAt: new Date(completedAt.getTime() - (12 - index) * 60_000),
       contributors: [
         { userId: founder.id, characterId: founderCharacter.id },
-        { userId: survivor.id, characterId: survivorCharacter.id }
+        { userId: survivor.id, characterId: survivorCharacter.id },
+        { userId: retrySurvivor.id, characterId: retryCharacter.id }
       ]
     }));
     const ownedPeriod = await seedWeeklyPeriod(prisma, {
@@ -337,23 +348,65 @@ describe("PrismaDevAccountResetRepository integration", () => {
     await seedEntitlement(prisma, "weekly-owned-founder-entitlement", founder.id, GUILD_WEEKLY_ACHIEVEMENT_ID, ownedPeriod.id, "12026-W35", completedAt, {
       state: "CLAIMED", claimToken: "owned-claim"
     });
+    const survivorNotifiedAt = new Date(completedAt.getTime() + 60_000);
     await seedEntitlement(prisma, "weekly-owned-survivor-entitlement", survivor.id, GUILD_WEEKLY_ACHIEVEMENT_ID, ownedPeriod.id, "12026-W35", completedAt, {
-      state: "SENT"
+      state: "SENT",
+      attemptCount: 3,
+      nextAttemptAt: new Date(completedAt.getTime() + 23_000),
+      projectedCharacterId: survivorCharacter.id,
+      projectedAt: completedAt,
+      notifiedAt: survivorNotifiedAt
     });
+    await prisma.characterAchievement.create({
+      data: {
+        id: "weekly-owned-survivor-character-achievement",
+        characterId: survivorCharacter.id,
+        achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID,
+        sourceType: "guild.weekly_goal_completed",
+        sourceId: ownedPeriod.id,
+        unlockedAt: completedAt,
+        notifiedAt: survivorNotifiedAt
+      }
+    });
+    const retryNextAttemptAt = new Date(completedAt.getTime() + 120_000);
+    const retryClaimedUntil = new Date(completedAt.getTime() + 180_000);
+    await seedEntitlement(prisma, "weekly-owned-retry-entitlement", retrySurvivor.id, GUILD_WEEKLY_ACHIEVEMENT_ID, ownedPeriod.id, "12026-W35", completedAt, {
+      state: "CLAIMED",
+      claimToken: "survivor-active-claim",
+      attemptCount: 4,
+      nextAttemptAt: retryNextAttemptAt,
+      claimedUntil: retryClaimedUntil,
+      projectedCharacterId: retryCharacter.id,
+      projectedAt: completedAt
+    });
+    const unrelatedCompletedAt = new Date("2026-08-25T10:13:00.000Z");
+    const unrelatedContributions = Array.from({ length: 13 }, (_, index) => ({
+      id: `weekly-unrelated-contribution-${index + 1}`,
+      sessionId: `weekly-unrelated-session-${index + 1}`,
+      completedAt: new Date(unrelatedCompletedAt.getTime() - (12 - index) * 60_000),
+      contributors: [
+        { userId: survivor.id, characterId: survivorCharacter.id },
+        { userId: unrelatedOwner.id, characterId: unrelatedCharacter.id }
+      ]
+    }));
     const unrelatedPeriod = await seedWeeklyPeriod(prisma, {
       id: "weekly-unrelated-period",
       guildId: unrelatedGuild.id,
       periodKey: "12026-W35",
-      completedAt: null,
-      contributions: [{
-        id: "weekly-unrelated-contribution",
-        sessionId: "weekly-unrelated-session",
-        completedAt: new Date("2026-08-25T09:00:00.000Z"),
-        contributors: [{ userId: unrelatedOwner.id, characterId: unrelatedCharacter.id }]
-      }]
+      completedAt: unrelatedCompletedAt,
+      contributions: unrelatedContributions
     });
+    const survivorEntitlementBefore = await selectEntitlementState(
+      prisma,
+      "weekly-owned-survivor-entitlement"
+    );
+    const retryEntitlementBefore = await selectEntitlementState(
+      prisma,
+      "weekly-owned-retry-entitlement"
+    );
 
     await expect(repository.deleteEverythingByTelegramUserId(65_201n)).resolves.toBe(true);
+    await expect(repository.deleteEverythingByTelegramUserId(65_201n)).resolves.toBe(false);
 
     await expectWeeklyUserIdAbsent(prisma, founder.id);
     await expect(prisma.guild.findUnique({ where: { id: ownedGuild.id } })).resolves.toBeNull();
@@ -361,6 +414,37 @@ describe("PrismaDevAccountResetRepository integration", () => {
     await expect(prisma.guildWeeklyContribution.count({ where: { guildId: ownedGuild.id } })).resolves.toBe(0);
     await expect(prisma.guildGloryReceipt.count({ where: { guildId: ownedGuild.id } })).resolves.toBe(0);
     await expect(prisma.activityEvent.count({ where: { sourceId: ownedPeriod.id } })).resolves.toBe(0);
+    await expect(prisma.guildWeeklyAchievementEntitlement.findUnique({
+      where: { id: "weekly-owned-founder-entitlement" }
+    })).resolves.toBeNull();
+    await expect(selectEntitlementState(prisma, "weekly-owned-survivor-entitlement"))
+      .resolves.toEqual(survivorEntitlementBefore);
+    await expect(selectEntitlementState(prisma, "weekly-owned-retry-entitlement"))
+      .resolves.toEqual(retryEntitlementBefore);
+    await expect(prisma.guildWeeklyAchievementEntitlement.count({
+      where: { userId: survivor.id, achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID }
+    })).resolves.toBe(1);
+    expect(survivorEntitlementBefore).toMatchObject({
+      id: "weekly-owned-survivor-entitlement",
+      userId: survivor.id,
+      achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID,
+      sourcePeriodId: ownedPeriod.id,
+      sourcePeriodKey: "12026-W35",
+      entitledAt: completedAt,
+      notificationState: "SENT",
+      notificationAttemptCount: 3,
+      notifiedAt: survivorNotifiedAt
+    });
+    expect(retryEntitlementBefore).toMatchObject({
+      id: "weekly-owned-retry-entitlement",
+      userId: retrySurvivor.id,
+      sourcePeriodId: ownedPeriod.id,
+      notificationState: "CLAIMED",
+      notificationAttemptCount: 4,
+      notificationNextAttemptAt: retryNextAttemptAt,
+      notificationClaimToken: "survivor-active-claim",
+      notificationClaimedUntil: retryClaimedUntil
+    });
     await expect(prisma.groupCombatSession.count({
       where: {
         id: { in: ownedContributions.map((row) => row.sessionId) },
@@ -378,13 +462,28 @@ describe("PrismaDevAccountResetRepository integration", () => {
     })).resolves.toBe(13);
     await expect(prisma.guild.findUnique({ where: { id: unrelatedGuild.id } })).resolves.toMatchObject({ id: unrelatedGuild.id });
     await expect(prisma.guildWeeklyGoalPeriod.findUnique({ where: { id: unrelatedPeriod.id } })).resolves.toMatchObject({
-      progressCount: 1
+      progressCount: 13,
+      completedAt: unrelatedCompletedAt
     });
     await expect(prisma.groupCombatSession.findUnique({
-      where: { id: "weekly-unrelated-session" },
+      where: { id: "weekly-unrelated-session-1" },
       select: { id: true, guildWeeklyGoalEligible: true }
     }))
       .resolves.toMatchObject({ guildWeeklyGoalEligible: true });
+    const weeklyRepository = new PrismaGuildWeeklyGoalRepository(prisma);
+    await expect(weeklyRepository.recomputePeriod("12026-W35")).resolves.toBe(0);
+    await expect(selectEntitlementState(prisma, "weekly-owned-survivor-entitlement"))
+      .resolves.toEqual(survivorEntitlementBefore);
+    const retryService = new GuildWeeklyGoalService(
+      weeklyRepository,
+      { enabled: true, devHelpersEnabled: false },
+      () => new Date(retryClaimedUntil.getTime() - 1)
+    );
+    await expect(retryService.claimAchievementNotices(
+      13,
+      65_204n,
+      { projectEntitlements: false }
+    )).resolves.toEqual([]);
     const replay = await new PrismaGuildWeeklyGoalRepository(prisma)
       .recordEligibleTerminalSession(ownedContributions[0]!.sessionId);
     expect(replay).toEqual({
@@ -395,8 +494,83 @@ describe("PrismaDevAccountResetRepository integration", () => {
     await expect(prisma.guildWeeklyReconciliation.findUnique({
       where: { sessionId: ownedContributions[0]!.sessionId }
     })).resolves.toMatchObject({ decision: "ineligible", reason: "feature-not-frozen" });
+
+    await prisma.character.delete({ where: { id: survivorCharacter.id } });
+    await expect(prisma.characterAchievement.count({
+      where: { characterId: survivorCharacter.id }
+    })).resolves.toBe(0);
+    const recreatedCharacter = await seedCharacter(
+      prisma,
+      survivor.id,
+      "weekly-founder-survivor-character-recreated",
+      "Свідок знову"
+    );
+    const projectionNow = new Date("2026-08-25T12:13:00.000Z");
+    const projectionService = new GuildWeeklyGoalService(
+      weeklyRepository,
+      { enabled: true, devHelpersEnabled: false },
+      () => projectionNow,
+      new AchievementService(new PrismaAchievementRepository(prisma))
+    );
+    await expect(projectionService.getCurrentForTelegramUser(65_202n)).resolves.toMatchObject({
+      state: "not-member"
+    });
+    await expect(projectionService.getCurrentForTelegramUser(65_202n)).resolves.toMatchObject({
+      state: "not-member"
+    });
+    await expect(prisma.characterAchievement.findMany({
+      where: {
+        characterId: recreatedCharacter.id,
+        achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID
+      },
+      select: { achievementId: true, sourceId: true, unlockedAt: true }
+    })).resolves.toEqual([{
+      achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID,
+      sourceId: ownedPeriod.id,
+      unlockedAt: completedAt
+    }]);
+    await expect(projectionService.claimAchievementNotices(13, 65_202n)).resolves.toEqual([]);
+    await expect(prisma.guildWeeklyAchievementEntitlement.count({
+      where: { userId: survivor.id, achievementId: GUILD_WEEKLY_ACHIEVEMENT_ID }
+    })).resolves.toBe(1);
+    await expect(prisma.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+      where: { id: "weekly-owned-survivor-entitlement" },
+      select: {
+        id: true,
+        sourcePeriodId: true,
+        sourcePeriodKey: true,
+        entitledAt: true,
+        projectedCharacterId: true,
+        projectedRemortCount: true,
+        projectedAt: true,
+        notificationState: true,
+        notificationAttemptCount: true,
+        notificationNextAttemptAt: true,
+        notificationClaimToken: true,
+        notificationClaimedUntil: true,
+        notificationPermanentFailureAt: true,
+        notificationLastErrorCategory: true,
+        notifiedAt: true
+      }
+    })).resolves.toEqual({
+      id: "weekly-owned-survivor-entitlement",
+      sourcePeriodId: ownedPeriod.id,
+      sourcePeriodKey: "12026-W35",
+      entitledAt: completedAt,
+      projectedCharacterId: recreatedCharacter.id,
+      projectedRemortCount: 0,
+      projectedAt: projectionNow,
+      notificationState: "SENT",
+      notificationAttemptCount: 3,
+      notificationNextAttemptAt: new Date(completedAt.getTime() + 23_000),
+      notificationClaimToken: null,
+      notificationClaimedUntil: null,
+      notificationPermanentFailureAt: null,
+      notificationLastErrorCategory: null,
+      notifiedAt: survivorNotifiedAt
+    });
     await expectForeignKeysValid(prisma);
-  }, 30_000);
+  }, 60_000);
 
   it("clears a surviving dev override and recomputes incomplete and receipt-complete periods", async () => {
     const resetUser = await seedUser(prisma, "weekly-override-reset", 65_301n, "Перевизначення");
@@ -675,7 +849,19 @@ async function seedEntitlement(
   sourcePeriodId: string,
   sourcePeriodKey: string,
   entitledAt: Date,
-  notification: { state: "PENDING" | "CLAIMED" | "SENT" | "PERMANENT_FAILURE"; claimToken?: string }
+  notification: {
+    state: "PENDING" | "CLAIMED" | "SENT" | "PERMANENT_FAILURE";
+    claimToken?: string;
+    attemptCount?: number;
+    nextAttemptAt?: Date;
+    claimedUntil?: Date;
+    permanentFailureAt?: Date;
+    lastErrorCategory?: string;
+    notifiedAt?: Date;
+    projectedCharacterId?: string;
+    projectedRemortCount?: number;
+    projectedAt?: Date;
+  }
 ): Promise<void> {
   await prisma.guildWeeklyAchievementEntitlement.create({
     data: {
@@ -685,14 +871,51 @@ async function seedEntitlement(
       sourcePeriodId,
       sourcePeriodKey,
       entitledAt,
-      notificationState: notification.state,
-      notificationNextAttemptAt: entitledAt,
-      notificationClaimToken: notification.claimToken,
-      notificationClaimedUntil: notification.state === "CLAIMED"
-        ? new Date(entitledAt.getTime() + 93_000)
+      projectedCharacterId: notification.projectedCharacterId,
+      projectedRemortCount: notification.projectedCharacterId
+        ? notification.projectedRemortCount ?? 0
         : null,
-      notificationPermanentFailureAt: notification.state === "PERMANENT_FAILURE" ? entitledAt : null,
-      notifiedAt: notification.state === "SENT" ? entitledAt : null
+      projectedAt: notification.projectedAt,
+      notificationState: notification.state,
+      notificationAttemptCount: notification.attemptCount ?? 0,
+      notificationNextAttemptAt: notification.nextAttemptAt ?? entitledAt,
+      notificationClaimToken: notification.claimToken,
+      notificationClaimedUntil: notification.claimedUntil ?? (notification.state === "CLAIMED"
+        ? new Date(entitledAt.getTime() + 93_000)
+        : null),
+      notificationPermanentFailureAt: notification.permanentFailureAt
+        ?? (notification.state === "PERMANENT_FAILURE" ? entitledAt : null),
+      notificationLastErrorCategory: notification.lastErrorCategory,
+      notifiedAt: notification.notifiedAt ?? (notification.state === "SENT"
+        ? entitledAt
+        : null)
+    }
+  });
+}
+
+function selectEntitlementState(prisma: PrismaClient, id: string) {
+  return prisma.guildWeeklyAchievementEntitlement.findUniqueOrThrow({
+    where: { id },
+    select: {
+      id: true,
+      userId: true,
+      achievementId: true,
+      sourcePeriodId: true,
+      sourcePeriodKey: true,
+      entitledAt: true,
+      projectedCharacterId: true,
+      projectedRemortCount: true,
+      projectedAt: true,
+      notificationState: true,
+      notificationAttemptCount: true,
+      notificationNextAttemptAt: true,
+      notificationClaimToken: true,
+      notificationClaimedUntil: true,
+      notificationPermanentFailureAt: true,
+      notificationLastErrorCategory: true,
+      notifiedAt: true,
+      createdAt: true,
+      updatedAt: true
     }
   });
 }

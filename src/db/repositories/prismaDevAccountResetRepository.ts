@@ -144,9 +144,6 @@ export class PrismaDevAccountResetRepository implements DevAccountResetRepositor
       }
 
       if (ownedWeeklyPeriodIds.length > 0) {
-        await tx.guildWeeklyAchievementEntitlement.deleteMany({
-          where: { sourcePeriodId: { in: ownedWeeklyPeriodIds } }
-        });
         await tx.guildGloryReceipt.deleteMany({ where: { periodId: { in: ownedWeeklyPeriodIds } } });
         await tx.activityEvent.deleteMany({
           where: { sourceType: "guild-weekly-goal", sourceId: { in: ownedWeeklyPeriodIds } }
